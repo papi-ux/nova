@@ -911,7 +911,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("focus") == s.get("game"))
     keys("Return")
     wait(lambda s: s.get("detailOpen"))
-    assert state()["metadata"]["hdrSupported"] is True
+    assert state()["game"] == "game-106" and state()["metadata"]["hdrSupported"] is False
     save_capture("android-source-details.png")
     keys("Escape")
     filter_focus(0)
@@ -927,9 +927,11 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     for game in a["metadata"]:
         if game["app_id"] in (7, 103):
             game["hdr_supported"] = False
+        elif game["app_id"] == 106:
+            game["hdr_supported"] = True
     a["release"].set()
-    visible([7, 103, 105, 42, 106, 104], filter="all", sort="source", busy=False, focus="game-7")
-    assert state()["launchEnabled"] and state()["metadata"]["hdrSupported"] is False
+    visible([7, 103, 105, 42, 106, 104], filter="all", sort="source", busy=False, focus="game-106")
+    assert state()["launchEnabled"] and state()["metadata"]["hdrSupported"] is True
     save_capture("android-source-refreshed.png")
 
     # Switching to a standard host resets host-specific constraints. It has no
