@@ -1,5 +1,6 @@
 #pragma once
 
+#include "probe_protocol.h"
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -58,6 +59,7 @@ public:
     // and returns the device's image limit bounded by our wire contract.
     int probeGpuLimit();
     const std::string& error() const;
+    RefusalCause refusalCause() const;
 private:
     struct State;
     std::shared_ptr<State> state_;

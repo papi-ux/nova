@@ -15,6 +15,24 @@
 #include <QDebug>
 
 namespace nova::deck::stream {
+namespace {
+const char* refusalMessage(nova::pyrowave::RefusalCause cause) {
+    using enum nova::pyrowave::RefusalCause;
+    switch (cause) {
+    case Api: return "PyroWave needs its bundled 0.6.0 codec library. Reinstall Nova or choose another codec.";
+    case Device: return "PyroWave could not create a Vulkan device. Check this device's Vulkan driver or choose another codec.";
+    case Decoder: return "PyroWave could not initialize or run its decoder. Restart Nova or choose another codec.";
+    case Interop: return "PyroWave needs Vulkan external-memory support on this device. Choose another codec.";
+    case DmaBuf: return "PyroWave cannot export DMA-BUF images on this device. Check the Vulkan driver or choose another codec.";
+    case Queue: return "PyroWave could not use a Vulkan graphics/compute queue. Restart Nova or choose another codec.";
+    case Limits: return "This device's Vulkan image limits cannot support PyroWave. Choose another codec.";
+    case Unavailable: return "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec.";
+    case None: return "";
+    }
+    return ""; // Unknown wire tokens are rejected before this mapping.
+}
+}
+
 DeckPyrowaveProbeResult probePyrowaveInChild(const QString& program, const QStringList& arguments, int timeoutMs) {
     const auto failed = [](const char* reason) { return DeckPyrowaveProbeResult{{}, QString::fromUtf8(reason)}; };
     if (timeoutMs <= 0) return failed("PyroWave device check timed out. Restart Nova to check again.");
@@ -59,15 +77,19 @@ DeckPyrowaveProbeResult probePyrowaveInChild(const QString& program, const QStri
     const auto object = document.object();
     const auto width = object.value("maxWidth").toDouble(-1);
     const auto height = object.value("maxHeight").toDouble(-1);
-    const bool dimensions = std::isfinite(width) && std::isfinite(height) && width == std::floor(width) &&
+    const bool dimensions = object.value("maxWidth").isDouble() && object.value("maxHeight").isDouble() && std::isfinite(width) && std::isfinite(height) && width == std::floor(width) &&
         height == std::floor(height) && width >= 0 && height >= 0 && width <= 65536 && height <= 65536;
-    if (output.size() > 4096 || !document.isObject() || object.value("version").toDouble() != 1 ||
-        !object.value("available").isBool() || !dimensions ||
-        (object.value("available").toBool() ? width == 0 || height == 0 : width != 0 || height != 0))
+    const auto token = object.value("reason").toString().toUtf8();
+    const auto cause = nova::pyrowave::parseRefusalCause(std::string_view(token.constData(), token.size()));
+    const auto available = object.value("available").toBool();
+    if (output.size() > 4096 || !document.isObject() || object.size() != 5 ||
+        !object.value("version").isDouble() || object.value("version").toDouble() != nova::pyrowave::probeProtocolVersion ||
+        !object.value("available").isBool() || !object.value("reason").isString() || !dimensions || !cause ||
+        !nova::pyrowave::validProbeResult(available, static_cast<int>(width), static_cast<int>(height), *cause))
         return failed("PyroWave device check returned an invalid result. Choose another codec.");
-    if (!object.value("available").toBool())
-        return failed("PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec.");
-    return {{static_cast<int>(width), static_cast<int>(height)}, {}};
+    if (!available)
+        return {{}, QString::fromUtf8(refusalMessage(*cause)), cause};
+    return {{static_cast<int>(width), static_cast<int>(height)}, {}, cause};
 }
 
 DeckPyrowaveProbeResult DeckPyrowaveProbeCache::get(const QString& key,

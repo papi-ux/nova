@@ -126,6 +126,7 @@ struct Codec::State {
     pyrowave_decoder decoder = nullptr;
     int width = 0, height = 0;
     std::string error;
+    RefusalCause refusal = RefusalCause::None;
     VkDevice vkDevice = VK_NULL_HANDLE;
     VkPhysicalDevice physical = VK_NULL_HANDLE;
     VkCommandPool commandPool = VK_NULL_HANDLE;
@@ -144,25 +145,28 @@ struct Codec::State {
         if (commandPool) vkDestroyCommandPool(vkDevice, commandPool, nullptr);
         if (device) pyrowave_device_destroy(device);
     }
-    bool fail(std::string message) { error = std::move(message); return false; }
-    bool checked(pyrowave_result result, const char* operation) {
-        return result == PYROWAVE_SUCCESS || fail(std::string(operation) + " failed (" + std::to_string(result) + ")");
+    bool fail(std::string message, RefusalCause cause = RefusalCause::Unavailable) {
+        error = std::move(message); refusal = cause; return false;
+    }
+    bool checked(pyrowave_result result, const char* operation, RefusalCause cause = RefusalCause::Unavailable) {
+        return result == PYROWAVE_SUCCESS || fail(std::string(operation) + " failed (" + std::to_string(result) + ")", cause);
     }
 };
 Codec::Codec() : state_(std::make_shared<State>()) {}
 Codec::~Codec() = default;
 const std::string& Codec::error() const { return state_->error; }
+RefusalCause Codec::refusalCause() const { return state_->refusal; }
 void Codec::close() {
     // Exported images keep their original device alive after session teardown.
     state_ = std::make_shared<State>();
 }
 bool Codec::open(int width, int height, bool encoder) {
-    close(); state_->error.clear();
-    if (!validSize(width, height)) return state_->fail("Unsupported PyroWave frame size");
+    close(); state_->error.clear(); state_->refusal = RefusalCause::None;
+    if (!validSize(width, height)) return state_->fail("Unsupported PyroWave frame size", RefusalCause::Limits);
     std::uint32_t major = 0, minor = 0, patch = 0;
     pyrowave_get_api_version(&major, &minor, &patch);
-    if (major != 0 || minor != 6 || patch != 0) return state_->fail("Incompatible PyroWave C API; expected 0.6.0");
-    if (!state_->checked(pyrowave_create_default_device(&state_->device), "Vulkan device creation")) return false;
+    if (major != 0 || minor != 6 || patch != 0) return state_->fail("Incompatible PyroWave C API; expected 0.6.0", RefusalCause::Api);
+    if (!state_->checked(pyrowave_create_default_device(&state_->device), "Vulkan device creation", RefusalCause::Device)) return false;
     state_->width = width; state_->height = height;
     bool ok;
     if (encoder) {
@@ -174,17 +178,19 @@ bool Codec::open(int width, int height, bool encoder) {
         pyrowave_decoder_create_info info{};
         info.device = state_->device; info.width = width; info.height = height;
         info.chroma = PYROWAVE_CHROMA_SUBSAMPLING_420;
-        ok = state_->checked(pyrowave_decoder_create(&info, &state_->decoder), "PyroWave decoder creation");
+        ok = state_->checked(pyrowave_decoder_create(&info, &state_->decoder), "PyroWave decoder creation", RefusalCause::Decoder);
     }
     if (!ok) {
         auto error = state_->error;
+        const auto refusal = state_->refusal;
         close();
         state_->error = std::move(error);
+        state_->refusal = refusal;
     }
     return ok;
 }
 bool Codec::encode(const Image& image, std::size_t byteBudget, std::vector<std::uint8_t>& frame) {
-    frame.clear(); state_->error.clear();
+    frame.clear(); state_->error.clear(); state_->refusal = RefusalCause::None;
     if (!state_->encoder || !image.valid() || image.width != state_->width || image.height != state_->height ||
         byteBudget < 1024 || byteBudget > maxFrameBytes / 2) return state_->fail("Invalid PyroWave encode request");
     auto buffer = cpuBuffer(image);
@@ -210,31 +216,31 @@ bool Codec::encode(const Image& image, std::size_t byteBudget, std::vector<std::
     return true;
 }
 bool Codec::decode(std::span<const std::uint8_t> frame, Image& image) {
-    state_->error.clear();
+    state_->error.clear(); state_->refusal = RefusalCause::None;
     std::vector<std::span<const std::uint8_t>> packets;
     if (!state_->decoder || !unpackFrame(frame, state_->width, state_->height, packets))
-        return state_->fail("Invalid or incompatible PyroWave frame");
+        return state_->fail("Invalid or incompatible PyroWave frame", RefusalCause::Decoder);
     pyrowave_decoder_clear(state_->decoder);
     for (const auto packet : packets) {
-        if (!state_->checked(pyrowave_decoder_push_packet(state_->decoder, packet.data(), packet.size()), "PyroWave packet decode")) {
+        if (!state_->checked(pyrowave_decoder_push_packet(state_->decoder, packet.data(), packet.size()), "PyroWave packet decode", RefusalCause::Decoder)) {
             pyrowave_decoder_clear(state_->decoder);
             return false;
         }
     }
     if (!pyrowave_decoder_decode_is_ready(state_->decoder, false)) {
         pyrowave_decoder_clear(state_->decoder);
-        return state_->fail("Incomplete PyroWave frame");
+        return state_->fail("Incomplete PyroWave frame", RefusalCause::Decoder);
     }
     // A failed decode never replaces the previously displayed image.
     auto next = Image::allocate(state_->width, state_->height);
     auto buffer = cpuBuffer(next);
-    if (!state_->checked(pyrowave_decoder_decode_cpu_buffer_synchronous(state_->decoder, &buffer), "PyroWave GPU decode")) return false;
+    if (!state_->checked(pyrowave_decoder_decode_cpu_buffer_synchronous(state_->decoder, &buffer), "PyroWave GPU decode", RefusalCause::Decoder)) return false;
     image = std::move(next);
     return true;
 }
 
 int Codec::probeGpuLimit() {
-    if (!state_->decoder) return 0;
+    if (!state_->decoder) { state_->fail("PyroWave decoder is not open", RefusalCause::Decoder); return 0; }
     std::vector<std::uint8_t> frame;
     put32(frame, 0x80000000u | std::uint32_t(state_->width - 1) | (std::uint32_t(state_->height - 1) << 14));
     put32(frame, 0);
@@ -242,20 +248,24 @@ int Codec::probeGpuLimit() {
     if (!decodeGpu(frame, image)) return 0;
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(state_->physical, &properties);
-    return properties.limits.maxImageArrayLayers >= 12 ? int(std::min(4096u, properties.limits.maxImageDimension2D)) : 0;
+    if (properties.limits.maxImageArrayLayers < 12 || properties.limits.maxImageDimension2D < 128) {
+        state_->fail("Vulkan image limits cannot support the PyroWave probe", RefusalCause::Limits);
+        return 0;
+    }
+    return int(std::min(4096u, properties.limits.maxImageDimension2D));
 }
 
 bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
-    state_->error.clear();
+    state_->error.clear(); state_->refusal = RefusalCause::None;
     std::vector<std::span<const std::uint8_t>> packets;
     if (!state_->decoder || !unpackFrame(frame, state_->width, state_->height, packets))
-        return state_->fail("Invalid or incompatible PyroWave frame");
+        return state_->fail("Invalid or incompatible PyroWave frame", RefusalCause::Decoder);
     if (!pyrowave_device_confirm_interop_support(state_->device))
-        return state_->fail("Vulkan external memory is unavailable");
+        return state_->fail("Vulkan external memory is unavailable", RefusalCause::Interop);
     pyrowave_decoder_clear(state_->decoder);
     for (auto packet : packets)
-        if (!state_->checked(pyrowave_decoder_push_packet(state_->decoder, packet.data(), packet.size()), "PyroWave packet decode")) return false;
-    if (!pyrowave_decoder_decode_is_ready(state_->decoder, false)) return state_->fail("Incomplete PyroWave frame");
+        if (!state_->checked(pyrowave_decoder_push_packet(state_->decoder, packet.data(), packet.size()), "PyroWave packet decode", RefusalCause::Decoder)) return false;
+    if (!pyrowave_decoder_decode_is_ready(state_->decoder, false)) return state_->fail("Incomplete PyroWave frame", RefusalCause::Decoder);
     if (!state_->vkDevice) {
         pyrowave_device_get_vk_device_handles(state_->device, nullptr, &state_->physical, &state_->vkDevice);
         state_->getMemoryFd = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(state_->vkDevice, "vkGetMemoryFdKHR"));
@@ -263,7 +273,7 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         vkGetPhysicalDeviceMemoryProperties(state_->physical, &state_->memoryProperties);
     }
     auto device = state_->vkDevice;
-    if (!state_->getMemoryFd || !state_->getModifier) return state_->fail("Vulkan DMA-BUF export is unavailable");
+    if (!state_->getMemoryFd || !state_->getModifier) return state_->fail("Vulkan DMA-BUF export is unavailable", RefusalCause::DmaBuf);
     if (!state_->commandPool) {
         std::uint32_t count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(state_->physical, &count, nullptr);
@@ -273,13 +283,13 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         for (std::uint32_t i = 0; i < count; ++i)
             if ((families[i].queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) ==
                 (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) { state_->queueFamily = i; found = true; break; }
-        if (!found) return state_->fail("Vulkan graphics/compute queue unavailable");
+        if (!found) return state_->fail("Vulkan graphics/compute queue unavailable", RefusalCause::Queue);
         vkGetDeviceQueue(device, state_->queueFamily, 0, &state_->queue);
         VkCommandPoolCreateInfo info{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
         info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         info.queueFamilyIndex = state_->queueFamily;
         if (vkCreateCommandPool(device, &info, nullptr, &state_->commandPool) != VK_SUCCESS)
-            return state_->fail("Vulkan command pool creation failed");
+            return state_->fail("Vulkan command pool creation failed", RefusalCause::Queue);
     }
     struct Owner {
         std::shared_ptr<State> state;
@@ -309,7 +319,7 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
             if (modifier.drmFormatModifierPlaneCount == 1 && (modifier.drmFormatModifierTilingFeatures & flags) == flags)
                 state_->exportModifiers.push_back(modifier.drmFormatModifier);
         }
-        if (state_->exportModifiers.empty()) return state_->fail("No exportable R8 storage image modifier");
+        if (state_->exportModifiers.empty()) return state_->fail("No exportable R8 storage image modifier", RefusalCause::DmaBuf);
     }
     const auto& candidates = state_->exportModifiers;
     const auto& memoryProperties = state_->memoryProperties;
@@ -328,14 +338,14 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         info.samples = VK_SAMPLE_COUNT_1_BIT; info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
         info.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         if (vkCreateImage(device, &info, nullptr, &owner->images[i]) != VK_SUCCESS)
-            return state_->fail("Vulkan exportable image creation failed");
+            return state_->fail("Vulkan exportable image creation failed", RefusalCause::DmaBuf);
         VkMemoryRequirements requirements{};
         vkGetImageMemoryRequirements(device, owner->images[i], &requirements);
         std::uint32_t memoryType = memoryProperties.memoryTypeCount;
         for (std::uint32_t j = 0; j < memoryProperties.memoryTypeCount; ++j)
             if ((requirements.memoryTypeBits & (1u << j)) &&
                 (memoryProperties.memoryTypes[j].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) { memoryType = j; break; }
-        if (memoryType == memoryProperties.memoryTypeCount) return state_->fail("No device-local export memory");
+        if (memoryType == memoryProperties.memoryTypeCount) return state_->fail("No device-local export memory", RefusalCause::DmaBuf);
         VkMemoryDedicatedAllocateInfo dedicated{VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
         dedicated.image = owner->images[i];
         VkExportMemoryAllocateInfo exportInfo{VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO, &dedicated};
@@ -344,12 +354,12 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         allocation.allocationSize = requirements.size; allocation.memoryTypeIndex = memoryType;
         if (vkAllocateMemory(device, &allocation, nullptr, &owner->memory[i]) != VK_SUCCESS ||
             vkBindImageMemory(device, owner->images[i], owner->memory[i], 0) != VK_SUCCESS)
-            return state_->fail("Vulkan export memory allocation failed");
+            return state_->fail("Vulkan export memory allocation failed", RefusalCause::DmaBuf);
         VkMemoryGetFdInfoKHR fdInfo{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
         fdInfo.memory = owner->memory[i]; fdInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-        if (state_->getMemoryFd(device, &fdInfo, &owner->fds[i]) != VK_SUCCESS) return state_->fail("DMA-BUF export failed");
+        if (state_->getMemoryFd(device, &fdInfo, &owner->fds[i]) != VK_SUCCESS) return state_->fail("DMA-BUF export failed", RefusalCause::DmaBuf);
         VkImageDrmFormatModifierPropertiesEXT modifier{VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT};
-        if (state_->getModifier(device, owner->images[i], &modifier) != VK_SUCCESS) return state_->fail("DMA-BUF modifier query failed");
+        if (state_->getModifier(device, owner->images[i], &modifier) != VK_SUCCESS) return state_->fail("DMA-BUF modifier query failed", RefusalCause::DmaBuf);
         VkImageSubresource subresource{VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT, 0, 0};
         VkSubresourceLayout layout{};
         vkGetImageSubresourceLayout(device, owner->images[i], &subresource, &layout);
@@ -363,18 +373,18 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
         VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
         allocate.commandPool = state_->commandPool; allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; allocate.commandBufferCount = 1;
         if (vkAllocateCommandBuffers(device, &allocate, &state_->commandBuffer) != VK_SUCCESS)
-            return state_->fail("Vulkan command allocation failed");
+            return state_->fail("Vulkan command allocation failed", RefusalCause::Queue);
     }
     if (!state_->decodeFence) {
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         if (vkCreateFence(device, &fenceInfo, nullptr, &state_->decodeFence) != VK_SUCCESS)
-            return state_->fail("Vulkan fence allocation failed");
+            return state_->fail("Vulkan fence allocation failed", RefusalCause::Queue);
     }
     const auto commandBuffer = state_->commandBuffer;
-    if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS) return state_->fail("Vulkan command reset failed");
+    if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS) return state_->fail("Vulkan command reset failed", RefusalCause::Queue);
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    if (vkBeginCommandBuffer(commandBuffer, &begin) != VK_SUCCESS) return state_->fail("Vulkan command begin failed");
+    if (vkBeginCommandBuffer(commandBuffer, &begin) != VK_SUCCESS) return state_->fail("Vulkan command begin failed", RefusalCause::Queue);
     std::array<VkImageMemoryBarrier, 3> barriers{};
     for (int i = 0; i < 3; ++i) {
         auto& b = barriers[i]; b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -388,22 +398,22 @@ bool Codec::decodeGpu(std::span<const std::uint8_t> frame, GpuImage& image) {
     pyrowave_device_set_command_buffer(state_->device, commandBuffer);
     const auto decoded = pyrowave_decoder_decode_gpu_buffer(state_->decoder, nullptr, nullptr, &buffers);
     pyrowave_device_set_command_buffer(state_->device, VK_NULL_HANDLE);
-    if (!state_->checked(decoded, "PyroWave Vulkan decode")) return false;
+    if (!state_->checked(decoded, "PyroWave Vulkan decode", RefusalCause::Decoder)) return false;
     for (auto& b : barriers) {
         b.oldLayout = VK_IMAGE_LAYOUT_GENERAL; b.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; b.dstAccessMask = 0;
         b.srcQueueFamilyIndex = state_->queueFamily; b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
     }
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
         0, 0, nullptr, 0, nullptr, 3, barriers.data());
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) return state_->fail("Vulkan command end failed");
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) return state_->fail("Vulkan command end failed", RefusalCause::Queue);
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     submit.commandBufferCount = 1; submit.pCommandBuffers = &commandBuffer;
     // A rejected frame may return before submission. Never wait on a fence
     // that was reset for a command that was not submitted.
-    if (vkResetFences(device, 1, &state_->decodeFence) != VK_SUCCESS) return state_->fail("Vulkan fence reset failed");
-    if (vkQueueSubmit(state_->queue, 1, &submit, state_->decodeFence) != VK_SUCCESS) return state_->fail("Vulkan decode submission failed");
+    if (vkResetFences(device, 1, &state_->decodeFence) != VK_SUCCESS) return state_->fail("Vulkan fence reset failed", RefusalCause::Queue);
+    if (vkQueueSubmit(state_->queue, 1, &submit, state_->decodeFence) != VK_SUCCESS) return state_->fail("Vulkan decode submission failed", RefusalCause::Queue);
     const auto waited = vkWaitForFences(device, 1, &state_->decodeFence, VK_TRUE, UINT64_MAX);
-    if (waited != VK_SUCCESS) return state_->fail("Vulkan decode completion failed");
+    if (waited != VK_SUCCESS) return state_->fail("Vulkan decode completion failed", RefusalCause::Queue);
     image = std::move(next);
     return true;
 }
