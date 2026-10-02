@@ -840,7 +840,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
             wait(lambda s: s.get("focus") != previous)
         assert state()["focus"].startswith("library-filter-"), state()
         keys(*(["Left"] * 4 + ["Right"] * index))
-        expected = ["all", "recent", "source", "hdr", "more"][index]
+        expected = ["all", "recent", "source", "more"][index]
         wait(lambda s: s.get("focus") == "library-filter-"+expected)
 
     def visible(ids, **expected):
@@ -891,7 +891,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     keys("Escape")
     wait(lambda s: s.get("filter") == "all" and s.get("query") == "")
 
-    filter_focus(4)
+    filter_focus(3)
     keys("Return")
     choose(1, "category")
     visible([7, 103, 106], filter="category", filterValue="cinematic")
@@ -905,22 +905,19 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("filter") == "all" and s.get("focus") == s.get("game"))
     sort(3, "name-desc")
     visible([106, 42, 7, 105, 104, 103], sort="name-desc")
-    sort(5, "hdr")
-    visible([103, 105, 7, 104, 42, 106], sort="hdr")
-    filter_focus(3)
-    keys("Return")
-    visible([103, 105, 7], filter="hdr")
+    sort(4, "source")
+    visible([7, 103, 105, 42, 106, 104], sort="source")
     keys("Down")
     wait(lambda s: s.get("focus") == s.get("game"))
     keys("Return")
     wait(lambda s: s.get("detailOpen"))
     assert state()["metadata"]["hdrSupported"] is True
-    save_capture("android-hdr-details.png")
+    save_capture("android-source-details.png")
     keys("Escape")
-    filter_focus(3)
+    filter_focus(0)
 
-    # Change only metadata, with unchanged IDs/titles. Automatic refresh must
-    # rebuild the filtered view and retire a removed selection's Play action.
+    # The host's HDR support bit is not evidence that a game renders in HDR.
+    # Changing only that bit must preserve the games and selected Play action.
     a = fixtures["a"]
     a["entered"].clear()
     a["release"].clear()
@@ -931,8 +928,9 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
         if game["app_id"] in (7, 103):
             game["hdr_supported"] = False
     a["release"].set()
-    visible([105], filter="hdr", busy=False, focus="game-105")
-    save_capture("android-hdr-refreshed.png")
+    visible([7, 103, 105, 42, 106, 104], filter="all", sort="source", busy=False, focus="game-7")
+    assert state()["launchEnabled"] and state()["metadata"]["hdrSupported"] is False
+    save_capture("android-source-refreshed.png")
 
     # Switching to a standard host resets host-specific constraints. It has no
     # play history, and that empty state must offer a local way back to games.
@@ -948,7 +946,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     save_capture("android-no-recent-games.png")
     keys("Return")
     wait(lambda s: s.get("filter") == "all" and s.get("focus") == "gamestream-app-7")
-    filter_focus(4)
+    filter_focus(3)
     keys("Return")
     wait(lambda s: s.get("filterChoicesOpen") and s.get("focus") == "library-choice-back")
     keys("Escape")
@@ -959,10 +957,10 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("pickerOpen") and s.get("focus") == "b")
     keys("Up", "Return")
     wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == s.get("game"))
-    filter_focus(4)
+    filter_focus(3)
     keys("Return")
     choose(5, "genre")
-    visible([7, 106], filter="genre", filterValue="Puzzle", sort="hdr")
+    visible([7, 106], filter="genre", filterValue="Puzzle", sort="source")
 
 
 def steam_app_navigation(wait, keys, state, save_capture, window):
@@ -1541,6 +1539,8 @@ def setup_parity_navigation(wait, keys, state, fixtures, save_capture, window):
     values(width=1280, height=800, fps=60, bitrateKbps=30000, faceButtonLayout="positions")
     assert not setup()["overrides"]["resolution"] and setup()["overrides"]["bitrateKbps"]
     keys("Left")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Return")
     wait(lambda s: s.get("focus") == "play-setup-plan")
     keys(*(["Down"] * 8))
     wait(lambda s: s["playSetup"]["readPlan"]["scroll"] > 0)
@@ -1548,6 +1548,8 @@ def setup_parity_navigation(wait, keys, state, fixtures, save_capture, window):
     keys("Right")
     wait(lambda s: s.get("focus") == "play-setup-resolution")
     save_capture("setup-space-large-960.png")
+    keys("Escape")
+    wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "play-setup-plan-summary")
     keys("Escape")
     wait(lambda s: not s.get("nativePreviewOpen") and s.get("detailOpen"))
     keys("Escape")
@@ -2332,7 +2334,7 @@ def main():
                 elif args.stage:
                     assert state()["layout"] == "stage" and state()["stageVisible"] and state()["selectionVisible"], "Stage did not survive restart"
                 elif args.filters:
-                    assert state()["filter"] == "genre" and state()["filterValue"] == "Puzzle" and state()["sort"] == "hdr", "filters/sort did not survive restart"
+                    assert state()["filter"] == "genre" and state()["filterValue"] == "Puzzle" and state()["sort"] == "source", "filters/sort did not survive restart"
                 else:
                     assert state()["layout"] == "compact" and state()["sort"] == "name", "library options did not survive restart"
                 assert identity.read_bytes() == before and not violations, "restart changed pairing or sent a mutation"
@@ -2357,7 +2359,7 @@ def main():
           if args.spaces else "manifest posters, hero/icon/logo presentation, stable caching, revision refresh, removal, denied assets and PC isolation"
           if args.artwork else "Play Setup choices, touch, cancellation, game/PC scope, reset, resizing and restart"
           if args.play_setup else "Stage rail, hero, review, touch, resizing, refresh, empty recovery, PC switching and persistence"
-          if args.stage else "Polaris metadata, five filters, sorting, search, refresh, PC switching and persistence"
+          if args.stage else "Polaris metadata, four filters, five truthful sorts, search, refresh, PC switching and persistence"
           if args.filters else "automatic updates, in-flight navigation, focus, pauses, reconnect and auth-stop"
           if args.automatic else "grid, details, back navigation, search, empty results, touch, options and viewport resizing"
           if args.experience else "async refresh, selected-game focus, PC switch, denied/empty lists and recovery"))

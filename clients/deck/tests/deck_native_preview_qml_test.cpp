@@ -141,6 +141,18 @@ int main(int argc, char** argv) {
             focused(*window, back, "prelaunch Left did not reach actual Back");
             key(*window, Qt::Key_Right); focused(*window, primary, "prelaunch Right did not return to actual Play");
         }
+        auto* summary = root->findChild<QQuickItem*>("play-setup-plan-summary");
+        auto* plan = root->findChild<QQuickItem*>("play-setup-plan");
+        require(summary && summary->isVisible() && plan && !plan->isVisible(), "prelaunch did not keep a compact plan with an explicit detail action");
+        const auto originalChoice = settings.load("fixture-host", "fixture-game");
+        summary->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
+        focused(*window, plan, "plan disclosure did not focus its actual reading pane");
+        require(plan->isVisible(), "plan disclosure omitted its actual facts");
+        require(QMetaObject::invokeMethod(preview, "leave"), "cannot route controller Back from the plan"); settle();
+        require(preview->property("opened").toBool() && !plan->isVisible(), "plan Back dismissed Play Setup instead of collapsing its details");
+        focused(*window, summary, "plan Back did not restore the disclosure target");
+        require(settings.load("fixture-host", "fixture-game") == originalChoice && session.starts == 0, "plan disclosure changed saved choices or launched");
+        primary->forceActiveFocus(); settle();
         require(session.starts == 0, "footer traversal launched a session");
         key(*window, Qt::Key_Left); key(*window, Qt::Key_Return);
         require(!preview->property("opened").toBool() && session.starts == 0, "prelaunch Back did not close without launching");

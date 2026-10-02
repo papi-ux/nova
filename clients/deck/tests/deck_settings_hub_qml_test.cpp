@@ -97,6 +97,14 @@ int main(int argc, char** argv) {
             check(actual.value("filter") == "all" && actual.value("sort") == "library", "host-capability HDR preferences were not retired");
             check(actual.value("visibleGames").toList().size() == 2, "HDR migration hid a game or changed its identity");
             check(!find(surface->contentItem(), "library-filter-hdr"), "host HDR capability still offered as a per-game filter");
+            check(QMetaObject::invokeMethod(scene.get(), "details"), "cannot inspect actual game details"); settle();
+            std::function<bool(QQuickItem*)> hasHdrClaim = [&](QQuickItem* item) {
+                if (item->isVisible() && item->property("text").toString().contains("HDR supported by this game")) return true;
+                for (auto* child : item->childItems()) if (hasHdrClaim(child)) return true;
+                return false;
+            };
+            check(snapshot().value("metadata").toMap().value("hdrSupported").toBool(), "retirement erased the actual host capability metadata");
+            check(!hasHdrClaim(surface->contentItem()), "game details still describe host HDR support as a game capability");
         } else {
             check(!actual.value("stageVisible").toBool() && actual.value("layout") == "stage", "portrait Stage did not use Regular without rewriting the saved layout");
             for (const auto* name : {"library-host-button", "library-options", "library-system", "library-settings", "library-filter-all", "library-filter-more"}) {
