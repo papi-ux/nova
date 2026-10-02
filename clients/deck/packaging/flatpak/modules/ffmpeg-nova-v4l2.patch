@@ -106,3 +106,31 @@
                  ret = 0;
              goto fail;
          }
+--- a/libavcodec/v4l2_context.c
++++ b/libavcodec/v4l2_context.c
+@@ -319,7 +319,10 @@
+         ret = poll(&pfd, 1, timeout);
+         if (ret > 0)
+             break;
+-        if (errno == EINTR)
++        /* A zero-time poll must not spin on errno left by an earlier signal.
++         * Private Nova polling also returns immediately after interruption. */
++        if (errno == EINTR &&
++            !((V4L2m2mPriv *)ctx_to_m2mctx(ctx)->priv)->nova_nonblocking)
+             continue;
+         return NULL;
+     }
+--- a/libavcodec/v4l2_m2m.c
++++ b/libavcodec/v4l2_m2m.c
+@@ -277,6 +277,11 @@
+ 
+     ff_v4l2_context_release(&s->output);
+ 
++    /* Capture leases can outlive AVCodecContext. Late release diagnostics
++     * must not use its freed log context. */
++    if (priv->nova_nonblocking)
++        s->avctx = NULL;
++
+     s->self_ref = NULL;
+     ff_refstruct_unref(&priv->context);
+ 
