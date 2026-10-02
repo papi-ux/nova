@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stream/deck_video_capabilities.h"
+#include "../../pyrowave/probe_protocol.h"
 #include <QString>
 #include <QStringList>
 #include <functional>
@@ -11,6 +12,8 @@ namespace nova::deck::stream {
 struct DeckPyrowaveProbeResult {
     DeckDecodeLimits limits;
     QString reason;
+    // Present only for a valid versioned child result, including successful None.
+    std::optional<nova::pyrowave::RefusalCause> refusal = std::nullopt;
 };
 
 // No Vulkan calls in the parent. Call on a worker, never the UI thread.
