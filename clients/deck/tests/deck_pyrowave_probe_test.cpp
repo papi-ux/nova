@@ -20,8 +20,32 @@ int main(int argc, char** argv) {
         require(result.reason.isEmpty() == result.limits.supports(128, 128), "real helper limits contradict its result");
         return 0;
     }
+    if (app.arguments().size() == 3 && app.arguments().at(1) == "--reason-case") {
+        const auto cause = app.arguments().at(2);
+        const std::vector<std::pair<QString, QString>> cases{
+            {"api", "PyroWave needs its bundled 0.6.0 codec library. Reinstall Nova or choose another codec."},
+            {"device", "PyroWave could not create a Vulkan device. Check this device's Vulkan driver or choose another codec."},
+            {"decoder", "PyroWave could not initialize or run its decoder. Restart Nova or choose another codec."},
+            {"interop", "PyroWave needs Vulkan external-memory support on this device. Choose another codec."},
+            {"dmabuf", "PyroWave cannot export DMA-BUF images on this device. Check the Vulkan driver or choose another codec."},
+            {"queue", "PyroWave could not use a Vulkan graphics/compute queue. Restart Nova or choose another codec."},
+            {"limits", "This device's Vulkan image limits cannot support PyroWave. Choose another codec."},
+        };
+        for (const auto& [code, expected] : cases) if (code == cause) {
+            const auto result = probePyrowaveInChild(QCoreApplication::applicationFilePath(), {"cause-" + cause}, 1500);
+            require(!result.limits.supports(128, 128), "named refusal admitted PyroWave");
+            require(result.reason == expected, "versioned device refusal lost its actionable category");
+            return 0;
+        }
+        require(false, "unknown refusal test case");
+    }
     if (app.arguments().size() == 2) {
         const auto mode = app.arguments().at(1);
+        if (mode.startsWith("cause-")) {
+            std::cout << "{\"version\":2,\"available\":false,\"maxWidth\":0,\"maxHeight\":0,\"reason\":\""
+                << mode.mid(6).toStdString() << "\"}";
+            return 0;
+        }
         if (mode == "hang") { QThread::msleep(10000); return 0; }
         if (mode == "crash") { rlimit limit{0, 0}; setrlimit(RLIMIT_CORE, &limit); std::raise(SIGABRT); return 1; }
         if (mode == "exit") return 4;
