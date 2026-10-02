@@ -78,10 +78,10 @@ class NovaGameDetailSourceGuardTest {
         assertTrue(
             "every focusable action clears the accessible target floor",
             detail.contains("internal val NovaGameDetailActionHeight = 48.dp") &&
-                // Every action, Launch included, is the one action surface now (M6): its floor is
-                // the surface's minimum height, and an icon action is that size square.
+                // The shared surface scales its visual minimum height once. Icon actions use the
+                // same scaled square; the unchanged clickable supplies the accessible touch floor.
                 detail.contains("minHeight = NovaGameDetailActionHeight,") &&
-                detail.contains("modifier.size(NovaGameDetailActionHeight)")
+                detail.contains("modifier.size(novaControlDimension(NovaGameDetailActionHeight))")
         )
         assertTrue(
             "Launch stays primary; Play Setup and Reset retain labels; Pin and Artwork are " +
