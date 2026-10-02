@@ -96,6 +96,7 @@ import com.papi.nova.ui.compose.NovaChromeType
 import com.papi.nova.ui.compose.NovaControllerHint
 import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.compose.NovaRevealingText
+import com.papi.nova.ui.compose.novaControlDimension
 import com.papi.nova.ui.compose.novaKeyChipSize
 import com.papi.nova.utils.GameShortcutPinState
 import kotlinx.coroutines.delay
@@ -1183,7 +1184,7 @@ private fun NovaGameDetailAction(
         minHeight = NovaGameDetailActionHeight,
         cornerRadius = NovaRadius.hero,
         contentPadding = PaddingValues(horizontal = if (iconOnly) 11.dp else 14.dp, vertical = 10.dp),
-        modifier = if (iconOnly) modifier.size(NovaGameDetailActionHeight) else modifier,
+        modifier = if (iconOnly) modifier.size(novaControlDimension(NovaGameDetailActionHeight)) else modifier,
     ) { contentColor, _ ->
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1196,8 +1197,8 @@ private fun NovaGameDetailAction(
                 Icon(
                     painter = painterResource(iconRes),
                     contentDescription = null,
-                    tint = contentColor.copy(alpha = if (iconOnly) 0.82f else 0.72f),
-                    modifier = Modifier.size(if (iconOnly) 22.dp else 18.dp),
+                    tint = contentColor.copy(alpha = 0.72f),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             if (!iconOnly) {
