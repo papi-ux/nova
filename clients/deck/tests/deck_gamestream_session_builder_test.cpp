@@ -266,7 +266,7 @@ void testOwnedResumeSelection() {
 }
 
 void testHostCancel() {
-    // The cancel names the session the launch returned and is confirmed by the host.
+    // The cancel names the launch session; its reply acknowledges the request, not app shutdown.
     {
         FakeHost host;
         host.table["/cancel"] = DeckHttpResponse{true, 200, kCancelOk};
@@ -274,7 +274,8 @@ void testHostCancel() {
         assert(outcome.requested && outcome.transportOk && outcome.cancelled);
         assert(outcome.httpStatus == 200 && outcome.hostStatusCode == 200);
         assert(host.seen.size() == 1 && host.seen[0] == "/cancel?sessiontoken=tok-abc");
-        assert(outcome.summary.find("confirmed") != std::string::npos);
+        assert(outcome.summary == "host accepted the request to end the game (attempt 1)");
+        assert(outcome.summary.find("app ended") == std::string::npos);
     }
     // Without a token the request is bare.
     {
@@ -283,7 +284,7 @@ void testHostCancel() {
         const auto outcome = requestHostSessionCancel(host.fetcher(), "");
         assert(outcome.cancelled && host.seen.size() == 1 && host.seen[0] == "/cancel");
     }
-    // A host still counting the session (409) is retried and then confirms.
+    // A host still counting the session (409) is retried and then accepts the request.
     {
         int calls = 0;
         const DeckHttpFetcher fetcher = [&calls](const std::string& target) {
@@ -304,6 +305,8 @@ void testHostCancel() {
         assert(outcome.requested && !outcome.cancelled && outcome.hostStatusCode == 470);
         assert(host.seen.size() == 1);
         assert(outcome.summary.find("belongs to another client") != std::string::npos);
+        assert(outcome.summary.starts_with("host did not accept the request to end the game"));
+        assert(outcome.summary.find("app ended") == std::string::npos);
     }
     // Transport failure and a missing fetcher are reported, never thrown.
     {
