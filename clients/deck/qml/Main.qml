@@ -906,7 +906,7 @@ ApplicationWindow {
                     objectName: "manage-pcs"
                     visible: novaStandalone
                     enabled: !novaNativeSession.state.busy && !libraryBusy
-                    text: "Saved PCs"
+                    text: "Hosts"
                     Layout.preferredWidth: 170
                     Layout.preferredHeight: 52
                     function activate() {
