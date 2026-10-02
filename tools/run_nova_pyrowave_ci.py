@@ -41,15 +41,50 @@ def validate_results(path, inventory):
     return {'registered': len(names), 'executed': len(names) - len(skipped),
             'failures': 0, 'errors': 0, 'hardware_unavailable': skipped}
 
-def software_icd(directory=Path('/usr/share/vulkan/icd.d'), machine=None):
-    # Multilib hosts also install an i686 ICD; use the actual native test ABI.
-    machine = machine or platform.machine()
-    if machine not in {'x86_64', 'aarch64'}:
+def icd_library(manifest, machine):
+    expected = {'x86_64': 62, 'aarch64': 183}.get(machine)
+    if expected is None:
         raise ValueError('Unsupported native software Vulkan architecture')
+    reference = json.loads(manifest.read_text())['ICD']['library_path']
+    if not isinstance(reference, str) or not reference:
+        raise ValueError('Software Vulkan manifest has no library reference')
+    library = Path(reference)
+    if library.is_absolute():
+        candidates = [library]
+    elif '/' in reference:
+        candidates = [manifest.parent / library]
+    else:
+        # A bare name follows the system dynamic loader cache. Never pick a
+        # foreign multilib entry merely because it has the same basename.
+        cache = subprocess.check_output(['ldconfig', '-p'], text=True)
+        candidates = [Path(line.split(' => ', 1)[1]) for line in cache.splitlines()
+                      if ' => ' in line and line.strip().split(' ', 1)[0] == reference]
+    native = set()
+    for candidate in candidates:
+        try:
+            with candidate.open('rb') as handle:
+                header = handle.read(20)
+            if (header[:7] == b'\x7fELF\x02\x01\x01'
+                    and int.from_bytes(header[16:18], 'little') == 3
+                    and int.from_bytes(header[18:20], 'little') == expected):
+                native.add(candidate.resolve(strict=True))
+        except OSError:
+            continue
+    if len(native) != 1:
+        raise ValueError('Software Vulkan reference has no unique native shared-ELF ABI')
+    return native.pop()
+
+
+def software_icd(directory=Path('/usr/share/vulkan/icd.d'), machine=None):
+    machine = machine or platform.machine()
     path = directory / ('lvp_icd.' + machine + '.json')
     if not path.is_file():
+        path = directory / 'lvp_icd.json'
+    if not path.is_file():
         raise ValueError('Native software Vulkan ICD is not installed')
+    icd_library(path, machine)
     return path
+
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()

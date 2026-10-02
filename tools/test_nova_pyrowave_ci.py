@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from tools import build_nova_pyrowave_prefix as prefix
 from tools import run_nova_pyrowave_ci as gate
@@ -61,13 +62,53 @@ class NovaPyroWaveCiTest(unittest.TestCase):
         inventory['tests'][-1]['properties'] = []
         with self.assertRaises(ValueError): self.result(inventory, skipped={'hardware_fixture'})
 
+    def elf(self, path, machine=62, elf_class=2, elf_type=3):
+        header = bytearray(64)
+        header[:7] = b'\x7fELF\x02\x01\x01'
+        header[4] = elf_class
+        header[16:18] = elf_type.to_bytes(2, 'little')
+        header[18:20] = machine.to_bytes(2, 'little')
+        path.write_bytes(header)
+        return path
+
+    def icd(self, path, library):
+        path.write_text(json.dumps({'ICD': {'library_path': str(library)}}))
+        return path
+
     def test_native_icd_selection_ignores_foreign_multilib_driver(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / 'lvp_icd.x86_64.json').write_text('{}')
-            (root / 'lvp_icd.i686.json').write_text('{}')
-            self.assertEqual(gate.software_icd(root, 'x86_64'), root / 'lvp_icd.x86_64.json')
+            library = self.elf(root / 'native.so')
+            manifest = self.icd(root / 'lvp_icd.x86_64.json', library)
+            self.icd(root / 'lvp_icd.i686.json', self.elf(root / 'foreign.so', elf_class=1, machine=3))
+            self.assertEqual(gate.software_icd(root, 'x86_64'), manifest)
             with self.assertRaises(ValueError): gate.software_icd(root, 'aarch64')
+
+    def test_generic_icd_resolves_exact_native_loader_reference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native = self.elf(root / 'native.so')
+            foreign = self.elf(root / 'foreign.so', elf_class=1, machine=3)
+            manifest = self.icd(root / 'lvp_icd.json', 'libvulkan_lvp.so')
+            cache = f'  libvulkan_lvp.so (libc6) => {foreign}\n  libvulkan_lvp.so (libc6,x86-64) => {native}\n'
+            with patch('subprocess.check_output', return_value=cache):
+                self.assertEqual(gate.software_icd(root, 'x86_64'), manifest)
+                self.assertEqual(gate.icd_library(manifest, 'x86_64'), native)
+
+    def test_generic_icd_rejects_foreign_32bit_or_nonshared_library(self):
+        for machine, elf_class, elf_type in [(183, 2, 3), (62, 1, 3), (62, 2, 2)]:
+            with self.subTest(machine=machine, elf_class=elf_class, elf_type=elf_type), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                library = self.elf(root / 'wrong.so', machine, elf_class, elf_type)
+                self.icd(root / 'lvp_icd.json', library)
+                with self.assertRaises(ValueError): gate.software_icd(root, 'x86_64')
+
+    def test_wrong_specific_icd_is_not_bypassed_by_valid_generic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.icd(root / 'lvp_icd.x86_64.json', self.elf(root / 'wrong.so', machine=183))
+            self.icd(root / 'lvp_icd.json', self.elf(root / 'native.so'))
+            with self.assertRaises(ValueError): gate.software_icd(root, 'x86_64')
 
     def test_shipped_four_pins_and_profile_are_accepted(self):
         module = prefix.read_module(MODULE)

@@ -121,7 +121,12 @@ jobs:
     steps:
       - name: Install native codec and production QML test dependencies
         run: |
-          pacman -Syu --noconfirm --needed             git gcc cmake ninja pkgconf python             qt6-base qt6-declarative qt6-wayland wayland wayland-protocols             ffmpeg libva libdrm mesa libpulse pipewire pipewire-audio opus openssl dbus             libplacebo vulkan-headers vulkan-swrast             xorg-server-xvfb xorg-xauth xdotool ttf-dejavu
+          pacman -Syu --noconfirm --needed \
+            git gcc cmake ninja pkgconf python \
+            qt6-base qt6-declarative qt6-wayland wayland wayland-protocols \
+            ffmpeg libva libdrm mesa libpulse pipewire pipewire-audio opus openssl dbus \
+            libplacebo vulkan-headers vulkan-swrast \
+            xorg-server-xvfb xorg-xauth xdotool ttf-dejavu
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
@@ -137,7 +142,9 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             suffix="$(python3 tools/nova_flatpak_feed.py version-suffix "$GITHUB_REF_NAME")"
           fi
-          python3 -B tools/run_nova_pyrowave_ci.py             --work-dir "$RUNNER_TEMP/nova-codec-ci-${{ github.run_id }}" --jobs 3 --version-suffix="$suffix"
+          python3 -B -m unittest tools.test_nova_pyrowave_ci
+          python3 -B tools/run_nova_pyrowave_ci.py \
+            --work-dir "$RUNNER_TEMP/nova-codec-ci-${{ github.run_id }}" --jobs 3 --version-suffix="$suffix"
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
