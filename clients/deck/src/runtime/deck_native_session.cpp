@@ -698,7 +698,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     std::optional<DeckNativeLaunchTarget> target;
     DeckSessionBuildResult built;
     bool gateOwnsLaunch = false;
-    bool cleanupConfirmed = true;
+    // /cancel acknowledges the request; it does not prove the host app is gone.
+    bool hostCancelRequested = false;
+    bool hostCancelAccepted = true;
     bool controllerSent = false;
     bool inputFailed = false;
     DeckDesktopLedger desktopLedger;
@@ -732,16 +734,24 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             const bool preserveGame = shared->keepHostRunning ||
                 ((built.resumed || activeOrdinary) && !shared->endGameRequested);
             const auto result = preserveGame ? gate.disconnect() : gate.stop();
-            if (result.hostCancelRequested) cleanupConfirmed = result.hostCancelled;
+            if (result.hostCancelRequested) {
+                hostCancelRequested = true;
+                hostCancelAccepted = result.hostCancelled;
+            }
         } else if (built.hostSessionStarted && !built.resumed && target) {
-            cleanupConfirmed = requestHostSessionCancel(target->fetch, built.connectionInfo.hostSessionToken).cancelled;
+            const auto result = requestHostSessionCancel(target->fetch, built.connectionInfo.hostSessionToken);
+            hostCancelRequested = result.requested;
+            hostCancelAccepted = result.cancelled;
         }
     };
     QVariantMap failureDetails;
     auto finish = [&](const QString& phase, QString copy) {
         if (phase == "cancelled" && shared->suspendRequested && resume && !built.sessionSelectionRejected)
             shared->resumeTicket = resume;
-        if (!cleanupConfirmed) copy += " The host has not confirmed that the game ended; check the host before retrying.";
+        if (!hostCancelAccepted) copy += " Host cleanup is not confirmed. Check the PC before retrying.";
+        else if (hostCancelRequested) copy += shared->endGameRequested
+            ? " The PC accepted your request to end the game."
+            : " The PC accepted the host cleanup request.";
         shared->finish(phase, copy, shared->cancelled ? QVariantMap{} : failureDetails);
     };
     try {
@@ -904,7 +914,10 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         gateOwnsLaunch = true;
         const auto started = gate.startAuthorizedHostSession(authorization.snapshot(), target->request,
             built.connectionInfo, target->fetch, !built.resumed);
-        if (started.hostCancelRequested) cleanupConfirmed = started.hostCancelled;
+        if (started.hostCancelRequested) {
+            hostCancelRequested = true;
+            hostCancelAccepted = started.hostCancelled;
+        }
         const bool active = started.networkStarted;
         if (!active && !shared->cancelled) {
             const auto status = gate.connectionStatus();
@@ -1071,13 +1084,13 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         }
         else if (shared->cancelled) finish(active ? "stopped" : "cancelled",
             built.resumed && !shared->endGameRequested ? "Resume cancelled without ending the game."
-            : active ? "Game ended." : "Stream cancelled.");
+            : active ? "Stream ended." : "Stream cancelled.");
         else if (!active || (connection.terminated && connection.terminationErrorCode != 0))
             finish("failed",nativeFailure);
         else finish("stopped", "The PC ended the stream.");
     } catch (...) {
         // Raw transport/decoder exception text can include private material.
-        try { cleanup(); } catch (...) { cleanupConfirmed = false; }
+        try { cleanup(); } catch (...) { hostCancelAccepted = false; }
         finish("failed", "The stream could not finish. Return to the library and try again.");
     }
 }
