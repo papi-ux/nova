@@ -11,7 +11,11 @@ QtObject {
         commandCenterButton = preferences.value("commandCenterButton", true)
         shortcutHint = preferences.value("shortcutHint", true)
         const savedOpacity = preferences.value("menuOpacityPercent", 64)
-        menuOpacityPercent = Number.isInteger(savedOpacity) && savedOpacity >= 0 && savedOpacity <= 100 ? savedOpacity : 64
+        // Unix QSettings reloads INI numbers as strings. Accept only integer
+        // decimal text here; malformed, fractional and out-of-range saves use64.
+        const opacityNumber = typeof savedOpacity === "number" ? savedOpacity
+            : typeof savedOpacity === "string" && /^\d+$/.test(savedOpacity.trim()) ? Number(savedOpacity.trim()) : NaN
+        menuOpacityPercent = Number.isInteger(opacityNumber) && opacityNumber >= 0 && opacityNumber <= 100 ? opacityNumber : 64
     }
     function setCommandCenterButton(value) {
         commandCenterButton = value
