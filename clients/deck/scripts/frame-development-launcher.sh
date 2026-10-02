@@ -7,6 +7,7 @@ flatpak info --user --arch=aarch64 com.papi_ux.Nova//frame-dev >/dev/null
 # Separate configuration/data keep the regular Nova settings and pairing intact.
 exec flatpak run --user --arch=aarch64 --branch=frame-dev --device=all \
     --env=NOVA_DECK_FRAME_V4L2=1 \
+    --env=NOVA_DECK_FRAME_TRACE=1 \
     --env=XDG_CONFIG_HOME=/var/config/frame-dev \
     --env=XDG_DATA_HOME=/var/data/frame-dev \
     --env=XDG_CACHE_HOME=/var/cache/frame-dev \

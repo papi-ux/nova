@@ -34,6 +34,16 @@ handoff-submitted and successfully composed video rates. CPU upload
 compositions count distinct frames composed through that path; they do not
 measure panel flips or GPU completion latency.
 
+The development launcher also enables `NOVA_DECK_FRAME_TRACE=1`. Each new
+stream reading appends the sanitized support report and its sample timestamp
+to an owner-private JSONL file in `frame-qualification` under the isolated
+application data directory. Existing files are never overwritten. A file is
+capped at 16 MiB and creation stops at 16 trace files; failures are reported
+in the development log. Verify a fresh trace before each soak. Disable the
+trace environment variable for a separate measurement of recording overhead.
+The trace does not invent panel, audio-underrun or thermal measurements;
+collect those separately where available.
+
 PyroWave keeps explicit selection and an independent refusal result. Its
 three R8 DMA-BUF planes carry a typed YUV420P context for Vulkan import, with
 the PyroWave owner retaining the actual device, allocations and fds. The

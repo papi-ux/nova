@@ -1,4 +1,5 @@
 #include "runtime/deck_native_session.h"
+#include "runtime/deck_frame_qualification_trace.h"
 #include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_native_failure_message.h"
 #include "runtime/deck_support_report.h"
@@ -668,6 +669,7 @@ void DeckNativeSessionController::poll() {
                 hudSample->deliveryQueueDepth = delivery.queued;
             }
             nextHud = hudMetrics_.sample(*hudSample);
+            appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
         }

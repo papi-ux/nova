@@ -109,6 +109,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_play_settings.cpp
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
+    src/runtime/deck_frame_qualification_trace.cpp
     src/runtime/deck_host_power.cpp
     src/runtime/deck_host_wake.cpp
     src/runtime/deck_host_settings.cpp
@@ -382,6 +383,10 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_hud_host_test COMMAND nova_deck_hud_host_test)
     set_tests_properties(nova_deck_hud_host_test PROPERTIES TIMEOUT 15)
     add_executable(nova_deck_hud_metrics_test tests/deck_hud_metrics_test.cpp)
+    add_executable(nova_deck_frame_qualification_trace_test tests/deck_frame_qualification_trace_test.cpp)
+    target_link_libraries(nova_deck_frame_qualification_trace_test PRIVATE nova_deck_core)
+    nova_deck_enable_test_assertions(nova_deck_frame_qualification_trace_test)
+    add_test(NAME nova_deck_frame_qualification_trace_test COMMAND nova_deck_frame_qualification_trace_test)
     target_link_libraries(nova_deck_hud_metrics_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_hud_metrics_test COMMAND nova_deck_hud_metrics_test)
     add_executable(nova_deck_client_media_test tests/deck_client_media_test.cpp)
