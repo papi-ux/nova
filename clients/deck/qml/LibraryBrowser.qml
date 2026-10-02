@@ -71,7 +71,10 @@ FocusScope {
         || sourcePicker.opened || morePicker.opened || sortPicker.opened || faceDefaultPicker.opened
         || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || wakeSheet.opened || appSteamSheet.opened || !browsing
     readonly property string layoutMode: preferences.layoutMode
-    readonly property bool stageMode: layoutMode === "stage"
+    readonly property bool narrow: width < 720 * NovaTheme.fontScale
+    readonly property bool portrait: height > width
+    readonly property bool stageMode: layoutMode === "stage" && !portrait && !narrow
+    readonly property var sortChoices: LibraryQuery.sortChoices.filter(choice => choice.id !== "hdr")
     signal selected(var game)
     signal chooseHost()
     signal refreshRequested()
@@ -88,15 +91,15 @@ FocusScope {
         property string filterHost: ""
     }
     readonly property bool constrained: search.text.trim().length > 0 || preferences.filterPrimary !== "all"
-    readonly property var filterButtons: [allFilter, recentFilter, sourceFilter, hdrFilter, moreFilter]
+    readonly property var filterButtons: [allFilter, recentFilter, sourceFilter, moreFilter]
     function focusFilter() {
         const primary = preferences.filterPrimary
         const index = primary === "recent" ? 1 : primary === "source" ? 2 : primary === "hdr" ? 3
-            : primary === "category" || primary === "genre" ? 4 : 0
+            : primary === "category" || primary === "genre" ? 3 : 0
         filterButtons[index].forceActiveFocus()
     }
     function setFilter(primary, value) {
-        const normalized = LibraryQuery.normalizedFilter(primary, value)
+        const normalized = LibraryQuery.normalizedFilter(primary === "hdr" ? "all" : primary, value)
         preferences.filterPrimary = normalized.primary
         preferences.filterValue = normalized.value
         preferences.filterHost = host.id
@@ -303,12 +306,12 @@ FocusScope {
         previousHostId = host.id
         previousDestinationId = refreshState.destinationId || "desktop"
         if (!["grid", "compact", "stage"].includes(preferences.layoutMode)) preferences.layoutMode = "grid"
-        if (!LibraryQuery.sortChoices.some(choice => choice.id === preferences.sortMode)) preferences.sortMode = "library"
+        if (!sortChoices.some(choice => choice.id === preferences.sortMode)) preferences.sortMode = "library"
         if (preferences.filterHost !== host.id) {
             preferences.filterPrimary = "all"
             preferences.filterValue = ""
         }
-        const normalized = LibraryQuery.normalizedFilter(preferences.filterPrimary, preferences.filterValue)
+        const normalized = LibraryQuery.normalizedFilter(preferences.filterPrimary === "hdr" ? "all" : preferences.filterPrimary, preferences.filterValue)
         preferences.filterPrimary = normalized.primary
         preferences.filterValue = normalized.value
         rebuild("", 0)
@@ -332,13 +335,14 @@ FocusScope {
     component FilterButton: ChromeButton {
         required property int position
         property bool chosen: false
+        Layout.fillWidth: browser.narrow
         implicitWidth: Math.max(106 * unit, contentItem.implicitWidth + 32 * unit)
         Accessible.checkable: true
         Accessible.checked: chosen
         Keys.onLeftPressed: filterButtons[Math.max(0, position - 1)].forceActiveFocus()
         Keys.onRightPressed: {
-            if (position === 4 && constrained) clearFilters.forceActiveFocus()
-            else filterButtons[Math.min(4, position + 1)].forceActiveFocus()
+            if (position === filterButtons.length - 1 && constrained) clearFilters.forceActiveFocus()
+            else filterButtons[Math.min(filterButtons.length - 1, position + 1)].forceActiveFocus()
         }
         Keys.onUpPressed: search.forceActiveFocus()
         Keys.onDownPressed: focusGame()
@@ -367,7 +371,7 @@ FocusScope {
         property string selectedPrimary: ""
         signal chosen(var choice)
         anchors.centerIn: Overlay.overlay
-        width: 480 * unit
+        width: Math.min(480 * unit, browser.width - 32)
         height: Math.min(browser.height - 96 * unit, (190 + Math.max(1, choices.length) * 58) * unit)
         padding: 24 * unit
         modal: true
@@ -472,7 +476,7 @@ FocusScope {
     ChoicePopup {
         id: sortPicker
         heading: "Sort games"
-        choices: LibraryQuery.sortChoices
+        choices: browser.sortChoices
         returnFocus: sortButton
         onChosen: choice => { preferences.sortMode = choice.id; rebuild(selectedId, grid.currentIndex) }
     }
@@ -534,14 +538,16 @@ FocusScope {
                 columns: browser.width < 1100 * NovaTheme.fontScale ? 1 : 2
                 columnSpacing: 12 * unit
                 rowSpacing: 4 * unit
-                RowLayout {
+                GridLayout {
+                    columns: browser.narrow ? 1 : 3
                     Layout.fillWidth: true
-                    spacing: 12 * unit
+                    columnSpacing: 12 * unit; rowSpacing: 4 * unit
                     ChromeButton {
                         id: hostButton
                         objectName: "library-host-button"
                         text: host.displayName || "Choose a PC"
-                        Layout.preferredWidth: Math.min(320 * unit, browser.width * 0.36)
+                        Layout.preferredWidth: browser.narrow ? -1 : Math.min(320 * unit, browser.width * 0.36)
+                        Layout.fillWidth: browser.narrow
                         enabled: !refreshState.busy && !sessionBusy
                         onClicked: chooseHost()
                         Keys.onRightPressed: destinationButton.visible ? destinationButton.forceActiveFocus() : optionsButton.forceActiveFocus()
@@ -552,7 +558,8 @@ FocusScope {
                         id: destinationButton
                         objectName: "library-destination"
                         visible: libraryController && refreshState.spaces && refreshState.spaces.supported
-                        Layout.preferredWidth: Math.min(230 * unit, browser.width * 0.23)
+                        Layout.preferredWidth: browser.narrow ? -1 : Math.min(230 * unit, browser.width * 0.23)
+                        Layout.fillWidth: browser.narrow
                         text: refreshState.destinationName || "Where to play"
                         Accessible.description: "Choose Desktop or a permitted Space on this PC"
                         enabled: !refreshState.busy && !sessionBusy
@@ -568,11 +575,14 @@ FocusScope {
                         font.pixelSize: 16 * unit * NovaTheme.fontScale
                     }
                 }
-                RowLayout {
+                GridLayout {
+                    columns: browser.narrow ? 2 : 3
                     Layout.alignment: Qt.AlignRight
-                    spacing: 12 * unit
+                    Layout.fillWidth: browser.narrow
+                    columnSpacing: 12 * unit; rowSpacing: 4 * unit
                     ChromeButton {
                         id: optionsButton
+                        Layout.fillWidth: browser.narrow
                         objectName: "library-options"
                         text: "Options"
                         enabled: !blocked
@@ -583,6 +593,7 @@ FocusScope {
                     }
                     ChromeButton {
                         id: systemButton
+                        Layout.fillWidth: browser.narrow
                         objectName: "library-system"
                         text: "System"
                         enabled: !blocked
@@ -593,6 +604,7 @@ FocusScope {
                     }
                     ChromeButton {
                         id: settingsButton
+                        Layout.fillWidth: browser.narrow
                         objectName: "library-settings"
                         readonly property bool hasUpdate: !!browser.updateController && (browser.updateController.state.restartRequired || browser.updateController.state.available)
                         text: hasUpdate ? "Updates" : "Settings"
@@ -628,9 +640,10 @@ FocusScope {
                 Keys.onDownPressed: search.forceActiveFocus()
             }
         }
-        RowLayout {
+        GridLayout {
+            columns: browser.narrow ? 1 : 2
             Layout.fillWidth: true
-            spacing: 20 * unit
+            columnSpacing: 20 * unit; rowSpacing: 4 * unit
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 4 * unit
@@ -650,7 +663,8 @@ FocusScope {
             TextField {
                 id: search
                 objectName: "library-search"
-                Layout.preferredWidth: Math.min(300 * unit, browser.width * 0.36)
+                Layout.preferredWidth: browser.narrow ? -1 : Math.min(300 * unit, browser.width * 0.36)
+                Layout.fillWidth: browser.narrow
                 Layout.preferredHeight: Math.max(48, 48 * unit * NovaTheme.fontScale)
                 placeholderText: "Search games"
                 Accessible.name: "Search games"
@@ -672,9 +686,10 @@ FocusScope {
                 Keys.onEscapePressed: { clear(); focusGame() }
             }
         }
-        RowLayout {
+        GridLayout {
+            columns: browser.narrow ? 2 : 6
             Layout.fillWidth: true
-            spacing: 10 * unit
+            columnSpacing: 10 * unit; rowSpacing: 4 * unit
             FilterButton {
                 id: allFilter; objectName: "library-filter-all"; position: 0
                 text: "All"; chosen: preferences.filterPrimary === "all"
@@ -694,21 +709,18 @@ FocusScope {
                 }
             }
             FilterButton {
-                id: hdrFilter; objectName: "library-filter-hdr"; position: 3
-                text: "HDR"; chosen: preferences.filterPrimary === "hdr"
-                onClicked: setFilter("hdr", "")
-            }
-            FilterButton {
-                id: moreFilter; objectName: "library-filter-more"; position: 4
+                id: moreFilter; objectName: "library-filter-more"; position: 3
                 text: "More"; chosen: preferences.filterPrimary === "category" || preferences.filterPrimary === "genre"
                 onClicked: {
                     morePicker.choices = LibraryQuery.moreFilters(games)
                     morePicker.openChoice(preferences.filterValue, preferences.filterPrimary)
                 }
             }
-            Item { Layout.fillWidth: true }
+            Item { Layout.fillWidth: true; visible: !browser.narrow }
             ChromeButton {
                 id: clearFilters
+                Layout.columnSpan: browser.narrow ? 2 : 1
+                Layout.fillWidth: browser.narrow
                 objectName: "library-clear-filters"
                 visible: constrained
                 text: "Clear filters"
@@ -757,7 +769,7 @@ FocusScope {
                         Layout.fillWidth: true
                         text: [LibraryQuery.sourceLabel(selectedGame.source || "gamestream"),
                             LibraryQuery.categoryLabel(selectedGame.category),
-                            selectedGame.hdrSupported ? "HDR" : "", selectedGame.lastLaunched > 0 ? "Recent" : ""]
+                            selectedGame.lastLaunched > 0 ? "Recent" : ""]
                             .filter(value => value).join(" · ").toUpperCase()
                         color: NovaTheme.secondary
                         font.pixelSize: 16 * unit * NovaTheme.fontScale
@@ -938,7 +950,7 @@ FocusScope {
                                 : preferences.filterPrimary === "recent" && !search.text.length
                                 ? "This PC hasn't reported any played games yet. Show all games to keep browsing."
                                 : constrained ? "Clear search or filters to browse all games on this PC."
-                                : "Use System to refresh this PC or manage your saved PCs."
+                                : "Use System to refresh this PC or manage your saved hosts."
                             color: NovaTheme.secondary
                         }
                         ChromeButton {
@@ -959,7 +971,7 @@ FocusScope {
             }
             CopyLabel {
                 text: search.activeFocus ? "A  Games     B  Clear search"
-                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back     D-pad / Stick  Navigate     LB / RB  Page"
+                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back" + (browser.narrow ? "" : "     D-pad / Stick  Navigate     LB / RB  Page")
                 color: NovaTheme.secondary
                 font.pixelSize: 16 * unit * NovaTheme.fontScale
             }
@@ -1164,7 +1176,7 @@ FocusScope {
                 }
                 CopyLabel {
                     Layout.fillWidth: true
-                    text: [selectedGame.installedLabel || "", selectedGame.hdrSupported ? "HDR supported by this game" : ""].filter(value => value).join(" · ")
+                    text: selectedGame.installedLabel || ""
                     visible: text.length > 0
                     color: NovaTheme.secondary
                     font.pixelSize: 14 * unit * NovaTheme.fontScale
@@ -1190,11 +1202,13 @@ FocusScope {
             anchors.rightMargin: 48 * unit
             anchors.bottomMargin: 74 * unit
             spacing: 12 * unit
-            RowLayout {
+            GridLayout {
+                columns: browser.narrow ? 1 : 4
                 Layout.fillWidth: true
-                spacing: 24 * unit
+                columnSpacing: 24 * unit; rowSpacing: 4 * unit
                 ChromeButton {
                     id: playButton
+                    Layout.fillWidth: browser.narrow
                     objectName: "game-detail-play"
                     text: browser.updateController && browser.updateController.busy ? "Updating Nova…" : refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : "Play"
                     primary: true
@@ -1214,6 +1228,7 @@ FocusScope {
                 }
                 ChromeButton {
                     id: artworkButton; objectName: "game-detail-artwork"
+                    Layout.fillWidth: browser.narrow
                     text: "Artwork"
                     Layout.minimumWidth: implicitWidth
                     visible: !!gameTools
@@ -1226,6 +1241,7 @@ FocusScope {
                 }
                 ChromeButton {
                     id: shortcutButton; objectName: "game-detail-shortcut"; text: "Add to Steam"
+                    Layout.fillWidth: browser.narrow
                     Layout.minimumWidth: implicitWidth
                     visible: !!gameShortcuts; enabled: !sessionBusy && !refreshState.busy
                     Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
@@ -1234,7 +1250,7 @@ FocusScope {
                     Keys.onRightPressed: detailBack.forceActiveFocus()
                     Keys.onUpPressed: detailBack.forceActiveFocus()
                 }
-                Item { Layout.fillWidth: true }
+                Item { Layout.fillWidth: true; visible: !browser.narrow }
             }
             CopyLabel {
                 Layout.fillWidth: true
@@ -1329,7 +1345,7 @@ FocusScope {
                 id: layoutButton
                 objectName: "library-layout-option"
                 Layout.fillWidth: true
-                text: stageMode ? "Layout: Stage" : preferences.layoutMode === "compact" ? "Layout: Compact" : "Layout: Grid"
+                text: stageMode ? "Layout: Stage" : preferences.layoutMode === "compact" ? "Layout: Compact" : "Layout: Regular"
                 onClicked: {
                     preferences.layoutMode = preferences.layoutMode === "grid" ? "compact"
                         : preferences.layoutMode === "compact" ? "stage" : "grid"
@@ -1343,7 +1359,7 @@ FocusScope {
                 id: sortButton
                 objectName: "library-sort-option"
                 Layout.fillWidth: true
-                text: "Sort: " + (LibraryQuery.sortChoices.find(choice => choice.id === preferences.sortMode) || LibraryQuery.sortChoices[0]).title
+                text: "Sort: " + (browser.sortChoices.find(choice => choice.id === preferences.sortMode) || browser.sortChoices[0]).title
                 onClicked: sortPicker.openChoice(preferences.sortMode, "sort")
                 Keys.onUpPressed: layoutButton.forceActiveFocus()
                 Keys.onDownPressed: optionsDone.forceActiveFocus()
@@ -1397,7 +1413,7 @@ FocusScope {
         contentItem: NovaScrollColumn {
             spacing: 16 * unit
             CopyLabel { text: "System"; font.pixelSize: 28 * unit * NovaTheme.fontScale; font.bold: true }
-            CopyLabel { Layout.fillWidth: true; text: host.displayName || "Saved PCs"; color: NovaTheme.secondary }
+            CopyLabel { Layout.fillWidth: true; text: host.displayName || "Hosts"; color: NovaTheme.secondary }
             ChromeButton {
                 id: refreshButton
                 objectName: "library-refresh-button"
@@ -1411,7 +1427,7 @@ FocusScope {
                 id: pcsButton
                 objectName: "manage-pcs"
                 Layout.fillWidth: true
-                text: "Saved PCs"
+                text: "Hosts"
                 enabled: !refreshState.busy && !sessionBusy
                 onClicked: { systemMenu.close(); managePcs() }
                 Keys.onUpPressed: refreshButton.forceActiveFocus()

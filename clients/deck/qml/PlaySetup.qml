@@ -91,6 +91,18 @@ FocusScope {
     property string error: ""
     property string notice: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
+    readonly property bool narrow: width < 720 * NovaTheme.fontScale
+    property bool planExpanded: false
+    readonly property bool footerStacked: width < 600 * NovaTheme.fontScale
+    readonly property real footerMargin: 24 * unit
+    readonly property real footerGap: 12 * unit
+    readonly property real footerActionWidth: footerStacked ? Math.max(0, width - 2 * footerMargin)
+        : Math.min(280 * unit, Math.max(0, (width - 2 * footerMargin - footerGap) / 2))
+    readonly property real footerActionHeight: Math.max(60 * unit, backButton.implicitHeight)
+    readonly property real footerActionX: footerStacked ? footerMargin : width - footerMargin - footerActionWidth
+    readonly property real footerActionY: height - footerMargin - footerActionHeight
+    readonly property real footerReservedHeight: footerMargin + footerActionHeight * (footerStacked ? 2 : 1)
+        + (footerStacked ? footerGap : 0) + 12 * unit
     readonly property var rows: [resolution, rate, bitrate, recommendedRate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
     signal choiceOpened()
     signal focusPlayRequested()
@@ -123,6 +135,7 @@ FocusScope {
         customEditor.close()
         picker.close()
         planRead.contentY = 0
+        planExpanded = false
         focusedRow = 0
         const saved = settingsProvider.load(hostId, gameId)
         configuration = saved.configuration
@@ -169,7 +182,10 @@ FocusScope {
     function closeChoice() {
         if (customEditor.opened) { customEditor.close(); return true }
         if (hostDefaults.opened) { hostDefaults.close(); return true }
-        if (!picker.opened) return false
+        if (!picker.opened) {
+            if (planExpanded) { planExpanded = false; planSummary.forceActiveFocus(); return true }
+            return false
+        }
         picker.close()
         return true
     }
@@ -255,17 +271,18 @@ FocusScope {
         Layout.fillWidth: true
         // Both text lines and the active style's padding must fit inside the
         // button, including large text and Linux font substitutions.
-        Layout.preferredHeight: Math.max(60 * unit, implicitHeight)
+        Layout.preferredHeight: Math.max(48, 60 * unit * NovaTheme.controlScale, implicitHeight)
         topPadding: 10 * unit
         bottomPadding: 10 * unit
         Accessible.description: scopeLabel + ". " + explanation
         onActiveFocusChanged: if (activeFocus) focusedRow = position
-        Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : focusPlayRequested()
+        Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : planSummary.forceActiveFocus()
         Keys.onDownPressed: position < rows.length - 1 ? rows[position + 1].forceActiveFocus() : focusPlayRequested()
-        Keys.onLeftPressed: planRead.forceActiveFocus()
+        Keys.onLeftPressed: planSummary.forceActiveFocus()
         Keys.onRightPressed: clicked()
-        contentItem: RowLayout {
-            spacing: 12 * unit
+        contentItem: GridLayout {
+            columns: setup.narrow ? 1 : 2
+            columnSpacing: 12 * unit; rowSpacing: 4 * unit
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -277,7 +294,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1.2
                 text: value
-                horizontalAlignment: Text.AlignRight
+                horizontalAlignment: setup.narrow ? Text.AlignLeft : Text.AlignRight
                 color: parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text
                 font.weight: Font.DemiBold
                 font.pixelSize: 20 * unit * NovaTheme.fontScale
@@ -287,20 +304,23 @@ FocusScope {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 32 * unit
-        anchors.bottomMargin: 120 * unit
+        anchors.bottomMargin: setup.footerReservedHeight
         spacing: 20 * unit
-        RowLayout {
+        GridLayout {
+            columns: setup.narrow ? 1 : 2
             Layout.fillWidth: true
+            columnSpacing: 12 * unit; rowSpacing: 4 * unit
             Copy { text: "Play Setup"; font.pixelSize: 32 * unit * NovaTheme.fontScale; font.bold: true; Layout.fillWidth: true }
             Action {
                 id: everyGame
                 objectName: "play-setup-every-game"
                 text: "Every Game"
+                Layout.fillWidth: setup.narrow
                 visible: setup.hostSettingsController !== null && setup.hostSettingsController.state.supported
                 enabled: setup.editable
                 onClicked: { setup.choiceOpened(); hostDefaults.open() }
                 Keys.onDownPressed: setup.focusSettings()
-                Keys.onLeftPressed: planRead.forceActiveFocus()
+                Keys.onLeftPressed: planSummary.forceActiveFocus()
             }
         }
         Copy {
@@ -315,27 +335,37 @@ FocusScope {
             color: NovaTheme.warning
             font.pixelSize: 16 * unit * NovaTheme.fontScale
         }
-        RowLayout {
+        Action {
+            id: planSummary; objectName: "play-setup-plan-summary"
+            Layout.fillWidth: true
+            text: "What Will Happen · " + planHeadline + (setup.planExpanded ? "  ‹" : "  ›")
+            Accessible.description: planIntro
+            Accessible.checkable: true; Accessible.checked: setup.planExpanded
+            onClicked: { setup.planExpanded = !setup.planExpanded; if (setup.planExpanded) Qt.callLater(() => planRead.forceActiveFocus()) }
+            Keys.onDownPressed: setup.focusSettings()
+            Keys.onUpPressed: everyGame.visible ? everyGame.forceActiveFocus() : setup.focusPlayRequested()
+        }
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: 0
-            spacing: 32 * unit
+            spacing: 8 * unit
             NovaScrollColumn {
                 id: planRead
                 objectName: "play-setup-plan"
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                visible: setup.planExpanded
+                Layout.preferredHeight: Math.min(contentHeight, setup.height * 0.25)
                 Layout.minimumHeight: 0
-                Layout.preferredWidth: 0.9
                 spacing: 12 * unit
                 Accessible.role: Accessible.StaticText
                 Accessible.name: planHeadline + ". " + planIntro
                 activeFocusOnTab: true
                 Keys.onDownPressed: contentY = Math.min(Math.max(0, contentHeight - height), contentY + 64 * unit)
-                Keys.onUpPressed: if (contentY <= 0 && everyGame.visible && everyGame.enabled) everyGame.forceActiveFocus(); else contentY = Math.max(0, contentY - 64 * unit)
+                Keys.onUpPressed: if (contentY <= 0) planSummary.forceActiveFocus(); else contentY = Math.max(0, contentY - 64 * unit)
                 Keys.onRightPressed: rows[Math.min(focusedRow, rows.length - 1)].forceActiveFocus()
                 Keys.onLeftPressed: backButton.forceActiveFocus()
-                Keys.onReturnPressed: focusPlayRequested()
+                Keys.onReturnPressed: { setup.planExpanded = false; planSummary.forceActiveFocus() }
                 Rectangle {
                     parent: planRead
                     anchors.fill: parent
@@ -385,7 +415,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 0
-                Layout.preferredWidth: 1.1
+                // Rows own the remaining height; the plan is a bounded disclosure.
                 spacing: 10 * unit
                 Copy { text: "WHAT YOU CAN CHANGE"; color: NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale; font.weight: Font.DemiBold }
                 Copy { text: "This game · Saved on this device"; color: NovaTheme.secondary; font.pixelSize: 16 * unit * NovaTheme.fontScale }
@@ -536,9 +566,10 @@ FocusScope {
         text: setup.returnLabel
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        anchors.margins: 32 * unit
-        width: 240 * unit
-        height: Math.max(60 * unit, implicitHeight)
+        anchors.leftMargin: setup.footerMargin
+        anchors.bottomMargin: setup.footerMargin + (setup.footerStacked ? setup.footerActionHeight + setup.footerGap : 0)
+        width: setup.footerActionWidth
+        height: setup.footerActionHeight
         onClicked: backRequested()
         Keys.onRightPressed: focusPlayRequested()
         Keys.onUpPressed: focusSettings()

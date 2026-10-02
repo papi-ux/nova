@@ -620,11 +620,11 @@ Popup {
             topInset: 0; bottomInset: 0
             objectName: "native-preview-action"
             x: nativePlaying ? commandCenter.x + commandHeader.x : nativePreview.attempted
-                ? (parent.width - width) / 2 : parent.width - width - 32 * nativePreview.unit
+                ? (parent.width - width) / 2 : playSetup.footerActionX
             y: nativePlaying ? commandCenter.y + commandHeader.y
-                : parent.height - height - (recoveryAvailable ? 112 : 32) * nativePreview.unit
-            width: nativePlaying ? commandHeader.buttonWidth : (nativePreview.attempted ? 440 : 280) * nativePreview.unit
-            height: nativePlaying ? commandHeader.height : Math.max(60 * nativePreview.unit, implicitHeight)
+                : !nativePreview.attempted ? playSetup.footerActionY : parent.height - height - (recoveryAvailable ? 112 : 32) * nativePreview.unit
+            width: nativePlaying ? commandHeader.buttonWidth : nativePreview.attempted ? 440 * nativePreview.unit : playSetup.footerActionWidth
+            height: nativePlaying ? commandHeader.height : nativePreview.attempted ? Math.max(60 * nativePreview.unit, implicitHeight) : Math.max(playSetup.footerActionHeight, implicitHeight)
             text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? "Play"
                 : nativePlaying ? "Close" : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
                 : nativeSessionState.busy ? (nativeSessionState.automaticReconnect ? "Cancel reconnect" : "Cancel connection") : nativePreview.returnLabel
