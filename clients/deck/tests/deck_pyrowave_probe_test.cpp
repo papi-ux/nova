@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
         else if (mode == "fraction") std::cout << R"({"version":2,"available":true,"maxWidth":128.5,"maxHeight":128,"reason":"none"})";
         else if (mode == "oversize") std::cout << R"({"version":2,"available":true,"maxWidth":65537,"maxHeight":128,"reason":"none"})";
         else if (mode == "contradictory") std::cout << R"({"version":2,"available":false,"maxWidth":4096,"maxHeight":2160,"reason":"device"})";
-        else if (mode == "unknown-version") std::cout << R"({"version":2,"available":true,"maxWidth":4096,"maxHeight":2160})";
+        else if (mode == "unknown-version") std::cout << R"({"version":3,"available":true,"maxWidth":4096,"maxHeight":2160,"reason":"none"})";
         else std::cout << "malformed driver output";
         return 0;
     }
