@@ -8,3 +8,6 @@ LogoPlacement 1.0 LogoPlacement.qml
 LogoArtwork 1.0 LogoArtwork.qml
 GameShortcut 1.0 GameShortcut.qml
 StreamProfileEditor 1.0 StreamProfileEditor.qml
+NovaPercentSetting 1.0 NovaPercentSetting.qml
+TextSizeSettings 1.0 TextSizeSettings.qml
+MenuOpacitySettings 1.0 MenuOpacitySettings.qml
