@@ -31,6 +31,7 @@
     "/share/nova-deck/cmake"
   ],
   "modules": [
+    "modules/ffmpeg-frame.json",
     "modules/libplacebo.json",
     "modules/pyrowave.json",
     {

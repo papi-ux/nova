@@ -1,0 +1,108 @@
+--- a/libavcodec/v4l2_m2m.h
++++ b/libavcodec/v4l2_m2m.h
+@@ -75,6 +75,8 @@
+ 
+     int num_output_buffers;
+     int num_capture_buffers;
++    char *nova_device;
++    int nova_nonblocking;
+ } V4L2m2mPriv;
+ 
+ /**
+--- a/libavcodec/v4l2_m2m.c
++++ b/libavcodec/v4l2_m2m.c
+@@ -212,6 +212,13 @@
+ 
+     av_log(log_ctx, AV_LOG_DEBUG, "reinit context\n");
+ 
++    /* A retained GPU upload may still own a capture buffer. Refuse a
++     * resolution change rather than waiting for a UI/render-thread release.
++     * Nova reconnects with a fresh decoder instead. Ordinary FFmpeg behavior
++     * is unchanged unless the caller explicitly selects this option. */
++    if (((V4L2m2mPriv *)s->priv)->nova_nonblocking && atomic_load(&s->refcount))
++        return AVERROR(ENOSYS);
++
+     /* 1. streamoff */
+     ret = ff_v4l2_context_set_status(&s->capture, VIDIOC_STREAMOFF);
+     if (ret)
+@@ -295,6 +302,15 @@
+ 
+     V4L2m2mContext *s = priv->context;
+ 
++    /* Nova's private ARM provider must use exactly the qualified device. */
++    if (priv->nova_device && priv->nova_device[0]) {
++        if (strlen(priv->nova_device) >= sizeof(s->devname))
++            return AVERROR(EINVAL);
++        strcpy(s->devname, priv->nova_device);
++        ret = v4l2_probe_driver(s);
++        return ret ? ret : v4l2_configure_contexts(s);
++    }
++
+     dirp = opendir("/dev");
+     if (!dirp)
+         return AVERROR(errno);
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -172,7 +172,8 @@
+     }
+ 
+ dequeue:
+-    return ff_v4l2_context_dequeue_frame(capture, frame, -1);
++    return ff_v4l2_context_dequeue_frame(capture, frame,
++        ((V4L2m2mPriv *)avctx->priv_data)->nova_nonblocking ? 0 : -1);
+ fail:
+     av_packet_unref(&s->buf_pkt);
+     return ret;
+@@ -225,6 +226,10 @@
+ 
+ static const AVOption options[] = {
+     V4L_M2M_DEFAULT_OPTS,
++    { "nova_device", "Use only this qualified V4L2 device",
++        OFFSET(nova_device), AV_OPT_TYPE_STRING, {.str = NULL}, 0, 0, FLAGS },
++    { "nova_nonblocking", "Poll capture and refuse held-buffer reconfiguration",
++        OFFSET(nova_nonblocking), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, FLAGS },
+     { "num_capture_buffers", "Number of buffers in the capture context",
+         OFFSET(num_capture_buffers), AV_OPT_TYPE_INT, {.i64 = 20}, 2, INT_MAX, FLAGS },
+     { NULL},
+--- a/libavcodec/v4l2_buffers.c
++++ b/libavcodec/v4l2_buffers.c
+@@ -256,12 +256,13 @@
+ {
+     int ret;
+ 
+-    if (plane >= in->num_planes)
++    if (plane >= in->num_planes || in->planes[plane].data_offset > in->plane_info[plane].length)
+         return AVERROR(EINVAL);
+ 
+     /* even though most encoders return 0 in data_offset encoding vp8 does require this value */
+     *buf = av_buffer_create((char *)in->plane_info[plane].mm_addr + in->planes[plane].data_offset,
+-                            in->plane_info[plane].length, v4l2_free_buffer, in, 0);
++                            in->plane_info[plane].length - in->planes[plane].data_offset,
++                            v4l2_free_buffer, in, 0);
+     if (!*buf)
+         return AVERROR(ENOMEM);
+ 
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -65,6 +65,9 @@
+     /* 2.1 update the AVCodecContext */
+     avctx->pix_fmt = ff_v4l2_format_v4l2_to_avfmt(capture->format.fmt.pix_mp.pixelformat, AV_CODEC_ID_RAWVIDEO);
+     capture->av_pix_fmt = avctx->pix_fmt;
++    if (((V4L2m2mPriv *)avctx->priv_data)->nova_nonblocking &&
++        capture->av_pix_fmt != AV_PIX_FMT_NV12)
++        return AVERROR(ENOSYS);
+ 
+     /* 3. set the crop parameters */
+     selection.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -163,7 +163,8 @@
+         ret = v4l2_try_start(avctx);
+         if (ret) {
+             /* cant recover */
+-            if (ret != AVERROR(ENOMEM))
++            if (ret != AVERROR(ENOMEM) &&
++                !((V4L2m2mPriv *)avctx->priv_data)->nova_nonblocking)
+                 ret = 0;
+             goto fail;
+         }
