@@ -232,7 +232,7 @@ DeckHostCancelOutcome requestHostSessionCancel(const DeckHttpFetcher& fetch, con
         outcome.transportOk = reply.transportOk;
         outcome.httpStatus = reply.status;
         if (!reply.transportOk) {
-            outcome.summary = "host cancel requested but the host could not be reached";
+            outcome.summary = "host did not confirm acceptance of the request to end the game (transport reply unavailable)";
             return outcome;
         }
         const DeckCancelResult parsed = parseCancelResponse(reply.body);
@@ -249,7 +249,7 @@ DeckHostCancelOutcome requestHostSessionCancel(const DeckHttpFetcher& fetch, con
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-    outcome.summary = "host did not accept the request to end the game (http " + std::to_string(outcome.httpStatus) +
+    outcome.summary = "host did not confirm acceptance of the request to end the game (http " + std::to_string(outcome.httpStatus) +
         ", host status " + std::to_string(outcome.hostStatusCode) +
         (outcome.hostStatusMessage.empty() ? std::string{} : ": " + outcome.hostStatusMessage) + ")";
     return outcome;
