@@ -310,7 +310,7 @@ int main(int argc, char** argv) {
     check(find(window->contentItem(), "settings-choice-back") && settings.defaultFaceButtonLayout() == "labels", "failed write dismissed picker or changed value");
     key(Qt::Key_Escape); root->setProperty("provider", QVariant::fromValue(static_cast<QObject*>(&settings))); settle();
     query(""); click("settings-category-appearance"); click("settings-row-theme"); click("settings-choice-1");
-    click("settings-row-text"); click("settings-choice-2"); window->resize(960, 600); settle();
+    click("settings-row-text"); item("text-size-settings-popup-value")->setProperty("text", "130"); click("text-size-settings-popup-save"); window->resize(960, 600); settle();
     focused("settings-row-text"); within("settings-row-text"); within("settings-back");
     capture("settings-appearance-960-large");
     query("mouse"); click("settings-row-mouse");
