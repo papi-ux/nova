@@ -661,6 +661,12 @@ void DeckNativeSessionController::poll() {
             hudSample->composed = hudSample->compositionAvailable ? presentationFrames_->load() : 0;
             hudSample->cpuUploadCompositions = presentationOwner_ && presentationCpuUploads_ ? presentationCpuUploads_->load() : 0;
             hudSample->cpuUploadsAvailable = presentationOwner_ && bool(presentationCpuUploads_);
+            hudSample->deliveryAvailable = bool(frameDelivery_);
+            if (frameDelivery_) {
+                const auto delivery = frameDelivery_->stats();
+                hudSample->deliveryDrops = delivery.dropped;
+                hudSample->deliveryQueueDepth = delivery.queued;
+            }
             nextHud = hudMetrics_.sample(*hudSample);
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
@@ -976,7 +982,8 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 sample.decoderBackend = renderer.decoderBackend == DeckDecoderBackend::V4l2 ? "V4L2" :
                     renderer.decoderBackend == DeckDecoderBackend::Vaapi ? "VA-API" :
                     renderer.decoderBackend == DeckDecoderBackend::Pyrowave ? "PyroWave Vulkan" : "Unavailable";
-                sample.frameTransferPath = renderer.transferPath == DeckFrameTransferPath::CpuUpload ? "CPU upload" : "DMA-BUF";
+                sample.frameTransferPath = renderer.decoderBackend == DeckDecoderBackend::Unavailable ? "Unavailable" :
+                    renderer.transferPath == DeckFrameTransferPath::CpuUpload ? "CPU upload" : "DMA-BUF";
                 sample.videoWorkMicros = renderer.videoWorkMicros;
                 sample.videoWorkSamples = renderer.videoWorkSamples;
                 sample.refused = renderer.refusedFrames;

@@ -15,6 +15,9 @@ struct DeckHudSample {
     int width = 0, height = 0, targetFps = 0;
     QString codec, decoderBackend, frameTransferPath;
     bool cpuUploadsAvailable = false;
+    std::uint64_t deliveryDrops = 0;
+    std::size_t deliveryQueueDepth = 0;
+    bool deliveryAvailable = false;
     std::optional<polaris::DeckClientMediaSample> media;
     bool compositionAvailable = false;
     std::optional<unsigned> rttMs, rttVariationMs;

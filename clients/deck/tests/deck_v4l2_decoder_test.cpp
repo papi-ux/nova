@@ -101,8 +101,10 @@ int main(int argc, char** argv) {
             .decoderBackend=DeckDecoderBackend::V4l2, .transferPath=DeckFrameTransferPath::CpuUpload};
         const auto references = lease.use_count();
         for (int i = 0; i < 20; ++i) assert(publish(descriptor));
+        assert(delivery.stats().queued == 1 && delivery.stats().dropped == 19);
         assert(lease.use_count() <= references + 3); // bounded queue, no 20-frame pool
         delivery.close();
+        assert(delivery.stats().queued == 0 && delivery.stats().dropped == 19);
         assert(lease.use_count() == references);
         assert(!publish(descriptor));
         QCoreApplication::processEvents();

@@ -18,6 +18,7 @@ struct DeckFrameDelivery::State {
     DeckFrameDelivery* receiver = nullptr;
     bool closed = false, queued = false;
     bool configured = false, started = false;
+    std::uint64_t dropped = 0;
 };
 
 DeckFrameDelivery::DeckFrameDelivery(Consumer consumer, QObject* parent)
@@ -41,6 +42,11 @@ void DeckFrameDelivery::close() {
     state_->frames.clear();
 }
 
+DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
+    const std::lock_guard lock(state_->mutex);
+    return {state_->dropped, state_->frames.size()};
+}
+
 DeckFrameDelivery::Configure DeckFrameDelivery::configurator() const {
     return [state = state_](DeckFramePacing mode, int fps) {
         const std::lock_guard lock(state->mutex);
@@ -60,7 +66,9 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
         // not move an overdue backlog's deadline forward and preserve stale work.
         if (state->frames.empty()) state->cadence.arm(nowNs());
         state->frames.push_back(frame);
-        while (state->frames.size() > state->cadence.capacity()) state->frames.pop_front();
+        while (state->frames.size() > state->cadence.capacity()) {
+            state->frames.pop_front(); ++state->dropped;
+        }
         if (state->queued) return true;
         state->queued = true;
         auto* receiver = state->receiver;
@@ -87,7 +95,7 @@ void DeckFrameDelivery::deliver() {
             return;
         }
         if (state_->cadence.missed(now))
-            while (state_->frames.size() > 1) state_->frames.pop_front();
+            while (state_->frames.size() > 1) { state_->frames.pop_front(); ++state_->dropped; }
         frame = std::move(state_->frames.front()); state_->frames.pop_front();
         state_->cadence.advance(now);
         state_->queued = !state_->frames.empty();

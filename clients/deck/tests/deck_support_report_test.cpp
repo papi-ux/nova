@@ -20,6 +20,22 @@ int main(int argc, char** argv) {
         {"doctorHasReceipt", true}, {"doctorCanUndo", false}, {"doctorActionMessage", secret}, {"hostName", secret},
         {"doctor", QVariantMap{{"available", true}, {"confidence", "medium"}, {"title", secret}, {"evidence", QVariantList{evidence}}}}};
     auto report = deckSupportReport(hud);
+    auto frame = hud;
+    frame["decoderBackend"] = "V4L2"; frame["frameTransferPath"] = "CPU upload";
+    frame["requestedFps"] = "90"; frame["submitted"] = "88.0"; frame["cpuUploadCompositions"] = "87.0";
+    frame["deliveryDrops"] = "4"; frame["deliveryQueueDepth"] = "1";
+    const auto readings = deckSupportReport(frame)["client_readings"].toObject();
+    require(readings["decoder_backend"] == "V4L2" && readings["frame_transfer_path"] == "CPU upload" &&
+        readings["requested_fps"] == 90 && readings["submitted_fps"] == 88 && readings["cpu_upload_composed_fps"] == 87 &&
+        readings["delivery_dropped_frames"] == 4 && readings["delivery_queue_depth"] == 1, "Frame path measurements missing");
+    frame["fresh"] = false;
+    require(deckSupportReport(frame)["client_readings"].toObject()["submitted_fps"].isNull() &&
+        deckSupportReport(frame)["client_readings"].toObject()["cpu_upload_composed_fps"].isNull() &&
+        deckSupportReport(frame)["client_readings"].toObject()["delivery_queue_depth"].isNull(), "stale Frame measurements exported");
+    for (const auto* field : {"decoderBackend", "frameTransferPath", "requestedFps", "submitted", "cpuUploadCompositions", "deliveryDrops", "deliveryQueueDepth"}) {
+        auto attack = hud; attack[field] = secret;
+        require(!QJsonDocument(deckSupportReport(attack)).toJson().contains("private-"), "tainted Frame measurement exported");
+    }
     require(report["host"].toObject()["encoder_applied_mbps"] == 20.0 && report["network"].toObject()["rtt_ms"] == 17 &&
         report["client_readings"].toObject()["composed_fps"] == 59.8, "measured report values missing");
     require(report["network"].toObject()["client_media_loss_percent"].isNull() &&

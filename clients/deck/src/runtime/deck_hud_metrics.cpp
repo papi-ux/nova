@@ -10,6 +10,7 @@ QVariantMap DeckHudMetrics::empty() {
         {"resolution", "--"}, {"codec", "--"}, {"history", QVariantList{}},
         {"videoWork", "--"}, {"refused", "--"}, {"submitted", "--"},
         {"decoderBackend", "--"}, {"frameTransferPath", "--"}, {"cpuUploadCompositions", "--"},
+        {"requestedFps", "--"}, {"deliveryDrops", "--"}, {"deliveryQueueDepth", "--"},
         {"mediaLoss", "--"}, {"mediaLossFresh", false}, {"mediaLossSource", "Unavailable"},
         {"receivedBitrateKbps", 0}, {"fresh", false}, {"truth", "Waiting for stream readings"}};
     for (auto it = local.cbegin(); it != local.cend(); ++it) result.insert(it.key(), it.value());
@@ -22,6 +23,7 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     out["frameTransferPath"] = s.frameTransferPath.isEmpty() ? "--" : s.frameTransferPath;
     if (s.width > 0 && s.height > 0) out["resolution"] = QString("%1×%2").arg(s.width).arg(s.height);
     if (s.targetFps > 0) out["target"] = QString("/ %1 target").arg(s.targetFps);
+    if (s.targetFps > 0 && s.targetFps <= 240) out["requestedFps"] = QString::number(s.targetFps);
     const auto previous = previous_;
     previous_ = s;
     // Do not bridge a stall, reconnect, counter reset or surface replacement.
@@ -32,6 +34,7 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
         s.hostLatencySamples < previous->hostLatencySamples || s.hostLatencyTenths < previous->hostLatencyTenths ||
         s.submitted < previous->submitted || s.cpuUploadCompositions < previous->cpuUploadCompositions ||
         s.compositionAvailable != previous->compositionAvailable || s.cpuUploadsAvailable != previous->cpuUploadsAvailable ||
+        s.deliveryAvailable != previous->deliveryAvailable || s.deliveryDrops < previous->deliveryDrops ||
         s.decoderBackend != previous->decoderBackend || s.frameTransferPath != previous->frameTransferPath) {
         history_.clear(); return out;
     }
@@ -42,6 +45,10 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     out["incoming"] = QString::number(rate(s.incoming - previous->incoming), 'f', 1);
     out["decoded"] = QString::number(rate(s.decoded - previous->decoded), 'f', 1);
     out["submitted"] = QString::number(rate(s.submitted - previous->submitted), 'f', 1);
+    if (s.deliveryAvailable) {
+        out["deliveryDrops"] = QString::number(s.deliveryDrops);
+        out["deliveryQueueDepth"] = QString::number(s.deliveryQueueDepth);
+    }
     if (s.cpuUploadsAvailable)
         out["cpuUploadCompositions"] = QString::number(rate(s.cpuUploadCompositions - previous->cpuUploadCompositions), 'f', 1);
     out["receivedBitrateKbps"] = rate(s.bytes - previous->bytes) * 8 / 1000;
