@@ -142,6 +142,7 @@ int main(int argc, char** argv) {
                 function setAutomatic(value) { updateState=Object.assign({},updateState,{automatic:value}); return true }
                 function finishUpdate() { updateFinishes++ }
             }
+            readonly property bool hubOpened:hub.opened
             readonly property string themeId:NovaTheme.themeId
             readonly property real fontScale:NovaTheme.fontScale
             Settings { id:prefs; category:"Library"; property string layoutMode:"grid" }
@@ -189,6 +190,7 @@ int main(int argc, char** argv) {
         focused("settings-row-channels");
         check(settings.audioSettings()["channels"] == 2 && !item("settings-search")->property("text").toString().isEmpty(), "value-page Back saved a draft or cleared root search");
         controllerBack();
+        check(root->property("hubOpened").toBool(), "Back from a matching row closed Settings instead of clearing root search");
         check(item("settings-search")->property("text").toString().isEmpty(), "Back from a matching row did not clear root search");
         within("settings-back");
         check(reads == 0 && writes == 0 && settings.load("host","game") == override, "search Back crossed host/game scope");
