@@ -122,7 +122,7 @@ jobs:
       - name: Install native codec and production QML test dependencies
         run: |
           pacman -Syu --noconfirm --needed \
-            git gcc cmake ninja pkgconf python \
+            git gcc cmake ninja pkgconf patch python \
             qt6-base qt6-declarative qt6-wayland wayland wayland-protocols \
             ffmpeg libva libdrm mesa libpulse pipewire pipewire-audio opus openssl dbus \
             libplacebo vulkan-headers vulkan-swrast \
