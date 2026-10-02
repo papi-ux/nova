@@ -1216,13 +1216,18 @@ data class NovaQuickMenuUiState(
             } else {
                 ""
             }
-            // Plain words for the capture path: GPU capture when frames stay on the GPU, GPU encoding
-            // when only the encoder is on it, CPU capture otherwise, and nothing when the host
-            // reports no capture path.
+            // Show both stages when GPU encoding uses CPU capture copies. A GPU encoder path
+            // does not make capture GPU-native, and an encoder name alone proves neither.
             val capture = when {
                 status.isGpuNativeCapture -> context.getString(R.string.nova_cc_capture_gpu)
                 status.capturePathLabel.isBlank() -> ""
-                status.isGpuPath && !status.capturePathLabel.contains("SHM") -> context.getString(R.string.nova_cc_capture_gpu_encoder)
+                status.isGpuPath -> context.getString(
+                    if (status.capturePathLabel.contains("SHM")) {
+                        R.string.nova_cc_capture_gpu_encoder_cpu_copies
+                    } else {
+                        R.string.nova_cc_capture_gpu_encoder
+                    }
+                )
                 else -> context.getString(R.string.nova_cc_capture_cpu)
             }
             return listOf(capture, source, role)

@@ -101,11 +101,11 @@
     <string name="nova_cc_paste_caption">Copies this device\'s clipboard to the host.</string>
     <string name="nova_cc_rotate_caption">Closes Command Center and turns the stream between landscape and portrait.</string>
     <string name="nova_cc_shown">Shown</string>
-    <!-- The session strip's detail line, in plain words: GPU capture, GPU encoding or CPU capture.
-         It says nothing of the capture when the host reports no capture path. -->
+    <!-- Keep capture and encoding distinct, including GPU encoding with CPU capture copies. -->
     <string name="nova_cc_capture_gpu">GPU capture</string>
     <string name="nova_cc_capture_cpu">CPU capture</string>
     <string name="nova_cc_capture_gpu_encoder">GPU encoding</string>
+    <string name="nova_cc_capture_gpu_encoder_cpu_copies">GPU encoding · Capture uses CPU copies</string>
 
     <!-- Launch failure and stream errors, as full-screen state pages. -->
     <string name="nova_stream_launch_retry">Try Again</string>

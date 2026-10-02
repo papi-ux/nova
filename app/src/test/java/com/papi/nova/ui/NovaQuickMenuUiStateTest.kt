@@ -424,6 +424,80 @@ class NovaQuickMenuUiStateTest {
         assertEquals("GPU capture · Mode you picked · Your session", state.sessionDetail)
     }
 
+    @Test
+    fun gpuEncodingAndCpuCaptureCopiesAreExplainedTogether() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_vulkan",
+                    activeBackend = "vulkan",
+                    targetDevice = "vulkan",
+                    targetResidency = "gpu",
+                    targetFormat = "nv12",
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    transport = "shm",
+                    residency = "cpu",
+                ),
+                displayMode = PolarisSessionStatus.DisplayModeStatus(requested = "desktop_display"),
+            )
+        )
+
+        assertEquals(
+            "GPU encoding · Capture uses CPU copies · Mode you picked · Your session",
+            state.sessionDetail,
+        )
+        assertEquals("Mirror Desktop · Vulkan", state.sessionMode.label)
+        assertEquals(NovaQuickMenuTone.MUTED, state.healthTone)
+    }
+
+    @Test
+    fun cpuCaptureDoesNotClaimGpuEncodingFromTheCodecOrBackendName() {
+        for (residency in listOf("", "cpu")) {
+            val state = quickState(
+                status = status(
+                    encoder = PolarisSessionStatus.EncoderStatus(
+                        codec = "hevc_vulkan",
+                        activeBackend = "vulkan",
+                        targetDevice = "vulkan",
+                        targetResidency = residency,
+                    ),
+                    capture = PolarisSessionStatus.CaptureStatus(transport = "shm", residency = "cpu"),
+                )
+            )
+
+            assertEquals("CPU capture · Mode you picked · Your session", state.sessionDetail)
+        }
+    }
+
+    @Test
+    fun gpuEncodingWithCpuCapturePreservesDoctorAttention() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(targetDevice = "vulkan", targetResidency = "gpu"),
+                capture = PolarisSessionStatus.CaptureStatus(transport = "shm", residency = "cpu"),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "encoder-pressure-current",
+                    status = "watch",
+                    severity = "warning",
+                    trafficLight = "yellow",
+                    primaryIssue = "encoder_pressure",
+                    likelyCause = "Encoding is taking longer than the frame interval.",
+                ),
+            )
+        )
+
+        assertEquals(
+            "GPU encoding · Capture uses CPU copies · Mode you picked · Your session",
+            state.sessionDetail,
+        )
+        assertEquals("Needs attention", state.healthSummary)
+        assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
+        assertEquals("Encoding is taking longer than the frame interval.", state.diagnosis.likelyCause)
+    }
+
     /**
      * The host's own name for a mode is its name. Polaris names windowed_stream "Private Stream
      * (GPU-native)" and headless_stream "Private Stream", and the library's picker, the game page
