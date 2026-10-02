@@ -93,7 +93,7 @@ class NovaPyroWaveCiTest(unittest.TestCase):
             cache = f'  libvulkan_lvp.so (libc6) => {foreign}\n  libvulkan_lvp.so (libc6,x86-64) => {native}\n'
             with patch('subprocess.check_output', return_value=cache):
                 self.assertEqual(gate.software_icd(root, 'x86_64'), manifest)
-                self.assertEqual(gate.icd_library(manifest, 'x86_64'), native)
+                self.assertEqual(gate.icd_library(manifest, 'x86_64'), native.resolve())
 
     def test_generic_icd_rejects_foreign_32bit_or_nonshared_library(self):
         for machine, elf_class, elf_type in [(183, 2, 3), (62, 1, 3), (62, 2, 2)]:
