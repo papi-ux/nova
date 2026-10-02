@@ -10,7 +10,11 @@
 namespace nova::deck::runtime {
 
 struct DeckUpdateCatalog { QString commit, version; };
-std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes, const QString& channel);
+// Build ABI identity, independent of the CPU hosting an emulated application.
+QString deckUpdateArchitecture(const QString& builtAbi);
+QString deckUpdateArchitecture();
+std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes, const QString& channel,
+    const QString& architecture = deckUpdateArchitecture());
 
 struct DeckUpdateOptions {
     bool enabled = true;
@@ -18,6 +22,7 @@ struct DeckUpdateOptions {
     QString settingsFile;
     QString channel;
     QString feedUrl;
+    QString architecture = deckUpdateArchitecture();
     int idleDelayMs = 15000;
 };
 

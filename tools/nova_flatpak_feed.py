@@ -76,7 +76,7 @@ def prepare(manifest, channel, url, version):
     return manifest
 
 
-def catalog(channel, revision, version):
+def catalog(channel, revision, version, architecture="x86_64"):
     if channel not in CHANNELS or not COMMIT.fullmatch(revision) or not TAG.fullmatch(version):
         raise ValueError("Invalid channel catalog")
     return {"appId": APP, "channel": channel, "arch": "x86_64", "commit": revision, "version": version}
@@ -96,7 +96,7 @@ def descriptors(url, key, channel):
     return repo, ref
 
 
-def write_site(repository, site, previous, channel, version, url, key):
+def write_site(repository, site, previous, channel, version, url, key, architecture="x86_64"):
     site.mkdir(parents=True, exist_ok=True)
     refs = subprocess.check_output(["ostree", f"--repo={repository}", "refs"], text=True).splitlines()
     if f"app/{APP}/x86_64/{channel}" not in refs:
@@ -156,6 +156,7 @@ def main():
     site_cmd.add_argument("--channel", choices=CHANNELS, required=True)
     site_cmd.add_argument("--version", required=True)
     site_cmd.add_argument("--url", required=True)
+    site_cmd.add_argument("--arch", choices=("x86_64", "aarch64"), default="x86_64")
     args = parser.parse_args()
     if args.command == "validate-release":
         validate_release(json.loads(args.release.read_text()), args.channel)
@@ -168,7 +169,7 @@ def main():
         prepared = prepare(manifest, args.channel, args.url, args.version) if args.command == "prepare" else prepare_release(manifest, args.version)
         args.output.write_text(json.dumps(prepared, indent=2) + "\n")
     else:
-        write_site(args.repository, args.site, args.previous, args.channel, args.version, args.url, args.key.read_bytes())
+        write_site(args.repository, args.site, args.previous, args.channel, args.version, args.url, args.key.read_bytes(), args.arch)
 
 
 if __name__ == "__main__":

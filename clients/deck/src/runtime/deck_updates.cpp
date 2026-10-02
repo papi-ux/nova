@@ -12,6 +12,7 @@
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSysInfo>
 #include <QUuid>
 #include <algorithm>
 #include <memory>
@@ -31,7 +32,16 @@ std::unique_ptr<QSettings> preferences(const QString& path) {
 }
 }
 
-std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes, const QString& channel) {
+// Red fixture seam: keep the existing x86 policy until its discriminators run.
+QString deckUpdateArchitecture(const QString& builtAbi) {
+    Q_UNUSED(builtAbi);
+    return QStringLiteral("x86_64");
+}
+QString deckUpdateArchitecture() { return deckUpdateArchitecture(QSysInfo::buildCpuArchitecture()); }
+
+std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes, const QString& channel,
+    const QString& architecture) {
+    Q_UNUSED(architecture);
     if (bytes.size() > 16384) return {};
     const auto object = QJsonDocument::fromJson(bytes).object();
     const QString revision = object.value("commit").toString();
@@ -160,7 +170,7 @@ void DeckUpdates::check() {
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         checking_ = false;
         const auto bytes = reply->readAll();
-        const auto catalog = parseDeckUpdateCatalog(bytes, options_.channel);
+        const auto catalog = parseDeckUpdateCatalog(bytes, options_.channel, options_.architecture);
         feedUnavailable_ = reply->error() != QNetworkReply::NoError
             || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200 || !catalog;
         if (feedUnavailable_) {

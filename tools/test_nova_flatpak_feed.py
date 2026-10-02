@@ -136,5 +136,68 @@ class FeedTests(unittest.TestCase):
                     feed.write_site(*args)
 
 
+    def test_arm_catalog_matches_only_the_canonical_selected_architecture(self):
+        expected = {"appId": feed.APP, "channel": "beta", "arch": "aarch64", "commit": "a" * 64, "version": "v1.4.14-beta.1"}
+        self.assertEqual(feed.catalog("beta", "a" * 64, "v1.4.14-beta.1", "aarch64"), expected)
+        for arch in ["", "arm64", "arm", "riscv64", "aarch64\n", "../aarch64"]:
+            with self.subTest(arch=arch), self.assertRaises(ValueError):
+                feed.catalog("beta", "a" * 64, "v1.4.14-beta.1", arch)
+
+    def test_arm_site_never_substitutes_an_x86_ref_with_the_same_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(feed.subprocess, "check_output", side_effect=[f"app/{feed.APP}/x86_64/beta\n", "a" * 64 + "\n"]):
+                with self.assertRaises(ValueError):
+                    feed.write_site(root / "repo", root / "site", root / "previous", "beta", "v1.4.14-beta.1",
+                                    "https://example.org/nova", b"public fixture", "aarch64")
+
+    def test_mixed_refs_preserve_both_legacy_x86_catalogs_and_the_other_arm_channel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); previous = root / "previous"; previous.mkdir(); (previous / "aarch64").mkdir()
+            refs = {f"app/{feed.APP}/x86_64/stable": "a" * 64, f"app/{feed.APP}/x86_64/beta": "b" * 64,
+                    f"app/{feed.APP}/aarch64/stable": "c" * 64, f"app/{feed.APP}/aarch64/beta": "d" * 64}
+            old_catalogs = {}
+            for arch, branch, revision, version in [("x86_64", "stable", "a" * 64, "v1.4.13"),
+                                                     ("x86_64", "beta", "b" * 64, "v1.4.13-beta.1"),
+                                                     ("aarch64", "stable", "c" * 64, "v1.4.13")]:
+                path = Path(branch + ".json") if arch == "x86_64" else Path(arch) / (branch + ".json")
+                data = {"appId": feed.APP, "channel": branch, "arch": arch, "commit": revision, "version": version}
+                encoded = json.dumps(data, indent=2) + "\n"; (previous / path).write_text(encoded); old_catalogs[path] = encoded
+            queried = []
+            def ostree(args, **kwargs):
+                if args[-1] == "refs": return "\n".join(refs) + "\n"
+                queried.append(args[-1]); return refs[args[-1]] + "\n"
+            with patch.object(feed.subprocess, "check_output", side_effect=ostree):
+                feed.write_site(root / "repo", root / "site", previous, "beta", "v1.4.14-beta.1",
+                                "https://example.org/nova", b"public fixture", "aarch64")
+            for path, encoded in old_catalogs.items(): self.assertEqual((root / "site" / path).read_text(), encoded)
+            self.assertEqual(json.loads((root / "site/aarch64/beta.json").read_text()),
+                             {"appId": feed.APP, "channel": "beta", "arch": "aarch64", "commit": "d" * 64, "version": "v1.4.14-beta.1"})
+            self.assertEqual(set(queried), set(refs))
+            repo, ref = feed.descriptors("https://example.org/nova", b"public fixture", "beta")
+            self.assertEqual((root / "site/nova.flatpakrepo").read_text(), repo)
+            self.assertEqual((root / "site/nova-beta.flatpakref").read_text(), ref)
+
+    def test_cross_arch_previous_catalog_is_validated_even_during_default_x86_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); previous = root / "previous"; (previous / "aarch64").mkdir(parents=True)
+            wrong = {"appId": feed.APP, "channel": "beta", "arch": "x86_64", "commit": "a" * 64, "version": "v1.4.13-beta.1"}
+            (previous / "aarch64/beta.json").write_text(json.dumps(wrong))
+            refs = f"app/{feed.APP}/x86_64/beta\napp/{feed.APP}/aarch64/beta\n"
+            with patch.object(feed.subprocess, "check_output", side_effect=lambda args, **kwargs: refs if args[-1] == "refs" else "a" * 64 + "\n"):
+                with self.assertRaises(ValueError):
+                    feed.write_site(root / "repo", root / "site", previous, "beta", "v1.4.14-beta.1",
+                                    "https://example.org/nova", b"public fixture")
+
+    def test_unsupported_site_architecture_fails_before_ostree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(feed.subprocess, "check_output") as query:
+                with self.assertRaises(ValueError):
+                    feed.write_site(root / "repo", root / "site", root / "previous", "beta", "v1.4.14-beta.1",
+                                    "https://example.org/nova", b"public fixture", "arm64")
+                query.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
