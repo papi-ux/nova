@@ -240,7 +240,7 @@ DeckHostCancelOutcome requestHostSessionCancel(const DeckHttpFetcher& fetch, con
         outcome.hostStatusCode = parsed.statusCode;
         outcome.hostStatusMessage = parsed.statusMessage;
         if (outcome.cancelled) {
-            outcome.summary = "host confirmed the app ended (attempt " + std::to_string(attempt) + ")";
+            outcome.summary = "host accepted the request to end the game (attempt " + std::to_string(attempt) + ")";
             return outcome;
         }
         const bool retryable = reply.status == 200 && parsed.statusCode == 409 && attempt < kAttempts;
@@ -249,7 +249,7 @@ DeckHostCancelOutcome requestHostSessionCancel(const DeckHttpFetcher& fetch, con
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-    outcome.summary = "host did not confirm the app ended (http " + std::to_string(outcome.httpStatus) +
+    outcome.summary = "host did not accept the request to end the game (http " + std::to_string(outcome.httpStatus) +
         ", host status " + std::to_string(outcome.hostStatusCode) +
         (outcome.hostStatusMessage.empty() ? std::string{} : ": " + outcome.hostStatusMessage) + ")";
     return outcome;
