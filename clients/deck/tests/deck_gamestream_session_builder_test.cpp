@@ -308,10 +308,18 @@ void testHostCancel() {
         assert(outcome.summary.starts_with("host did not confirm acceptance of the request to end the game"));
         assert(outcome.summary.find("app ended") == std::string::npos);
     }
-    // Transport failure and a missing fetcher are reported, never thrown.
+    // A lost reply may follow host acceptance; a missing fetcher sends no request.
     {
         FakeHost host;
-        const auto outcome = requestHostSessionCancel(host.fetcher(), "tok-abc");
+        host.table["/cancel"] = DeckHttpResponse{true, 200, kCancelOk};
+        bool acceptedBeforeReplyLost = false;
+        const DeckHttpFetcher lostReply = [&](const std::string& target) {
+            const auto accepted = host.fetcher()(target);
+            acceptedBeforeReplyLost = accepted.transportOk && accepted.status == 200 && accepted.body == kCancelOk;
+            return DeckHttpResponse{false, 0, {}};
+        };
+        const auto outcome = requestHostSessionCancel(lostReply, "tok-abc");
+        assert(acceptedBeforeReplyLost && host.seen.size() == 1);
         assert(outcome.requested && !outcome.transportOk && !outcome.cancelled);
         assert(outcome.summary == "host did not confirm acceptance of the request to end the game (transport reply unavailable)");
         assert(outcome.summary.find("did not accept") == std::string::npos);
