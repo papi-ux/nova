@@ -76,7 +76,7 @@ ApplicationWindow {
     require(rect("native-hud-settings").bottom() <= window->height(), "narrow panel did not reveal its focused row");
     capture("command-center-portrait-360.png");
     window->resize(960, 600); QTest::qWait(100);
-    const QPoint sample = center->mapToScene(QPointF(8, center->height() - 8)).toPoint();
+    const QPointF sample = center->mapToScene(QPointF(8, center->height() - 8));
     QColor body[4]; int opacityValues[] = {0, 25, 64, 100};
     for (int i = 0; i < 4; ++i) {
         QVariant changed;
@@ -84,7 +84,9 @@ ApplicationWindow {
         require(changed.toBool(), "independent menu opacity setter is missing");
         QTest::qWait(60);
         const auto rendered = window->grabWindow(); require(!rendered.isNull(), "menu opacity capture failed");
-        body[i] = rendered.pixelColor(sample);
+        const QPoint pixel(sample.x() * rendered.width() / window->width(), sample.y() * rendered.height() / window->height());
+        require(rendered.rect().contains(pixel), "menu panel-body sample escaped actual capture");
+        body[i] = rendered.pixelColor(pixel);
         require(item("native-preview-action")->isVisible() && item("native-hud-settings")->isVisible(),
             "menu opacity hid labels or interaction owners");
     }

@@ -133,7 +133,11 @@ ApplicationWindow {
     root->setProperty("brightBackdrop", true); settle();
     require(item("hud-fps")->property("style").toInt() == 1, "HUD glyphs lack their contrast outline");
     const auto picture = window->grabWindow(); require(!picture.isNull(), "HUD glyph capture failed");
-    const QRect glyph = item("hud-fps")->mapRectToScene(item("hud-fps")->boundingRect()).toAlignedRect().intersected(picture.rect());
+    const QRectF logicalGlyph = item("hud-fps")->mapRectToScene(item("hud-fps")->boundingRect());
+    const double captureScaleX = double(picture.width()) / window->width(), captureScaleY = double(picture.height()) / window->height();
+    const QRect glyph = QRectF(logicalGlyph.x() * captureScaleX, logicalGlyph.y() * captureScaleY,
+        logicalGlyph.width() * captureScaleX, logicalGlyph.height() * captureScaleY).toAlignedRect().intersected(picture.rect());
+    require(!glyph.isEmpty(), "HUD glyph escaped actual capture");
     int outlinePixels = 0;
     for (int y = glyph.top(); y <= glyph.bottom(); ++y) for (int x = glyph.left(); x <= glyph.right(); ++x) {
         const auto color = picture.pixelColor(x, y);
