@@ -31,7 +31,9 @@
 
 namespace {
 void require(bool ok, const char* message) {
-    if (!ok) { std::cerr << message << '\n'; std::exit(1); }
+    // Failed assertions may leave Qt rendering threads active. Terminate the
+    // isolated fixture directly; success still exercises normal object teardown.
+    if (!ok) { std::cerr << message << '\n'; std::_Exit(1); }
 }
 void settle() {
     for (int tick = 0; tick < 10; ++tick) {
