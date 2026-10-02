@@ -305,7 +305,7 @@ void testHostCancel() {
         assert(outcome.requested && !outcome.cancelled && outcome.hostStatusCode == 470);
         assert(host.seen.size() == 1);
         assert(outcome.summary.find("belongs to another client") != std::string::npos);
-        assert(outcome.summary.starts_with("host did not accept the request to end the game"));
+        assert(outcome.summary.starts_with("host did not confirm acceptance of the request to end the game"));
         assert(outcome.summary.find("app ended") == std::string::npos);
     }
     // Transport failure and a missing fetcher are reported, never thrown.
@@ -313,6 +313,8 @@ void testHostCancel() {
         FakeHost host;
         const auto outcome = requestHostSessionCancel(host.fetcher(), "tok-abc");
         assert(outcome.requested && !outcome.transportOk && !outcome.cancelled);
+        assert(outcome.summary == "host did not confirm acceptance of the request to end the game (transport reply unavailable)");
+        assert(outcome.summary.find("did not accept") == std::string::npos);
         const auto none = requestHostSessionCancel(DeckHttpFetcher{}, "tok-abc");
         assert(!none.requested && !none.cancelled);
         assert(none.summary.find("no host fetcher") != std::string::npos);
