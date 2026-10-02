@@ -26,6 +26,7 @@ class RelativeTouchMotionTest {
         val connection: NvConnection,
         val preferences: PreferenceConfiguration,
         val context: RelativeTouchContext,
+        val view: View,
     ) {
         fun down(x: Int = 0, y: Int = 0) {
             context.setPointerCount(1)
@@ -65,7 +66,7 @@ class RelativeTouchMotionTest {
         val connection = mock(NvConnection::class.java)
         return Fixture(
             connection, preferences,
-            RelativeTouchContext(connection, 0, referenceWidth, referenceHeight, view, preferences),
+            RelativeTouchContext(connection, 0, referenceWidth, referenceHeight, view, preferences), view,
         ).also { fixtures.add(it) }
     }
 
@@ -192,4 +193,72 @@ class RelativeTouchMotionTest {
         f.move(4)
         assertEquals(listOf(1 to 0), f.moves())
     }
+
+    @Test
+    fun activeGestureKeepsCapturedGeometryAndTheNextGestureRemeasures() {
+        val f = fixture().apply { down() }
+        f.move(1, -1)
+        f.view.measure(
+            View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(240, View.MeasureSpec.EXACTLY),
+        )
+        f.view.layout(0, 0, 400, 240)
+        f.move(2, -2)
+        assertEquals(2 to -2, f.total())
+        f.context.touchUpEvent(2, -2, 1_080L)
+        f.down()
+        f.move(1, -1)
+        assertEquals(2 to -2, f.total())
+        f.move(2, -2)
+        assertEquals(3 to -3, f.total())
+    }
+
+    @Test
+    fun oversizedTravelKeepsShortBoundsAndDrainsOnTheNextCallback() {
+        val f = fixture().apply { down() }
+        f.move(40_000, -40_000)
+        assertEquals(listOf(32_767 to -32_768), f.moves())
+        f.move(40_000, -40_000)
+        assertEquals(listOf(32_767 to -32_768, 7_233 to -7_232), f.moves())
+        assertEquals(40_000 to -40_000, f.total())
+    }
+
+    @Test
+    fun newGestureAndCancellationDiscardUndrainedWholeTravelOnBothAxes() {
+        val f = fixture().apply { down() }
+        f.move(40_000, -40_000)
+        f.context.cancelTouch()
+        f.move(40_000, -40_000)
+        assertEquals(listOf(32_767 to -32_768), f.moves())
+        f.down()
+        f.move(0)
+        assertEquals(listOf(32_767 to -32_768), f.moves())
+        f.move(40_000, -40_000)
+        f.context.touchUpEvent(40_000, -40_000, 1_080L)
+        f.down()
+        f.move(1, -1)
+        assertEquals(listOf(32_767 to -32_768, 32_767 to -32_768, 1 to -1), f.moves())
+    }
+
+    @Test
+    fun multiplicationUsesLongBeforeLargeValidGeometryAndSensitivity() {
+        val f = fixture(referenceWidth = 1_500_000_000, referenceHeight = 1_500_000_000).apply { down() }
+        f.move(4, -4)
+        assertEquals(listOf(32_767 to -32_768), f.moves())
+    }
+
+    @Test
+    fun unrepresentableCustomMotionIsDiscardedWithoutWrappingAndRecovers() {
+        val f = fixture(
+            referenceWidth = Int.MAX_VALUE, referenceHeight = Int.MAX_VALUE,
+            sensitivityX = Int.MAX_VALUE,
+        ).apply { down() }
+        f.move(3, -3)
+        assertEquals(emptyList<Pair<Int, Int>>(), f.moves())
+        f.preferences.touchPadSensitivity = 100
+        f.preferences.touchPadYSensitity = 100
+        f.move(4, -4)
+        assertEquals(listOf(32_767 to -32_768), f.moves())
+    }
+
 }
