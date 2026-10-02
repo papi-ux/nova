@@ -236,6 +236,9 @@ if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
     target_link_libraries(nova_deck_hdr_render PUBLIC nova_deck_core PkgConfig::NOVA_DECK_PLACEBO)
 endif()
 if(BUILD_TESTING)
+    include(cmake/NovaTestAssertions.cmake)
+    add_executable(nova_deck_test_assertions_test tests/deck_test_assertions_test.cpp)
+    add_test(NAME nova_deck_test_assertions_test COMMAND nova_deck_test_assertions_test)
     add_executable(nova_deck_pyrowave_probe_test tests/deck_pyrowave_probe_test.cpp src/stream/deck_pyrowave_probe.cpp)
     target_include_directories(nova_deck_pyrowave_probe_test PRIVATE src)
     target_link_libraries(nova_deck_pyrowave_probe_test PRIVATE Qt6::Core)
@@ -671,6 +674,23 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_frontend_smoke_route_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_frontend_smoke_test.py
     )
+    # These fixtures use <cassert>; Release must execute their checks/setup.
+    # QtTest and explicit require/check fixtures retain their existing policy.
+    foreach(assertion_test IN ITEMS
+        nova_deck_test_assertions_test
+        nova_deck_backend_interfaces_test
+        nova_deck_gamestream_launch_test
+        nova_deck_gamestream_session_builder_test
+        nova_deck_layout_test
+        nova_deck_live_read_only_state_test
+        nova_deck_moonlight_handoff_preflight_test
+        nova_deck_moonlight_identity_test
+        nova_deck_moonlight_launcher_test
+        nova_deck_polaris_client_test
+        nova_deck_steam_shortcuts_test
+        nova_deck_stream_core_test)
+        nova_deck_enable_test_assertions(${assertion_test})
+    endforeach()
 endif()
 
 option(NOVA_DECK_BUILD_QT_SHELL "Build the experimental Qt/QML Steam Deck shell" ON)

@@ -111,9 +111,56 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build-deck --output-on-failure
 
+  deck-pyrowave:
+    name: Linux Release codec-on build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: archlinux:latest
+      options: --memory=10g --cpus=3
+    steps:
+      - name: Install native codec and production QML test dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git gcc cmake ninja pkgconf python \
+            qt6-base qt6-declarative qt6-wayland wayland wayland-protocols \
+            ffmpeg libva libdrm mesa libpulse pipewire pipewire-audio opus openssl dbus \
+            libplacebo vulkan-headers vulkan-swrast \
+            xorg-server-xvfb xorg-xauth xdotool ttf-dejavu
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Trust this container checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build pinned PyroWave and run the complete Release test inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix=""
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            suffix="$(python3 tools/nova_flatpak_feed.py version-suffix "$GITHUB_REF_NAME")"
+          fi
+          python3 -B -m unittest tools.test_nova_pyrowave_ci
+          python3 -B tools/run_nova_pyrowave_ci.py \
+            --work-dir "$RUNNER_TEMP/nova-codec-ci-${{ github.run_id }}" --jobs 3 --version-suffix="$suffix"
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: nova-linux-codec-test-results
+          path: |-
+            ${{ runner.temp }}/nova-codec-ci-${{ github.run_id }}/*.json
+            ${{ runner.temp }}/nova-codec-ci-${{ github.run_id }}/*.log
+            ${{ runner.temp }}/nova-codec-ci-${{ github.run_id }}/codec-tests.xml
+            ${{ runner.temp }}/nova-codec-ci-${{ github.run_id }}/dependency/DEPENDENCY-PREFIX-RECEIPT.json
+            ${{ runner.temp }}/nova-codec-ci-${{ github.run_id }}/build/Testing/Temporary/LastTest.log
+          retention-days: 7
+          if-no-files-found: error
+
   deck-flatpak:
     name: Linux Alpha Flatpak
-    needs: deck
+    needs: [deck, deck-pyrowave]
     # The Linux client ships as an Alpha beside each release: one Flatpak bundle, built from
     # the tagged source in the runtime its manifest names. Manual runs build it too, so a
     # release tag is never the first time the bundle is built.
@@ -207,10 +254,10 @@ jobs:
 
   build:
     name: Assemble release APK
-    needs: [verify, android-smoke, deck-flatpak]
+    needs: [verify, android-smoke, deck-pyrowave, deck-flatpak]
     # A tag requires the standard Linux bundle, including PyroWave and its lazy probe.
     # Its job is skipped on ordinary pushes, but tags cannot release without it.
-    if: ${{ always() && needs.verify.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
+    if: ${{ always() && needs.verify.result == 'success' && needs.deck-pyrowave.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
