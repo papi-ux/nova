@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 
 APP = "com.papi_ux.Nova"
 CHANNELS = ("stable", "beta")
+ARCHITECTURES = ("x86_64", "aarch64")
 COMMIT = re.compile(r"[0-9a-f]{64}\Z")
 TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z")
 BUILD_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?P<suffix>-(?:beta|rc)\.[1-9][0-9]*)?\Z")
@@ -77,9 +78,17 @@ def prepare(manifest, channel, url, version):
 
 
 def catalog(channel, revision, version, architecture="x86_64"):
-    if channel not in CHANNELS or not COMMIT.fullmatch(revision) or not TAG.fullmatch(version):
+    if (channel not in CHANNELS or architecture not in ARCHITECTURES
+            or not COMMIT.fullmatch(revision) or not TAG.fullmatch(version)):
         raise ValueError("Invalid channel catalog")
-    return {"appId": APP, "channel": channel, "arch": "x86_64", "commit": revision, "version": version}
+    return {"appId": APP, "channel": channel, "arch": architecture, "commit": revision, "version": version}
+
+
+def catalog_path(channel, architecture):
+    if channel not in CHANNELS or architecture not in ARCHITECTURES:
+        raise ValueError("Unknown update channel or architecture")
+    # Existing installations keep their root catalog paths and x86 identity.
+    return Path(f"{channel}.json") if architecture == "x86_64" else Path(architecture) / f"{channel}.json"
 
 
 def descriptors(url, key, channel):
@@ -97,29 +106,39 @@ def descriptors(url, key, channel):
 
 
 def write_site(repository, site, previous, channel, version, url, key, architecture="x86_64"):
-    site.mkdir(parents=True, exist_ok=True)
+    catalog_path(channel, architecture)  # Validate selection before repository I/O.
     refs = subprocess.check_output(["ostree", f"--repo={repository}", "refs"], text=True).splitlines()
-    if f"app/{APP}/x86_64/{channel}" not in refs:
-        raise ValueError("Selected channel is missing from the exported repository")
+    if f"app/{APP}/{architecture}/{channel}" not in refs:
+        raise ValueError("Selected architecture/channel is missing from the exported repository")
+    entries = []
+    for arch in ARCHITECTURES:
+        for branch in CHANNELS:
+            ref = f"app/{APP}/{arch}/{branch}"
+            if ref not in refs:
+                continue
+            revision = subprocess.check_output(["ostree", f"--repo={repository}", "rev-parse", ref], text=True).strip()
+            path = catalog_path(branch, arch)
+            if (arch, branch) == (architecture, channel):
+                data = catalog(branch, revision, version, arch)
+            else:
+                # Validate every retained architecture/channel independently
+                # against its own signature-verified ref, even for equal commits.
+                data = json.loads((previous / path).read_text())
+                if data != catalog(branch, revision, data.get("version", ""), arch):
+                    raise ValueError("Previous catalog does not match its signed architecture/channel commit")
+            entries.append((arch, branch, path, data))
+    site.mkdir(parents=True, exist_ok=True)
     links = []
-    for branch in CHANNELS:
-        ref = f"app/{APP}/x86_64/{branch}"
-        if ref not in refs:
-            continue
-        revision = subprocess.check_output(["ostree", f"--repo={repository}", "rev-parse", ref], text=True).strip()
-        if branch == channel:
-            data = catalog(branch, revision, version)
-        else:
-            # Preserve other channels, but never retain metadata for a different
-            # commit than the one pulled from the signature-verified repository.
-            data = json.loads((previous / f"{branch}.json").read_text())
-            if data != catalog(branch, revision, data.get("version", "")):
-                raise ValueError("Previous channel catalog does not match its signed commit")
-        (site / f"{branch}.json").write_text(json.dumps(data, indent=2) + "\n")
+    for arch, branch, path, data in entries:
+        output = site / path; output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(data, indent=2) + "\n")
         repo_text, ref_text = descriptors(url, key, branch)
         (site / "nova.flatpakrepo").write_text(repo_text)
+        # Flatpak chooses the installation architecture. These descriptors stay
+        # universal; architecture identity belongs to the ref and advisory JSON.
         (site / f"nova-{branch}.flatpakref").write_text(ref_text)
-        links.append(f'<li><a href="nova-{branch}.flatpakref">Install Nova ({branch})</a>: {html.escape(data["version"])}</li>')
+        arch_label = " (aarch64)" if arch == "aarch64" else ""
+        links.append(f'<li><a href="nova-{branch}.flatpakref">Install Nova ({branch})</a>: {html.escape(data["version"])}{arch_label}</li>')
     (site / "index.html").write_text(
         '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         '<title>Nova for Linux</title><main><h1>Nova for Linux</h1>'
@@ -156,7 +175,7 @@ def main():
     site_cmd.add_argument("--channel", choices=CHANNELS, required=True)
     site_cmd.add_argument("--version", required=True)
     site_cmd.add_argument("--url", required=True)
-    site_cmd.add_argument("--arch", choices=("x86_64", "aarch64"), default="x86_64")
+    site_cmd.add_argument("--arch", choices=ARCHITECTURES, default="x86_64")
     args = parser.parse_args()
     if args.command == "validate-release":
         validate_release(json.loads(args.release.read_text()), args.channel)

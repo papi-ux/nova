@@ -22,6 +22,8 @@ struct DeckUpdateOptions {
     QString settingsFile;
     QString channel;
     QString feedUrl;
+    // Production options use the built Qt ABI; fixture options may supply it
+    // explicitly to exercise both policies on one build host.
     QString architecture = deckUpdateArchitecture();
     int idleDelayMs = 15000;
 };

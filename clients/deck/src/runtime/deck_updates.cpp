@@ -32,23 +32,23 @@ std::unique_ptr<QSettings> preferences(const QString& path) {
 }
 }
 
-// Red fixture seam: keep the existing x86 policy until its discriminators run.
 QString deckUpdateArchitecture(const QString& builtAbi) {
-    Q_UNUSED(builtAbi);
-    return QStringLiteral("x86_64");
+    if (builtAbi == "x86_64") return QStringLiteral("x86_64");
+    if (builtAbi == "arm64") return QStringLiteral("aarch64");
+    return {};
 }
 QString deckUpdateArchitecture() { return deckUpdateArchitecture(QSysInfo::buildCpuArchitecture()); }
 
 std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes, const QString& channel,
     const QString& architecture) {
-    Q_UNUSED(architecture);
+    if (architecture != "x86_64" && architecture != "aarch64") return {};
     if (bytes.size() > 16384) return {};
     const auto object = QJsonDocument::fromJson(bytes).object();
     const QString revision = object.value("commit").toString();
     const QString version = object.value("version").toString();
     static const QRegularExpression versionPattern(QStringLiteral("\\Av[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?\\z"));
     if (object.value("appId") != "com.papi_ux.Nova" || object.value("channel").toString() != channel
-        || object.value("arch") != "x86_64" || !commit(revision) || version.size() > 80
+        || object.value("arch").toString() != architecture || !commit(revision) || version.size() > 80
         || !versionPattern.match(version).hasMatch()) return {};
     return DeckUpdateCatalog{revision, version};
 }
@@ -73,7 +73,8 @@ DeckUpdates::DeckUpdates(DeckUpdateOptions options, QDBusConnection bus, QObject
     running_ = instance.value("Instance/app-commit").toString();
     local_ = running_;
     supported_ = instance.value("Application/name") == "com.papi_ux.Nova"
-        && instance.value("Instance/arch") == "x86_64"
+        && (options_.architecture == "x86_64" || options_.architecture == "aarch64")
+        && instance.value("Instance/arch").toString() == options_.architecture
         && commit(running_) && QStringList{"stable", "beta"}.contains(options_.channel)
         && branch == options_.channel && QUrl(options_.feedUrl).scheme() == "https";
     if (!supported_) {
@@ -160,7 +161,10 @@ void DeckUpdates::check() {
     message_ = "Checking for updates…";
     emit stateChanged();
     ensureMonitor();
-    QUrl url(options_.feedUrl + "/" + options_.channel + ".json");
+    // Keep the existing x86 catalog URL. ARM metadata is a separate advisory
+    // path; an absent ARM feed is unavailable, never a reason to use an x86 one.
+    const QString prefix = options_.architecture == "aarch64" ? QStringLiteral("/aarch64") : QString{};
+    QUrl url(options_.feedUrl + prefix + "/" + options_.channel + ".json");
     QNetworkRequest request(url);
     request.setTransferTimeout(15000);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
