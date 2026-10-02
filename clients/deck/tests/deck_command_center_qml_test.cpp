@@ -10,6 +10,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QDir>
+#include <QFile>
 #include <QImage>
 #include <QSettings>
 #include <iostream>
@@ -18,6 +19,13 @@ int main(int argc, char** argv) {
     QTemporaryDir directory; qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("Density");
+    // Seed actual native INI bytes before QSettings or a QML singleton reads
+    // them. A same-process setValue() fixture retains numeric QVariant types.
+    require(QDir().mkpath(directory.filePath("NovaDeckTests")), "cold settings directory failed");
+    const QByteArray coldSettings("[InGameControls]\nmenuOpacityPercent=25\n");
+    QFile coldFile(directory.filePath("NovaDeckTests/Density.conf"));
+    require(coldFile.open(QIODevice::WriteOnly) && coldFile.write(coldSettings) == coldSettings.size(), "cold settings fixture failed");
+    coldFile.close();
     qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
     PreviewSession session; PreviewPlayers players(session);
     nova::deck::runtime::DeckPlaySettings settings(directory.filePath("play.ini"));
@@ -40,10 +48,14 @@ ApplicationWindow {
         return true
     }
     function hudOpacity() { return NovaHudPreferences.panelOpacity }
+    function menuOpacityValue() { return NovaStreamPreferences.menuOpacityPercent }
     Component.onCompleted: { preview.open(); preview.attempted=true }
 })", QUrl::fromLocalFile(QStringLiteral(NOVA_DECK_QML_DIRECTORY) + "/CommandTest.qml"));
     auto root = std::unique_ptr<QObject>(component.create()); require(bool(root), qPrintable(component.errorString()));
     auto* window = qobject_cast<QQuickWindow*>(root.get()); require(window, "missing Command Center window"); QTest::qWait(150);
+    QVariant restoredOpacity;
+    QMetaObject::invokeMethod(root.get(), "menuOpacityValue", Q_RETURN_ARG(QVariant, restoredOpacity));
+    require(restoredOpacity.toInt() == 25, "cold native INI menu opacity was discarded");
     const auto item = [&](const char* name) { auto* found = root->findChild<QQuickItem*>(name); require(found && found->isVisible(), name); return found; };
     const auto rect = [&](const char* name) { return item(name)->mapRectToScene(item(name)->boundingRect()); };
     const auto capture = [&](const char* name) { if (argc > 1) { QDir().mkpath(argv[1]); require(window->grabWindow().save(QDir(argv[1]).filePath(name)), "Command Center capture failed"); } };
