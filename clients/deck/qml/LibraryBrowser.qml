@@ -1345,7 +1345,8 @@ FocusScope {
                 id: layoutButton
                 objectName: "library-layout-option"
                 Layout.fillWidth: true
-                text: stageMode ? "Layout: Stage" : preferences.layoutMode === "compact" ? "Layout: Compact" : "Layout: Regular"
+                text: preferences.layoutMode === "stage" ? "Layout: Stage" + (stageMode ? "" : " · Regular in this window")
+                    : preferences.layoutMode === "compact" ? "Layout: Compact" : "Layout: Regular"
                 onClicked: {
                     preferences.layoutMode = preferences.layoutMode === "grid" ? "compact"
                         : preferences.layoutMode === "compact" ? "stage" : "grid"

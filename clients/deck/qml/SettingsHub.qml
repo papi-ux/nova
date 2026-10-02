@@ -313,9 +313,9 @@ Popup {
                     Keys.onDownPressed: hub.navigationExpanded ? hub.focusCategory() : hub.focusRow(0)
                 }
                 ColumnLayout {
-                Layout.fillWidth: true; spacing: 2
-                Copy { text: "Settings"; font.pixelSize: 32 * hub.unit * NovaTheme.fontScale; font.bold: true }
-                Copy { text: "Make Nova yours"; color: NovaTheme.secondary; visible: !hub.narrow }
+                    Layout.fillWidth: true; spacing: 2
+                    Copy { text: "Settings"; font.pixelSize: 32 * hub.unit * NovaTheme.fontScale; font.bold: true }
+                    Copy { text: "Make Nova yours"; color: NovaTheme.secondary; visible: !hub.narrow }
                 }
             }
             TextField {
