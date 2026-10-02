@@ -10,6 +10,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QDir>
+#include <QImage>
+#include <QSettings>
 #include <iostream>
 void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
 int main(int argc, char** argv) {
@@ -32,6 +34,12 @@ ApplicationWindow {
     NativeStreamPreview { id:preview; session:testSession; inputHub:testPlayers; settingsProvider:testSettings
         hostId:"fixture-host"; gameId:"fixture-game"; gameTitle:"Moonlit Harbor"; hostName:"Living Room PC" }
     function largeText() { NovaTheme.setFontScale(1.3) }
+    function menuOpacity(value) {
+        if (typeof NovaStreamPreferences.setMenuOpacity !== "function") return false
+        NovaStreamPreferences.setMenuOpacity(value)
+        return true
+    }
+    function hudOpacity() { return NovaHudPreferences.panelOpacity }
     Component.onCompleted: { preview.open(); preview.attempted=true }
 })", QUrl::fromLocalFile(QStringLiteral(NOVA_DECK_QML_DIRECTORY) + "/CommandTest.qml"));
     auto root = std::unique_ptr<QObject>(component.create()); require(bool(root), qPrintable(component.errorString()));
@@ -52,5 +60,43 @@ ApplicationWindow {
     }
     capture("command-center-large-960.png");
     require(session.starts == 1 && session.stops == 0 && session.disconnects == 0 && session.controlsVisible(), "layout navigation changed stream lifecycle");
+    // Observe the real streaming panel and actions, not a token arithmetic mirror.
+    auto* center = item("native-command-center");
+    require(center->width() <= 560, "parity Command Center still occupies a desktop-wide panel");
+    window->resize(360, 640); QTest::qWait(150);
+    const auto close = rect("native-preview-action"), disconnect = rect("native-disconnect-action"), end = rect("native-end-action");
+    require(close.bottom() <= disconnect.top() && disconnect.bottom() <= end.top(),
+        "narrow Command Center did not stack its three distinct session actions");
+    for (const auto* name : {"native-preview-action", "native-disconnect-action", "native-end-action"}) {
+        const auto bounds = rect(name);
+        require(bounds.left() >= 0 && bounds.right() <= window->width() && item(name)->height() >= 48,
+            "narrow Command Center clipped or shrank an interaction owner");
+    }
+    item("native-hud-settings")->forceActiveFocus(); QTest::qWait(80);
+    require(rect("native-hud-settings").bottom() <= window->height(), "narrow panel did not reveal its focused row");
+    capture("command-center-portrait-360.png");
+    window->resize(960, 600); QTest::qWait(100);
+    const QPoint sample = center->mapToScene(QPointF(8, center->height() - 8)).toPoint();
+    QColor body[4]; int opacityValues[] = {0, 25, 64, 100};
+    for (int i = 0; i < 4; ++i) {
+        QVariant changed;
+        QMetaObject::invokeMethod(root.get(), "menuOpacity", Q_RETURN_ARG(QVariant, changed), Q_ARG(QVariant, opacityValues[i]));
+        require(changed.toBool(), "independent menu opacity setter is missing");
+        QTest::qWait(60);
+        const auto rendered = window->grabWindow(); require(!rendered.isNull(), "menu opacity capture failed");
+        body[i] = rendered.pixelColor(sample);
+        require(item("native-preview-action")->isVisible() && item("native-hud-settings")->isVisible(),
+            "menu opacity hid labels or interaction owners");
+    }
+    require(body[0] != body[1] && body[1] != body[2] && body[2] != body[3],
+        "menu opacity did not produce four distinct actual panel-body pixels");
+    QVariant ignored, hudOpacity;
+    QMetaObject::invokeMethod(root.get(), "menuOpacity", Q_RETURN_ARG(QVariant, ignored), Q_ARG(QVariant, 64));
+    QMetaObject::invokeMethod(root.get(), "hudOpacity", Q_RETURN_ARG(QVariant, hudOpacity));
+    QSettings saved;
+    require(saved.value("InGameControls/menuOpacityPercent").toInt() == 64 && hudOpacity.toInt() == 64,
+        "menu opacity did not persist independently of HUD opacity");
+    require(session.starts == 1 && session.stops == 0 && session.disconnects == 0 && session.controlsVisible(),
+        "presentation choices changed stream lifecycle");
     std::cout << "800p first page and 960px large-text focus/touch/lifecycle checks passed\n";
 }
