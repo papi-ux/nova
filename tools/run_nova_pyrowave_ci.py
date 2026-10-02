@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Required native Linux Release codec-on build and complete registered CTest lane."""
-import argparse, hashlib, json, os, shlex, subprocess, sys
+import argparse, hashlib, json, os, platform, shlex, subprocess, sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -40,6 +40,16 @@ def validate_results(path, inventory):
         raise ValueError('CTest failure, required-test skip or unqualified skip: ' + ', '.join(failed + skipped))
     return {'registered': len(names), 'executed': len(names) - len(skipped),
             'failures': 0, 'errors': 0, 'hardware_unavailable': skipped}
+
+def software_icd(directory=Path('/usr/share/vulkan/icd.d'), machine=None):
+    # Multilib hosts also install an i686 ICD; use the actual native test ABI.
+    machine = machine or platform.machine()
+    if machine not in {'x86_64', 'aarch64'}:
+        raise ValueError('Unsupported native software Vulkan architecture')
+    path = directory / ('lvp_icd.' + machine + '.json')
+    if not path.is_file():
+        raise ValueError('Native software Vulkan ICD is not installed')
+    return path
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -123,10 +133,8 @@ def main():
             'LD_LIBRARY_PATH': ':'.join(str(prefix / p) for p in ['lib', 'lib64']),
             'QT_QPA_PLATFORM': 'offscreen', 'QT_QUICK_BACKEND': 'software',
             'LIBGL_ALWAYS_SOFTWARE': '1', 'GALLIUM_DRIVER': 'llvmpipe'}
-        icds = sorted(Path('/usr/share/vulkan/icd.d').glob('lvp_icd*.json'))
-        if len(icds) != 1:
-            raise ValueError('Require exactly one installed software Vulkan ICD')
-        env |= {'VK_DRIVER_FILES': str(icds[0]), 'VK_ICD_FILENAMES': str(icds[0])}
+        icd = software_icd()
+        env |= {'VK_DRIVER_FILES': str(icd), 'VK_ICD_FILENAMES': str(icd)}
         build = work / 'build'
         command = ['cmake', '-S', str(source / 'clients/deck'), '-B', str(build), '-G', 'Ninja',
                    '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_TESTING=ON',

@@ -61,6 +61,14 @@ class NovaPyroWaveCiTest(unittest.TestCase):
         inventory['tests'][-1]['properties'] = []
         with self.assertRaises(ValueError): self.result(inventory, skipped={'hardware_fixture'})
 
+    def test_native_icd_selection_ignores_foreign_multilib_driver(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'lvp_icd.x86_64.json').write_text('{}')
+            (root / 'lvp_icd.i686.json').write_text('{}')
+            self.assertEqual(gate.software_icd(root, 'x86_64'), root / 'lvp_icd.x86_64.json')
+            with self.assertRaises(ValueError): gate.software_icd(root, 'aarch64')
+
     def test_shipped_four_pins_and_profile_are_accepted(self):
         module = prefix.read_module(MODULE)
         self.assertEqual(len(module['sources']), 4)
