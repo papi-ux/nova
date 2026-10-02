@@ -744,6 +744,9 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/SessionSyncActions.qml
                 qml/StreamProfileEditor.qml
                 qml/AppearanceSettings.qml
+                qml/NovaPercentSetting.qml
+                qml/TextSizeSettings.qml
+                qml/MenuOpacitySettings.qml
                 qml/SettingsHub.qml
                 qml/UpdateSettings.qml
                 qml/VideoScaleSettings.qml
