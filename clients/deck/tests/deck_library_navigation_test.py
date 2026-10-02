@@ -150,7 +150,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     # At large text, dense details scroll independently while Play stays fixed.
     keys("Left", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-portable_chrome")
-    keys("Down", "Down", "Down", "Return", "Escape", "Escape", "Down")
+    keys("Down", "Down", "Down", "Down", "Return", "Escape", "Escape", "Down")
     wait(lambda s: s.get("theme") == "high_contrast" and s.get("focus") == "game-42" and s.get("launchEnabled"))
     save_capture("library-high-contrast-large-960.png")
     keys("Return")
@@ -179,7 +179,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     assert state()["overview"]["playY"] == action_y
     keys("Escape", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen"))
-    keys("Up", "Up", "Up", "Return", "Escape", "Escape", "Down")
+    keys("Up", "Up", "Up", "Up", "Return", "Escape", "Escape", "Down")
     wait(lambda s: s.get("theme") == "portable_chrome" and s.get("focus") == "game-42")
     # Explicit pointer activation must return the controller to that same card.
     card = state()["cards"][0]
@@ -220,19 +220,28 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
 def appearance_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-polaris")
-    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "high_contrast")):
+    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "director", "high_contrast")):
         if index:
             keys("Down")
         keys("Return")
         wait(lambda s: s.get("theme") == theme and s.get("focus") == "appearance-theme-" + theme and s.get("focusVisible"))
         save_capture("appearance-" + theme + ".png")
-    keys("Down", "Return", "Return")
+    # Three density choices precede the draft-and-save text editor.
+    keys("Down", "Down", "Down", "Down", "Return")
+    wait(lambda s: s.get("focus") in ("text-size-settings-popup-decrease", "text-size-settings-popup-increase"))
+    keys("Right" if state()["focus"].endswith("decrease") else "Left")
+    wait(lambda s: s.get("focus") == "text-size-settings-popup-value")
+    keys("ctrl+a")
+    command("xdotool", "type", "--clearmodifiers", "130")
+    keys("Return")
+    wait(lambda s: s.get("focus") == "text-size-settings-popup-save")
+    keys("Return")
     wait(lambda s: s.get("fontScale") == 1.3 and s.get("focus") == "appearance-text-size" and s.get("focusVisible"))
     command("xdotool", "windowsize", window, "960", "600")
     wait(lambda s: s.get("focusVisible"))
     save_capture("appearance-large-text-960.png")
-    # Text size is followed by the two saved in-game visibility controls.
-    keys("Down", "Down", "Down", "Return")
+    # Text size is followed by visibility, opacity and the shortcut hint.
+    keys("Down", "Down", "Down", "Down", "Return")
     wait(lambda s: not s.get("appearanceOpen") and s.get("focus") == "library-appearance" and s.get("focusVisible"))
     keys("Escape", "Down")
     wait(lambda s: s.get("focus") == s.get("game") and s.get("launchEnabled"))
@@ -243,7 +252,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s.get("appearanceOpen"))
     # Every choice remains reachable at large text. Choose Portable Chrome for
     # the restart check; switching theme must not reset the larger font.
-    keys(*(["Up"] * 3), "Return")
+    keys(*(["Up"] * 4), "Return")
     wait(lambda s: s.get("theme") == "portable_chrome" and s.get("fontScale") == 1.3)
     keys("Escape", "Escape")
 

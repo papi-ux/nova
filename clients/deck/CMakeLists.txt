@@ -1072,6 +1072,31 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             set_tests_properties(nova_deck_native_preview_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
                 TIMEOUT 90)
+            # Exercise responsive navigation regressions in ordinary CI.
+            add_test(NAME nova_deck_parity_hosts_portrait_test
+                COMMAND nova_deck_pairing_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/hosts_portrait" --parity-hosts-portrait)
+            set_tests_properties(nova_deck_parity_hosts_portrait_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+            add_test(NAME nova_deck_parity_library_portrait_test
+                COMMAND nova_deck_settings_hub_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/library_portrait" --parity-library-portrait)
+            set_tests_properties(nova_deck_parity_library_portrait_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+            add_test(NAME nova_deck_parity_library_hdr_test
+                COMMAND nova_deck_settings_hub_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/library_hdr" --parity-library-hdr)
+            set_tests_properties(nova_deck_parity_library_hdr_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+            add_test(NAME nova_deck_parity_settings_search_test
+                COMMAND nova_deck_settings_hub_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/settings_search" --parity-settings-search)
+            set_tests_properties(nova_deck_parity_settings_search_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+            add_test(NAME nova_deck_parity_settings_portrait_test
+                COMMAND nova_deck_settings_hub_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/settings_portrait" --parity-settings-portrait)
+            set_tests_properties(nova_deck_parity_settings_portrait_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
+            add_test(NAME nova_deck_parity_prelaunch_footer_test
+                COMMAND nova_deck_native_preview_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/prelaunch_footer" --parity-prelaunch-footer)
+            set_tests_properties(nova_deck_parity_prelaunch_footer_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
             add_test(NAME nova_deck_qt_shell_smoke COMMAND nova-deck --smoke-exit)
             set_tests_properties(nova_deck_qt_shell_smoke PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
