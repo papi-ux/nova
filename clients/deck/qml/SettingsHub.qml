@@ -322,7 +322,8 @@ Popup {
                 id: search; objectName: "settings-search"
                 Layout.preferredWidth: hub.narrow ? -1 : Math.min(440 * hub.unit, hub.width * 0.43)
                 Layout.fillWidth: hub.narrow
-                Layout.preferredHeight: 54 * hub.unit
+                Layout.minimumHeight: 48
+                Layout.preferredHeight: Math.max(48, 54 * hub.unit)
                 color: NovaTheme.text; font.pixelSize: 18 * hub.unit * NovaTheme.fontScale
                 placeholderText: "Search settings"; placeholderTextColor: NovaTheme.secondary
                 maximumLength: 120; selectByMouse: true

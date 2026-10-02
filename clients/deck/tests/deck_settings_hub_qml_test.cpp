@@ -198,6 +198,7 @@ int main(int argc, char** argv) {
     if (app.arguments().contains("--parity-settings-portrait")) {
         window->resize(400,800); settle(); query("rumble"); key(Qt::Key_Down); focused("settings-row-rumble");
         within("settings-row-rumble"); within("settings-search"); within("settings-back");
+        check(item("settings-search")->height() >= 48, "portrait search shrank its touch owner below 48px");
         check(item("settings-row-rumble")->width() >= window->width() * 0.65, "portrait setting remained squeezed beside category rail/reset");
         capture("settings-portrait-400");
         check(reads == 0 && writes == 0 && settings.load("host","game") == override, "portrait review crossed host/game scope");

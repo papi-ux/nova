@@ -669,7 +669,7 @@ Popup {
             Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) activate() }
             Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) activate() }
             Keys.onUpPressed: { if (!nativePreview.attempted) playSetup.focusLast() }
-            Keys.onLeftPressed: { if (!nativePreview.attempted) playSetup.focusSettings() }
+            Keys.onLeftPressed: { if (!nativePreview.attempted) playSetup.focusBack() }
             Keys.onRightPressed: if (nativePlaying) {
                 if (nativeDisconnectAction.visible) nativeDisconnectAction.forceActiveFocus()
                 else nativeEndAction.forceActiveFocus()

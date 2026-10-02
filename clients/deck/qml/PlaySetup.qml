@@ -176,6 +176,7 @@ FocusScope {
         notice = "This choice now uses its default. Your other choices are unchanged."
         return true
     }
+    function focusBack() { backButton.forceActiveFocus() }
     function focusSettings() { resolution.forceActiveFocus() }
     function focusLast() { reset.forceActiveFocus() }
     function focusBack() { backButton.forceActiveFocus() }
