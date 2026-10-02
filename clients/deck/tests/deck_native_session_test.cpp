@@ -846,12 +846,16 @@ void testEndRequestCopy(const QString& outcome) {
         "End request copy changed first-exit, cancellation, transport ownership or added an idle query");
     const auto copy = controller.state().value("copy").toString();
     require(!copy.contains("Game ended."), "cancel admission claimed verified game shutdown");
-    if (outcome == "accepted" || outcome == "pending") {
-        require(copy.contains("The PC accepted the End game request.") &&
-            copy.contains("Host shutdown has not been verified."),
-            "accepted cancel admission lost its unverified-shutdown distinction");
+    require(copy.startsWith(driver.blockStart ? "Stream cancelled." : "Stream ended."),
+        "End request copy lost completed stream or pending cancellation semantics");
+    if (outcome == "accepted") {
+        require(copy.contains("The PC accepted your request to end the game."),
+            "accepted cancel admission lost its request-only distinction");
+    } else if (outcome == "pending") {
+        require(copy.contains("The PC accepted the host cleanup request."),
+            "pending cancellation lost the actual cleanup admission");
     } else {
-        require(copy.contains("not confirmed") && !copy.contains("accepted the End game request"),
+        require(copy.contains("not confirmed") && !copy.contains("The PC accepted"),
             "refused or lost End request claimed host acceptance");
     }
     const auto publicJson = QJsonDocument::fromVariant(controller.state()).toJson();
