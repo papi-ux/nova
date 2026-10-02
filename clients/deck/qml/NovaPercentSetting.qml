@@ -66,7 +66,10 @@ Popup {
                     text: "−"
                     Accessible.name: "Decrease " + editor.title + " by one percent"
                     enabled: editor.draftValue > editor.minimumValue
-                    onClicked: editor.adjust(-1)
+                    onClicked: {
+                        editor.adjust(-1)
+                        if (editor.draftValue === editor.minimumValue) valueInput.forceActiveFocus()
+                    }
                     KeyNavigation.right: valueInput
                     KeyNavigation.down: reset
                 }
@@ -108,7 +111,10 @@ Popup {
                     text: "+"
                     Accessible.name: "Increase " + editor.title + " by one percent"
                     enabled: editor.draftValue < editor.maximumValue
-                    onClicked: editor.adjust(1)
+                    onClicked: {
+                        editor.adjust(1)
+                        if (editor.draftValue === editor.maximumValue) valueInput.forceActiveFocus()
+                    }
                     KeyNavigation.left: valueInput
                     KeyNavigation.down: reset
                 }

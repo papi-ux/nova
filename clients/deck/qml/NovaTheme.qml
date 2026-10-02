@@ -79,8 +79,13 @@ QtObject {
         }
     }
     function validFontScale(value) {
-        return typeof value === "number" && isFinite(value) && value >= 0.8 && value <= 1.3
-            ? Math.round(value * 100) / 100 : 0.8
+        // INI-backed QSettings may return a saved number as a string after
+        // restart. Accept decimal numbers only, without coercing booleans,
+        // empty values or other strings into a smaller saved text size.
+        const number = typeof value === "number" ? value
+            : typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value.trim()) ? Number(value.trim()) : NaN
+        return isFinite(number) && number >= 0.8 && number <= 1.3
+            ? Math.round(number * 100) / 100 : 0.8
     }
     function setControlSize(value) {
         if (controlSizes.some(choice => choice.id === value)) {
