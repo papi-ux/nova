@@ -56,6 +56,8 @@ Popup {
     property string resumeError: ""
     readonly property bool reviewCurrent: hostId === reviewedHostId && gameId === reviewedGameId && destinationId === reviewedDestinationId
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
+    // Theme density changes visual spacing once; text and input owners stay independent.
+    readonly property real controlDensity: Number.isFinite(NovaTheme.controlScale) ? NovaTheme.controlScale : 1
     readonly property var nativeSessionState: session.state
     readonly property bool resumeAvailable: attempted && !nativeSessionState.sleeping && !nativeSessionState.busy && nativeSessionState.canResume === true && reviewCurrent
     readonly property bool reconnectAvailable: attempted && !nativeSessionState.sleeping && !nativeSessionState.busy && nativeSessionState.canReconnect === true && reviewCurrent
@@ -336,9 +338,9 @@ Popup {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: Math.min(820 * nativePreview.unit, parent.width * 0.72)
-            color: NovaTheme.alpha(NovaTheme.panel, NovaTheme.highContrast ? 1 : 0.94)
-            border.color: NovaTheme.divider
+            width: Math.min(parent.width, Math.max(360, Math.min(440 * nativePreview.controlDensity, parent.width * 0.48)))
+            color: NovaTheme.alpha(NovaTheme.panel, NovaStreamPreferences.menuOpacityPercent / 100)
+            border.color: NovaTheme.alpha(NovaTheme.divider, NovaStreamPreferences.menuOpacityPercent / 100)
             Label {
                 id: commandTitle
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
@@ -365,16 +367,19 @@ Popup {
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: commandGame.bottom
                 anchors.margins: 16 * nativePreview.unit
                 anchors.topMargin: 8 * nativePreview.unit
-                height: Math.max(64 * nativePreview.unit, nativePreviewAction.implicitHeight,
-                    nativeDisconnectAction.implicitHeight, nativeEndAction.implicitHeight)
-                readonly property real buttonWidth: (width - (nativeDisconnectAction.visible ? 24 : 12) * nativePreview.unit)
-                    / (nativeDisconnectAction.visible ? 3 : 2)
+                readonly property int actionCount: nativeDisconnectAction.visible ? 3 : 2
+                readonly property real gap: 8 * nativePreview.unit * nativePreview.controlDensity
+                readonly property bool stacked: nativePreview.width < 600 || width < 360 * NovaTheme.fontScale
+                readonly property real buttonWidth: stacked ? width : (width - (actionCount - 1) * gap) / actionCount
+                readonly property real buttonHeight: Math.max(48, 56 * nativePreview.unit * nativePreview.controlDensity,
+                    nativePreviewAction.implicitHeight, nativeDisconnectAction.implicitHeight, nativeEndAction.implicitHeight)
+                height: stacked ? actionCount * buttonHeight + (actionCount - 1) * gap : buttonHeight
             }
             NovaScrollColumn {
                 anchors.left: parent.left; anchors.right: parent.right
                 anchors.top: commandHeader.bottom; anchors.bottom: parent.bottom
                 anchors.margins: 16 * nativePreview.unit
-                spacing: 8 * nativePreview.unit
+                spacing: 6 * nativePreview.unit * nativePreview.controlDensity
                 Label {
                     Layout.fillWidth: true
                     text: nativeSessionState.copy + (nativeSessionState.audioCopy ? "\n" + nativeSessionState.audioCopy : "")
@@ -624,7 +629,7 @@ Popup {
             y: nativePlaying ? commandCenter.y + commandHeader.y
                 : !nativePreview.attempted ? playSetup.footerActionY : parent.height - height - (recoveryAvailable ? 112 : 32) * nativePreview.unit
             width: nativePlaying ? commandHeader.buttonWidth : nativePreview.attempted ? 440 * nativePreview.unit : playSetup.footerActionWidth
-            height: nativePlaying ? commandHeader.height : nativePreview.attempted ? Math.max(60 * nativePreview.unit, implicitHeight) : Math.max(playSetup.footerActionHeight, implicitHeight)
+            height: nativePlaying ? commandHeader.buttonHeight : nativePreview.attempted ? Math.max(60 * nativePreview.unit, implicitHeight) : Math.max(playSetup.footerActionHeight, implicitHeight)
             text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? "Play"
                 : nativePlaying ? "Close" : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
                 : nativeSessionState.busy ? (nativeSessionState.automaticReconnect ? "Cancel reconnect" : "Cancel connection") : nativePreview.returnLabel
@@ -695,9 +700,10 @@ Popup {
             id: nativeDisconnectAction
             objectName: "native-disconnect-action"
             parent: commandHeader
-            x: commandHeader.buttonWidth + 12 * nativePreview.unit
+            x: commandHeader.stacked ? 0 : commandHeader.buttonWidth + commandHeader.gap
+            y: commandHeader.stacked ? commandHeader.buttonHeight + commandHeader.gap : 0
             width: commandHeader.buttonWidth
-            height: commandHeader.height
+            height: commandHeader.buttonHeight
             visible: nativePlaying && session.controlsVisible && nativeSessionState.canDisconnect === true
             text: "Disconnect"
             caption: "Keep game open"
@@ -713,9 +719,11 @@ Popup {
             id: nativeEndAction
             objectName: "native-end-action"
             parent: commandHeader
-            x: (commandHeader.buttonWidth + 12 * nativePreview.unit) * (nativeDisconnectAction.visible ? 2 : 1)
+            readonly property int slot: nativeDisconnectAction.visible ? 2 : 1
+            x: commandHeader.stacked ? 0 : (commandHeader.buttonWidth + commandHeader.gap) * slot
+            y: commandHeader.stacked ? (commandHeader.buttonHeight + commandHeader.gap) * slot : 0
             width: commandHeader.buttonWidth
-            height: commandHeader.height
+            height: commandHeader.buttonHeight
             visible: nativePlaying && session.controlsVisible
             text: "End Session"
             caption: "Close game on PC"
