@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
+#include <QSysInfo>
 #include <QTemporaryDir>
 #include <QThread>
 #include <cstdlib>
@@ -72,7 +73,8 @@ public:
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
-    const QJsonObject valid{{"appId", "com.papi_ux.Nova"}, {"channel", "beta"}, {"arch", "x86_64"}, {"commit", b}, {"version", "v1.4.13-beta.1"}};
+    const auto builtArchitecture = deckUpdateArchitecture();
+    const QJsonObject valid{{"appId", "com.papi_ux.Nova"}, {"channel", "beta"}, {"arch", builtArchitecture}, {"commit", b}, {"version", "v1.4.13-beta.1"}};
     require(parseDeckUpdateCatalog(QJsonDocument(valid).toJson(), "beta").has_value(), "valid catalog refused");
     for (const auto& key : {"appId", "channel", "arch", "commit", "version"}) {
         auto invalid = valid; invalid[key] = "wrong";
@@ -85,6 +87,24 @@ int main(int argc, char** argv) {
         auto invalid = valid; invalid[key] = invalid[key].toString() + "\n";
         require(!parseDeckUpdateCatalog(QJsonDocument(invalid).toJson(), "beta"), "trailing data in catalog identity accepted");
     }
+    auto x86Catalog = valid; x86Catalog["arch"] = "x86_64";
+    auto armCatalog = valid; armCatalog["arch"] = "aarch64";
+    require(parseDeckUpdateCatalog(QJsonDocument(armCatalog).toJson(), "beta", "aarch64").has_value(),
+        "ARM catalog refused for an ARM built identity");
+    require(!parseDeckUpdateCatalog(QJsonDocument(armCatalog).toJson(), "beta", "x86_64"),
+        "ARM catalog admitted to x86 built identity");
+    require(!parseDeckUpdateCatalog(QJsonDocument(x86Catalog).toJson(), "beta", "aarch64"),
+        "x86 catalog admitted to ARM built identity despite identical commit");
+    for (const auto& unsupported : {QString{}, QStringLiteral("arm"), QStringLiteral("arm64"), QStringLiteral("riscv64")}) {
+        require(!parseDeckUpdateCatalog(QJsonDocument(valid).toJson(), "beta", unsupported),
+            "unsupported catalog identity admitted");
+    }
+    require(deckUpdateArchitecture("arm64") == "aarch64" && deckUpdateArchitecture("x86_64") == "x86_64",
+        "built Qt ABI was not mapped to its Flatpak architecture");
+    for (const auto& unsupported : {QString{}, QStringLiteral("arm"), QStringLiteral("aarch64"), QStringLiteral("riscv64")})
+        require(deckUpdateArchitecture(unsupported).isEmpty(), "unsupported built Qt ABI fell back to x86");
+    require(deckUpdateArchitecture() == deckUpdateArchitecture(QSysInfo::buildCpuArchitecture()),
+        "production identity did not use Qt's built ABI");
     require(qgetenv("NOVA_DECK_PRIVATE_UPDATE_BUS") == "1" && qEnvironmentVariableIsSet("DBUS_SESSION_BUS_ADDRESS"),
         "use CTest's private update bus");
     const auto address = QString::fromUtf8(qgetenv("DBUS_SESSION_BUS_ADDRESS"));
@@ -92,13 +112,30 @@ int main(int argc, char** argv) {
     auto client = QDBusConnection::connectToBus(address, "update-client");
     QTemporaryDir dir; require(dir.isValid(), "temp settings");
     QFile file(dir.filePath("flatpak-info")); require(file.open(QIODevice::WriteOnly), "instance fixture");
-    file.write(("[Application]\nname=com.papi_ux.Nova\n[Instance]\narch=x86_64\nbranch=beta\napp-commit=" + a + "\n").toUtf8()); file.close();
+    file.write(("[Application]\nname=com.papi_ux.Nova\n[Instance]\narch=" + builtArchitecture + "\nbranch=beta\napp-commit=" + a + "\n").toUtf8()); file.close();
     const auto installed=DeckUpdates::installedOptions(true);
     require(installed.feedUrl == QStringLiteral(NOVA_DECK_EXPECTED_UPDATE_URL), "installed update feed differs from configured production base");
     DeckUpdateOptions options;
     options.instanceFile = file.fileName(); options.settingsFile = dir.filePath("settings.ini");
     options.channel = "beta"; options.feedUrl = "https://127.0.0.1:1"; options.idleDelayMs = 40;
     Portal portal(server);
+    for (const auto& architecture : {QStringLiteral("x86_64"), QStringLiteral("aarch64")}) {
+        const auto instanceFile = dir.filePath(architecture + ".flatpak-info");
+        QFile instance(instanceFile); require(instance.open(QIODevice::WriteOnly), "architecture instance fixture");
+        instance.write(("[Application]\nname=com.papi_ux.Nova\n[Instance]\narch=" + architecture
+            + "\nbranch=beta\napp-commit=" + a + "\n").toUtf8()); instance.close();
+        auto matching = options; matching.instanceFile = instanceFile; matching.architecture = architecture;
+        DeckUpdates sameArch(matching, client); sameArch.setBlocked(false);
+        require(sameArch.state()["supported"].toBool(), "matching built/installed architecture refused");
+        auto crossed = matching; crossed.architecture = architecture == "x86_64" ? "aarch64" : "x86_64";
+        DeckUpdates otherArch(crossed, client); otherArch.setBlocked(false); otherArch.check(); otherArch.install();
+        require(!otherArch.state()["supported"].toBool() && portal.creates == 0 && portal.installs == 0,
+            "cross-architecture instance reached the updater portal");
+        auto unknown = matching; unknown.architecture = "riscv64";
+        DeckUpdates unsupported(unknown, client); unsupported.setBlocked(false); unsupported.check(); unsupported.install();
+        require(!unsupported.state()["supported"].toBool() && portal.creates == 0 && portal.installs == 0,
+            "unsupported built identity reached the updater portal");
+    }
     {
         auto nativeOptions = options; nativeOptions.instanceFile = dir.filePath("missing");
         DeckUpdates native(nativeOptions, client);
