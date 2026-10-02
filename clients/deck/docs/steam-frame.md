@@ -76,6 +76,10 @@ temporary because Flatpak lacks a video-only permission. It uses separate
 configuration, data and cache directories for standalone pairing and settings.
 It never changes the shared manifest or persistent Flatpak overrides.
 
+If a previous Nova branch exists, immediately restore it as the current branch
+with `flatpak make-current --user com.papi_ux.Nova <previous-branch>` and verify
+its ref/commit. The development launcher explicitly selects `frame-dev`.
+
 Stop Nova before rollback. Remove only this development ref:
 
 ```sh

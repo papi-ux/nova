@@ -811,6 +811,12 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         )
 
         install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE.txt"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/LICENSE.txt"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/moonlight-common-c)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/enet/LICENSE"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/enet)
         if(BUILD_TESTING)
         install(FILES fixtures/sample_polaris_game.json fixtures/sample_polaris_library.json
             DESTINATION ${CMAKE_INSTALL_DATADIR}/nova-deck/fixtures)
