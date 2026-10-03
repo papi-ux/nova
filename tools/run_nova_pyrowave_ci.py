@@ -11,6 +11,8 @@ MANDATORY_TESTS = {
     'nova_deck_game_tools_qml_test', 'nova_deck_native_preview_qml_test',
     'nova_deck_display_settings_qml_test', 'nova_deck_play_setup_route_test',
     'nova_deck_game_tools_route_test', 'nova_deck_test_assertions_test',
+    'nova_deck_v4l2_decoder_test', 'nova_deck_v4l2_upload_test',
+    'nova_deck_frame_qualification_trace_test',
 }
 ASSERTION_TARGETS = {
     'nova_deck_test_assertions_test', 'nova_deck_backend_interfaces_test',
@@ -19,6 +21,8 @@ ASSERTION_TARGETS = {
     'nova_deck_moonlight_handoff_preflight_test', 'nova_deck_moonlight_identity_test',
     'nova_deck_moonlight_launcher_test', 'nova_deck_polaris_client_test',
     'nova_deck_steam_shortcuts_test', 'nova_deck_stream_core_test',
+    'nova_deck_v4l2_decoder_test', 'nova_deck_v4l2_upload_test',
+    'nova_deck_frame_qualification_trace_test',
 }
 
 def validate_inventory(inventory):
@@ -110,10 +114,13 @@ def audit_flags(build):
         output = command.get('output') or argv[argv.index('-o') + 1]
         parts = output.split('CMakeFiles/', 1)
         target = parts[1].split('.dir/', 1)[0] if len(parts) == 2 else None
-        if target in ASSERTION_TARGETS and '/tests/' in command['file']:
+        if target in ASSERTION_TARGETS:
             if '-DNDEBUG' not in argv or '-UNDEBUG' not in argv or argv.index('-UNDEBUG') < argv.index('-DNDEBUG'):
                 raise ValueError('Release test assertions disabled: ' + str(target))
-            tests.add(target)
+            # Fixture resources and generated Qt code inherit executable flags.
+            # Still require an actual test source for every asserted target.
+            if '/tests/' in command['file']:
+                tests.add(target)
         elif '-UNDEBUG' in argv:
             raise ValueError('Test-only assertion flag leaked: ' + str(target))
         if target in {'nova-deck', 'nova_deck_core'} and Path(command['file']).name in {'main.cpp', 'deck_stream_core.cpp'}:
