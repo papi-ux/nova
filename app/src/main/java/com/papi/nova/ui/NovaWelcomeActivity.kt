@@ -2,8 +2,10 @@ package com.papi.nova.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
+import android.widget.TextView
 import com.papi.nova.NovaActivity
 import com.papi.nova.PcView
 import com.papi.nova.R
@@ -32,6 +34,16 @@ class NovaWelcomeActivity : NovaActivity() {
                 Intent(this, PcView::class.java)
                     .putExtra(EXTRA_WELCOME_ACTION, ACTION_SCAN_QR),
             )
+        }
+        // A device with no camera, such as a TV, has nothing to scan with: the QR way in is not
+        // offered, and the pairing card does not mention it.
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)) {
+            findViewById<View>(R.id.welcome_scan_qr_btn).visibility = View.GONE
+            findViewById<View>(R.id.welcome_add_manual_btn).apply {
+                nextFocusDownId = View.NO_ID
+                nextFocusRightId = View.NO_ID
+            }
+            findViewById<TextView>(R.id.welcome_pair_body)?.setText(R.string.nova_welcome_step_pair_body_no_camera)
         }
 
         // Controller-first devices land here on first launch; without an initial focus the

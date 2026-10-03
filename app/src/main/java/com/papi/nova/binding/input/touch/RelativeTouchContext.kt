@@ -30,6 +30,15 @@ class RelativeTouchContext(
     private var distanceMoved = 0.0
     private var xFactor = 0.0
     private var yFactor = 0.0
+    // Final relative travel is an exact signed numerator in stream pixels / (view pixels * 100).
+    // Capture geometry at touch-down, like xFactor/yFactor; a resize applies to the next gesture.
+    private var relativeDenominatorX = 0L
+    private var relativeDenominatorY = 0L
+    private var relativeTravelX = 0L
+    private var relativeTravelY = 0L
+    private var relativeLastTouchX = 0
+    private var relativeLastTouchY = 0
+    private var relativeRoute = false
     private var pointerCount = 0
     private var maxPointerCountInGesture = 0
 
@@ -69,6 +78,12 @@ class RelativeTouchContext(
     ): Boolean {
         xFactor = referenceWidth / targetView.width.toDouble()
         yFactor = referenceHeight / targetView.height.toDouble()
+        relativeDenominatorX = targetView.width.toLong() * 100L
+        relativeDenominatorY = targetView.height.toLong() * 100L
+        relativeLastTouchX = eventX
+        relativeLastTouchY = eventY
+        resetRelativeTravel()
+        relativeRoute = isRelativeRoute()
 
         originalTouchX = eventX
         lastTouchX = eventX
@@ -93,6 +108,7 @@ class RelativeTouchContext(
     }
 
     override fun touchUpEvent(eventX: Int, eventY: Int, eventTime: Long) {
+        resetRelativeTravel()
         if (cancelled) {
             return
         }
@@ -115,6 +131,12 @@ class RelativeTouchContext(
     override fun touchMoveEvent(eventX: Int, eventY: Int, eventTime: Long): Boolean {
         if (cancelled) {
             return true
+        }
+
+        val nextRelativeRoute = isRelativeRoute()
+        if (nextRelativeRoute != relativeRoute) {
+            resetRelativeTravel()
+            relativeRoute = nextRelativeRoute
         }
 
         if (eventX != lastTouchX || eventY != lastTouchY) {
@@ -147,11 +169,6 @@ class RelativeTouchContext(
                             targetView.width.toShort(),
                             targetView.height.toShort(),
                         )
-                    } else {
-                        conn.sendMouseMove(
-                            (deltaX * prefConfig.touchPadSensitivity * 0.01f).toInt().toShort(),
-                            (deltaY * prefConfig.touchPadYSensitity * 0.01f).toInt().toShort(),
-                        )
                     }
                 }
 
@@ -168,11 +185,18 @@ class RelativeTouchContext(
             }
         }
 
+        if (relativeRoute) {
+            sendRelativeMotion(eventX, eventY)
+        }
+        // Track every raw sample separately from the existing gesture/scroll/absolute bookkeeping.
+        relativeLastTouchX = eventX
+        relativeLastTouchY = eventY
         return true
     }
 
     override fun cancelTouch() {
         cancelled = true
+        resetRelativeTravel()
 
         cancelDragTimer()
 
@@ -185,9 +209,74 @@ class RelativeTouchContext(
 
     override fun setPointerCount(pointerCount: Int) {
         this.pointerCount = pointerCount
+        val nextRelativeRoute = isRelativeRoute()
+        if (nextRelativeRoute != relativeRoute) {
+            resetRelativeTravel()
+            relativeRoute = nextRelativeRoute
+        }
 
         if (pointerCount > maxPointerCountInGesture) {
             maxPointerCountInGesture = pointerCount
+        }
+    }
+
+    private fun isRelativeRoute(): Boolean =
+        actionIndex == 0 && pointerCount != 2 && !prefConfig.absoluteMouseMode
+
+    private fun resetRelativeTravel() {
+        relativeTravelX = 0L
+        relativeTravelY = 0L
+    }
+
+    private fun accumulateRelativeTravel(
+        pending: Long,
+        delta: Long,
+        reference: Int,
+        sensitivity: Int,
+        denominator: Long,
+    ): Long {
+        if (denominator <= 0 || reference <= 0 || sensitivity < 0) {
+            return 0L
+        }
+        // Convert before multiplying; these two positive factors are at most Int.MAX_VALUE.
+        // Bounds checks also work on minSdk 21, without API-24 Math.*Exact methods.
+        val referenceFactor = reference.toLong()
+        if (delta > Long.MAX_VALUE / referenceFactor || delta < Long.MIN_VALUE / referenceFactor) {
+            return 0L
+        }
+        val geometry = delta * referenceFactor
+        val sensitivityFactor = sensitivity.toLong()
+        if (sensitivityFactor != 0L &&
+            (geometry > Long.MAX_VALUE / sensitivityFactor || geometry < Long.MIN_VALUE / sensitivityFactor)) {
+            return 0L
+        }
+        val scaled = geometry * sensitivityFactor
+        if ((scaled > 0 && pending > Long.MAX_VALUE - scaled) ||
+            (scaled < 0 && pending < Long.MIN_VALUE - scaled)) {
+            return 0L
+        }
+        return pending + scaled
+    }
+
+    private fun sendRelativeMotion(eventX: Int, eventY: Int) {
+        relativeTravelX = accumulateRelativeTravel(
+            relativeTravelX, eventX.toLong() - relativeLastTouchX.toLong(),
+            referenceWidth, prefConfig.touchPadSensitivity, relativeDenominatorX,
+        )
+        relativeTravelY = accumulateRelativeTravel(
+            relativeTravelY, eventY.toLong() - relativeLastTouchY.toLong(),
+            referenceHeight, prefConfig.touchPadYSensitity, relativeDenominatorY,
+        )
+        val deltaX = if (relativeDenominatorX > 0) relativeTravelX / relativeDenominatorX else 0L
+        val deltaY = if (relativeDenominatorY > 0) relativeTravelY / relativeDenominatorY else 0L
+        val packetX = deltaX.coerceIn(Short.MIN_VALUE.toLong(), Short.MAX_VALUE.toLong())
+        val packetY = deltaY.coerceIn(Short.MIN_VALUE.toLong(), Short.MAX_VALUE.toLong())
+        // One bounded packet per callback keeps normal cadence. Retain signed excess and fraction;
+        // a later callback (even at the same position) can drain it. Gesture end discards any excess.
+        relativeTravelX -= packetX * relativeDenominatorX
+        relativeTravelY -= packetY * relativeDenominatorY
+        if (packetX != 0L || packetY != 0L) {
+            conn.sendMouseMove(packetX.toShort(), packetY.toShort())
         }
     }
 

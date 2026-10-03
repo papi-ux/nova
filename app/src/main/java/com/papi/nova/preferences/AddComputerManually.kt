@@ -1,6 +1,5 @@
 package com.papi.nova.preferences
 
-import android.app.AlertDialog
 import android.app.Service
 import android.content.ComponentName
 import android.content.Context
@@ -14,7 +13,8 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
-import android.widget.Toast
+import androidx.compose.ui.text.AnnotatedString
+import androidx.core.widget.doAfterTextChanged
 import com.papi.nova.NovaActivity
 import com.papi.nova.ui.compose.novaInPlaceImeOptions
 import com.papi.nova.AppView
@@ -28,6 +28,8 @@ import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.ServerHelper
 import com.papi.nova.utils.SpinnerDialog
@@ -38,8 +40,25 @@ import java.net.NetworkInterface
 import java.util.Collections
 import java.util.concurrent.LinkedBlockingQueue
 
+/**
+ * A pairing link asks before it pairs. It has no button to split, so it asks on a Confirm page at
+ * the right edge with Cancel focused; pairing is not destructive, so Pair is the primary rather
+ * than a red half. [onPair] runs only from Pair.
+ */
+internal fun novaPairLinkConfirmPage(context: Context, hostName: String, onPair: () -> Unit): NovaCommonPage.Confirm =
+    NovaCommonPage.Confirm(
+        key = "pair_link",
+        title = context.getString(R.string.pair_pc_confirm_title),
+        message = AnnotatedString(context.getString(R.string.pair_pc_confirm_message, hostName)),
+        stayLabel = context.getString(R.string.nova_panel_cancel),
+        actionLabel = context.getString(R.string.hosts_pair),
+        destructive = false,
+        onConfirm = onPair,
+    )
+
 class AddComputerManually : NovaActivity() {
     private lateinit var hostText: TextView
+    private lateinit var addressError: TextView
     private var managerBinder: ComputerManagerService.ComputerManagerBinder? = null
     private var serviceBound = false
     private val computersToAdd = LinkedBlockingQueue<String>()
@@ -172,19 +191,26 @@ class AddComputerManually : NovaActivity() {
             dialog.dismiss()
             if (isFinishing || isDestroyed) return@runOnUiThread
 
+            // The add-host failures are the ones Help can do something about.
             if (invalidInput) {
                 Dialog.displayDialog(
                     this,
                     resources.getString(R.string.conn_error_title),
                     resources.getString(R.string.addpc_unknown_host),
-                    false
+                    false,
+                    actionText = null,
+                    action = null,
+                    help = true,
                 )
             } else if (wrongSiteLocal) {
                 Dialog.displayDialog(
                     this,
                     resources.getString(R.string.conn_error_title),
                     resources.getString(R.string.addpc_wrong_sitelocal),
-                    false
+                    false,
+                    actionText = null,
+                    action = null,
+                    help = true,
                 )
             } else if (!success) {
                 val dialogText = if (
@@ -195,14 +221,17 @@ class AddComputerManually : NovaActivity() {
                 } else {
                     resources.getString(R.string.addpc_fail)
                 }
-                Dialog.displayDialog(this, resources.getString(R.string.conn_error_title), dialogText, false)
+                Dialog.displayDialog(
+                    this,
+                    resources.getString(R.string.conn_error_title),
+                    dialogText,
+                    false,
+                    actionText = null,
+                    action = null,
+                    help = true,
+                )
             } else {
-                Toast.makeText(
-                    this@AddComputerManually,
-                    resources.getString(R.string.addpc_success),
-                    Toast.LENGTH_LONG
-                ).show()
-
+                // The host joining the list on Hosts is the answer: a Toast floated over it (X2).
                 if (!isFinishing) {
                     finish()
                 }
@@ -315,6 +344,9 @@ class AddComputerManually : NovaActivity() {
         UiHelper.notifyNewRootView(this)
 
         hostText = findViewById(R.id.hostTextView)
+        addressError = findViewById(R.id.addPcError)
+        // Typing answers the line under the field, so it goes.
+        hostText.doAfterTextChanged { addressError.visibility = View.GONE }
         // Typed where it stands: in landscape a keyboard would otherwise swap the whole screen for
         // a blank page with a copy of the field, on a screen that is only this field and its button.
         hostText.imeOptions = novaInPlaceImeOptions(EditorInfo.IME_ACTION_DONE)
@@ -364,27 +396,19 @@ class AddComputerManually : NovaActivity() {
                 ?.let { "$it ($server)" }
                 ?: server
 
-            val dialog = AlertDialog.Builder(this)
-                .setTitle(R.string.pair_pc_confirm_title)
-                .setMessage(getString(R.string.pair_pc_confirm_message, hostName))
-                .setPositiveButton(getString(R.string.proceed)) { dialog, _ ->
-                    dialog.dismiss()
-                    computersToAdd.add("$server?$query")
-                }
-                .setNegativeButton(getString(R.string.cancel)) { dialog, _ -> dialog.dismiss() }
-                .create()
-            dialog.show()
+            // A link has no button to split, so it asks on a Confirm page at the right edge, with
+            // Cancel focused. Pairing is not destructive.
+            novaSurfaces.present(novaPairLinkConfirmPage(this, hostName) { computersToAdd.add("$server?$query") })
         }
     }
 
     private fun handleDoneEvent(): Boolean {
         val hostAddress = hostText.text.toString().trim()
         if (hostAddress.isEmpty()) {
-            Toast.makeText(
-                this,
-                resources.getString(R.string.addpc_enter_ip),
-                Toast.LENGTH_LONG
-            ).show()
+            // Said under the field it is about, where it stays until typing answers it: a Toast
+            // floated over the keyboard and was gone before it could be read (audit X2).
+            addressError.text = getString(R.string.hosts_add_enter_address)
+            addressError.visibility = View.VISIBLE
             return true
         }
 

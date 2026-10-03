@@ -38,6 +38,18 @@
         <requestFocus />
     </EditText>
 
+    <!-- Said under the field when OK is pressed with it empty, in place of a Toast. -->
+    <TextView
+        android:id="@+id/addPcError"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/hostTextView"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:textColor="@color/nova_error"
+        android:visibility="gone" />
+
     <Button
         android:id="@+id/addPcButton"
         android:layout_width="wrap_content"

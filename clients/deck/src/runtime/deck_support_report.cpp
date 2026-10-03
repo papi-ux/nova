@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <cmath>
+#include <string_view>
 #ifdef Q_OS_UNIX
 #include <unistd.h>
 #endif
@@ -49,8 +50,16 @@ QJsonObject deckSupportReport(const QVariantMap& hud) {
     for (const auto& pair : {std::pair{"appliedBitrate", "encoder_applied_mbps"}, {"requestedBitrate", "requested_mbps"}, {"qualityLimit", "quality_ceiling_mbps"}})
         host[pair.second] = hostFresh ? number(hud.value(pair.first), "M", 300) : QJsonValue(QJsonValue::Null);
     host["processing_ms"] = clientFresh ? number(hud.value("host"), "ms") : QJsonValue(QJsonValue::Null);
-    for (const auto& pair : {std::pair{"incoming", "incoming_fps"}, {"decoded", "decoded_fps"}, {"fps", "composed_fps"}})
+    for (const auto& pair : {std::pair{"incoming", "incoming_fps"}, {"decoded", "decoded_fps"}, {"fps", "composed_fps"},
+            {"submitted", "submitted_fps"}, {"cpuUploadCompositions", "cpu_upload_composed_fps"}})
         client[pair.second] = clientFresh ? number(hud.value(pair.first), "", 1000) : QJsonValue(QJsonValue::Null);
+    client["requested_fps"] = number(hud.value("requestedFps"), "", 240);
+    client["decoder_backend"] = choice(hud.value("decoderBackend"), {"VA-API", "V4L2", "PyroWave Vulkan"});
+    client["frame_transfer_path"] = choice(hud.value("frameTransferPath"), {"DMA-BUF", "CPU upload"});
+    for (const auto& pair : {std::pair{"deliveryDrops", "delivery_dropped_frames"}, {"deliveryQueueDepth", "delivery_queue_depth"}}) {
+        const auto value = clientFresh ? number(hud.value(pair.first), "", pair.first == std::string_view("deliveryQueueDepth") ? 2 : 1000000000) : QJsonValue(QJsonValue::Null);
+        client[pair.second] = !value.isNull() && std::floor(value.toDouble()) == value.toDouble() ? value : QJsonValue(QJsonValue::Null);
+    }
     client["codec"] = choice(hud.value("codec"), {"H.264", "HEVC", "HEVC10", "AV1", "AV1 Main10", "PyroWave"});
     client["decoder_callback_ms"] = clientFresh ? number(hud.value("videoWork"), "ms") : QJsonValue(QJsonValue::Null);
     const auto refused = clientFresh ? number(hud.value("refused"), "") : QJsonValue(QJsonValue::Null);
@@ -63,7 +72,8 @@ QJsonObject deckSupportReport(const QVariantMap& hud) {
     net["rtt_ms"] = clientFresh ? number(hud.value("rtt"), "ms") : QJsonValue(QJsonValue::Null);
     net["rtt_variation_ms"] = clientFresh ? number(hud.value("jitter"), "ms") : QJsonValue(QJsonValue::Null);
     net["video_payload_mbps"] = clientFresh ? number(hud.value("bitrate"), "M") : QJsonValue(QJsonValue::Null);
-    net["client_media_loss_percent"] = QJsonValue::Null;
+    const bool mediaFresh = clientFresh && flag(hud, "mediaLossFresh") && hud.value("mediaLossSource") == "Video frame sequence";
+    net["client_media_loss_percent"] = mediaFresh ? number(hud.value("mediaLoss"), "%", 100) : QJsonValue(QJsonValue::Null);
     const auto finding = hostFresh ? hud.value("doctor").toMap() : QVariantMap{};
     QJsonObject doctor{{"available", flag(finding, "available")},
         {"confidence", choice(finding.value("confidence"), {"low", "medium", "high", "unknown"})},
@@ -94,7 +104,8 @@ QJsonObject deckSupportReport(const QVariantMap& hud) {
         {"limitations", QJsonArray{"Composed FPS measures app draws, not panel presentation.",
             "Decoder callback time includes waits and frame handoff; it is not GPU-only decode latency.",
             "Decoder refusals are cumulative for this session, not a measurement of network loss.",
-            "Client media loss is not measured. Control-channel retries do not establish video loss."}},
+            !net["client_media_loss_percent"].isNull() ? "Client media loss measures video frame sequence gaps. Control-channel retries are separate."
+                : "Client media loss is unavailable. Control-channel retries do not establish video loss."}},
         {"privacy", "Saved locally. No names, addresses, pairing data, session identities, artwork, journal contents or raw logs are included."}};
 }
 QString deckSupportReportDirectory() {

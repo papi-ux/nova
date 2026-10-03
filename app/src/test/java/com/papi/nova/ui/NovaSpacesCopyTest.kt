@@ -2,6 +2,8 @@ package com.papi.nova.ui
 
 import com.papi.nova.R
 import com.papi.nova.api.PolarisSpace
+import com.papi.nova.api.PolarisClientSettings
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.api.PolarisSpaces
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -56,6 +58,54 @@ class NovaSpacesCopyTest {
         assertEquals(R.string.nova_space_in_use, NovaSpacesCopy.openBlockedReason(PolarisSpace("a", "Alex", "in_use", false)))
         assertEquals(R.string.nova_space_play_blocked_at_capacity, NovaSpacesCopy.playBlockedLabel("ready", "at_capacity"))
         assertEquals(R.string.nova_space_play_blocked_in_use, NovaSpacesCopy.playBlockedLabel("in_use", null))
+    }
+
+    @Test
+    fun aReadyWorkerSpaceDoesNotDependOnTheDesktopCaptureMode() {
+        val game = PolarisGame(
+            id = "space.a.big-picture-v1", name = "Steam Big Picture", source = "steam",
+            space = PolarisGame.SpaceContext(id = "a", name = "Alex", target = "big-picture-v1"),
+            launchMode = PolarisGame.LaunchModeContract(
+                recommendedMode = PolarisGame.MODE_GAMESCOPE_STREAM,
+                allowedModes = listOf(PolarisGame.MODE_GAMESCOPE_STREAM),
+            ),
+        )
+        val state = NovaGameDetailUiState.from(game, false, PolarisClientSettings(
+            capabilities = PolarisClientSettings.Capabilities(modes = listOf(
+                PolarisClientSettings.ModeOption(value = PolarisGame.MODE_GAMESCOPE_STREAM, available = false),
+                PolarisClientSettings.ModeOption(value = PolarisGame.MODE_HEADLESS_STREAM, available = true),
+            )),
+        ), "auto")
+        assertTrue(snapshot().selected!!.openable)
+        assertTrue(state.runsInSpace)
+        assertTrue("the explicit worker mode admits the ready Space", state.playEnabled)
+        assertNull(NovaSpacesCopy.launchBlockedReason(snapshot(), "a", false, state.playEnabled))
+        val unavailable = snapshot(available = false, unavailableReason = "controller_missing")
+        assertEquals(R.string.nova_space_unavailable_controller_missing,
+            NovaSpacesCopy.launchBlockedReason(unavailable, "a", false, state.playEnabled))
+        assertEquals(R.string.nova_space_status_changed,
+            NovaSpacesCopy.launchBlockedReason(snapshot(), "another-space", false, state.playEnabled))
+    }
+
+    @Test
+    fun spaceLaunchExplainsThePendingOrHostGateBeforeModeAvailability() {
+        assertEquals(R.string.nova_space_changing,
+            NovaSpacesCopy.launchBlockedReason(null, "a", true, false))
+        assertEquals(R.string.nova_space_checking_status,
+            NovaSpacesCopy.launchBlockedReason(null, "a", false, false))
+        assertEquals(R.string.nova_space_unavailable_controller_missing,
+            NovaSpacesCopy.launchBlockedReason(snapshot(available = false, canSwitch = false,
+                unavailableReason = "controller_missing", spaces = emptyList()), "a", false, false))
+        assertEquals(R.string.nova_space_status_changed,
+            NovaSpacesCopy.launchBlockedReason(snapshot(), "another-space", false, true))
+        assertEquals(R.string.nova_space_blocked_at_capacity,
+            NovaSpacesCopy.launchBlockedReason(snapshot(spaces = listOf(
+                PolarisSpace("a", "Alex", "ready", true, canOpen = false, blockedReason = "at_capacity"))),
+                "a", false, false))
+        assertNull(NovaSpacesCopy.launchBlockedReason(snapshot(), "a", false, true))
+        assertNull("a running Space remains resumable without a new can_open grant",
+            NovaSpacesCopy.launchBlockedReason(snapshot(spaces = listOf(
+                PolarisSpace("a", "Alex", "running", true, canOpen = false))), "a", false, true))
     }
 
     @Test

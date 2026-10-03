@@ -46,7 +46,9 @@ data class PolarisSessionStatus(
     val health: HealthStatus = HealthStatus(),
     val doctor: DoctorStatus = DoctorStatus(),
     val recovery: RecoveryReceipt = RecoveryReceipt(),
-    val recoveryRecords: List<RecoveryReceipt> = emptyList()
+    val recoveryRecords: List<RecoveryReceipt> = emptyList(),
+    val pyrowaveBitrate: PolarisPyrowaveAdvice? = null,
+    val bitrateUnits: PolarisBitrateUnits? = null
 ) {
     data class RecoveryReceipt(
         val status: Boolean = true,
@@ -349,6 +351,9 @@ data class PolarisSessionStatus(
         val targetBitrateKbps: Int = 0,
         val targetBitratePresent: Boolean = false,
         val targetBitrateTyped: Boolean = false,
+        val actionGoalSource: String = "",
+        val actionGoalSourcePresent: Boolean = false,
+        val actionGoalSourceTyped: Boolean = false,
         val verificationDelaySeconds: Int = 0,
         val undoSupported: Boolean = false,
         val undoEndpoint: String = "",
@@ -374,7 +379,8 @@ data class PolarisSessionStatus(
             val status: String = "",
             val source: String = "",
             val value: Double? = null,
-            val detail: String = ""
+            val detail: String = "",
+            val valueValid: Boolean = true
         )
 
         data class AiExplanation(
@@ -415,23 +421,29 @@ data class PolarisSessionStatus(
             verificationEndpoint == "/api/doctor/action"
         private val confirmedMediaLoss get() = evidenceItem("packet_loss").let { item ->
             evidenceSourceIs(item, "media_transport") &&
-                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) > 2.0
+                evidenceStatusIs(item, "fail") && item?.valueValid == true &&
+                // Polaris's steady verdict can remain failed after the latest sample improves.
+                item.value?.let { it.isFinite() && it >= 0.0 && it <= 100.0 } == true
         }
         private val confirmedRttPressure get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") &&
-                evidenceStatusIs(item, "fail") && (item?.value ?: 0.0) >= 45.0
+                evidenceStatusIs(item, "fail") && item?.valueValid == true &&
+                item.value?.let { it.isFinite() && it >= 45.0 } == true
         }
         private val cleanRtt get() = evidenceItem("latency").let { item ->
             evidenceSourceIs(item, "stream_stats") && evidenceStatusIs(item, "pass") &&
-                (item?.value ?: Double.POSITIVE_INFINITY) < 45.0
+                item?.valueValid == true && item.value?.let { it.isFinite() && it >= 0.0 && it < 45.0 } == true
         }
         private val lossEvidenceAllowsQualityRetry get() = evidenceItem("packet_loss").let { item ->
             (evidenceSourceIs(item, "media_transport") && evidenceStatusIs(item, "pass") &&
-                (item?.value ?: Double.POSITIVE_INFINITY) <= 2.0) ||
+                item?.valueValid == true && item.value?.let { it.isFinite() && it >= 0.0 && it <= 2.0 } == true) ||
                 (evidenceSourceIs(item, "unavailable") && evidenceStatusIs(item, "unknown") &&
-                    item?.value == null)
+                    item?.valueValid == true && item.value == null)
         }
         val networkPressureConfirmed get() = confirmedMediaLoss || confirmedRttPressure
+        fun canExecuteWithLiveTuning(enabled: Boolean): Boolean = canExecuteAction &&
+            (!enabled || actionId in setOf("recheck_network", "recheck_pacing") ||
+                (actionId == "lower_bitrate" && confirmedMediaLoss))
         val canExecuteAction get() = when (actionId) {
             "recheck_network", "recheck_pacing" ->
                 actionEnvelopeValid &&
@@ -447,7 +459,7 @@ data class PolarisSessionStatus(
                     actionKind == "live_tuning" &&
                     primaryIssue == "network_jitter" &&
                     targetBitrateTyped &&
-                    targetBitrateKbps in 1_000..300_000 &&
+                    targetBitrateKbps in 1_000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS &&
                     undoSupported &&
                     undoEndpoint == "/api/doctor/action" &&
                     undoPairedEndpoint.isEmpty() &&
@@ -459,15 +471,23 @@ data class PolarisSessionStatus(
                     networkPressureConfirmed
             "restore_quality" -> {
                 val ceiling = evidenceItem("effective_quality_ceiling")
+                val launchGoal = primaryIssue == "quality_reduced_live" &&
+                    (!actionGoalSourcePresent || (actionGoalSourceTyped && actionGoalSource in setOf("launch_bitrate", "launch_ceiling"))) &&
+                    ceiling?.source == "launch_policy" && evidenceStatusIs(ceiling, "watch") &&
+                    ceiling?.value?.toInt() == targetBitrateKbps
+                val pyrowaveGoal = primaryIssue == "pyrowave_starved" && actionGoalSourcePresent &&
+                    actionGoalSourceTyped && actionGoalSource == "pyrowave_advice" &&
+                    targetBitrateKbps <= com.papi.nova.preferences.NovaBitrateAdvice.AUTOMATIC_MAX_KBPS &&
+                    evidenceItem("bitrate").let { bitrate ->
+                        evidenceSourceIs(bitrate, "stream_stats") && evidenceStatusIs(bitrate, "watch") &&
+                            bitrate?.valueValid == true && bitrate.value?.let { it.isFinite() && it > 0.0 } == true
+                    }
                 actionEnvelopeValid &&
                     actionCapability == "auto_fix" &&
                     actionKind == "live_tuning" &&
-                    primaryIssue == "quality_reduced_live" &&
+                    (launchGoal || pyrowaveGoal) &&
                     targetBitrateTyped &&
-                    targetBitrateKbps in 1_000..300_000 &&
-                    ceiling?.source == "launch_policy" &&
-                    evidenceStatusIs(ceiling, "watch") &&
-                    ceiling?.value?.toInt() == targetBitrateKbps &&
+                    targetBitrateKbps in 1_000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS &&
                     cleanRtt &&
                     lossEvidenceAllowsQualityRetry &&
                     undoSupported &&
@@ -509,6 +529,9 @@ data class PolarisSessionStatus(
                 targetBitrateKbps == confirmed.targetBitrateKbps &&
                 targetBitratePresent == confirmed.targetBitratePresent &&
                 targetBitrateTyped == confirmed.targetBitrateTyped &&
+                actionGoalSource == confirmed.actionGoalSource &&
+                actionGoalSourcePresent == confirmed.actionGoalSourcePresent &&
+                actionGoalSourceTyped == confirmed.actionGoalSourceTyped &&
                 verificationDelaySeconds == confirmed.verificationDelaySeconds &&
                 verificationMode == confirmed.verificationMode &&
                 verificationEndpoint == confirmed.verificationEndpoint &&
@@ -541,6 +564,9 @@ data class PolarisSessionStatus(
                 actionAppUuid == displayed.actionAppUuid &&
                 actionAppSessionId == displayed.actionAppSessionId &&
                 actionSessionGeneration == displayed.actionSessionGeneration &&
+                actionGoalSource == displayed.actionGoalSource &&
+                actionGoalSourcePresent == displayed.actionGoalSourcePresent &&
+                actionGoalSourceTyped == displayed.actionGoalSourceTyped &&
                 verificationMode == displayed.verificationMode &&
                 verificationEndpoint == displayed.verificationEndpoint &&
                 undoEndpoint == displayed.undoEndpoint
@@ -622,17 +648,39 @@ data class PolarisSessionStatus(
         }
     val isHeadlessMode get() = displayMode.effectiveHeadless
     val isVirtualDisplayMode get() = displayMode.virtualDisplay
-    val sessionModeLabel get() = when {
+    /**
+     * The display mode this session runs in, read from the host's selection, its label, then its
+     * flags. [SessionMode.HOST_LABEL] is a label Nova has no name for, such as a Space's.
+     */
+    val sessionMode: SessionMode get() = when {
         displayMode.selection.equals("windowed_stream", ignoreCase = true) ||
-            displayMode.requested.equals("windowed_stream", ignoreCase = true) -> "Private Stream (GPU-native)"
+            displayMode.requested.equals("windowed_stream", ignoreCase = true) -> SessionMode.PRIVATE_STREAM_GPU_NATIVE
         displayMode.selection.equals("desktop_display", ignoreCase = true) ||
-            displayMode.requested.equals("desktop_display", ignoreCase = true) -> "Mirror Desktop"
+            displayMode.requested.equals("desktop_display", ignoreCase = true) -> SessionMode.MIRROR_DESKTOP
         displayMode.selection.equals("desktop_takeover", ignoreCase = true) ||
-            displayMode.requested.equals("desktop_takeover", ignoreCase = true) -> "Desktop Takeover"
-        displayMode.label.isNotBlank() -> normalizeSessionModeLabel(displayMode.label)
-        displayMode.effectiveHeadless -> "Private Stream"
-        displayMode.virtualDisplay -> "Host Virtual Display"
-        else -> "Mirror Desktop"
+            displayMode.requested.equals("desktop_takeover", ignoreCase = true) -> SessionMode.DESKTOP_TAKEOVER
+        displayMode.label.isNotBlank() -> sessionModeOfLabel(displayMode.label)
+        // After the label: a Space runs in gamescope_stream under its own name. What the host
+        // selected outranks what was asked for, so a gamescope_stream request the host ran as a
+        // Private Stream reads as one.
+        displayMode.selection.ifBlank { displayMode.requested }
+            .equals("gamescope_stream", ignoreCase = true) -> SessionMode.GAMESCOPE_STREAM
+        displayMode.selection.ifBlank { displayMode.requested }
+            .equals("headless_dongle", ignoreCase = true) -> SessionMode.HEADLESS_DONGLE
+        displayMode.effectiveHeadless -> SessionMode.PRIVATE_STREAM
+        displayMode.virtualDisplay -> SessionMode.HOST_VIRTUAL_DISPLAY
+        else -> SessionMode.MIRROR_DESKTOP
+    }
+    /** [sessionMode] in English, as the HUD shows it; the Command Center names it from resources. */
+    val sessionModeLabel get() = when (sessionMode) {
+        SessionMode.PRIVATE_STREAM -> "Private Stream"
+        SessionMode.PRIVATE_STREAM_GPU_NATIVE -> "Private Stream (GPU-native)"
+        SessionMode.MIRROR_DESKTOP -> "Mirror Desktop"
+        SessionMode.DESKTOP_TAKEOVER -> "Desktop Takeover"
+        SessionMode.HOST_VIRTUAL_DISPLAY -> "Host Virtual Display"
+        SessionMode.GAMESCOPE_STREAM -> "Gamescope Stream"
+        SessionMode.HEADLESS_DONGLE -> "Headless Dongle"
+        SessionMode.HOST_LABEL -> displayMode.label
     }
     val sessionModeWithCaptureLabel: String
         get() = listOf(sessionModeLabel, capturePathLabel).filter { it.isNotBlank() }.joinToString(" · ")
@@ -662,12 +710,26 @@ data class PolarisSessionStatus(
     val canQuit get() = authorityContractValid &&
         (controls.quitAllowed || (ownedByClient && !isViewer))
 
-    private fun normalizeSessionModeLabel(label: String): String = when (label.trim().lowercase()) {
-        "headless", "headless stream", "private headless stream", "private stream" -> "Private Stream"
-        "gpu-native stream", "gpu-native test", "windowed stream", "private stream (gpu-native)" -> "Private Stream (GPU-native)"
-        "desktop display", "host display", "desktop", "mirror desktop" -> "Mirror Desktop"
-        "virtual display", "host virtual display" -> "Host Virtual Display"
-        else -> label
+    private fun sessionModeOfLabel(label: String): SessionMode = when (label.trim().lowercase()) {
+        "headless", "headless stream", "private headless stream", "private stream" -> SessionMode.PRIVATE_STREAM
+        "gpu-native stream", "gpu-native test", "windowed stream", "private stream (gpu-native)" -> SessionMode.PRIVATE_STREAM_GPU_NATIVE
+        "desktop display", "host display", "desktop", "mirror desktop" -> SessionMode.MIRROR_DESKTOP
+        "virtual display", "host virtual display" -> SessionMode.HOST_VIRTUAL_DISPLAY
+        "gamescope stream" -> SessionMode.GAMESCOPE_STREAM
+        "headless dongle" -> SessionMode.HEADLESS_DONGLE
+        else -> SessionMode.HOST_LABEL
+    }
+
+    /** The display modes a session can run in, and a host's own label for one Nova cannot name. */
+    enum class SessionMode {
+        PRIVATE_STREAM,
+        PRIVATE_STREAM_GPU_NATIVE,
+        MIRROR_DESKTOP,
+        DESKTOP_TAKEOVER,
+        HOST_VIRTUAL_DISPLAY,
+        GAMESCOPE_STREAM,
+        HEADLESS_DONGLE,
+        HOST_LABEL,
     }
 
     private fun encoderDisplayName(name: String): String = when (name.trim().lowercase()) {

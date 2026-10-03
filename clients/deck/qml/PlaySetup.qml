@@ -37,7 +37,7 @@ FocusScope {
         return result
     }
     Timer { id: planRefresh; interval: 150; onTriggered: if (setup.gameTools && setup.visible) setup.gameTools.review(setup.plan.configuration) }
-    function checkPlan() { if (gameTools && !spaceSession) planRefresh.restart() }
+    function checkPlan() { if (gameTools && !spaceSession && planRefresh) planRefresh.restart() }
 
     property string hostId: ""
     property string gameId: ""
@@ -54,7 +54,13 @@ FocusScope {
     property var displayCapabilities: ({})
     readonly property bool spaceSession: spaceDestination || gameId.indexOf("space.") === 0
         || gameId === "706f6c61-7269-4373-8000-6d756c746973" || gameId === "1347244801"
-    readonly property var plan: settingsProvider.streamPlan(requestedConfiguration, streamCapabilities, displayPlanner, displayCapabilities, spaceSession)
+    readonly property var plan: {
+        const revision = settingsProvider.videoSupportRevision
+        return settingsProvider.streamPlan(requestedConfiguration, streamCapabilities, displayPlanner, displayCapabilities, spaceSession)
+    }
+    readonly property var bitrateAdvice: settingsProvider.bitrateAdvice(plan.configuration, toolsState.pyrowaveAdvice || ({}))
+    readonly property int recommendedKbps: Math.min(bitrateAdvice.kbps || 0, plan.maxBitrateKbps || 300000, 300000)
+    readonly property bool belowAdvice: codecManagesEncoder && recommendedKbps > 0 && configuration.bitrateKbps < recommendedKbps * 0.8
     readonly property var audioSettings: settingsProvider.audioSettings
     readonly property int audioChannels: spaceSession ? 2 : audioSettings.channels
     readonly property string audioLabel: audioChannels === 8 ? "7.1 surround" : audioChannels === 6 ? "5.1 surround" : "Stereo audio"
@@ -66,10 +72,15 @@ FocusScope {
         { launchMode: "windowed_stream", label: "Private Stream (GPU-native)", detail: "Use the host's GPU-native private streaming path." },
         { launchMode: "gamescope_stream", label: "Gamescope Stream", detail: "Run the game in the host's Gamescope streaming session." }
     ]
-    readonly property var launchChoices: [{ launchMode: "default", label: spaceDestination ? "Space default" : "Host default",
-        detail: spaceDestination ? "Use this Space's launch settings." : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
+    readonly property string defaultLaunchLabel: spaceDestination ? "Space default"
+        : launchPolicy.followsHostDefault === false ? "App default" : "Host default"
+    readonly property var launchChoices: [{ launchMode: "default", label: defaultLaunchLabel,
+        detail: spaceDestination ? "Use this Space's launch settings."
+            : launchPolicy.defaultAvailable === false ? (launchPolicy.unavailableReason || "This app's Launch As mode is unavailable.")
+            : launchPolicy.followsHostDefault === false ? "Use this app's Launch As mode set on the PC."
+            : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
             modeOptions.filter(option => !spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(option.launchMode) >= 0))
-    readonly property bool launchModeAllowed: configuration.launchMode === "default"
+    readonly property bool launchModeAllowed: (configuration.launchMode === "default" && launchPolicy.defaultAvailable !== false)
         || (!spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(configuration.launchMode) >= 0)
     readonly property string effectiveFaceButtonLayout: configuration.faceButtonLayout === "default"
         ? settingsProvider.defaultFaceButtonLayout : configuration.faceButtonLayout
@@ -80,7 +91,19 @@ FocusScope {
     property string error: ""
     property string notice: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
-    readonly property var rows: [resolution, rate, bitrate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
+    readonly property bool narrow: width < 720 * NovaTheme.fontScale
+    property bool planExpanded: false
+    readonly property bool footerStacked: width < 600 * NovaTheme.fontScale
+    readonly property real footerMargin: 24 * unit
+    readonly property real footerGap: 12 * unit
+    readonly property real footerActionWidth: footerStacked ? Math.max(0, width - 2 * footerMargin)
+        : Math.min(280 * unit, Math.max(0, (width - 2 * footerMargin - footerGap) / 2))
+    readonly property real footerActionHeight: Math.max(60 * unit, backButton.implicitHeight)
+    readonly property real footerActionX: footerStacked ? footerMargin : width - footerMargin - footerActionWidth
+    readonly property real footerActionY: height - footerMargin - footerActionHeight
+    readonly property real footerReservedHeight: footerMargin + footerActionHeight * (footerStacked ? 2 : 1)
+        + (footerStacked ? footerGap : 0) + 12 * unit
+    readonly property var rows: [resolution, rate, bitrate, recommendedRate, faceButtons, launchMode, videoCodec, encoder, tuning, steamLaunch, reset].filter(row => row.visible && (row !== encoder || !codecManagesEncoder))
     signal choiceOpened()
     signal focusPlayRequested()
     signal backRequested()
@@ -99,6 +122,7 @@ FocusScope {
     }
 
     onPlanChanged: {
+        if (visible) checkPlan()
         // A display move or PC refresh can withdraw the focused rate. Return
         // to its row so a copied popup model cannot offer an obsolete choice.
         if (picker && picker.opened && ((picker.returnFocus === rate
@@ -111,6 +135,7 @@ FocusScope {
         customEditor.close()
         picker.close()
         planRead.contentY = 0
+        planExpanded = false
         focusedRow = 0
         const saved = settingsProvider.load(hostId, gameId)
         configuration = saved.configuration
@@ -120,8 +145,8 @@ FocusScope {
         notice = ""
         hostPlanKnown = false
         if (gameTools && !spaceSession) gameTools.prepare(hostId, gameId, plan.configuration)
-        if (!launchModeAllowed && launchPolicy.known) {
-            if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using host default."
+        if (!launchModeAllowed && launchPolicy.known && configuration.launchMode !== "default") {
+            if (save({ launchMode: "default" })) notice = "Your saved launch mode is no longer available. Using " + defaultLaunchLabel.toLowerCase() + "."
         }
     }
     function save(values) {
@@ -157,7 +182,10 @@ FocusScope {
     function closeChoice() {
         if (customEditor.opened) { customEditor.close(); return true }
         if (hostDefaults.opened) { hostDefaults.close(); return true }
-        if (!picker.opened) return false
+        if (!picker.opened) {
+            if (planExpanded) { planExpanded = false; planSummary.forceActiveFocus(); return true }
+            return false
+        }
         picker.close()
         return true
     }
@@ -181,6 +209,7 @@ FocusScope {
             choiceCenters: picker.choices.map((choice, index) => center(choiceButtons.itemAt(index))) }
     }
     function modeLabel(mode) {
+        if (mode === "default") return defaultLaunchLabel
         if (spaceDestination && mode === "default") return "Space default"
         return (modeOptions.find(option => option.launchMode === mode) || {}).label
             || (mode === "headless_dongle" ? "Headless Dongle" : "Host default")
@@ -198,6 +227,7 @@ FocusScope {
         return (labels[field.key] || field.key) + ": " + value + " · " + (sources[field.source] || "Host plan") + (field.normalized ? " (adjusted)" : "")
     }
     readonly property string planHeadline: spaceDestination ? "Play in " + destinationName
+        : configuration.launchMode === "default" && launchPolicy.followsHostDefault === false ? modeLabel(launchPolicy.hostDefault)
         : configuration.launchMode === "default" ? "Play on Desktop" : modeLabel(configuration.launchMode)
     readonly property string planIntro: "Start " + gameTitle + (spaceDestination ? " in " + destinationName + " on " : " on ")
         + hostName + " and stream it here."
@@ -206,7 +236,8 @@ FocusScope {
         { key: "Stream", value: plan.configuration.width + " × " + plan.configuration.height + " · " + plan.configuration.fps + " fps",
             detail: plan.adjustment || ((overrides.resolution || overrides.fps) ? "This game's choices" : "Nova defaults"), warning: plan.adjustment.length > 0 },
         { key: "Picture", value: plan.videoLabel + " · " + (plan.configuration.bitrateKbps / 1000) + " Mbps",
-            detail: plan.displayLabel + " · " + plan.codecDetail },
+            detail: belowAdvice ? "Low for PyroWave detail · Recommended " + (recommendedKbps / 1000).toFixed(1) + " Mbps" : plan.displayLabel + " · " + plan.codecDetail,
+            warning: belowAdvice },
         { key: "Audio", value: audioLabel + " · PC audio " + (audioSettings.playHostAudio ? "on" : "off"),
             detail: spaceDestination ? "Spaces use stereo. Your device audio preference stays saved." : "Device setting · System › Audio" },
         { key: "Buttons", value: effectiveFaceButtonLayout === "positions" ? "Match positions" : "Match labels",
@@ -216,7 +247,7 @@ FocusScope {
                 && (!codecManagesEncoder || (f.key !== "preferred_codec" && f.key !== "hdr"))).map(hostPlanFact).join("\n")
                 || (toolsState.copy || "The host confirms its settings when the game starts.") },
         { key: "Launch", value: modeLabel(configuration.launchMode), detail: spaceDestination ? "Uses this Space's launch settings."
-            : configuration.launchMode === "default" ? (launchPolicy.known ? "PC default: " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
+            : configuration.launchMode === "default" ? (launchPolicy.known ? defaultLaunchLabel + ": " + modeLabel(launchPolicy.hostDefault) : "Uses your PC's launch settings.")
             : "Applies to this launch; the PC default stays unchanged." }
     ]
     component Copy: Label {
@@ -240,17 +271,18 @@ FocusScope {
         Layout.fillWidth: true
         // Both text lines and the active style's padding must fit inside the
         // button, including large text and Linux font substitutions.
-        Layout.preferredHeight: Math.max(60 * unit, implicitHeight)
+        Layout.preferredHeight: Math.max(48, 60 * unit * NovaTheme.controlScale, implicitHeight)
         topPadding: 10 * unit
         bottomPadding: 10 * unit
         Accessible.description: scopeLabel + ". " + explanation
         onActiveFocusChanged: if (activeFocus) focusedRow = position
-        Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : focusPlayRequested()
+        Keys.onUpPressed: position > 0 ? rows[position - 1].forceActiveFocus() : planSummary.forceActiveFocus()
         Keys.onDownPressed: position < rows.length - 1 ? rows[position + 1].forceActiveFocus() : focusPlayRequested()
-        Keys.onLeftPressed: planRead.forceActiveFocus()
+        Keys.onLeftPressed: planSummary.forceActiveFocus()
         Keys.onRightPressed: clicked()
-        contentItem: RowLayout {
-            spacing: 12 * unit
+        contentItem: GridLayout {
+            columns: setup.narrow ? 1 : 2
+            columnSpacing: 12 * unit; rowSpacing: 4 * unit
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -262,7 +294,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1.2
                 text: value
-                horizontalAlignment: Text.AlignRight
+                horizontalAlignment: setup.narrow ? Text.AlignLeft : Text.AlignRight
                 color: parent.parent.activeFocus ? NovaTheme.focusText : NovaTheme.text
                 font.weight: Font.DemiBold
                 font.pixelSize: 20 * unit * NovaTheme.fontScale
@@ -272,20 +304,23 @@ FocusScope {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 32 * unit
-        anchors.bottomMargin: 120 * unit
+        anchors.bottomMargin: setup.footerReservedHeight
         spacing: 20 * unit
-        RowLayout {
+        GridLayout {
+            columns: setup.narrow ? 1 : 2
             Layout.fillWidth: true
+            columnSpacing: 12 * unit; rowSpacing: 4 * unit
             Copy { text: "Play Setup"; font.pixelSize: 32 * unit * NovaTheme.fontScale; font.bold: true; Layout.fillWidth: true }
             Action {
                 id: everyGame
                 objectName: "play-setup-every-game"
                 text: "Every Game"
+                Layout.fillWidth: setup.narrow
                 visible: setup.hostSettingsController !== null && setup.hostSettingsController.state.supported
                 enabled: setup.editable
                 onClicked: { setup.choiceOpened(); hostDefaults.open() }
                 Keys.onDownPressed: setup.focusSettings()
-                Keys.onLeftPressed: planRead.forceActiveFocus()
+                Keys.onLeftPressed: planSummary.forceActiveFocus()
             }
         }
         Copy {
@@ -300,27 +335,37 @@ FocusScope {
             color: NovaTheme.warning
             font.pixelSize: 16 * unit * NovaTheme.fontScale
         }
-        RowLayout {
+        Action {
+            id: planSummary; objectName: "play-setup-plan-summary"
+            Layout.fillWidth: true
+            text: "What Will Happen · " + planHeadline + (setup.planExpanded ? "  ‹" : "  ›")
+            Accessible.description: planIntro
+            Accessible.checkable: true; Accessible.checked: setup.planExpanded
+            onClicked: { setup.planExpanded = !setup.planExpanded; if (setup.planExpanded) Qt.callLater(() => planRead.forceActiveFocus()) }
+            Keys.onDownPressed: setup.focusSettings()
+            Keys.onUpPressed: everyGame.visible ? everyGame.forceActiveFocus() : setup.focusPlayRequested()
+        }
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: 0
-            spacing: 32 * unit
+            spacing: 8 * unit
             NovaScrollColumn {
                 id: planRead
                 objectName: "play-setup-plan"
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                visible: setup.planExpanded
+                Layout.preferredHeight: Math.min(contentHeight, setup.height * 0.25)
                 Layout.minimumHeight: 0
-                Layout.preferredWidth: 0.9
                 spacing: 12 * unit
                 Accessible.role: Accessible.StaticText
                 Accessible.name: planHeadline + ". " + planIntro
                 activeFocusOnTab: true
                 Keys.onDownPressed: contentY = Math.min(Math.max(0, contentHeight - height), contentY + 64 * unit)
-                Keys.onUpPressed: if (contentY <= 0 && everyGame.visible && everyGame.enabled) everyGame.forceActiveFocus(); else contentY = Math.max(0, contentY - 64 * unit)
+                Keys.onUpPressed: if (contentY <= 0) planSummary.forceActiveFocus(); else contentY = Math.max(0, contentY - 64 * unit)
                 Keys.onRightPressed: rows[Math.min(focusedRow, rows.length - 1)].forceActiveFocus()
                 Keys.onLeftPressed: backButton.forceActiveFocus()
-                Keys.onReturnPressed: focusPlayRequested()
+                Keys.onReturnPressed: { setup.planExpanded = false; planSummary.forceActiveFocus() }
                 Rectangle {
                     parent: planRead
                     anchors.fill: parent
@@ -370,7 +415,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 0
-                Layout.preferredWidth: 1.1
+                // Rows own the remaining height; the plan is a bounded disclosure.
                 spacing: 10 * unit
                 Copy { text: "WHAT YOU CAN CHANGE"; color: NovaTheme.secondary; font.pixelSize: 12 * unit * NovaTheme.fontScale; font.weight: Font.DemiBold }
                 Copy { text: "This game · Saved on this device"; color: NovaTheme.secondary; font.pixelSize: 16 * unit * NovaTheme.fontScale }
@@ -399,11 +444,29 @@ FocusScope {
                     defaultExplanation: "Use Nova's current device-default starting bitrate."
                     label: "Bitrate"; value: (configuration.bitrateKbps / 1000) + " Mbps"
                     onClicked: {
-                        const choices = [10,20,30,40].map(value => ({label: value + " Mbps", detail: "Starting bitrate for this stream.", bitrateKbps: value * 1000}))
+                        const choices = (codecManagesEncoder ? [50,100,150,200,250,300] : [10,20,30,40]).filter(value => value * 1000 <= (plan.maxBitrateKbps || 300000)).map(value => ({label: value + " Mbps", detail: "Starting bitrate for this stream.", bitrateKbps: value * 1000}))
+                        if (codecManagesEncoder && recommendedKbps > 0 && !choices.some(choice => choice.bitrateKbps === recommendedKbps))
+                            choices.unshift({label: "Recommended · " + (recommendedKbps / 1000).toFixed(1) + " Mbps", detail: bitrateAdvice.basis === "host" ? "Advice from this PC." : "Calibrated PyroWave estimate for handheld viewing.", bitrateKbps: recommendedKbps})
                         if (!choices.some(choice => choice.bitrateKbps === configuration.bitrateKbps))
                             choices.push({label: (configuration.bitrateKbps / 1000) + " Mbps", detail: "Your saved custom bitrate.", bitrateKbps: configuration.bitrateKbps})
                         picker.choose(bitrate, "Bitrate", choices, choices.findIndex(choice => choice.bitrateKbps === configuration.bitrateKbps))
                     }
+                }
+                Setting {
+                    id: recommendedRate; objectName: "play-setup-recommended-bitrate"
+                    visible: codecManagesEncoder && recommendedKbps > 0 && configuration.bitrateKbps !== recommendedKbps
+                    enabled: setup.editable
+                    label: "Also use recommended"; value: (recommendedKbps / 1000).toFixed(1) + " Mbps"
+                    explanation: bitrateAdvice.basis === "host" ? "Advice from this PC for the selected picture." : "Calibrated estimate for handheld viewing. Compare fine detail and motion."
+                    Layout.fillWidth: true
+                    onClicked: {
+                        if (setup.save({bitrateKbps: recommendedKbps})) {
+                            setup.checkPlan()
+                            bitrate.forceActiveFocus()
+                        }
+                    }
+                    Keys.onUpPressed: setup.rows[setup.rows.indexOf(this) - 1].forceActiveFocus()
+                    Keys.onDownPressed: setup.rows[setup.rows.indexOf(this) + 1].forceActiveFocus()
                 }
                 Setting {
                     id: faceButtons; objectName: "play-setup-face-buttons"
@@ -490,7 +553,7 @@ FocusScope {
                     Layout.fillWidth: true
                     visible: notice.length > 0 || !launchModeAllowed || !plan.playable || plan.adjustment.length > 0
                     text: (!plan.playable ? plan.reason : "") || (!launchModeAllowed
-                        ? "Refresh this PC to verify your saved launch mode, or choose Host default." : "") || notice || plan.adjustment
+                        ? (launchPolicy.unavailableReason || "Refresh this PC to verify your saved launch mode, or choose " + defaultLaunchLabel + ".") : "") || notice || plan.adjustment
                     color: NovaTheme.warning
                     font.pixelSize: 16 * unit * NovaTheme.fontScale
                 }
@@ -503,15 +566,17 @@ FocusScope {
         text: setup.returnLabel
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        anchors.margins: 32 * unit
-        width: 240 * unit
-        height: Math.max(60 * unit, implicitHeight)
+        anchors.leftMargin: setup.footerMargin
+        anchors.bottomMargin: setup.footerMargin + (setup.footerStacked ? setup.footerActionHeight + setup.footerGap : 0)
+        width: setup.footerActionWidth
+        height: setup.footerActionHeight
         onClicked: backRequested()
         Keys.onRightPressed: focusPlayRequested()
         Keys.onUpPressed: focusSettings()
     }
     StreamProfileEditor {
         id: customEditor
+        maximumBitrateKbps: setup.plan.maxBitrateKbps || 300000
         settingsProvider: setup.settingsProvider; editable: setup.editable; hostId: setup.hostId; gameId: setup.gameId; unit: setup.unit
         onSaved: { setup.reloadChoices(); setup.error = ""; setup.notice = "Saved for this game." }
     }

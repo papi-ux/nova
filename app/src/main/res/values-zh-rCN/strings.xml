@@ -48,14 +48,11 @@
     <string name="pcview_menu_open_management_page">打开服务端配置</string>
     <string name="pcview_error_no_management_url">无法打开服务端配置，找不到服务端地址。</string>
     <!-- Pair messages -->
-    <string name="pairing"> 配对中…… </string>
     <string name="pair_pc_confirm_title">与 PC 配对</string>
     <string name="pair_pc_confirm_message">确定要与 %s 配对吗？请不要轻易与任何不熟悉的电脑配对。</string>
     <string name="pair_pc_offline"> 电脑离线中 </string>
     <string name="pair_pc_ingame">电脑正在游戏中，在配对之前你必须先退出游戏。</string>
     <string name="pair_pairing_title"> 配对中 </string>
-    <string name="pair_pairing_msg"> 请在目标电脑上输入以下PIN码： </string>
-    <string name="pair_otp_pairing_msg">正在配对，请稍候…</string>
     <string name="pair_otp_pairing_help">OTP 配对仅支持 Apollo，其他服务端请在 WebUI 上手动输入刚刚提供的PIN码。</string>
     <string name="pair_incorrect_pin"> PIN码或口令错误 </string>
     <string name="pair_fail"> 配对失败 </string>
@@ -102,12 +99,7 @@
     <string name="searching_pc">在你的本地网络中搜索串流主机PC...
 \n
 \n 请确保 Apollo 正在主机上运行。</string>
-    <string name="yes"> 确定 </string>
-    <string name="no"> 取消 </string>
-    <string name="lost_connection"> 与电脑失去连接 </string>
     <string name="title_details"> 详情 </string>
-    <string name="help"> 帮助 </string>
-    <string name="delete_pc_msg"> 你确定要删除这台电脑？ </string>
     <string name="slow_connection_msg"> 与电脑连接过慢 \n 请降低码率 </string>
     <string name="poor_connection_msg"> 与电脑连接不佳 </string>
     <string name="perf_overlay_decoder">解码器： %1$s</string>
@@ -134,18 +126,14 @@
     <string name="applist_refresh_msg"> 刷新中…… </string>
     <string name="applist_refresh_error_title"> 错误 </string>
     <string name="applist_refresh_error_msg"> 获取列表失败 </string>
-    <string name="applist_quit_app"> 退出中 </string>
     <string name="applist_quit_success"> 成功退出串流 </string>
     <string name="applist_quit_fail"> 退出串流失败 </string>
-    <string name="applist_quit_confirmation">您确定要退出当前游戏？所有未保存的数据将丢失。</string>
     <string name="applist_details_id">App ID：</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc"> 手动添加电脑 </string>
     <string name="msg_add_pc"> 正在连接电脑…… </string>
     <string name="addpc_fail">无法连接至指定电脑。请确保所需端口没有被防火墙阻止。</string>
-    <string name="addpc_success"> 成功添加电脑 </string>
     <string name="addpc_unknown_host">无法解析电脑的IP地址，请确保IP地址输入无误。</string>
-    <string name="addpc_enter_ip">请输入一个IP地址</string>
     <string name="addpc_wrong_sitelocal"> 该地址似乎不正确。 您必须使用路由器的公共IP地址通过Internet进行串流。 </string>
     <!-- Preferences -->
     <string name="category_general_settings"> 通用设置 </string>
@@ -325,7 +313,6 @@
     <string name="title_full_range">强制完全动态范围视频 (实验性)</string>
     <string name="title_prevent_packet_loss">防止丢包</string>
     <string name="summary_prevent_packet_loss">对于不明原因丢包的设备，可以尝试开启此选项。</string>
-    <string name="pair_pairing_help">如果你的主机运行的是 Sunshine，请前往Sunshine的网页界面输入PIN码。</string>
     <string name="pcview_menu_eol">NVIDIA GameStream 终止服务</string>
     <string name="perf_overlay_hostprocessinglatency">主机处理延迟最小值/最大值/平均值: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="fps_suffix_fps">FPS</string>
@@ -353,22 +340,7 @@
     <string name="suffix_seekbar_vibrate_fallback_strength">％</string>
     <string name="keyboard_service_label"> Nova 物理键盘</string>
     <string name="accessibility_description_text">此功能仅用于外接实体键盘时，某些系统存在特定的键盘快捷键，此情况会影响串流过程中，无法将相关按键指令传输给目标PC。            Nova 不会观察您输入的文本，也不会收集您的密码、信用卡号或任何其他信息。</string>
-    <string name="game_menu_toggle_keyboard">弹出软键盘</string>
-    <string name="game_menu_toggle_hud">(显示/隐藏)性能信息</string>
-    <string name="game_menu_toggle_floating_button">(显示/隐藏)悬浮按钮</string>
-    <string name="game_menu_select_mouse_mode">选择鼠标模式</string>
-    <string name="game_menu_enable_zoom_mode">启用平移/缩放</string>
-    <string name="game_menu_disable_zoom_mode">禁用平移/缩放</string>
-    <string name="game_menu_rotate_screen">旋转屏幕</string>
-    <string name="game_menu_toggle_keyboard_model">(显示/隐藏)特殊按键</string>
-    <string name="game_menu_toggle_virtual_model">(显示/隐藏)虚拟手柄</string>
-    <string name="game_menu_toggle_virtual_keyboard_model">(显示/隐藏)虚拟全键盘</string>
-    <string name="game_menu_switch_touch_sensitivity_model">触控灵敏度切换</string>
-    <string name="game_menu_toggle_mouse_off">禁用手柄鼠标模拟</string>
     <string name="game_menu_disconnect">断开连接</string>
-    <string name="game_menu_cancel">取消</string>
-    <string name="game_menu_task_manager">打开任务管理器</string>
-    <string name="game_menu_send_keys">发送特殊按键</string>
     <string name="game_menu_send_keys_ctrl_v">Ctrl + V (粘贴剪切板)</string>
     <string name="game_menu_send_keys_win">Win</string>
     <string name="game_menu_send_keys_win_d">Win + D (返回桌面)</string>
@@ -516,7 +488,6 @@
     <string name="perf_overlay_lite_network_decoding_delay">网络/解码延迟</string>
     <string name="perf_overlay_lite_packet_loss">丢包率</string>
     <string name="menu_button">菜单</string>
-    <string name="quick_menu_title">快捷菜单</string>
     <string name="wrong_import_format">自定义导入格式错误，请检查！</string>
     <string name="title_checkbox_gamepad_enable_battery_report">启用手柄电池状态报告</string>
     <string name="summary_checkbox_gamepad_enable_battery_report">在可用时汇报手柄电池状态。\n如果在使用触摸屏/触摸板/手写笔/鼠标时偶尔有卡顿现象发生，关闭此选项可能会有用。</string>
@@ -553,10 +524,8 @@
     <string name="debug_info_vibration_amplitude">振幅强度 (%d)</string>
     <string name="debug_info_simple_vibration">简单震一秒</string>
     <string name="debug_info_continuous_hd_vibration">持续HD震动</string>
-    <string name="debug_info_please_choose">请选择</string>
     <string name="debug_info_no_gamepad_detected">目前没有检测到手柄，请连接手柄，点击刷新按钮，再尝试！</string>
     <string name="debug_info_no_vibrator">手柄没有识别到震动马达！</string>
-    <string name="debug_info_set_amplitude">设置振幅0-255(只对HD震动生效)</string>
     <string name="debug_info_name">名称：</string>
     <string name="debug_info_sensors">传感器：</string>
     <string name="debug_info_no_relevant_driver">无（没有相关驱动或者手柄不支持）</string>
@@ -579,14 +548,9 @@
     <string name="pref_import_success">导入成功！</string>
     <string name="pref_error_occurred">出错啦~</string>
     <string name="pref_save_keyboard_profile">保存屏幕键盘配置</string>
-    <string name="game_menu_advanced">高级菜单</string>
     <string name="game_dialog_title_quit_confirm">确定要退出吗？</string>
     <string name="game_dialog_message_quit_confirm">请确保当前没有未保存的进度。终止会话会导致当前运行的程序被强行停止。</string>
-    <string name="game_menu_quit_session">终止会话</string>
     <string name="game_menu_server_cmd">服务端命令</string>
-    <string name="game_menu_fetch_clipboard">获取剪贴板</string>
-    <string name="game_menu_upload_clipboard">上传剪贴板</string>
-    <string name="game_dialog_title_server_cmd_empty">无服务端命令</string>
     <string name="game_dialog_message_server_cmd_empty">请确保你的服务端为 Apollo，并已授予此客户端"服务端命令"权限。</string>
     <string name="vdisplay_not_ready">服务端虚拟显示器驱动未就绪。请确保 SudoVDA 驱动已正确安装并启用。</string>
     <string name="vdisplay_not_supported"><![CDATA[此服务端不支持虚拟显示器。请使用 <a href=\"https://github.com/ClassicOldSong/Apollo\">Apollo</a> 作为服务端串流软件。]]></string>
@@ -613,11 +577,10 @@
     <string name="searchpreference_more">更多</string>
     <string name="searchpreference_clear_history">清除历史</string>
     <string name="searchpreference_no_results">无结果</string>
-    <string name="game_menu_toggle_mouse_on">启用手柄鼠标模拟</string>
     <string name="summary_performance_link">查看其他设备的性能数据</string>
     <string name="email_chooser_title">分享性能日志...</string>
     <string name="toast_no_email_clients">找不到可分享的应用</string>
-    <string name="email_subject">Nova - 性能日志</string>
+    <string name="email_subject">Nova 性能日志</string>
     <string name="summary_share_performance_logs">在问题反馈或支持讨论中分享性能日志</string>
     <string name="email_prefix_message">"\n        请将此日志文件附加到 GitHub issue 或其他支持渠道。\n\n        其中可能包含设备型号、解码器信息、串流设置和会话时间数据。\n\n        如果你不想公开这些信息，请在分享前先检查内容。\n\n        问题跟踪: https://github.com/papi-ux/nova/issues\n\n    "</string>
 
@@ -626,7 +589,6 @@
     <string name="keyboard_add_keys">添加按键</string>
     <string name="keyboard_select_keys">选择要添加的按键</string>
     <string name="keyboard_clear_all_confirm_title">清除全部按键</string>
-    <string name="keyboard_clear_all_confirm_message">确定要移除全部按键吗？</string>
     <string name="keyboard_add">添加</string>
     <string name="keyboard_configure_movable">设置按钮已可移动</string>
     <string name="keyboard_keys_added">%d 个按键已成功添加</string>
@@ -640,13 +602,11 @@
     <string name="failed_to_initiate_file_export">无法初始化文件导出：%s</string>
     <string name="file_export_failed_no_location_selected">文件导出失败：未选择位置。</string>
     <string name="file_export_failed_no_content_to_write">文件导出失败：没有内容可写。</string>
-    <string name="file_exported_successfully">文件导出成功。</string>
     <string name="failed_to_open_file_for_writing">无法打开文件进行写入。</string>
     <string name="error_writing_file">写入文件时出错：%s</string>
     <string name="unexpected_error_during_file_export">文件导出期间发生意外错误。</string>
 
     <!-- AppView Toast Messages -->
-    <string name="file_export_cancelled">文件导出已取消。</string>
     <string name="app_removed_from_pc">应用已从电脑上移除</string>
 
     <string name="title_export_sunshine_launcher_file">为 Sunshine 导出启动文件</string>
@@ -672,12 +632,7 @@
     <string name="profile_manager_profiles_description">配置文件允许您创建并保存不同的串流配置。每个配置文件都存储各自的设置，可以快速切换。</string>
     <string name="profile_manager_tap_create_profile">点击 + 以创建您的第一个配置文件</string>
     <string name="profile_manager_choose_profile">选择配置</string>
-    <string name="profile_manager_deactivated_profile">配置已停用</string>
-    <string name="profile_manager_activated_profile">已激活配置 %s</string>
-    <string name="profile_manager_delete_profile">删除配置</string>
-    <string name="profile_manager_confirm_profile_deleteion">确认要删除配置 %s 吗?</string>
     <string name="profile_manager_delete">删除</string>
-    <string name="profile_manager_profile_deleted">配置 %s 已删除</string>
     <string name="profile_manager_failed_to_save">配置保存失败，请检查 logcat 以获取详细信息。</string>
     <string name="profile_manager_failed_to_load">配置加载失败，请检查 logcat 以获取详细信息。</string>
     <string name="profile_manager_active_profile">当前配置：%s</string>

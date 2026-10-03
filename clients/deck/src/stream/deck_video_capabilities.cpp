@@ -1,4 +1,5 @@
 #include "stream/deck_video_capabilities.h"
+#include "stream/deck_v4l2_decoder.h"
 #include <Limelight.h>
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -7,9 +8,6 @@ extern "C" {
 }
 #include <algorithm>
 #include <vector>
-#ifdef NOVA_DECK_BUILD_PYROWAVE
-#include "codec.h"
-#endif
 
 namespace nova::deck::stream {
 int selectSdrVideoFormat(std::string_view preference, bool hostH264, bool hostHevc,
@@ -109,23 +107,25 @@ DeckVideoDecodeSupport probeVaapiDecodeSupport(AVBufferRef* device) {
 }
 
 DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
-    auto support = probeVaapiDecodeSupport(device);
-    // Startup review and stream launch must see the same codec capabilities.
-    // PyroWave uses its own Vulkan device, even when VAAPI is unavailable.
-#ifdef NOVA_DECK_BUILD_PYROWAVE
-    nova::pyrowave::Codec decoder;
-    if (decoder.open(128, 128, false)) {
-        const int limit = decoder.probeGpuLimit();
-        support.pyrowave = {limit, limit};
+    return probeVaapiDecodeSupport(device);
+}
+
+DeckVideoDecodeSupport probeLocalVideoDecodeSupport(AVBufferRef* device) {
+    auto support = probeVideoDecodeSupport(device);
+    if (!support.h264.supports(1920, 1080) || !support.hevc.supports(1920, 1080)) {
+        const auto qualified = qualifyDeckV4l2Decoder();
+        // Keep every existing VAAPI capability. V4L2 fills absent SDR codecs;
+        // it never implies Main10 or changes explicit PyroWave selection.
+        if (support.h264.maxWidth == 0) support.h264 = qualified.h264;
+        if (support.hevc.maxWidth == 0) support.hevc = qualified.hevc;
     }
-#endif
     return support;
 }
 
 DeckVideoDecodeSupport detectVideoDecodeSupport() {
     AVBufferRef* device = nullptr;
     av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
-    auto support = probeVideoDecodeSupport(device);
+    const auto support = probeLocalVideoDecodeSupport(device);
     av_buffer_unref(&device);
     return support;
 }

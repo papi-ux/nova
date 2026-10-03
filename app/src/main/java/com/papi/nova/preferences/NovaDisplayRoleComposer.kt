@@ -4,194 +4,107 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
-import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
-import com.papi.nova.ui.compose.LocalNovaMenuOpacityScale
+import com.papi.nova.ui.compose.LocalNovaFormFactor
+import com.papi.nova.ui.compose.NovaActionSurface
 import com.papi.nova.ui.compose.NovaRadius
-import com.papi.nova.ui.compose.novaFocusMotion
+import com.papi.nova.ui.panel.NovaCurrentMark
+import com.papi.nova.ui.panel.NovaPageScope
+import com.papi.nova.ui.panel.NovaPanelButtonPair
+import com.papi.nova.ui.panel.NovaPanelMetrics
+import com.papi.nova.ui.panel.NovaRow
+import com.papi.nova.ui.panel.novaClickable
+import com.papi.nova.ui.panel.novaFocusRing
+import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaRowRest
+import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.utils.AndroidDisplayCandidateAdapter
 import com.papi.nova.utils.AndroidDisplayRolePlan
 import com.papi.nova.utils.AndroidStreamDisplayTarget
 
-private val DisplayRoleCardShape = RoundedCornerShape(NovaRadius.row)
+private val DisplayRoleRowShape = RoundedCornerShape(NovaRadius.row)
 
+/**
+ * The display role composer as a page: which display streams and which shows the companion
+ * controls, previewed before anything changes. It opens on the route in use, Follow or the
+ * display that streams, and Apply hands the new target to [SettingsPage.DisplayRole.onApply]
+ * after the page has left. B and the page header leave without applying, as Cancel did.
+ */
 @Composable
-internal fun NovaDisplayRoleComposerDialog(
-    definition: NovaSettingDefinition,
-    state: NovaSettingsUiState,
-    onDismiss: () -> Unit,
-    onSave: (NovaSettingDefinition, NovaSettingValue) -> Unit,
-) {
+internal fun NovaPageScope.NovaDisplayRolePage(page: SettingsPage.DisplayRole) {
     val displays = rememberAndroidDisplayRoleSpecs()
-    val currentTarget = state.stringValue(definition)
-    var pendingTarget by rememberSaveable(definition.key, currentTarget) {
-        mutableStateOf(currentTarget)
-    }
-    val roleState = remember(displays, currentTarget, pendingTarget) {
+    var pendingTarget by rememberSaveable(page.currentTarget) { mutableStateOf(page.currentTarget) }
+    val roleState = remember(displays, page.currentTarget, pendingTarget) {
         AndroidDisplayRolePlan.build(
             displays = displays,
             defaultDisplayId = Display.DEFAULT_DISPLAY,
-            currentTarget = currentTarget,
+            currentTarget = page.currentTarget,
             pendingTarget = pendingTarget,
         )
     }
+    val colors = LocalNovaComposeColors.current
+    val type = novaPanelType
+    val streamDisplayId = roleState.pending.assignments
+        .firstOrNull { it.role == AndroidDisplayRolePlan.Role.STREAM }?.display?.displayId
 
-    NovaSelectDialogShell(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            NovaDisplayRoleComposerActions(
-                roleState = roleState,
-                onSwap = {
-                    AndroidDisplayRolePlan.swapTarget(roleState.pending)?.let {
-                        pendingTarget = it
-                    }
-                },
-                onApply = {
-                    onSave(
-                        definition,
-                        NovaSettingValue.StringValue(roleState.pending.target),
-                    )
-                },
-                onDismiss = onDismiss,
-            )
-        },
-        dismissButton = {},
-        title = { Text(stringResource(R.string.title_display_role_composer)) },
-        text = {
-            NovaDisplayRoleComposerBody(
-                roleState = roleState,
-                displays = displays,
-                onPendingTarget = { pendingTarget = it },
-            )
-        },
-    )
-}
-
-@Composable
-internal fun NovaDisplayRoleComposerLegacyPanel(
-    currentTarget: String,
-    onDismiss: () -> Unit,
-    onApply: (String) -> Unit,
-) {
-    val displays = rememberAndroidDisplayRoleSpecs()
-    var pendingTarget by rememberSaveable("legacy-display-roles", currentTarget) {
-        mutableStateOf(currentTarget)
-    }
-    val roleState = remember(displays, currentTarget, pendingTarget) {
-        AndroidDisplayRolePlan.build(
-            displays = displays,
-            defaultDisplayId = Display.DEFAULT_DISPLAY,
-            currentTarget = currentTarget,
-            pendingTarget = pendingTarget,
-        )
-    }
-    val surfaces = LocalNovaLibrarySurfaces.current
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(DisplayRoleCardShape)
-            .background(surfaces.panel.copy(alpha = 1f))
-            .border(1.dp, surfaces.panelBorder, DisplayRoleCardShape)
-            .padding(18.dp),
-    ) {
-        Text(stringResource(R.string.title_display_role_composer))
-        Spacer(Modifier.height(12.dp))
-        NovaDisplayRoleComposerBody(
-            modifier = Modifier.weight(1f, fill = false),
-            roleState = roleState,
-            displays = displays,
-            maxHeight = 170.dp,
-            onPendingTarget = { pendingTarget = it },
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            NovaDisplayRoleComposerActions(
-                roleState = roleState,
-                onSwap = {
-                    AndroidDisplayRolePlan.swapTarget(roleState.pending)?.let {
-                        pendingTarget = it
-                    }
-                },
-                onApply = { onApply(roleState.pending.target) },
-                onDismiss = onDismiss,
-            )
-        }
-    }
-}
-
-@Composable
-private fun NovaDisplayRoleComposerBody(
-    modifier: Modifier = Modifier,
-    roleState: AndroidDisplayRolePlan.State,
-    displays: List<AndroidDisplayRolePlan.DisplaySpec>,
-    maxHeight: Dp = 620.dp,
-    onPendingTarget: (String) -> Unit,
-) {
     LazyColumn(
-        modifier = modifier
-            .heightIn(max = maxHeight)
-            .clipToBounds(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        state = listState,
+        contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceSm),
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
+        modifier = Modifier.fillMaxWidth().novaScrollEdgeFade(listState),
     ) {
-        item {
+        item(key = "summary") {
             Text(
                 text = stringResource(R.string.summary_display_role_composer),
-                color = LocalNovaComposeColors.current.textSecondary,
-                fontSize = 14.sp,
+                style = type.caption,
+                color = colors.textSecondary,
             )
         }
-        item {
-            NovaDisplayRoleRouteSummary(roleState)
-        }
-        item {
-            NovaDisplayRoleFollowAction(
-                selected = roleState.pending.followingSafeDefault,
-                onClick = { onPendingTarget(AndroidStreamDisplayTarget.AUTO) },
+        item(key = "route") { NovaDisplayRoleRouteSummary(roleState) }
+        item(key = "follow") {
+            val following = roleState.pending.followingSafeDefault
+            NovaDisplayRoleActionButton(
+                label = stringResource(R.string.display_role_follow),
+                supporting = stringResource(R.string.display_role_follow_supporting),
+                accessibilityDescription = stringResource(R.string.display_role_follow_action_description),
+                enabled = true,
+                selected = following,
+                onClick = { if (isTop) pendingTarget = AndroidStreamDisplayTarget.AUTO },
+                modifier = if (following || streamDisplayId == null) Modifier.novaInitialFocus() else Modifier,
             )
         }
         items(roleState.pending.assignments, key = { it.display.displayId }) { pendingAssignment ->
@@ -199,32 +112,58 @@ private fun NovaDisplayRoleComposerBody(
                 .firstOrNull { it.display.displayId == pendingAssignment.display.displayId }
                 ?.role
                 ?: AndroidDisplayRolePlan.Role.AVAILABLE
-            val target = targetForDisplay(
-                display = pendingAssignment.display,
-                displays = displays,
-            )
+            val target = targetForDisplay(display = pendingAssignment.display, displays = displays)
+            val initial = !roleState.pending.followingSafeDefault && pendingAssignment.display.displayId == streamDisplayId
             NovaDisplayRoleCard(
                 currentRole = currentRole,
                 pendingAssignment = pendingAssignment,
                 enabled = target != null,
-                onClick = { target?.let(onPendingTarget) },
+                onClick = { if (isTop) target?.let { pendingTarget = it } },
+                modifier = if (initial) Modifier.novaInitialFocus() else Modifier,
             )
         }
-        item {
-            roleRecoveryMessage(roleState.pending.recovery)?.let { message ->
-                Text(
-                    text = message,
-                    color = LocalNovaComposeColors.current.textSecondary,
-                    fontSize = 13.sp,
-                )
+        roleRecoveryMessageRes(roleState.pending.recovery)?.let { message ->
+            item(key = "recovery") {
+                Text(text = stringResource(message), style = type.caption, color = colors.warning)
             }
         }
-        item {
+        item(key = "next-stream") {
             Text(
                 text = stringResource(R.string.display_role_next_stream),
-                color = LocalNovaComposeColors.current.textSecondary,
-                fontSize = 12.sp,
+                style = type.caption,
+                color = colors.textSecondary,
             )
+        }
+        item(key = "actions") {
+            NovaDisplayRoleComposerActions(
+                roleState = roleState,
+                onSwap = {
+                    if (isTop) AndroidDisplayRolePlan.swapTarget(roleState.pending)?.let { pendingTarget = it }
+                },
+                onApply = {
+                    if (isTop) {
+                        val target = roleState.pending.target
+                        if (!panel.pop()) panel.close()
+                        page.onApply(target)
+                    }
+                },
+            )
+        }
+        // While a preset overrides the target, the last row drops it for the preset's own (C02).
+        page.useDefault?.let { useDefault ->
+            item(key = "use-default") {
+                NovaRow(
+                    title = useDefault.label,
+                    caption = useDefault.caption,
+                    onClick = {
+                        if (isTop) {
+                            if (!panel.pop()) panel.close()
+                            useDefault.run()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -232,19 +171,20 @@ private fun NovaDisplayRoleComposerBody(
 @Composable
 private fun NovaDisplayRoleRouteSummary(roleState: AndroidDisplayRolePlan.State) {
     val colors = LocalNovaComposeColors.current
+    val type = novaPanelType
     val current = routeSummary(roleState.current)
     val pending = routeSummary(roleState.pending)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
         Text(
             text = stringResource(R.string.display_role_current, current),
+            style = type.caption,
             color = colors.textSecondary,
-            fontSize = 13.sp,
         )
         Text(
             text = stringResource(R.string.display_role_pending, pending),
-            color = if (roleState.hasChanges) colors.accent else colors.textPrimary,
+            style = type.rowTitle,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
+            color = if (roleState.hasChanges) colors.accent else colors.textPrimary,
         )
     }
 }
@@ -257,30 +197,19 @@ private fun routeSummary(route: AndroidDisplayRolePlan.Route): String {
     return stringResource(R.string.display_role_route_summary, streamLabel, companionLabel)
 }
 
-@Composable
-private fun NovaDisplayRoleFollowAction(
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    NovaDisplayRoleActionButton(
-        label = stringResource(R.string.display_role_follow),
-        supporting = stringResource(R.string.display_role_follow_supporting),
-        accessibilityDescription = stringResource(R.string.display_role_follow_action_description),
-        enabled = true,
-        selected = selected,
-        onClick = onClick,
-    )
-}
-
+/**
+ * One display and the role it will take. The display that will stream is the chosen one: it
+ * carries the check, a SemiBold name and selected semantics (R9), and fills and borders only ever
+ * mean focus. A display the routing cannot name stays focusable and says why.
+ */
 @Composable
 internal fun NovaDisplayRoleCard(
     currentRole: AndroidDisplayRolePlan.Role,
     pendingAssignment: AndroidDisplayRolePlan.Assignment,
     enabled: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
     val assignment = pendingAssignment
     val pendingRoleLabel = roleLabel(assignment.role)
     val currentRoleLabel = roleLabel(currentRole)
@@ -293,104 +222,31 @@ internal fun NovaDisplayRoleCard(
         assignment.display.label,
         pendingRoleLabel,
     )
-    var focused by remember { mutableStateOf(false) }
-    val selected = assignment.role == AndroidDisplayRolePlan.Role.STREAM
-    val selectionState = stringResource(
-        if (selected) {
-            R.string.display_role_selection_state_selected
-        } else {
-            R.string.display_role_selection_state_not_selected
-        },
-    )
-    // This component had the split right before the others did; it just spelled the
-    // selected tint as its own alpha rather than as the shared token, and put selection
-    // ahead of focus so a focused selected role lost its focus fill.
-    val background = when {
-        focused -> surfaces.selectedControl
-        selected -> colors.accentSurface
-        else -> surfaces.control.copy(alpha = 0.76f * LocalNovaMenuOpacityScale.current)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(DisplayRoleCardShape)
-            .novaFocusMotion(focused = focused, pressed = false)
-            .background(background)
-            .border(
-                // Hue cannot separate these two: focusRing is defined as accent. Selection
-                // is drawn at 0.72 alpha, the way NovaSelectableChip already drew it, and
-                // width carries the rest of the distinction.
-                width = when {
-                    focused -> 3.dp
-                    selected -> 2.dp
-                    else -> 1.dp
-                },
-                color = when {
-                    focused -> surfaces.focusRing
-                    selected -> colors.accent.copy(alpha = 0.72f)
-                    else -> surfaces.tileBorder
-                },
-                shape = DisplayRoleCardShape,
-            )
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
-            .selectable(
-                selected = selected,
-                enabled = enabled,
-                role = Role.RadioButton,
-                onClick = onClick,
-            )
-            .focusable(enabled)
-            .semantics {
-                contentDescription = description
-                stateDescription = selectionState
-            }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = assignment.display.label,
-                color = colors.textPrimary,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-            )
-            Text(
-                text = pendingRoleLabel,
-                color = if (selected) colors.accent else colors.textSecondary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-            )
-        }
-        Text(
-            text = stringResource(
+    val lines = buildList {
+        add(pendingRoleLabel)
+        add(
+            stringResource(
                 R.string.display_role_resolution_refresh,
                 assignment.display.width,
                 assignment.display.height,
                 assignment.display.refreshRateHz,
             ),
-            color = colors.textSecondary,
-            fontSize = 13.sp,
         )
-        Text(
-            text = stringResource(R.string.display_role_card_current, currentRoleLabel),
-            color = colors.textSecondary,
-            fontSize = 12.sp,
-        )
-        if (!enabled) {
-            Text(
-                text = stringResource(R.string.display_role_unrepresentable),
-                color = colors.textSecondary,
-                fontSize = 12.sp,
-            )
-        }
+        add(stringResource(R.string.display_role_card_current, currentRoleLabel))
+        if (!enabled) add(stringResource(R.string.display_role_unrepresentable))
     }
+    NovaDisplayRoleChoice(
+        title = assignment.display.label,
+        lines = lines,
+        description = description,
+        selected = assignment.role == AndroidDisplayRolePlan.Role.STREAM,
+        enabled = enabled,
+        onClick = onClick,
+        modifier = modifier,
+    )
 }
 
+/** Follow: Nova's safe default routing, chosen like a display. */
 @Composable
 internal fun NovaDisplayRoleActionButton(
     label: String,
@@ -399,10 +255,35 @@ internal fun NovaDisplayRoleActionButton(
     enabled: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    NovaDisplayRoleChoice(
+        title = label,
+        lines = listOf(supporting),
+        description = accessibilityDescription,
+        selected = selected,
+        enabled = enabled,
+        onClick = onClick,
+        modifier = modifier,
+    )
+}
+
+/**
+ * A radio choice on the composer page: the one focus look, the trailing check for the choice in
+ * effect, and text that wraps rather than cuts.
+ */
+@Composable
+private fun NovaDisplayRoleChoice(
+    title: String,
+    lines: List<String>,
+    description: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalNovaComposeColors.current
-    val surfaces = LocalNovaLibrarySurfaces.current
-    var focused by remember { mutableStateOf(false) }
+    val type = novaPanelType
     val selectionState = stringResource(
         if (selected) {
             R.string.display_role_selection_state_selected
@@ -410,90 +291,85 @@ internal fun NovaDisplayRoleActionButton(
             R.string.display_role_selection_state_not_selected
         },
     )
-    Column(
-        modifier = Modifier
+    Row(
+        modifier = modifier
             .fillMaxWidth()
-            .clip(DisplayRoleCardShape)
-            .novaFocusMotion(focused = focused, pressed = false)
-            .background(
-                when {
-                    focused -> surfaces.selectedControl
-                    selected -> colors.accentSurface
-                    else -> surfaces.control.copy(alpha = 0.70f * LocalNovaMenuOpacityScale.current)
-                },
-            )
-            // The border was the plainest statement of the problem in the app: a selected
-            // card wore the focus ring, at focus width, while focus was somewhere else. The
-            // ring now means focus and nothing else, and selection is drawn in the accent.
-            .border(
-                width = when {
-                    focused -> 3.dp
-                    selected -> 2.dp
-                    else -> 1.dp
-                },
-                color = when {
-                    focused -> surfaces.focusRing
-                    selected -> colors.accent.copy(alpha = 0.72f)
-                    else -> surfaces.tileBorder
-                },
-                shape = DisplayRoleCardShape,
-            )
-            .onFocusChanged { focused = it.isFocused || it.hasFocus }
-            .selectable(
-                selected = selected,
-                enabled = enabled,
-                role = Role.RadioButton,
-                onClick = onClick,
-            )
-            .focusable(enabled)
-            .semantics {
-                contentDescription = accessibilityDescription
+            .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
+            .clip(DisplayRoleRowShape)
+            .novaFocusRing(DisplayRoleRowShape, rest = novaRowRest)
+            .semantics(mergeDescendants = true) {
+                contentDescription = description
                 stateDescription = selectionState
+                this.selected = selected
             }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .novaClickable(enabled = enabled, role = Role.RadioButton, focusableWhenDisabled = true, onClick = onClick)
+            .alpha(if (enabled) 1f else NovaPanelMetrics.DisabledAlpha)
+            .padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd),
     ) {
-        Text(
-            text = label,
-            color = if (selected) colors.accent else colors.textPrimary,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 15.sp,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = supporting,
-            color = colors.textSecondary,
-            fontSize = 12.sp,
-        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
+            Text(
+                text = title,
+                style = type.rowTitle,
+                fontWeight = if (selected) FontWeight.SemiBold else type.rowTitle.fontWeight,
+                color = colors.textPrimary,
+            )
+            lines.forEach { line -> Text(text = line, style = type.caption, color = colors.textSecondary) }
+        }
+        if (selected) {
+            NovaCurrentMark()
+        } else {
+            // The check's room, so the text does not move when the choice does.
+            Spacer(Modifier.size(NovaPanelMetrics.CurrentMarkSize))
+        }
     }
 }
 
+/**
+ * Swap and Apply, side by side while both fit and stacked at full width otherwise, so neither
+ * label is cut at any width or font scale. There is no Cancel: B and the page header leave.
+ */
 @Composable
 internal fun NovaDisplayRoleComposerActions(
     roleState: AndroidDisplayRolePlan.State,
     onSwap: () -> Unit,
     onApply: () -> Unit,
-    onDismiss: () -> Unit,
 ) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        TextButton(
-            enabled = roleState.canSwap,
-            onClick = onSwap,
-        ) {
-            Text(stringResource(R.string.display_role_swap))
-        }
-        TextButton(onClick = onDismiss) {
-            Text(stringResource(R.string.display_role_cancel))
-        }
-        TextButton(
-            enabled = roleState.canApply,
-            onClick = onApply,
-        ) {
-            Text(stringResource(R.string.display_role_apply))
-        }
+    NovaPanelButtonPair(
+        first = {
+            NovaDisplayRoleActionSurface(
+                text = stringResource(R.string.display_role_swap),
+                enabled = roleState.canSwap,
+                primary = false,
+                onClick = onSwap,
+            )
+        },
+        second = {
+            NovaDisplayRoleActionSurface(
+                text = stringResource(R.string.display_role_apply),
+                enabled = roleState.canApply,
+                primary = true,
+                onClick = onApply,
+            )
+        },
+        modifier = Modifier.padding(top = NovaPanelMetrics.SpaceSm),
+    )
+}
+
+/** A page button that can be disabled, as Swap and Apply are when there is nothing to do. */
+@Composable
+private fun NovaDisplayRoleActionSurface(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
+    NovaActionSurface(
+        onClick = onClick,
+        enabled = enabled,
+        primary = primary,
+        contentDescription = text,
+        minHeight = NovaPanelMetrics.ButtonMinHeight,
+        cornerRadius = NovaRadius.hero,
+        contentPadding = PaddingValues(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm),
+    ) { contentColor, _ ->
+        Text(text = text, style = novaPanelType.value, color = contentColor)
     }
 }
 
@@ -504,13 +380,11 @@ private fun roleLabel(role: AndroidDisplayRolePlan.Role): String = when (role) {
     AndroidDisplayRolePlan.Role.AVAILABLE -> stringResource(R.string.display_role_available)
 }
 
-@Composable
-private fun roleRecoveryMessage(recovery: AndroidDisplayRolePlan.Recovery): String? = when (recovery) {
+private fun roleRecoveryMessageRes(recovery: AndroidDisplayRolePlan.Recovery): Int? = when (recovery) {
     AndroidDisplayRolePlan.Recovery.NONE -> null
-    AndroidDisplayRolePlan.Recovery.SINGLE_DISPLAY -> stringResource(R.string.display_role_recovery_single)
-    AndroidDisplayRolePlan.Recovery.REQUESTED_DISPLAY_UNAVAILABLE ->
-        stringResource(R.string.display_role_recovery_unavailable)
-    AndroidDisplayRolePlan.Recovery.UNKNOWN_TARGET -> stringResource(R.string.display_role_recovery_unknown)
+    AndroidDisplayRolePlan.Recovery.SINGLE_DISPLAY -> R.string.display_role_recovery_single
+    AndroidDisplayRolePlan.Recovery.REQUESTED_DISPLAY_UNAVAILABLE -> R.string.display_role_recovery_unavailable
+    AndroidDisplayRolePlan.Recovery.UNKNOWN_TARGET -> R.string.display_role_recovery_unknown
 }
 
 private fun targetForDisplay(

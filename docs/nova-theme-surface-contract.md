@@ -10,7 +10,7 @@ This contract makes the Nova side of the Nova/Polaris cockpit requirements expli
 
 ## Theme picker and selectable themes
 
-- The picker must expose every selectable theme in a compact controller-friendly layout: Polaris Aurora, PSP Chrome / Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You when the platform supports it.
+- The picker must expose every selectable theme in a compact controller-friendly layout: Polaris Aurora, PSP Chrome / Portable Chrome, Console OLED, Miami Nebula, `< Congratulations, Director >`, High Contrast, and Material You when the platform supports it.
 - PSP Chrome / Portable Chrome must remain eye-scan visible as the primary label, with the PSP / Portable Chrome wording still discoverable in supporting copy.
 - D-pad focus must be visible and readable, including a live focused theme label or equivalent text feedback.
 - Keep only meaningful state badges such as Current. There should be no redundant Press A badges repeated per row.
@@ -42,6 +42,13 @@ This contract makes the Nova side of the Nova/Polaris cockpit requirements expli
 - `NovaThemeManager.getAmbientAccentColors` is the only reader, and it returns a single accent for every theme but Portable Chrome, so the no-leak rule below is enforced rather than only stated.
 - Purple/violet accents must not appear in PSP Chrome / Portable Chrome chrome, and Portable Chrome PlayStation-symbol accents must not leak into non-Portable selection, focus, host, or button accents.
 - Text must stay readable on all PSP panels; avoid washed-out light panels with weak dark text or bright green body text.
+
+## Director palette
+
+- `< Congratulations, Director >` uses crimson/oxblood as the main window, card, and panel colours, warm white for typography and focus, and black for navigation controls and structural borders. It is a red-surface alternative to Console OLED.
+- The full name stays intact in Hosts and Settings and may wrap in a narrow portrait picker. The theme adds no branded assets, logos, or changes to control sizes or input behaviour.
+- Positive and warning states keep their semantic green and amber. Destructive text and armed fills use a distinct pale red that remains readable on crimson; warm white focus is not an error indicator. NovaHUD retains its independent status ink and glyph outline rules.
+- Menu opacity still follows the shared percentage, including 100%, 50%, and 0%; focus and artwork labels remain readable through the existing opacity policy.
 
 ## Regression expectations
 

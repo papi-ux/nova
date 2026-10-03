@@ -6,6 +6,8 @@
 #include "polaris/deck_game_tools.h"
 #include "polaris/deck_stream_capabilities.h"
 
+#include "polaris/deck_bitrate_advice.h"
+#include <QJsonObject>
 #include <Limelight.h>
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -373,6 +375,44 @@ QVariantMap DeckPlaySettings::streamLimits() const {
         {"minBitrateKbps", deckMinProfileBitrateKbps}, {"maxBitrateKbps", deckMaxProfileBitrateKbps}};
 }
 
+DeckPlaySettings::~DeckPlaySettings() {
+    if (pyrowaveWorker_) {
+        // The child has a bounded lifetime. Do not let its queued completion
+        // access a destroyed settings provider during application shutdown.
+        pyrowaveWorker_->wait();
+        delete pyrowaveWorker_;
+    }
+}
+
+void DeckPlaySettings::requestPyrowaveSupport() {
+    if (!pyrowaveProbe_ || pyrowaveWorker_ || pyrowaveResult_) return;
+    auto result = std::make_shared<stream::DeckPyrowaveProbeResult>();
+    const auto generation = pyrowaveGeneration_;
+    pyrowaveWorker_ = QThread::create([probe = pyrowaveProbe_, result] { *result = probe(); });
+    connect(pyrowaveWorker_, &QThread::finished, this, [this, result, generation] {
+        pyrowaveWorker_->deleteLater();
+        pyrowaveWorker_ = nullptr;
+        if (generation == pyrowaveGeneration_) {
+            pyrowaveResult_ = *result;
+            videoSupport_.pyrowave = result->limits;
+        }
+        // A rejected completion still releases the worker. Re-evaluate the
+        // current selection; only an explicit PyroWave review can start a new
+        // probe, and its shared cache already holds the current device result.
+        ++videoSupportRevision_;
+        emit videoSupportChanged();
+    });
+    pyrowaveWorker_->start();
+}
+
+void DeckPlaySettings::invalidatePyrowaveSupport() {
+    ++pyrowaveGeneration_;
+    pyrowaveResult_.reset();
+    videoSupport_.pyrowave = {};
+    ++videoSupportRevision_;
+    emit videoSupportChanged();
+}
+
 int DeckPlaySettings::displayRateLimit(double refreshHz) const { return deckDisplayRateLimit(refreshHz); }
 
 QString DeckPlaySettings::mouseMode() const {
@@ -386,8 +426,14 @@ bool DeckPlaySettings::setMouseMode(const QString& mode) {
     emit mouseModeChanged(); return true;
 }
 
+QVariantMap DeckPlaySettings::bitrateAdvice(const QVariantMap& configuration, const QVariantMap& hostAdvice) const {
+    const auto c=DeckPlayConfiguration::fromMap(configuration);
+    if (!c || c->videoCodec != "pyrowave") return {{"kbps",0},{"basis",""}};
+    // The negotiated native extension is SDR 4:2:0; its decoder rejects 4:4:4.
+    return polaris::bitrateAdvice(c->width,c->height,c->fps,QJsonObject::fromVariantMap(hostAdvice), false, false);
+}
 QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVariantMap& capabilities,
-    const QVariantMap& planner, const QVariantMap& display, bool spaceSession) const {
+    const QVariantMap& planner, const QVariantMap& display, bool spaceSession) {
     const auto requested = DeckPlayConfiguration::fromMap(values);
     auto effective = requested.value_or(DeckPlayConfiguration{});
     effective.encoderBackend = effective.launchEncoderBackend();
@@ -396,6 +442,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     limits.h264 = capabilities.value("h264", true).toBool();
     limits.hevc = !spaceSession && capabilities.value("hevc", false).toBool();
     limits.pyrowave = !spaceSession && capabilities.value("pyrowave", false).toBool();
+    if (requested && effective.videoCodec == "pyrowave" && limits.pyrowave) requestPyrowaveSupport();
     const auto selectedFormat = stream::selectSdrVideoFormat(effective.videoCodec.toStdString(),
         limits.h264, limits.hevc, videoSupport_, effective.width, effective.height, limits.pyrowave);
     if (selectedFormat && effective.videoCodec != "pyrowave") effective.videoCodec = selectedFormat == VIDEO_FORMAT_H265 ? "hevc" : "h264";
@@ -404,6 +451,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     const auto hz = display.value("refreshHz").toDouble();
     const bool displayKnown = display.value("known").toBool() && std::isfinite(hz) && hz > 0 && hz <= 1000;
     const int displayMaxFps = displayKnown ? deckDisplayRateLimit(hz) : 60;
+    limits.manualMaximumKbps = polaris::manualBitrateMaximum(QJsonValue::fromVariant(capabilities.value("manualMaximumKbps")));
     QVariantList resolutions;
     const auto appendResolution = [&](int width, int height, const QVariantMap& hint = {}) {
         if (!supportedDeckResolution(width, height)) return;
@@ -449,18 +497,38 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     QString pyrowaveUnavailable;
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     if (spaceSession) pyrowaveUnavailable = "PyroWave is not available in Spaces. Choose Auto or H.264.";
-    else if (!limits.pyrowave) pyrowaveUnavailable = "This PC does not offer compatible PyroWave support. Use a matching enabled Polaris build or choose another codec.";
+    else if (!limits.pyrowave) {
+        pyrowaveUnavailable = capabilities.value("pyrowaveUnavailableMessage").toString();
+        if (pyrowaveUnavailable.isEmpty())
+            pyrowaveUnavailable = "This PC does not offer compatible PyroWave support. Choose HEVC or H.264, or review PyroWave support on the PC.";
+    }
+    else if (pyrowaveProbe_ && !pyrowaveResult_)
+        pyrowaveUnavailable = pyrowaveWorker_ ? "Checking PyroWave support on this device..." : "Select PyroWave to check this device. Other codecs do not need this check.";
+    else if (pyrowaveResult_ && !pyrowaveResult_->reason.isEmpty()) pyrowaveUnavailable = pyrowaveResult_->reason;
     else if (videoSupport_.pyrowave.maxWidth <= 0 || videoSupport_.pyrowave.maxHeight <= 0)
         pyrowaveUnavailable = "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec.";
     else pyrowaveUnavailable = "This stream size exceeds this device's PyroWave decoder limits. Choose a smaller size or another codec.";
 #else
-    pyrowaveUnavailable = "This Nova build does not include PyroWave. Use an enabled experimental build or choose another codec.";
+    pyrowaveUnavailable = "This Nova build does not include PyroWave. Install the standard Nova Linux package or choose another codec.";
 #endif
+    const auto decoderRefusal = [&](const QString& codec) -> QString {
+        const bool h264 = codec == "h264", hevc = codec == "hevc";
+        if ((h264 && !limits.h264) || (hevc && !limits.hevc) || (codec == "auto" && !limits.h264 && !limits.hevc))
+            return "This PC does not offer the selected video codec. Choose another codec or enable it in Polaris.";
+        const auto local = h264 ? videoSupport_.h264 : hevc ? videoSupport_.hevc : stream::DeckDecodeLimits{};
+        const auto label = h264 ? QString("H.264") : hevc ? QString("HEVC") : QString("H.264 or HEVC");
+        const auto backend = local.backend == stream::DeckDecoderBackend::V4l2 || qgetenv("NOVA_DECK_FRAME_V4L2") == "1"
+            ? QString("hardware") : QString("VA-API");
+        if ((h264 || hevc) && local.maxWidth > 0 && local.maxHeight > 0)
+            return QString("This stream size exceeds this device's %1 %2 decoder limits. Choose a smaller size or another codec.").arg(label, backend);
+        return QString("No compatible local %1 %2 decoder is available. Check this Linux device's video driver and Flatpak graphics runtime, then reopen Nova; or choose another supported codec.").arg(label, backend);
+    };
     QString reason;
     if (!requested || !limits.valid) reason = "Stream capabilities could not be verified. Refresh this PC and try again.";
     else if (!selectedFormat) reason = effective.videoCodec == "pyrowave" ? pyrowaveUnavailable : spaceSession && effective.videoCodec == "hevc"
         ? "Spaces currently use H.264. Choose Auto or H.264 to play here."
-        : "The selected codec is unavailable for this PC and stream size. Choose Auto or another codec, or refresh this PC.";
+        : decoderRefusal(effective.videoCodec);
+    else if (effective.bitrateKbps > limits.manualMaximumKbps) reason = QString("This PC allows up to %1 Mbps. Choose a lower bitrate.").arg(limits.manualMaximumKbps / 1000);
     else if (rates.empty()) reason = "This PC cannot provide a supported frame rate. Check its streaming settings.";
     QString adjustment;
     if (requested && effective.fps != requested->fps) {
@@ -481,12 +549,12 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     }) {
         const bool available = stream::selectSdrVideoFormat(codec, limits.h264, limits.hevc, videoSupport_, effective.width, effective.height, limits.pyrowave) != 0;
         const QString label = QString(codec) == "auto" ? "Auto" : QString(codec) == "hevc" ? "HEVC" : QString(codec) == "pyrowave" ? "PyroWave · Experimental" : "H.264";
-        const QString detail = !available ? (QString(codec) == "pyrowave" ? pyrowaveUnavailable : spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : "Unavailable for this PC and stream size.")
+        const QString detail = !available ? (QString(codec) == "pyrowave" ? pyrowaveUnavailable : spaceSession && QString(codec) == "hevc" ? "Spaces currently use H.264." : decoderRefusal(QString(codec)))
             : QString(codec) == "auto" ? "Prefer HEVC when both devices support it; otherwise use H.264."
             : QString(codec) == "pyrowave" ? "High-bandwidth GPU codec for fast local networks. Requires matching Polaris support. SDR only."
             : QString(codec) == "hevc" ? "Use HEVC for more efficient video compression. HDR is not available yet."
             : "Use H.264 for broad compatibility. HDR is not available yet.";
-        codecs.append(QVariantMap{{"videoCodec", codec}, {"label", label + (available ? "" : " · Unavailable")}, {"detail", detail}});
+        codecs.append(QVariantMap{{"videoCodec", codec}, {"label", label + (available || (QString(codec) == "pyrowave" && limits.pyrowave && pyrowaveProbe_ && !pyrowaveResult_) ? "" : " · Unavailable")}, {"detail", detail}});
     }
     const QString codecDetail = requested && requested->videoCodec == "auto" && selectedFormat
         ? (selectedFormat == VIDEO_FORMAT_H265 ? "Auto selected HEVC. HDR is not available yet." : "Auto selected H.264; HEVC is unavailable for this stream.")
@@ -495,7 +563,7 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
     return {{"configuration", effective.toMap()}, {"playable", reason.isEmpty()}, {"reason", reason},
         {"adjustment", reason.isEmpty() ? adjustment : QString{}}, {"resolutions", resolutions}, {"rates", rates},
         {"codecs", codecs}, {"codecDetail", codecDetail},
-        {"videoLabel", selectedFormat && effective.videoCodec == "pyrowave" ? "PyroWave · SDR" : selectedFormat == VIDEO_FORMAT_H265 ? "HEVC · SDR" : selectedFormat == VIDEO_FORMAT_H264 ? "H.264 · SDR" : "Codec unavailable"}, {"maxClientFps", deckMaxProfileFps}, {"displayMaxFps", displayMaxFps},
+        {"videoLabel", selectedFormat && effective.videoCodec == "pyrowave" ? "PyroWave · SDR" : selectedFormat == VIDEO_FORMAT_H265 ? "HEVC · SDR" : selectedFormat == VIDEO_FORMAT_H264 ? "H.264 · SDR" : "Codec unavailable"}, {"maxBitrateKbps", limits.manualMaximumKbps}, {"maxClientFps", deckMaxProfileFps}, {"displayMaxFps", displayMaxFps},
         {"displayLabel", displayKnown ? QString("%1 Hz display").arg(hz, 0, 'f', hz == std::floor(hz) ? 0 : 1)
                                       : QString("Display rate unknown")}};
 }

@@ -6,6 +6,8 @@ import android.util.TypedValue
 import android.view.ContextThemeWrapper
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import androidx.compose.ui.graphics.toArgb
+import com.papi.nova.ui.compose.librarySurfaces
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
@@ -44,6 +46,85 @@ class NovaThemeManagerTest {
     }
 
     @Test
+    fun directorIsStoredInBothPreferenceLocationsWithTheExactDisplayName() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
+        assertEquals("director", NovaThemeManager.getTheme(context))
+        assertEquals("director", PreferenceManager.getDefaultSharedPreferences(context).getString("nova_theme", null))
+        assertEquals("director", context.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).getString("nova_theme", null))
+        assertEquals("< Congratulations, Director >", NovaThemeManager.getThemeLabel(context))
+        PreferenceManager.getDefaultSharedPreferences(context).edit().remove("nova_theme").commit()
+        assertEquals("Legacy preference lookup also recognizes Director", "director", NovaThemeManager.getTheme(context))
+    }
+
+    @Test
+    @Config(sdk = [30, 33])
+    fun directorXmlAndComposeShareRedSurfacesWhiteTextAndBlackStructure() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
+        for (style in listOf(R.style.AppTheme_Director, R.style.SettingsTheme_Director)) {
+            val themed = ContextThemeWrapper(context, style)
+            val colors = com.papi.nova.ui.compose.novaComposeColors(themed)
+            assertEquals(context.getColor(R.color.nova_director_bg_window), colors.window.toArgb())
+            assertEquals(context.getColor(R.color.nova_director_bg_card), colors.card.toArgb())
+            assertEquals(context.getColor(R.color.nova_director_dialog_bg), colors.dialog.toArgb())
+            assertEquals(context.getColor(R.color.nova_director_badge_bg), colors.badge.toArgb())
+            assertEquals(context.getColor(R.color.nova_director_accent), colors.accent.toArgb())
+            assertEquals(context.getColor(R.color.nova_director_structure), colors.onAccent.toArgb())
+            assertEquals(colors.window.toArgb(), NovaThemeManager.getActivityWindowSurfaceColor(themed))
+            for ((attr, expected) in listOf(
+                android.R.attr.colorBackground to colors.window.toArgb(),
+                android.R.attr.textColorPrimary to colors.textPrimary.toArgb(),
+                com.google.android.material.R.attr.colorOnSurface to colors.textPrimary.toArgb(),
+                com.google.android.material.R.attr.colorOnPrimary to colors.onAccent.toArgb(),
+                com.google.android.material.R.attr.colorOutline to colors.divider.toArgb(),
+            )) {
+                val value = TypedValue()
+                assertTrue("Director style must resolve its role", themed.theme.resolveAttribute(attr, value, true))
+                val actual = if (value.resourceId != 0) themed.getColor(value.resourceId) else value.data
+                assertEquals(expected, actual)
+            }
+            for (surface in NovaThemeManager.fillSurfaces(themed)) {
+                assertTrue("The main surfaces are red", Color.red(surface) > Color.green(surface) * 3)
+                for (ink in listOf(colors.textPrimary, colors.textSecondary, colors.textMuted, colors.destructive, colors.positive)) {
+                    assertTrue("Director text and semantic status remain readable", ColorUtils.calculateContrast(ink.toArgb(), surface) >= 4.5)
+                }
+                assertTrue("Warm-white focus is distinct on red", ColorUtils.calculateContrast(colors.accent.toArgb(), surface) >= 3.0)
+            }
+            assertTrue("Positive status remains green", Color.green(colors.positive.toArgb()) > Color.red(colors.positive.toArgb()))
+            assertTrue("Destructive status remains a red hue", Color.red(colors.destructive.toArgb()) > Color.green(colors.destructive.toArgb()))
+            assertNotEquals("Theme accent is not an error indicator", colors.accent, colors.destructive)
+            assertEquals("Warning retains its semantic token", context.getColor(R.color.nova_warning), colors.warning.toArgb())
+            val focus = androidx.appcompat.content.res.AppCompatResources.getColorStateList(themed, R.color.nova_focus_stroke_selector)!!
+            assertEquals(colors.accent.toArgb(), focus.getColorForState(intArrayOf(android.R.attr.state_focused), 0))
+            assertEquals(colors.accent.toArgb(), focus.getColorForState(intArrayOf(android.R.attr.state_pressed), 0))
+            assertEquals(Color.TRANSPARENT, focus.defaultColor)
+            val ink = androidx.appcompat.content.res.AppCompatResources.getColorStateList(themed, R.color.nova_tonal_pill_text)!!
+            assertEquals(colors.textPrimary.toArgb(), ink.getColorForState(intArrayOf(android.R.attr.state_enabled), 0))
+        }
+    }
+
+    @Test
+    fun directorLibraryUsesRedPanelsAndBlackControlsWithoutChangingOpacityEndpoints() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
+        val colors = com.papi.nova.ui.compose.novaComposeColors(ContextThemeWrapper(context, R.style.AppTheme_Director))
+        val full = colors.librarySurfaces(NovaThemeManager.THEME_DIRECTOR)
+        val half = colors.librarySurfaces(NovaThemeManager.THEME_DIRECTOR, menuOpacityScale = 0.5f)
+        val zero = colors.librarySurfaces(NovaThemeManager.THEME_DIRECTOR, menuOpacityScale = 0f)
+        assertEquals(colors.dialog, full.panel)
+        assertEquals(colors.card.copy(alpha = 0.90f), full.tile)
+        assertEquals(colors.badge.copy(alpha = 0.94f), full.control)
+        assertEquals(colors.divider.copy(alpha = 0.90f), full.panelBorder)
+        assertEquals(colors.accent, full.focusRing)
+        assertFalse("Director's structural red shell has no ambient particle field", full.particlesEnabled)
+        assertEquals(1f, full.panel.alpha, 0.001f)
+        // Compose sRGB alpha is ARGB8: 50% rounds to 128/255, not an exact 0.5.
+        assertEquals(128f / 255f, half.panel.alpha, 0f)
+        assertEquals(0f, zero.panel.alpha, 0.001f)
+        assertEquals(0f, zero.control.alpha, 0.001f)
+        assertEquals(full.focusRing, zero.focusRing)
+        assertEquals(full.onMedia, zero.onMedia)
+    }
+
+    @Test
     fun unknownThemeFallsBackToPolaris() {
         NovaThemeManager.setTheme(context, "south_beach_laser_flamingo")
 
@@ -58,6 +139,7 @@ class NovaThemeManagerTest {
         assertEquals(NovaThemeManager.THEME_PORTABLE_CHROME, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_OLED, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_MIAMI, NovaThemeManager.cycleTheme(context))
+        assertEquals(NovaThemeManager.THEME_DIRECTOR, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_HIGH_CONTRAST, NovaThemeManager.cycleTheme(context))
         assertEquals(NovaThemeManager.THEME_POLARIS, NovaThemeManager.cycleTheme(context))
     }
@@ -177,6 +259,7 @@ class NovaThemeManagerTest {
             NovaThemeManager.THEME_POLARIS,
             NovaThemeManager.THEME_OLED,
             NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
             NovaThemeManager.THEME_HIGH_CONTRAST
         )) {
             NovaThemeManager.setTheme(context, theme)
@@ -184,6 +267,218 @@ class NovaThemeManagerTest {
             assertEquals("$theme glints with its one accent", 1, ambient.size)
             assertEquals(theme, NovaThemeManager.getAccentColor(context), ambient[0])
         }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun positiveColorReadsOnEveryThemeInLightMode() {
+        assertPositiveColorReadsOnEveryTheme()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun positiveColorReadsOnEveryThemeInDarkMode() {
+        assertPositiveColorReadsOnEveryTheme()
+    }
+
+    /**
+     * The Command Center's active chip and anything else on or healthy: a green at 4.5:1 against
+     * the card and the focused surface in every theme, light and dark, as the destructive colour is.
+     */
+    private fun assertPositiveColorReadsOnEveryTheme() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val window = NovaThemeManager.getWindowBackgroundColor(context)
+            val card = ColorUtils.compositeColors(NovaThemeManager.getCardBackgroundColor(context), window)
+            val focused = ColorUtils.compositeColors(NovaThemeManager.getAccentSurfaceColor(context), card)
+            val positive = NovaThemeManager.getPositiveColor(context)
+            assertTrue("$theme positive on card", ColorUtils.calculateContrast(positive, card) >= 4.5)
+            assertTrue("$theme positive on focus", ColorUtils.calculateContrast(positive, focused) >= 4.5)
+            assertNotEquals("$theme positive is not the destructive colour", NovaThemeManager.getErrorColor(context), positive)
+        }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun destructiveFillStandsOutOnEveryThemeInLightMode() {
+        assertDestructiveFillStandsOutOnEveryTheme()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun destructiveFillStandsOutOnEveryThemeInDarkMode() {
+        assertDestructiveFillStandsOutOnEveryTheme()
+    }
+
+    /**
+     * The RP6 walk (2026-09-28): on Polaris Aurora the armed Delete PC and End Session halves were
+     * pale grey, the brightest and most neutral button on screen, because the split filled with the
+     * red text colour, which falls back to the text colour where red text is under 4.5:1. The fill
+     * has its own role: the theme's red, a label that reads on it at 4.5:1, and 3:1 or more against
+     * the panel and the card on every built-in theme, light and dark. Red text keeps its fallback.
+     */
+    private fun assertDestructiveFillStandsOutOnEveryTheme() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val window = NovaThemeManager.getWindowBackgroundColor(context)
+            val panel = ColorUtils.compositeColors(NovaThemeManager.getDialogBackgroundColor(context), window)
+            val card = ColorUtils.compositeColors(NovaThemeManager.getCardBackgroundColor(context), window)
+            val colors = com.papi.nova.ui.compose.novaComposeColors(context)
+            val fill = colors.destructiveFill.toArgb()
+            val label = colors.onDestructiveFill.toArgb()
+            assertTrue("$theme fill is a red, not the text fallback", Color.red(fill) > Color.green(fill) && Color.red(fill) > Color.blue(fill))
+            assertNotEquals("$theme fill is not the text colour", NovaThemeManager.getTextPrimaryColor(context), fill)
+            assertTrue("$theme label reads on the fill", ColorUtils.calculateContrast(label, fill) >= 4.5)
+            assertTrue("$theme fill stands out from the panel", ColorUtils.calculateContrast(fill, panel) >= 3.0)
+            assertTrue("$theme fill stands out from the card", ColorUtils.calculateContrast(fill, card) >= 3.0)
+        }
+    }
+
+    /**
+     * On a device every Nova theme sets colorError to nova_error (Portable Chrome has its own), which
+     * the test context does not resolve, so the red a device fills with is checked here directly.
+     */
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun theRedEveryThemeSetsFillsAndStandsOutInLightMode() {
+        assertTheThemesRedFills()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun theRedEveryThemeSetsFillsAndStandsOutInDarkMode() {
+        assertTheThemesRedFills()
+    }
+
+    private fun assertTheThemesRedFills() {
+        val deep = context.getColor(R.color.nova_error_on_light)
+        listOf(
+            NovaThemeManager.THEME_POLARIS to R.color.nova_error,
+            NovaThemeManager.THEME_PORTABLE_CHROME to R.color.nova_portable_error,
+            NovaThemeManager.THEME_OLED to R.color.nova_error,
+            NovaThemeManager.THEME_MIAMI to R.color.nova_error,
+            NovaThemeManager.THEME_DIRECTOR to R.color.nova_director_error,
+            NovaThemeManager.THEME_HIGH_CONTRAST to R.color.nova_error,
+            NovaThemeManager.THEME_MATERIAL_YOU to R.color.nova_error,
+        ).forEach { (theme, red) ->
+            NovaThemeManager.setTheme(context, theme)
+            val surfaces = NovaThemeManager.fillSurfaces(context)
+            val fill = NovaThemeManager.destructiveFillFor(context.getColor(red), deep, surfaces)
+            val label = if (ColorUtils.calculateLuminance(fill) > 0.179) Color.BLACK else Color.WHITE
+            assertTrue("$theme label reads on the fill", ColorUtils.calculateContrast(label, fill) >= 4.5)
+            surfaces.forEach { surface ->
+                assertTrue("$theme fill stands out", ColorUtils.calculateContrast(fill, surface) >= NovaThemeManager.MIN_FILL_CONTRAST)
+            }
+        }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun everyThemesAccentLabelReadsOnItsTiles() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val label = NovaThemeManager.getAccentTextColor(context)
+            NovaThemeManager.fillSurfaces(context).forEach { surface ->
+                assertTrue("$theme accent label reads at 4.5:1", ColorUtils.calculateContrast(label, ColorUtils.setAlphaComponent(surface, 255)) >= 4.5)
+            }
+        }
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        val aurora = NovaThemeManager.getAccentTextColor(context)
+        assertNotEquals("Polaris Aurora's label stays an accent, lifted, not the text colour", NovaThemeManager.getTextPrimaryColor(context), aurora)
+        assertTrue("still violet", Color.blue(aurora) > Color.green(aurora) && Color.blue(aurora) > Color.red(aurora))
+    }
+
+    // Muted captions read at 3.71:1 on the Polaris card and 3.03:1 on the OLED card (audit C23).
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun everyThemesMutedCaptionReadsOnItsPanelAndTilesInDarkMode() {
+        assertMutedCaptionsRead()
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "notnight")
+    fun everyThemesMutedCaptionReadsOnItsPanelAndTilesInLightMode() {
+        assertMutedCaptionsRead()
+    }
+
+    private fun assertMutedCaptionsRead() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val muted = NovaThemeManager.getTextMutedColor(context)
+            NovaThemeManager.fillSurfaces(context).forEach { surface ->
+                val ratio = ColorUtils.calculateContrast(muted, ColorUtils.setAlphaComponent(surface, 255))
+                assertTrue("$theme muted caption reads at 4.5:1, not $ratio", ratio >= 4.5)
+            }
+        }
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun aMutedCaptionStaysQuieterThanASecondaryLine() {
+        listOf(NovaThemeManager.THEME_POLARIS, NovaThemeManager.THEME_OLED).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            val card = ColorUtils.setAlphaComponent(NovaThemeManager.fillSurfaces(context).last(), 255)
+            assertTrue(
+                "$theme keeps muted below secondary",
+                ColorUtils.calculateContrast(NovaThemeManager.getTextMutedColor(context), card) <
+                    ColorUtils.calculateContrast(NovaThemeManager.getTextSecondaryColor(context), card),
+            )
+        }
+    }
+
+    @Test
+    fun anAccentThatAlreadyReadsIsKept() {
+        val dark = listOf(Color.rgb(20, 20, 30))
+        assertEquals(Color.rgb(250, 200, 120), NovaThemeManager.readableAccentFor(Color.rgb(250, 200, 120), Color.WHITE, dark))
+        val lifted = NovaThemeManager.readableAccentFor(Color.rgb(60, 50, 160), Color.WHITE, dark)
+        assertNotEquals(Color.rgb(60, 50, 160), lifted)
+        assertTrue(ColorUtils.calculateContrast(lifted, dark.first()) >= 4.5)
+    }
+
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun polarisKeepsItsRedFillWhileRedTextFallsBack() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        assertEquals(
+            "red text under 4.5:1 on the focused surface still falls back to the text colour",
+            NovaThemeManager.getTextPrimaryColor(context),
+            NovaThemeManager.getErrorColor(context),
+        )
+        val fill = NovaThemeManager.getDestructiveFillColor(context)
+        assertNotEquals("the fill keeps the theme's red", NovaThemeManager.getTextPrimaryColor(context), fill)
+        assertTrue("a red", Color.red(fill) > Color.green(fill) && Color.red(fill) > Color.blue(fill))
     }
 
     @Test
@@ -351,6 +646,7 @@ class NovaThemeManagerTest {
             NovaThemeManager.THEME_PORTABLE_CHROME,
             NovaThemeManager.THEME_OLED,
             NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
             NovaThemeManager.THEME_HIGH_CONTRAST,
         )) {
             val controller = Robolectric.buildActivity(Activity::class.java)

@@ -146,6 +146,19 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
     game.launchModeReason = toStd(launchMode.value(QStringLiteral("mode_reason")).toString());
     const auto contract = object.value("launch_mode");
     game.launchContractValid = contract.isUndefined() || contract.isObject();
+    game.launchFollowsHostDefault = launchMode.value("follows_host_default") != QJsonValue(false);
+    game.launchAsPresent = launchMode.contains("launch_as") || launchMode.contains("launch_as_available") ||
+        launchMode.contains("launch_as_unavailable_reason");
+    if (game.launchAsPresent) {
+        const auto pin = launchMode.value("launch_as");
+        game.launchAs = toStd(pin.toString());
+        const auto available = launchMode.value("launch_as_available");
+        if (available.isBool()) game.launchAsAvailable = available.toBool();
+        game.launchAsUnavailableReason = toStd(launchMode.value("launch_as_unavailable_reason").toString());
+        game.launchContractValid = game.launchContractValid && pin.isString() &&
+            (game.launchAs == "host_default" || isSessionLaunchMode(game.launchAs));
+        game.launchFollowsHostDefault = game.launchAs == "host_default";
+    }
     const auto allowed = launchMode.value("allowed_modes");
     if (!allowed.isUndefined()) {
         game.launchContractValid = game.launchContractValid && allowed.isArray();
@@ -201,6 +214,8 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
         QString::fromStdString(game.artwork.logo), QString::fromStdString(game.artwork.icon)};
     game.artwork.key = QCryptographicHash::hash(QJsonDocument(artworkIdentity).toJson(QJsonDocument::Compact),
         QCryptographicHash::Sha256).toHex().toStdString();
+    // A missing/unreadable host mode catalog cannot erase the app's own refusal.
+    game.launchPolicy = launchModePolicy(game, {});
     return game;
 }
 
@@ -252,10 +267,29 @@ std::optional<DeckLaunchModeCatalog> parseLaunchModeCatalog(std::string_view jso
 }
 
 DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLaunchModeCatalog& catalog) {
+    // A per-app refusal takes precedence even when this mode is generally available.
+    if (game.launchAsPresent && (!game.launchContractValid || game.launchAsAvailable != true)) {
+        DeckLaunchModePolicy denied;
+        denied.known = true;
+        denied.followsHostDefault = game.launchFollowsHostDefault;
+        denied.hostDefault = game.launchAs;
+        denied.defaultAvailable = false;
+        denied.unavailableReason = game.launchAsUnavailableReason.empty() ?
+            "Polaris cannot run this app's Launch As mode." : game.launchAsUnavailableReason;
+        return denied;
+    }
     if (!game.launchContractValid || game.id.starts_with("space.")) return {};
-    DeckLaunchModePolicy result{true, catalog.desired, {}};
+    DeckLaunchModePolicy result{!catalog.modes.empty(), catalog.desired, {}};
+    result.followsHostDefault = game.launchFollowsHostDefault;
+    if (!result.followsHostDefault) result.hostDefault = game.launchAsPresent ? game.launchAs : normalizeLaunchMode(game.launchRecommendedMode);
+    if (game.launchAsPresent && !result.followsHostDefault && !catalog.modes.empty()) {
+        result.defaultAvailable = std::any_of(catalog.modes.begin(), catalog.modes.end(),
+            [&](const auto& mode) { return mode.value == result.hostDefault && mode.available; });
+        if (!result.defaultAvailable) result.unavailableReason = "This app's Launch As mode is unavailable on this PC.";
+    }
     for (const auto& mode : catalog.modes) {
         if (!mode.available || !mode.sessionOverridable || !isSessionLaunchMode(mode.value)) continue;
+        if (game.launchAsPresent && game.launchAs != "host_default" && game.launchAs != "desktop_display" && mode.value != game.launchAs) continue;
         if (!game.launchAllowedModes.empty() && std::none_of(game.launchAllowedModes.begin(), game.launchAllowedModes.end(),
             [&](const auto& allowed) { return normalizeLaunchMode(allowed) == mode.value; })) continue;
         result.allowed.push_back(mode.value);
@@ -308,6 +342,7 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
     capabilities.server = toStd(object->value(QStringLiteral("server")).toString());
     capabilities.version = toStd(object->value(QStringLiteral("version")).toString());
     const auto features = object->value(QStringLiteral("features")).toObject();
+    capabilities.liveMediaTelemetry = features.value("live_media_telemetry_v1") == true;
     capabilities.gameLibrary = features.value(QStringLiteral("game_library")).toBool(false);
     capabilities.sessionLifecycle = features.value(QStringLiteral("session_lifecycle")).toBool(false);
     capabilities.clientSettings = features.value(QStringLiteral("client_settings_v1")).toBool(false);
@@ -315,11 +350,24 @@ std::optional<DeckPolarisCapabilities> parseCapabilities(const std::string_view 
     capabilities.expectedTopologyAssertion = features.value(QStringLiteral("expected_topology_assertion_v1")).toBool(false);
     capabilities.hostSleep = features.value("host_sleep_v1").toBool(false);
     capabilities.spaces = features.value("spaces_v1").toBool(false);
+    capabilities.pyrowaveAdvice = features.value("pyrowave_advice_v1") == true;
+    capabilities.bitrateUnitsV1 = features.value("bitrate_units_v1") == true;
+    capabilities.streamCapabilities.manualMaximumKbps = manualBitrateMaximum(features.value("manual_bitrate_max_kbps"));
     capabilities.hostPower = *parseHostPower(QJsonDocument(object->value("host_power").toObject()).toJson().toStdString());
     const auto capture = object->value(QStringLiteral("capture")).toObject();
     capabilities.captureBackend = toStd(capture.value(QStringLiteral("backend")).toString());
     capabilities.codecs = stringList(capture.value(QStringLiteral("codecs")));
     auto& stream = capabilities.streamCapabilities;
+    const auto unavailable = capture.value("pyrowave_unavailable").toObject();
+    const auto reason=unavailable.value("reason"), message=unavailable.value("message");
+    if (reason.isString() && message.isString()) {
+        const auto code=reason.toString(), words=message.toString();
+        bool valid=!code.isEmpty() && code.size()<=80 && !words.isEmpty() && words.size()<=4096;
+        for (const auto c : code) valid &= (c>=QLatin1Char('a') && c<=QLatin1Char('z')) ||
+            (c>=QLatin1Char('0') && c<=QLatin1Char('9')) || c==QLatin1Char('_');
+        for (const auto c : words) if (c.unicode()<32 && c!=QLatin1Char('\n') && c!=QLatin1Char('\r') && c!=QLatin1Char('\t')) valid=false;
+        if (valid) { stream.pyrowaveUnavailableReason=code.toStdString(); stream.pyrowaveUnavailableMessage=words.toStdString(); }
+    }
     if (object->contains("capture") && !object->value("capture").isObject()) stream.valid = false;
     if (capture.contains("codecs")) {
         const auto codecs = capture.value("codecs");
@@ -860,7 +908,7 @@ DeckPolarisResult<bool> DeckPolarisClient::setLiveTuningEnabled(bool enabled,
 
 DeckPolarisResult<bool> DeckPolarisClient::setFixedBitrate(int bitrateKbps,
     const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled) const {
-    if (bitrateKbps < 1000 || bitrateKbps > 300000 || !observed.supported || observed.generation <= 0 ||
+    if (bitrateKbps < 1000 || bitrateKbps > 500000 || !observed.supported || observed.generation <= 0 ||
         observed.generation > 9007199254740991LL || observed.appSession.trimmed().isEmpty() || observed.appSession.size() > 256)
         return {DeckPolarisRequestStatus::MalformedBody, 0, {}, {}};
     // This route has session-generation admission, not a revision CAS. The
@@ -878,6 +926,17 @@ DeckPolarisResult<bool> DeckPolarisClient::setFixedBitrate(int bitrateKbps,
     });
 }
 
+DeckPolarisResult<QVariantMap> DeckPolarisClient::fetchPyrowaveAdvice(int width, int height, int fps, const std::function<bool()>& cancelled) const {
+    if (width < 1 || width > 16384 || height < 1 || height > 16384 || fps < 1 || fps > 1000 || (cancelled && cancelled())) return {};
+    const auto caps = fetchCapabilities();
+    if (!caps.ok() || (cancelled && cancelled()) || !caps.value->pyrowaveAdvice) return {};
+    // Match the supported pyrowave-186f0393-sdr420-v1 native profile.
+    const auto path=QString("/polaris/v1/pyrowave/advice?width=%1&height=%2&fps=%3&chroma=420").arg(width).arg(height).arg(fps);
+    return parsed<QVariantMap>(request(path.toStdString(),32*1024,false,cancelled), [=](const std::string& json)->std::optional<QVariantMap> {
+        const auto o=parseObject(json); const auto advice=o ? parsePyrowaveAdvice(*o) : std::nullopt;
+        return advice && advice->matches(width,height,fps) ? std::optional<QVariantMap>(advice->toMap()) : std::nullopt;
+    });
+}
 DeckPolarisResult<DeckHostPower> DeckPolarisClient::fetchHostPower() const {
     return parsed<DeckHostPower>(get("/polaris/v1/host/power", 32 * 1024), parseHostPower);
 }
@@ -1030,6 +1089,21 @@ DeckPolarisResult<std::vector<DeckPolarisGame>> DeckPolarisClient::fetchAllGames
 DeckPolarisResult<DeckPolarisSessionStatus> DeckPolarisClient::fetchSessionStatus() const {
     return parsed<DeckPolarisSessionStatus>(get("/polaris/v1/session/status"), [](const std::string& body) {
         return parseSessionStatus(body);
+    });
+}
+
+DeckPolarisResult<bool> DeckPolarisClient::uploadClientMedia(const DeckClientMediaSample& sample, const DeckClientMediaScope& scope,
+    const std::function<bool()>& cancelled) const {
+    const auto body = clientMediaBody(sample, scope);
+    const auto stop = [&] { return (cancelled && cancelled()) || !freshClientMedia(sample, clientMediaMonotonicMs()); };
+    if (!body || stop()) return {.status = DeckPolarisRequestStatus::MalformedBody};
+    auto response = request("/polaris/v1/session/telemetry", 16384, true, stop, body->toStdString());
+    if (response.ok() && response.httpStatus != 200) { response.status = DeckPolarisRequestStatus::HttpError; response.value.reset(); }
+    return parsed<bool>(std::move(response), [](const std::string& raw) -> std::optional<bool> {
+        const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(raw));
+        const auto value = document.object().value("status");
+        if (!document.isObject() || !value.isBool()) return {};
+        return value.toBool();
     });
 }
 

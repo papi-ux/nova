@@ -1,5 +1,7 @@
 #include "runtime/deck_native_session.h"
+#include "runtime/deck_frame_qualification_trace.h"
 #include "runtime/deck_session_failure_message.h"
+#include "runtime/deck_native_failure_message.h"
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_rumble.h"
 #include <QDebug>
@@ -54,6 +56,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::mutex mutex;
     std::condition_variable wake;
     QVariantMap state;
+    bool pyrowaveSupportRefused = false; // one GUI-poll notification, mutex-protected
     std::optional<DeckHudSample> hud;
     QVariantMap hostHud = DeckHudHostReducer::unavailable();
     // Called only under mutex. Cleared before the owning worker destroys the observer.
@@ -102,9 +105,10 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
         state.insert("framePacingMode", deckFramePacingName(framePacing));
         state.insert("stickDeadzonePercent", stickDeadzonePercent);
     }
-    void finish(const QString& phase, const QString& copy) {
+    void finish(const QString& phase, const QString& copy, const QVariantMap& details = {}) {
         const std::lock_guard lock(mutex);
         state = publicState(phase, copy, false);
+        for (auto it=details.cbegin(); it!=details.cend(); ++it) state.insert(it.key(),it.value());
         done = true;
     }
     bool presentVaapiSurface(const DeckQrhiVaapiPresentationDescriptor& descriptor) override {
@@ -162,7 +166,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
 DeckNativeSessionController::DeckNativeSessionController(bool enabled, DeckNativeTargetResolver resolver,
     DeckMoonlightConnectionDriver& driver, DeckControllerSend sendController, QObject* parent, DeckDesktopSend sendDesktop)
     : QObject(parent), enabled_(enabled), resolver_(std::move(resolver)), driver_(driver), sendController_(std::move(sendController)),
-      sendDesktop_(std::move(sendDesktop)), state_(publicState("idle", "Ready to preview video and audio in Nova.", false)) {
+      sendDesktop_(std::move(sendDesktop)), state_(publicState("idle", "Ready to stream video and audio in Nova.", false)) {
     inputClock_.start();
     timer_.setInterval(16);
     connect(&timer_, &QTimer::timeout, this, &DeckNativeSessionController::poll);
@@ -202,15 +206,17 @@ void DeckNativeSessionController::setSurface(DeckQtQuickRhiVaapiItem* surface) {
 }
 
 bool DeckNativeSessionController::setPresentationSink(QObject* lifetime, DeckQtQuickRhiPresentationSink* sink,
-        std::shared_ptr<const std::atomic<std::uint64_t>> composed) {
+        std::shared_ptr<const std::atomic<std::uint64_t>> composed,
+        std::shared_ptr<const std::atomic<std::uint64_t>> cpuUploads) {
     if (bool(lifetime) != bool(sink)) return false;
-    if (busy() && lifetime && (presentationOwner_ != lifetime || presentationSink_ != sink || presentationFrames_ != composed)) return false;
-    if (presentationOwner_ == lifetime && presentationSink_ == sink && presentationFrames_ == composed) return true;
+    if (busy() && lifetime && (presentationOwner_ != lifetime || presentationSink_ != sink || presentationFrames_ != composed || presentationCpuUploads_ != cpuUploads)) return false;
+    if (presentationOwner_ == lifetime && presentationSink_ == sink && presentationFrames_ == composed && presentationCpuUploads_ == cpuUploads) return true;
     if (presentationOwner_ && presentationSink_) presentationSink_->presentVaapiSurface({});
     hudMetrics_.reset();
     presentationOwner_ = lifetime;
     presentationSink_ = sink;
     presentationFrames_ = std::move(composed);
+    presentationCpuUploads_ = std::move(cpuUploads);
     return true;
 }
 
@@ -586,12 +592,15 @@ void DeckNativeSessionController::poll() {
     QVariantMap next;
     std::optional<DeckHudSample> hudSample;
     QVariantMap hostHud;
+    bool pyrowaveSupportRefused = false;
     std::array<std::optional<DeckRumble>, 16> rumble;
     {
         const std::lock_guard lock(shared_->mutex);
         next = shared_->state;
         hudSample = shared_->hud;
         hostHud = shared_->hostHud;
+        pyrowaveSupportRefused = shared_->pyrowaveSupportRefused && !shared_->cancelled;
+        shared_->pyrowaveSupportRefused = false;
         for (unsigned player = 0; player < 16; ++player) {
             if (shared_->pendingRumble[player]) {
                 rumble[player] = (shared_->feedbackAllowed & (1u << player)) && !shared_->cancelled && next.value("phase") == "active"
@@ -600,6 +609,9 @@ void DeckNativeSessionController::poll() {
             }
         }
     }
+    // Consume this run's result before any terminal state notification can
+    // allow a new run. Cancelled workers never publish their refusal.
+    if (pyrowaveSupportRefused) emit this->pyrowaveSupportRefused();
     for (unsigned player = 0; player < 16; ++player) if (rumble[player]) {
         if (!player) emit rumbleRequested(rumble[player]->low, rumble[player]->high);
         emit playerRumbleRequested(player, rumble[player]->low, rumble[player]->high);
@@ -648,7 +660,16 @@ void DeckNativeSessionController::poll() {
             hudReceivedMs_ = inputClock_.elapsed();
             hudSample->compositionAvailable = presentationOwner_ && bool(presentationFrames_);
             hudSample->composed = hudSample->compositionAvailable ? presentationFrames_->load() : 0;
+            hudSample->cpuUploadCompositions = presentationOwner_ && presentationCpuUploads_ ? presentationCpuUploads_->load() : 0;
+            hudSample->cpuUploadsAvailable = presentationOwner_ && bool(presentationCpuUploads_);
+            hudSample->deliveryAvailable = bool(frameDelivery_);
+            if (frameDelivery_) {
+                const auto delivery = frameDelivery_->stats();
+                hudSample->deliveryDrops = delivery.dropped;
+                hudSample->deliveryQueueDepth = delivery.queued;
+            }
             nextHud = hudMetrics_.sample(*hudSample);
+            appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
         }
@@ -656,6 +677,11 @@ void DeckNativeSessionController::poll() {
     const auto hostView = !finished && !shared_->cancelled && next.value("phase") == "active"
         ? hostHud : DeckHudHostReducer::unavailable();
     for (auto it = hostView.cbegin(); it != hostView.cend(); ++it) nextHud.insert(it.key(), it.value());
+    if (nextHud.value("hostFresh").toBool() && nextHud.value("bitrateUnitsMode") == "request" &&
+        nextHud.value("suggestedBitrateKbps").toInt() == 0 && hudSample && hudSample->codec == "PyroWave") {
+        nextHud["suggestedBitrateKbps"] = std::min(nextHud.value("maximumBitrateKbps",300000).toInt(),
+            polaris::bitrateAdvice(hudSample->width,hudSample->height,hudSample->targetFps).value("kbps").toInt());
+    }
     if (nextHud != hud_) { hud_ = std::move(nextHud); emit hudChanged(); }
     if (next != state_) {
         state_ = next;
@@ -674,7 +700,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     DeckMoonlightConnectionDriver& driver, const DeckControllerSend& sendController, const DeckDesktopSend& sendDesktop) {
     const std::unique_lock ownership(nativeConnectionMutex, std::try_to_lock);
     if (!ownership.owns_lock()) {
-        shared->finish("failed", "Another native preview is still running.");
+        shared->finish("failed", "Another stream is still running.");
         return;
     }
     Shared::Driver cancellableDriver(*shared, driver);
@@ -684,7 +710,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     std::optional<DeckNativeLaunchTarget> target;
     DeckSessionBuildResult built;
     bool gateOwnsLaunch = false;
-    bool cleanupConfirmed = true;
+    // /cancel acknowledges the request; it does not prove the host app is gone.
+    bool hostCancelRequested = false;
+    bool hostCancelAccepted = true;
     bool controllerSent = false;
     bool inputFailed = false;
     DeckDesktopLedger desktopLedger;
@@ -718,21 +746,30 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             const bool preserveGame = shared->keepHostRunning ||
                 ((built.resumed || activeOrdinary) && !shared->endGameRequested);
             const auto result = preserveGame ? gate.disconnect() : gate.stop();
-            if (result.hostCancelRequested) cleanupConfirmed = result.hostCancelled;
+            if (result.hostCancelRequested) {
+                hostCancelRequested = true;
+                hostCancelAccepted = result.hostCancelled;
+            }
         } else if (built.hostSessionStarted && !built.resumed && target) {
-            cleanupConfirmed = requestHostSessionCancel(target->fetch, built.connectionInfo.hostSessionToken).cancelled;
+            const auto result = requestHostSessionCancel(target->fetch, built.connectionInfo.hostSessionToken);
+            hostCancelRequested = result.requested;
+            hostCancelAccepted = result.cancelled;
         }
     };
+    QVariantMap failureDetails;
     auto finish = [&](const QString& phase, QString copy) {
         if (phase == "cancelled" && shared->suspendRequested && resume && !built.sessionSelectionRejected)
             shared->resumeTicket = resume;
-        if (!cleanupConfirmed) copy += " The host has not confirmed that the game ended; check the host before retrying.";
-        shared->finish(phase, copy);
+        if (!hostCancelAccepted) copy += " Host cleanup is not confirmed. Check the PC before retrying.";
+        else if (hostCancelRequested) copy += shared->endGameRequested
+            ? " The PC accepted your request to end the game."
+            : " The PC accepted the host cleanup request.";
+        shared->finish(phase, copy, shared->cancelled ? QVariantMap{} : failureDetails);
     };
     try {
         if (!shared->cancelled) target = resolver(hostId, gameId);
         if (shared->cancelled) {
-            finish("cancelled", "Preview cancelled.");
+            finish("cancelled", "Stream cancelled.");
             return;
         }
         if (!target || target->appId <= 0 || !target->fetch || target->serverAddress.empty()) {
@@ -775,15 +812,39 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         }
         if (!capabilities || !capabilities->supports(target->request.width, target->request.height, target->request.fps) ||
             (target->verifyStreamCapabilities && !resolver(hostId, gameId))) {
-            finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Preview cancelled."
+            finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Stream cancelled."
                 : "These stream settings could not be verified. Refresh this PC and review Play Setup again.");
             return;
         }
-        const auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
+        auto videoSupport = target->probeVideoSupport ? target->probeVideoSupport() : DeckVideoDecodeSupport{};
+        stream::DeckPyrowaveProbeResult pyrowave;
+        bool checkedPyrowave = false;
+        if (configuration && configuration->videoCodec == "pyrowave" && capabilities->pyrowave &&
+            !polaris::isSpaceGame(gameId.toStdString()) && target->probePyrowaveSupport) {
+            pyrowave = target->probePyrowaveSupport();
+            videoSupport.pyrowave = pyrowave.limits;
+            checkedPyrowave = true;
+        }
+        if (shared->cancelled) { finish("cancelled", "Stream cancelled."); return; }
+        if (checkedPyrowave && (!pyrowave.reason.isEmpty() ||
+                !pyrowave.limits.supports(target->request.width, target->request.height))) {
+            const std::lock_guard lock(shared->mutex);
+            shared->pyrowaveSupportRefused = true;
+        }
+        if (!pyrowave.reason.isEmpty()) { finish("failed", pyrowave.reason); return; }
         target->request.videoFormat = selectSdrVideoFormat(configuration ? configuration->videoCodec.toStdString() : "h264",
             capabilities->h264, capabilities->hevc && !polaris::isSpaceGame(gameId.toStdString()), videoSupport,
             target->request.width, target->request.height, capabilities->pyrowave && !polaris::isSpaceGame(gameId.toStdString()));
+        if (target->request.bitrateKbps > capabilities->manualMaximumKbps) {
+            finish("failed", "The PC bitrate limit changed. Review Play Setup before starting."); return;
+        }
         if (!target->request.videoFormat) {
+            if (configuration && configuration->videoCodec == "pyrowave" && !capabilities->pyrowave &&
+                    !capabilities->pyrowaveUnavailableMessage.empty()) {
+                failureDetails={{"failureSource","host-capability"},{"hostReason",QString::fromStdString(capabilities->pyrowaveUnavailableReason)}};
+                finish("failed",QString::fromStdString(capabilities->pyrowaveUnavailableMessage));
+                return;
+            }
             finish("failed", "The selected video codec is no longer available. Review Play Setup again before starting.");
             return;
         }
@@ -801,7 +862,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             const auto mode = configuration->launchMode.toStdString();
             if (!target->authorizeLaunchMode || !target->authorizeLaunchMode(mode, [shared]() { return shared->cancelled.load(); })
                 || !resolver(hostId, gameId)) {
-                finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Preview cancelled."
+                finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Stream cancelled."
                     : "That launch mode could not be verified. Refresh this PC and review Play Setup again.");
                 return;
             }
@@ -810,13 +871,13 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         if (!resume && target->resolveLaunchTopology) {
             const auto topology = target->resolveLaunchTopology(target->request, [shared] { return shared->cancelled.load(); });
             if (!topology || shared->cancelled || !resolver(hostId, gameId)) {
-                finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Preview cancelled."
+                finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Stream cancelled."
                     : "This PC could not confirm the selected stream settings. Refresh this PC and review Play Setup again.");
                 return;
             }
             target->request.expectedTopology = *topology;
         }
-        if (shared->cancelled) { finish("cancelled", "Preview cancelled."); return; }
+        if (shared->cancelled) { finish("cancelled", "Stream cancelled."); return; }
         if (target->request.fps > displayRateLimit()) {
             finish("failed", "The display rate changed. Review Play Setup again before starting.");
             return;
@@ -841,11 +902,16 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 finish("interrupted", "This PC did not answer. Check your connection and try reconnecting.");
                 return;
             }
+            if (built.launchRefused) {
+                failureDetails={{"failureSource","host"},{"hostStatusCode",built.launchStatusCode},
+                    {"hostReason",QString::fromStdString(built.launchErrorCode)}};
+            }
             const DeckSessionFailure failure{
                 .cancelled = shared->cancelled,
                 .displayRateChanged = target->request.fps > displayRateLimit(),
                 .sessionSelectionRejected = built.sessionSelectionRejected,
                 .launchRefused = built.launchRefused,
+                .hostStatusCode = built.launchStatusCode,
                 .resumed = built.resumed,
                 .builderError = built.error,
                 .hostMessage = built.launchStatusMessage,
@@ -860,7 +926,10 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         gateOwnsLaunch = true;
         const auto started = gate.startAuthorizedHostSession(authorization.snapshot(), target->request,
             built.connectionInfo, target->fetch, !built.resumed);
-        if (started.hostCancelRequested) cleanupConfirmed = started.hostCancelled;
+        if (started.hostCancelRequested) {
+            hostCancelRequested = true;
+            hostCancelAccepted = started.hostCancelled;
+        }
         const bool active = started.networkStarted;
         if (!active && !shared->cancelled) {
             const auto status = gate.connectionStatus();
@@ -917,8 +986,19 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 const auto renderer = producer.rendererLifecycle();
                 DeckHudSample sample;
                 sample.atMs = lastHudSample;
+                const polaris::DeckClientMediaSample media{polaris::clientMediaMonotonicMs(), renderer.media};
+                if (polaris::freshClientMedia(media, media.atMs)) {
+                    sample.media = media;
+                    if (hostObserver) hostObserver->submitClientMedia(media);
+                }
                 sample.incoming = renderer.incomingFrames; sample.bytes = renderer.videoBytes;
                 sample.decoded = std::max(0, renderer.decodedHardwareFrames);
+                sample.submitted = std::max(0, renderer.presentedHardwareFrames);
+                sample.decoderBackend = renderer.decoderBackend == DeckDecoderBackend::V4l2 ? "V4L2" :
+                    renderer.decoderBackend == DeckDecoderBackend::Vaapi ? "VA-API" :
+                    renderer.decoderBackend == DeckDecoderBackend::Pyrowave ? "PyroWave Vulkan" : "Unavailable";
+                sample.frameTransferPath = renderer.decoderBackend == DeckDecoderBackend::Unavailable ? "Unavailable" :
+                    renderer.transferPath == DeckFrameTransferPath::CpuUpload ? "CPU upload" : "DMA-BUF";
                 sample.videoWorkMicros = renderer.videoWorkMicros;
                 sample.videoWorkSamples = renderer.videoWorkSamples;
                 sample.refused = renderer.refusedFrames;
@@ -981,6 +1061,10 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             if (inputFailed) break;
         }
         const auto connection = gate.connectionStatus();
+        if (!shared->cancelled && (!active || (connection.terminated && connection.terminationErrorCode != ML_ERROR_GRACEFUL_TERMINATION)))
+            failureDetails=deckNativeFailureDiagnostics(connection);
+        const auto nativeFailure=QString::fromStdString(deckNativeFailureMessage(connection,
+            configuration && configuration->videoCodec=="pyrowave"));
         {
             // A close/Stop while transport teardown blocks cannot change a
             // detected interruption into an explicit End game.
@@ -989,7 +1073,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             shared->state = publicState("stopping", shared->keepHostRunning ||
                 ((built.resumed || activeOrdinary) && !shared->endGameRequested)
                     ? "Closing the stream without ending the game…"
-                    : "Ending the preview and cleaning up the host session…", true);
+                    : "Ending the stream and cleaning up the host session…", true);
         }
         const bool interrupted = activeOrdinary && !shared->cancelled &&
             (inputFailed || !connection.terminated || connection.terminationErrorCode != ML_ERROR_GRACEFUL_TERMINATION);
@@ -998,33 +1082,34 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             shared->resumeTicket = std::move(activeTicket);
             shared->automaticRetry = !inputFailed && connection.terminated &&
                 connection.terminationErrorCode != ML_ERROR_PROTECTED_CONTENT &&
-                connection.terminationErrorCode != ML_ERROR_FRAME_CONVERSION;
+                connection.terminationErrorCode != ML_ERROR_FRAME_CONVERSION &&
+                !deckHostStreamRefusal(connection.terminationErrorCode);
             finish("interrupted", shared->resumeTicket
                 ? inputFailed ? "Game input was interrupted. Nova did not ask the PC to end the game. Reconnect when you're ready."
-                    : "The connection was interrupted. Nova did not ask the PC to end the game. Check your connection, then reconnect."
-                : "The connection was interrupted. Nova did not ask the PC to end the game. Return to the library and check this PC.");
+                    : nativeFailure + " Nova did not ask the PC to end the game. Reconnect when you're ready."
+                : nativeFailure + " Nova did not ask the PC to end the game. Return to the library and check this PC.");
         }
         else if (!active && resume && built.ok && !shared->cancelled) {
             // Ownership was verified, but transport setup failed. A manual
             // retry must verify the exact session again; never fall back to Launch.
             shared->resumeTicket = resume;
-            finish("interrupted", "Couldn't reconnect to the game. Nova did not ask the PC to end it. Check your connection and try again.");
+            finish("interrupted",nativeFailure + " Nova did not ask the PC to end the game. Reconnect when you're ready.");
         }
-        else if (inputFailed) finish("failed", "Game input could not be delivered. The preview was stopped; reconnect and try again.");
+        else if (inputFailed) finish("failed", "Game input could not be delivered. The stream was stopped; reconnect and try again.");
         else if (shared->cancelled && shared->keepHostRunning) {
             shared->resumeTicket = std::move(activeTicket);
             finish("disconnected", "Disconnected without ending the game.");
         }
         else if (shared->cancelled) finish(active ? "stopped" : "cancelled",
             built.resumed && !shared->endGameRequested ? "Resume cancelled without ending the game."
-            : active ? "Game ended." : "Preview cancelled.");
+            : active ? "Stream ended." : "Stream cancelled.");
         else if (!active || (connection.terminated && connection.terminationErrorCode != 0))
-            finish("failed", "The native connection ended unexpectedly. Check the host and try again.");
-        else finish("stopped", "The host ended the preview.");
+            finish("failed",nativeFailure);
+        else finish("stopped", "The PC ended the stream.");
     } catch (...) {
         // Raw transport/decoder exception text can include private material.
-        try { cleanup(); } catch (...) { cleanupConfirmed = false; }
-        finish("failed", "The native preview could not finish.");
+        try { cleanup(); } catch (...) { hostCancelAccepted = false; }
+        finish("failed", "The stream could not finish. Return to the library and try again.");
     }
 }
 

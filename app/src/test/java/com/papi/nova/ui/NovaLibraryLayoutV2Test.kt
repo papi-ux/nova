@@ -5,6 +5,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class NovaLibraryLayoutV2Test {
     @Test
@@ -31,181 +33,106 @@ class NovaLibraryLayoutV2Test {
 
     @Test
     fun rp6LandscapeLeadsWithCinematicPortraitStageAndCompactGridDensity() {
-        val stage = NovaLibraryUiStateMapper.stageLayoutSpecForViewport(
-            widthDp = 833,
-            heightDp = 390,
-            largeText = false,
-        )
+        val geometry = novaLibraryStageGeometry(833, 354, 1f)
+        assertEquals(NovaPortraitPosterSize(224, 336), geometry.selected)
+        assertEquals(NovaPortraitPosterSize(120, 180), geometry.neighbour)
         val grid = NovaLibraryUiStateMapper.layoutSpec(833, 390, NovaLibraryLayoutMode.GRID)
         val compact = NovaLibraryUiStateMapper.layoutSpec(833, 390, NovaLibraryLayoutMode.COMPACT)
-
-        assertEquals(NovaLibraryWindowClass.HANDHELD_LANDSCAPE, stage.windowClass)
-        assertFalse(stage.stageUsesVerticalGrid)
         assertEquals(5, grid.gridColumns)
-        assertEquals(112, grid.gameCardHeightDp)
         assertEquals(6, compact.gridColumns)
-        assertTrue(compact.gameCardHeightDp < grid.gameCardHeightDp)
-        assertTrue(stage.stageHeroHeightDp >= 112)
-        assertTrue(stage.stagePosterRailHeightDp >= 120)
-        assertTrue(
-            "stage chrome must fit the complete RP6 landscape viewport",
-            stage.stageChromeBudgetDp <= 390,
-        )
+    }
+
+    @Test
+    fun captionReserveFitsSeparatelyRoundedLinesArtworkAndPaddingAcrossDensities() {
+        for (density in listOf(.5f, .75f, 1f, 1.25f, 1.5f, 2.625f, 3.5f, 4f)) {
+            for (fontScale in listOf(1f, 1.3f, 2f)) {
+                val lineHeightPx = 17f * fontScale * density
+                val paddingPx = (6f * density).roundToInt()
+                val captionHeight = novaLibraryStageCaptionHeightDp(lineHeightPx, paddingPx, density)
+                val geometry = novaLibraryStageGeometry(833, 354, fontScale, captionHeight)
+                val cardPx = ((geometry.neighbour.heightDp + captionHeight) * density).roundToInt()
+                val artworkWidthPx = (geometry.neighbour.widthDp * density).roundToInt()
+                val artworkHeightPx = (artworkWidthPx / (2f / 3f)).roundToInt()
+                val availableTextPx = cardPx - artworkHeightPx - paddingPx
+                assertTrue("density=$density scale=$fontScale reserves both rounded lines: $availableTextPx",
+                    availableTextPx >= 2 * ceil(lineHeightPx).toInt())
+            }
+        }
+    }
+
+    @Test
+    fun measuredFractionalDensityCaptionAndLargeTextBoundaryRemainReadable() {
+        val density = 2.625f
+        val caption = novaLibraryStageCaptionHeightDp(17f * 1.3f * density, (6f * density).roundToInt(), density)
+        assertEquals(52, caption)
+        // The native red had a 480px card, 347px art and 16px padding: only 117px.
+        val geometry = novaLibraryStageGeometry(833, 354, 1.3f, caption)
+        val cardPx = ((geometry.neighbour.heightDp + caption) * density).roundToInt()
+        assertTrue(cardPx - 347 - 16 >= 118)
+
+        val largeCaption = novaLibraryStageCaptionHeightDp(17f * 2f * density, (6f * density).roundToInt(), density)
+        assertEquals(76, largeCaption)
+        val large = novaLibraryStageGeometry(833, 354, 2f, largeCaption)
+        assertEquals(NovaPortraitPosterSize(86, 129), large.neighbour)
+        assertEquals(103, large.infoHeightDp)
+        assertTrue(large.infoHeightDp >= 47f * 2f + 8)
+        assertEquals(large.selected.heightDp, large.infoHeightDp + 16 + large.neighbour.heightDp + largeCaption)
+        // Caption rounding must not alter the plain-art large-text layout.
+        assertEquals(NovaPortraitPosterSize(88, 132), novaLibraryStageGeometry(833, 354, 2f).neighbour)
     }
 
     @Test
     fun pixelPortraitReflowsRatherThanScalingTheLandscapeStage() {
-        val stage = NovaLibraryUiStateMapper.layoutSpec(
-            widthDp = 430,
-            heightDp = 932,
-            layoutMode = NovaLibraryLayoutMode.STAGE,
-        )
         val grid = NovaLibraryUiStateMapper.layoutSpec(430, 932, NovaLibraryLayoutMode.GRID)
         val compact = NovaLibraryUiStateMapper.layoutSpec(430, 932, NovaLibraryLayoutMode.COMPACT)
-
-        assertEquals(NovaLibraryWindowClass.PHONE_PORTRAIT, stage.windowClass)
-        assertTrue(stage.stageUsesVerticalGrid)
-        assertEquals(2, stage.stagePosterColumns)
+        assertEquals(NovaLibraryWindowClass.PHONE_PORTRAIT, grid.windowClass)
         assertEquals(3, grid.gridColumns)
         assertEquals(4, compact.gridColumns)
-        assertTrue(grid.gameCardHeightDp > 112)
         assertTrue(compact.gameCardHeightDp < grid.gameCardHeightDp)
-        assertTrue(stage.stageHeroHeightDp in 280..360)
-        assertTrue(stage.stageChromeBudgetDp <= 932)
     }
 
     @Test
     fun tvGetsDeliberateDistanceReadableReflow() {
-        val stage = NovaLibraryUiStateMapper.layoutSpec(
-            widthDp = 1920,
-            heightDp = 1080,
-            layoutMode = NovaLibraryLayoutMode.STAGE,
-        )
+        val geometry = novaLibraryStageGeometry(1280, 606, 1f)
+        assertEquals(NovaPortraitPosterSize(384, 576), geometry.selected)
+        assertEquals(NovaPortraitPosterSize(160, 240), geometry.neighbour)
         val grid = NovaLibraryUiStateMapper.layoutSpec(1920, 1080, NovaLibraryLayoutMode.GRID)
         val compact = NovaLibraryUiStateMapper.layoutSpec(1920, 1080, NovaLibraryLayoutMode.COMPACT)
-
-        assertEquals(NovaLibraryWindowClass.TV_LANDSCAPE, stage.windowClass)
-        assertFalse(stage.stageUsesVerticalGrid)
-        // Rail density is the cinematic poster proportion, not a column count: the rail
-        // must be able to host a full-height poster at that proportion.
-        val tvPosterWidth = NovaLibraryUiStateMapper.stageRailPosterWidthDp(1920)
-        val tvPoster = NovaLibraryUiStateMapper.portraitPosterSizeForWidth(tvPosterWidth)
-        val tvPresentation =
-            NovaLibraryUiStateMapper.posterPresentationSpec(NovaLibraryLayoutMode.STAGE)
-        assertTrue(
-            "TV rail must host a full-height cinematic poster",
-            tvPoster.heightDp + 2 * tvPresentation.focusGutterDp <= stage.stagePosterRailHeightDp,
-        )
         assertEquals(7, grid.gridColumns)
         assertEquals(9, compact.gridColumns)
-        assertTrue(grid.gameCardHeightDp >= 168)
-        assertTrue(compact.gameCardHeightDp >= 132)
-        assertTrue(stage.stageHeroHeightDp >= 480)
-        assertTrue(stage.stageChromeBudgetDp <= 1080)
     }
 
     @Test
     fun activeSessionChromeIsIntegratedIntoStageInsteadOfStackedAboveIt() {
-        assertFalse(
-            NovaLibraryUiStateMapper.showStandaloneHomeHero(
-                layoutMode = NovaLibraryLayoutMode.STAGE,
-                hasActiveSession = true,
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showStandaloneHomeHero(
-                layoutMode = NovaLibraryLayoutMode.STAGE,
-                hasActiveSession = false,
-            )
-        )
-        assertTrue(
-            NovaLibraryUiStateMapper.showStandaloneHomeHero(
-                layoutMode = NovaLibraryLayoutMode.GRID,
-                hasActiveSession = true,
-            )
-        )
-        assertTrue(
-            NovaLibraryUiStateMapper.showStandaloneHomeHero(
-                layoutMode = NovaLibraryLayoutMode.COMPACT,
-                hasActiveSession = false,
-            )
-        )
+        for (mode in NovaLibraryLayoutMode.entries) {
+            assertTrue(NovaLibraryUiStateMapper.showStandaloneHomeHero(mode, true))
+        }
+        assertFalse(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.STAGE, false))
+        assertFalse(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.GRID, false))
+        assertFalse(NovaLibraryUiStateMapper.showStandaloneHomeHero(NovaLibraryLayoutMode.COMPACT, false))
     }
 
     @Test
     fun rp6ProductionShellBudgetsFooterBeforeFittingTheFocusedPosterRail() {
-        assertEquals(60, NovaLibraryUiStateMapper.landscapeToolbarHeightDp(false))
-        assertEquals(74, NovaLibraryUiStateMapper.landscapeToolbarHeightDp(true))
-        val normalViewport = NovaLibraryUiStateMapper.landscapeStageViewportHeightDp(390, 0, false)
-        val largeViewport = NovaLibraryUiStateMapper.landscapeStageViewportHeightDp(390, 8, true)
-        assertEquals(308, normalViewport)
-        assertEquals(286, largeViewport)
-        assertEquals(4, NovaLibraryUiStateMapper.stageRailVerticalContentPaddingDp())
-
-        val productionStageHeight =
-            largeViewport - NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp()
-        assertEquals(246, productionStageHeight)
-        val stage = NovaLibraryUiStateMapper.stageLayoutSpecForViewport(
-            widthDp = 817,
-            heightDp = productionStageHeight,
-            largeText = true,
-        )
-        assertTrue(stage.stageUsesCompactHero)
-        assertEquals(150, stage.stagePosterRailHeightDp)
-        assertEquals(96, stage.stageHeroHeightDp)
-        assertEquals(productionStageHeight, stage.stageChromeBudgetDp)
-
-        val presentation =
-            NovaLibraryUiStateMapper.posterPresentationSpec(NovaLibraryLayoutMode.STAGE)
-        val posterSize = NovaLibraryUiStateMapper.portraitPosterSizeForRail(
-            railHeightDp = stage.stagePosterRailHeightDp,
-            presentationSpec = presentation,
-        )
-        assertEquals(NovaPortraitPosterSize(widthDp = 82, heightDp = 123), posterSize)
-        assertEquals(posterSize.widthDp * 3, posterSize.heightDp * 2)
-        assertTrue(
-            posterSize.heightDp * presentation.focusedScale + 2 * presentation.focusGutterDp <=
-                stage.stagePosterRailHeightDp + 0.0001f,
-        )
+        assertEquals(0, NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp())
+        val g = novaLibraryStageGeometry(833, 354, 1f)
+        assertTrue(g.selected.heightDp + g.positionHeightDp <= 354)
+        assertEquals(g.selected.heightDp, g.infoHeightDp + 16 + g.neighbour.heightDp)
     }
 
     @Test
     fun largeTextStageReflowsAgainstProductionBudgetsAtRp6PixelAndTvSizes() {
-        val rp6StageHeight = NovaLibraryUiStateMapper.landscapeStageViewportHeightDp(
-            screenHeightDp = 390,
-            safeVerticalInsetsDp = 8,
-            largeText = true,
-        ) - NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp()
-        val rp6 = NovaLibraryUiStateMapper.stageLayoutSpecForViewport(
-            widthDp = 817,
-            heightDp = rp6StageHeight,
-            largeText = true,
-        )
-        val pixel = NovaLibraryUiStateMapper.stageLayoutSpecForViewport(
-            widthDp = 430,
-            heightDp = 932,
-            largeText = true,
-        )
-        val tvStageHeight = NovaLibraryUiStateMapper.landscapeStageViewportHeightDp(
-            screenHeightDp = 1080,
-            safeVerticalInsetsDp = 0,
-            largeText = true,
-        ) - NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp()
-        val tv = NovaLibraryUiStateMapper.stageLayoutSpecForViewport(
-            widthDp = 1904,
-            heightDp = tvStageHeight,
-            largeText = true,
-        )
-        assertEquals(246, rp6StageHeight)
-        assertEquals(rp6StageHeight, rp6.stageChromeBudgetDp)
-        assertEquals(2, pixel.stagePosterColumns)
-        assertTrue(pixel.stageChromeBudgetDp <= 932)
-        assertEquals(944, tvStageHeight)
-        assertEquals(320, tv.stagePosterRailHeightDp)
-        assertEquals(624, tv.stageHeroHeightDp)
-        assertEquals(tvStageHeight, tv.stageChromeBudgetDp)
-        // A 1904dp stage now gives the hero real room, so it is not the compact variant.
-        assertFalse(tv.stageUsesCompactHero)
+        for ((width, height) in listOf(833 to 354, 915 to 298, 960 to 426, 1280 to 606)) {
+            val normal = novaLibraryStageGeometry(width, height, 1f)
+            for (scale in listOf(1.3f, 1.5f, 2f)) {
+                val large = novaLibraryStageGeometry(width, height, scale)
+                assertTrue(large.selected.heightDp + large.positionHeightDp <= height)
+                assertTrue(large.neighbour.heightDp <= normal.neighbour.heightDp)
+                assertTrue(large.infoHeightDp >= 47f * scale + 8)
+                assertEquals(large.selected.widthDp * 3, large.selected.heightDp * 2)
+                assertEquals(large.neighbour.widthDp * 3, large.neighbour.heightDp * 2)
+            }
+        }
     }
 
     @Test
@@ -251,53 +178,13 @@ class NovaLibraryLayoutV2Test {
 
     @Test
     fun cinematicLandscapeReservesPortraitPosterRailAndUsesPersistentFooter() {
-        val spec = NovaLibraryUiStateMapper.layoutSpec(
-            widthDp = 960,
-            heightDp = 540,
-            layoutMode = NovaLibraryLayoutMode.STAGE,
-        )
-        val handheldPosterWidth = NovaLibraryUiStateMapper.stageRailPosterWidthDp(960)
-        assertTrue(
-            "stage poster should hold the ~10% cinematic proportion, was $handheldPosterWidth",
-            handheldPosterWidth in 96..104,
-        )
-        // The rail must be able to host a poster at the cinematic proportion.
-        val railPoster = NovaLibraryUiStateMapper.portraitPosterSizeForWidth(
-            NovaLibraryUiStateMapper.stageRailPosterWidthDp(960),
-        )
-        val railPresentation =
-            NovaLibraryUiStateMapper.posterPresentationSpec(NovaLibraryLayoutMode.STAGE)
-        assertTrue(
-            "rail must host a proportional poster, was ${'$'}{spec.stagePosterRailHeightDp}",
-            railPoster.heightDp + 2 * railPresentation.focusGutterDp <=
-                spec.stagePosterRailHeightDp,
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 112, heightDp = 168),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(112),
-        )
-        // The stage reserves less than the grid/compact shells: those lay poster rows out
-        // beneath an overlaid hint bar, while the stage anchors one rail above a light
-        // three-hint footer.
-        //
-        // The grid shells now clear that bar through their own bottom content padding
-        // rather than a shell slab the grid could never draw into, so the comparison is
-        // against the clearance a poster row actually gets. Reading the shell padding
-        // alone stopped meaning anything the moment it became zero.
-        assertTrue(NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp() in 36..44)
-        assertTrue(
-            NovaLibraryUiStateMapper.stageControllerHintFooterHeightDp() <
-                NovaLibraryUiStateMapper.landscapeHintClearanceDp(),
-        )
-        assertEquals(
-            540 - 16 - NovaLibraryUiStateMapper.screenPaddingDp(true) * 2 -
-                NovaLibraryUiStateMapper.landscapeToolbarHeightDp() -
-                NovaLibraryUiStateMapper.landscapeContentSpacingDp(),
-            NovaLibraryUiStateMapper.landscapeStageViewportHeightDp(
-                screenHeightDp = 540,
-                safeVerticalInsetsDp = 16,
-            ),
-        )
+        val shield = novaLibraryStageGeometry(960, 426, 1f)
+        assertEquals(NovaPortraitPosterSize(272, 408), shield.selected)
+        assertEquals(NovaPortraitPosterSize(144, 216), shield.neighbour)
+        val phone = novaLibraryStageGeometry(915, 298, 1f)
+        assertEquals(NovaPortraitPosterSize(186, 279), phone.selected)
+        assertEquals(NovaPortraitPosterSize(90, 135), phone.neighbour)
+        assertEquals(12, phone.posterGapDp)
     }
 
 
@@ -341,9 +228,9 @@ class NovaLibraryLayoutV2Test {
     fun posterPresentationContractsAreSpecificToEachProductionLayout() {
         assertEquals(
             NovaPosterPresentationSpec(
-                focusedScale = 1.10f,
-                unfocusedAlpha = 0.76f,
-                focusGutterDp = 6,
+                focusedScale = 1f,
+                unfocusedAlpha = 1f,
+                focusGutterDp = 0,
             ),
             NovaLibraryUiStateMapper.posterPresentationSpec(NovaLibraryLayoutMode.STAGE),
         )
@@ -367,32 +254,14 @@ class NovaLibraryLayoutV2Test {
 
     @Test
     fun stageRailPosterUsesLargestExactTwoByThreeSizeWithFocusedScaleHeadroom() {
-        val presentation = NovaLibraryUiStateMapper.posterPresentationSpec(NovaLibraryLayoutMode.STAGE)
-        val expectedSizes = mapOf(
-            134 to NovaPortraitPosterSize(widthDp = 72, heightDp = 108),
-            148 to NovaPortraitPosterSize(widthDp = 82, heightDp = 123),
-            182 to NovaPortraitPosterSize(widthDp = 102, heightDp = 153),
-            188 to NovaPortraitPosterSize(widthDp = 106, heightDp = 159),
-            304 to NovaPortraitPosterSize(widthDp = 176, heightDp = 264),
-        )
-
-        expectedSizes.forEach { (railHeightDp, expectedSize) ->
-            val size = NovaLibraryUiStateMapper.portraitPosterSizeForRail(railHeightDp, presentation)
-            val focusedFootprintDp =
-                size.heightDp * presentation.focusedScale + 2 * presentation.focusGutterDp
-            val nextFocusedFootprintDp =
-                (size.heightDp + 3) * presentation.focusedScale + 2 * presentation.focusGutterDp
-
-            assertEquals(expectedSize, size)
+        val p = NovaLibraryUiStateMapper.posterPresentationSpec(NovaLibraryLayoutMode.STAGE)
+        assertEquals(1f, p.focusedScale, 0f)
+        assertEquals(1f, p.unfocusedAlpha, 0f)
+        assertEquals(0, p.focusGutterDp)
+        for (height in listOf(134, 148, 182, 188, 304)) {
+            val size = NovaLibraryUiStateMapper.portraitPosterSizeForRail(height, p)
+            assertEquals((height / 3) * 3, size.heightDp)
             assertEquals(size.widthDp * 3, size.heightDp * 2)
-            assertTrue(
-                "focused poster footprint $focusedFootprintDp must fit rail $railHeightDp",
-                focusedFootprintDp <= railHeightDp + 0.0001f,
-            )
-            assertTrue(
-                "next exact 2:3 unit must overflow rail $railHeightDp",
-                nextFocusedFootprintDp > railHeightDp - 0.0001f,
-            )
         }
     }
 
@@ -417,7 +286,7 @@ class NovaLibraryLayoutV2Test {
             assertTrue(largerRailSize.heightDp >= smallerRailSize.heightDp)
         }
         assertTrue(sizes.last().heightDp > sizes.first().heightDp)
-        listOf(Int.MIN_VALUE, -1, 0, 15).forEach { invalidRailHeightDp ->
+        listOf(Int.MIN_VALUE, -1, 0, 2).forEach { invalidRailHeightDp ->
             assertThrows(IllegalArgumentException::class.java) {
                 NovaLibraryUiStateMapper.portraitPosterSizeForRail(
                     railHeightDp = invalidRailHeightDp,

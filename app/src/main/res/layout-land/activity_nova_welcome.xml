@@ -39,7 +39,7 @@
                 android:fontFamily="sans-serif-light"
                 android:gravity="center"
                 android:letterSpacing="0.03"
-                android:text="Welcome to Nova"
+                android:text="@string/nova_welcome_title"
                 android:textColor="?attr/colorOnSurface"
                 android:textSize="28sp" />
 
@@ -50,7 +50,7 @@
                 android:fontFamily="sans-serif"
                 android:gravity="center"
                 android:lineSpacingExtra="2dp"
-                android:text="Your PC games across Android TVs, handhelds, tablets, and phones."
+                android:text="@string/nova_welcome_subtitle"
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="14sp" />
         </LinearLayout>
@@ -74,7 +74,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:letterSpacing="0.08"
-                    android:text="01  Find your host"
+                    android:text="@string/nova_welcome_step_find"
                     android:textAllCaps="true"
                     android:textColor="?attr/colorAccent"
                     android:textSize="10sp" />
@@ -83,7 +83,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="Discover PCs on your network, or add an address manually."
+                    android:text="@string/nova_welcome_step_find_body"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -100,7 +100,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:letterSpacing="0.08"
-                    android:text="02  Pair with confidence"
+                    android:text="@string/nova_welcome_step_pair"
                     android:textAllCaps="true"
                     android:textColor="?attr/colorAccent"
                     android:textSize="10sp" />
@@ -109,7 +109,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="Use Moonlight pairing, or scan a Polaris pairing QR when available."
+                    android:id="@+id/welcome_pair_body"
+                    android:text="@string/nova_welcome_step_pair_body"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="14sp" />
             </LinearLayout>
@@ -126,7 +127,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:letterSpacing="0.08"
-                    android:text="03  Built for handhelds and TV"
+                    android:text="@string/nova_welcome_step_play"
                     android:textAllCaps="true"
                     android:textColor="?attr/colorAccent"
                     android:textSize="10sp" />
@@ -135,7 +136,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="Controller-first navigation, focus rings, touch controls, and HUDs are ready for streaming."
+                    android:text="@string/nova_welcome_step_play_body"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="14sp" />
             </LinearLayout>

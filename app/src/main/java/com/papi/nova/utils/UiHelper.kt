@@ -1,38 +1,44 @@
 package com.papi.nova.utils
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.GameManager
 import android.app.GameState
 import android.app.LocaleManager
 import android.app.UiModeManager
 import android.content.Context
-import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Insets
 import android.os.Build
-import android.text.Html
-import android.text.method.LinkMovementMethod
 import android.util.TypedValue
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.widget.TextView
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.text.style.TextDecoration
 import com.papi.nova.LimeLog
 import com.papi.nova.R
-import com.papi.nova.computers.HostForget
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.preferences.PreferenceConfiguration
-import com.papi.nova.ui.NovaDialogWindows
 import com.papi.nova.ui.NovaSystemBars
+import com.papi.nova.ui.NovaCameraViewAvoidance
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 object UiHelper {
-    private const val TV_VERTICAL_PADDING_DP = 15
-    private const val TV_HORIZONTAL_PADDING_DP = 15
+    // The television title-safe area, as the panels keep it: 15dp left the host list and Settings
+    // under a television's overscan.
+    private const val TV_VERTICAL_PADDING_DP = 27
+    private const val TV_HORIZONTAL_PADDING_DP = 48
+    private val confirmSerial = AtomicLong()
+    private val confirmationLinkStyles = TextLinkStyles(style = SpanStyle(textDecoration = TextDecoration.Underline))
 
     @JvmStatic
     fun isTvDevice(context: Context): Boolean {
@@ -169,6 +175,8 @@ object UiHelper {
     fun notifyNewRootView(
         activity: Activity,
         insetTarget: View = activity.findViewById(android.R.id.content),
+        localizeCamera: Boolean = false,
+        padSystemBars: Boolean = true,
     ) {
         val rootView = activity.findViewById<View>(android.R.id.content)
         val modeMgr = activity.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
@@ -176,21 +184,42 @@ object UiHelper {
         setGameModeStatus(activity, false, false)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            activity.window.attributes.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            activity.window.attributes = activity.window.attributes.apply {
+                layoutInDisplayCutoutMode = if (localizeCamera && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 
-        if (modeMgr.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
+        if (!padSystemBars) {
+            // Compose keeps bars/IME/TV safety inside its background and handles cameras locally.
+            insetTarget.setOnApplyWindowInsetsListener(null)
+            insetTarget.setPadding(0, 0, 0, 0)
+        } else if (modeMgr.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
             val scale = activity.resources.displayMetrics.density
             val verticalPaddingPixels = (TV_VERTICAL_PADDING_DP * scale + 0.5f).toInt()
             val horizontalPaddingPixels = (TV_HORIZONTAL_PADDING_DP * scale + 0.5f).toInt()
 
-            rootView.setPadding(
+            // The controls keep clear of the edge; a background under them still reaches it.
+            insetTarget.setPadding(
                 horizontalPaddingPixels,
                 verticalPaddingPixels,
                 horizontalPaddingPixels,
                 verticalPaddingPixels,
             )
+        } else if (localizeCamera) {
+            ViewCompat.setOnApplyWindowInsetsListener(insetTarget) { view, insets ->
+                val hidden = NovaSystemBars.isManaged(activity) && NovaSystemBars.isHidden(activity)
+                val types = (if (hidden) WindowInsetsCompat.Type.captionBar() else WindowInsetsCompat.Type.systemBars()) or
+                    WindowInsetsCompat.Type.ime()
+                val bars = insets.getInsets(types)
+                val waterfall = insets.displayCutout?.waterfallInsets ?: androidx.core.graphics.Insets.NONE
+                view.setPadding(maxOf(bars.left, waterfall.left), maxOf(bars.top, waterfall.top),
+                    maxOf(bars.right, waterfall.right), maxOf(bars.bottom, waterfall.bottom))
+                insets
+            }
+            NovaCameraViewAvoidance.install(insetTarget)
+            ViewCompat.requestApplyInsets(insetTarget)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             insetTarget.setOnApplyWindowInsetsListener {
                     view: View,
@@ -222,6 +251,12 @@ object UiHelper {
             // hid what sat under them. The bars are transparent now, so keep it clear.
             padForSystemBars(insetTarget)
         }
+    }
+
+    /** Background at the edge; the Compose screen owns its bar/IME/TV and per-control camera safety. */
+    @JvmStatic
+    fun notifyEdgeToEdgeComposeRoot(activity: Activity) {
+        notifyNewRootView(activity, localizeCamera = true, padSystemBars = false)
     }
 
     /**
@@ -306,13 +341,23 @@ object UiHelper {
                 prefs.edit().putInt("LastNotifiedCrashCount", crashCount).apply()
             }
             if (crashCount % 3 == 0) {
-                PreferenceConfiguration.resetStreamingSettings(activity)
-                Dialog.displayDialog(
-                    activity,
-                    activity.resources.getString(R.string.title_decoding_reset),
-                    activity.resources.getString(R.string.message_decoding_reset),
-                    markAcknowledged,
-                )
+                PreferenceConfiguration.resetStreamingSettings(activity) { saved ->
+                    activity.runOnUiThread {
+                        if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                        if (saved) {
+                            Dialog.displayDialog(activity,
+                                activity.getString(R.string.title_decoding_reset),
+                                activity.getString(R.string.message_decoding_reset), markAcknowledged)
+                        } else {
+                            // Leave the crash unacknowledged until a reset has actually saved.
+                            Dialog.displayDialog(activity,
+                                activity.getString(R.string.title_decoding_reset_failed),
+                                activity.getString(R.string.message_decoding_reset_failed), false,
+                                activity.getString(R.string.nova_space_launch_issue_retry),
+                                Runnable { showDecoderCrashDialog(activity) })
+                        }
+                    }
+                }
             } else {
                 Dialog.displayDialog(
                     activity,
@@ -324,6 +369,11 @@ object UiHelper {
         }
     }
 
+    /**
+     * Asks before going on, as a Confirm page in the right-edge panel (pushed onto a panel that is
+     * already open). Stay is focused and runs [onNo], as B does; the action runs [onYes]. [message]
+     * is HTML, so a link in it can be followed by touch.
+     */
     @JvmStatic
     fun displayConfirmationDialog(
         parent: Activity,
@@ -334,30 +384,40 @@ object UiHelper {
         onYes: Runnable?,
         onNo: Runnable?,
     ) {
-        val dialogClickListener = DialogInterface.OnClickListener { _, which ->
-            when (which) {
-                DialogInterface.BUTTON_POSITIVE -> onYes?.run()
-                DialogInterface.BUTTON_NEGATIVE -> onNo?.run()
-            }
-        }
+        presentConfirmation(
+            parent,
+            title = title ?: parent.getString(R.string.nova_panel_confirm_title),
+            message = AnnotatedString.fromHtml(message, linkStyles = confirmationLinkStyles),
+            stayLabel = btnNoText ?: parent.getString(R.string.nova_panel_cancel),
+            actionLabel = btnYesText ?: parent.getString(android.R.string.ok),
+            destructive = false,
+            onYes = onYes,
+            onNo = onNo,
+        )
+    }
 
-        val builder = AlertDialog.Builder(parent)
-        @Suppress("DEPRECATION")
-        builder.setMessage(Html.fromHtml(message))
-        if (title != null) {
-            builder.setTitle(title)
-        }
-        if (btnYesText != null) {
-            builder.setPositiveButton(btnYesText, dialogClickListener)
-        }
-        if (btnNoText != null) {
-            builder.setNegativeButton(btnNoText, dialogClickListener)
-        }
-        val dialog = builder.create()
-        dialog.show()
-        dialog.window?.let { NovaDialogWindows.adopt(dialog.context, it) }
-        dialog.findViewById<TextView>(android.R.id.message)
-            ?.movementMethod = LinkMovementMethod.getInstance()
+    private fun presentConfirmation(
+        parent: Activity,
+        title: String,
+        message: AnnotatedString,
+        stayLabel: String,
+        actionLabel: String,
+        destructive: Boolean,
+        onYes: Runnable?,
+        onNo: Runnable?,
+    ) {
+        NovaSurfaces.of(parent).present(
+            NovaCommonPage.Confirm(
+                key = "nova-legacy-confirm-" + confirmSerial.incrementAndGet(),
+                title = title,
+                message = message,
+                stayLabel = stayLabel,
+                actionLabel = actionLabel,
+                destructive = destructive,
+                onConfirm = { onYes?.run() },
+                onStay = { onNo?.run() },
+            ),
+        )
     }
 
     @JvmStatic
@@ -374,7 +434,7 @@ object UiHelper {
         }
         displayConfirmationDialog(
             parent,
-            null,
+            parent.resources.getString(R.string.nova_panel_vdisplay_title),
             message,
             parent.resources.getString(R.string.proceed),
             parent.resources.getString(R.string.cancel),
@@ -383,40 +443,18 @@ object UiHelper {
         )
     }
 
+    /** Ends the running session only on a deliberate second step: Stay is focused, and B stays too. */
     @JvmStatic
     fun displayQuitConfirmationDialog(parent: Activity, onYes: Runnable?, onNo: Runnable?) {
-        displayConfirmationDialog(
+        presentConfirmation(
             parent,
-            null,
-            parent.resources.getString(R.string.applist_quit_confirmation),
-            parent.resources.getString(R.string.yes),
-            parent.resources.getString(R.string.no),
-            onYes,
-            onNo,
-        )
-    }
-
-    @JvmStatic
-    fun displayDeletePcConfirmationDialog(
-        parent: Activity,
-        computer: ComputerDetails,
-        onYes: Runnable?,
-        onNo: Runnable?,
-    ) {
-        displayConfirmationDialog(
-            parent,
-            computer.name,
-            parent.resources.getString(
-                when {
-                    HostForget.mayCloseRunningGame(computer) -> R.string.delete_pc_msg_paired_running
-                    HostForget.canAsk(computer) -> R.string.delete_pc_msg_paired
-                    else -> R.string.delete_pc_msg
-                },
-            ),
-            parent.resources.getString(R.string.yes),
-            parent.resources.getString(R.string.no),
-            onYes,
-            onNo,
+            title = parent.getString(R.string.game_dialog_title_quit_confirm),
+            message = AnnotatedString(parent.getString(R.string.nova_panel_end_session_message)),
+            stayLabel = parent.getString(R.string.nova_panel_stay),
+            actionLabel = parent.getString(R.string.game_dialog_action_end_session),
+            destructive = true,
+            onYes = onYes,
+            onNo = onNo,
         )
     }
 

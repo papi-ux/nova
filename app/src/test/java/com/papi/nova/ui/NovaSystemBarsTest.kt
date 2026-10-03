@@ -121,40 +121,35 @@ class NovaSystemBarsTest {
     }
 
     @Test
-    fun sheetsAndDialogsKeepTheBarsHiddenToo() {
-        val chrome = String(Files.readAllBytes(Path.of("src/main/java/com/papi/nova/ui/NovaSheetChrome.kt")), StandardCharsets.UTF_8)
-        assertEquals(
-            "a host's Pair menu brought the status and navigation bars back over a screen that had hidden them; " +
-                "the bottom sheet and both alert chromes pass their window to NovaSystemBars",
-            3,
-            Regex("NovaDialogWindows\\.adopt\\(context, window\\)").findAll(chrome).count(),
-        )
-    }
-
-    @Test
-    fun composeDialogsKeepTheBarsHiddenToo() {
+    fun panelsKeepTheBarsHiddenToo() {
         fun source(path: String) = String(Files.readAllBytes(Path.of(path)), StandardCharsets.UTF_8)
-        val library = source("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt")
-        val dialogs = Regex("\\bDialog\\(\\n|ModalBottomSheet\\(\\n").findAll(library).count()
-        assertEquals(
-            "Library Options brought the navigation bar back: every Compose dialog and sheet in the library calls NovaDialogWindow",
-            dialogs,
-            Regex("NovaDialogWindow\\(\\)").findAll(library).count(),
+        // A host's Pair menu, Library Options and Nova Text Size each brought the status and navigation
+        // bars back over a screen that had hidden them, because each was a sheet or a dialog in a window
+        // of its own. Each is a page in NovaPanelWindow now, NovaPanelSourceGuardTest keeps any other
+        // window from coming back, and NovaDialogWindow, which adopted a Compose dialog's window, went
+        // with the last Compose dialog.
+        assertFalse(
+            "no Compose dialog is left to adopt a window of its own",
+            source("src/main/java/com/papi/nova/ui/NovaDialogWindows.kt").contains("fun NovaDialogWindow(")
         )
-        val settings = source("src/main/java/com/papi/nova/preferences/NovaSettingsScreen.kt")
-        assertEquals(
-            "Nova Text Size and the other settings dialogs brought both bars back; every dialog in Modern Settings calls NovaDialogWindow",
-            Regex("\\b(Alert)?Dialog\\(\\n").findAll(settings).count(),
-            Regex("NovaDialogWindow\\(\\)").findAll(settings).count(),
+        // Both dialogs that were built outside the sheet chrome and adopted their own window are
+        // gone: PcView's OTP pairing dialog is a Form page in NovaPanelWindow, and legacy lists
+        // open there as Choice pages instead of NovaListPreferenceDialogFragment. NovaPanelWindow
+        // adopts its window (asserted below).
+        // UiHelper's confirms and SpinnerDialog's waits no longer build a dialog of their own: they
+        // open in NovaPanelWindow, which is the one window that has to adopt.
+        assertTrue(
+            "NovaPanelWindow adopts its window, so the bars stay hidden over a screen that hid them",
+            source("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt").contains("NovaDialogWindows.adopt(placement.context, window)"),
         )
-        for (path in listOf(
-            "src/main/java/com/papi/nova/utils/UiHelper.kt",
-            "src/main/java/com/papi/nova/utils/SpinnerDialog.kt",
-            "src/main/java/com/papi/nova/PcView.kt",
-            "src/main/java/com/papi/nova/preferences/NovaListPreferenceDialogFragment.kt",
-        )) {
-            assertTrue("$path builds a shared dialog outside the sheet chrome and adopts its window", source(path).contains("NovaDialogWindows.adopt("))
-        }
+        assertTrue(
+            "UiHelper's confirms present on the screen's NovaSurfaces, so they open in NovaPanelWindow",
+            source("src/main/java/com/papi/nova/utils/UiHelper.kt").contains("NovaSurfaces.of(parent).present("),
+        )
+        assertTrue(
+            "SpinnerDialog shows on the screen's NovaSurfaces, so its wait opens in NovaPanelWindow",
+            source("src/main/java/com/papi/nova/utils/SpinnerDialog.kt").contains("NovaSurfaces.of(activity).show("),
+        )
     }
 
     @Test

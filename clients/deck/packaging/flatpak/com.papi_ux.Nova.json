@@ -23,9 +23,17 @@
     "--system-talk-name=org.freedesktop.Avahi",
     "--env=QT_QUICK_CONTROLS_STYLE=Material"
   ],
-  "cleanup": ["/include", "*.a", "/lib/static", "/lib/pkgconfig", "/share/nova-deck/cmake"],
+  "cleanup": [
+    "/include",
+    "*.a",
+    "/lib/static",
+    "/lib/pkgconfig",
+    "/share/nova-deck/cmake"
+  ],
   "modules": [
+    "modules/ffmpeg-frame.json",
     "modules/libplacebo.json",
+    "modules/pyrowave.json",
     {
       "name": "nova-deck",
       "buildsystem": "cmake-ninja",
@@ -33,7 +41,12 @@
       "config-opts": [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DBUILD_TESTING=OFF",
-        "-DNOVA_DECK_BUILD_VULKAN_STREAM=ON"
+        "-DNOVA_DECK_BUILD_VULKAN_STREAM=ON",
+        "-DNOVA_DECK_BUILD_PYROWAVE=ON"
+      ],
+      "post-install": [
+        "test -x /app/bin/nova-deck-pyrowave-probe",
+        "test -x /app/bin/nova-deck-v4l2-probe"
       ],
       "sources": [
         {

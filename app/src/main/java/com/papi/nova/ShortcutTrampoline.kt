@@ -121,7 +121,7 @@ class ShortcutTrampoline : NovaActivity() {
                             val targetComputer = computer
                             if (
                                 details.state != ComputerDetails.State.ONLINE &&
-                                details.macAddress != null &&
+                                details.wakeMacAddress != null &&
                                 --wakeHostTries >= 0
                             ) {
                                 try {
@@ -421,7 +421,7 @@ class ShortcutTrampoline : NovaActivity() {
             Dialog.displayDialog(
                 this@ShortcutTrampoline,
                 resources.getString(R.string.conn_error_title),
-                "Invalid .art file URI",
+                resources.getString(R.string.hosts_art_invalid_uri),
                 true,
             )
             return null
@@ -468,7 +468,7 @@ class ShortcutTrampoline : NovaActivity() {
             Dialog.displayDialog(
                 this@ShortcutTrampoline,
                 resources.getString(R.string.conn_error_title),
-                "Error reading .art file: " + e.message,
+                resources.getString(R.string.hosts_art_read_error, e.message.orEmpty()),
                 true,
             )
         }
@@ -582,8 +582,10 @@ class ShortcutTrampoline : NovaActivity() {
                         Dialog.displayDialog(
                             this@ShortcutTrampoline,
                             resources.getString(R.string.conn_error_title),
-                            resources.getString(R.string.scut_invalid_app_id) +
-                                " (applist cache empty or unreadable)",
+                            resources.getString(
+                                R.string.hosts_scut_app_cache_empty,
+                                resources.getString(R.string.scut_invalid_app_id),
+                            ),
                             true,
                         )
                         return
@@ -602,8 +604,10 @@ class ShortcutTrampoline : NovaActivity() {
                         Dialog.displayDialog(
                             this@ShortcutTrampoline,
                             resources.getString(R.string.conn_error_title),
-                            resources.getString(R.string.scut_invalid_app_id) +
-                                " (app not found in cache)",
+                            resources.getString(
+                                R.string.hosts_scut_app_not_in_cache,
+                                resources.getString(R.string.scut_invalid_app_id),
+                            ),
                             true,
                         )
                         return
@@ -700,13 +704,22 @@ class ShortcutTrampoline : NovaActivity() {
         } ?: return launchPlan
 
         return try {
-            val apiClient = PolarisApiClient(this, activeAddress.address, details.httpsPort, serverCert)
             val isWorkerProfile = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(polarisGame.id)
+            // This runs on the shortcut worker. A failed/unavailable generated plan
+            // must reach Game's refusal without publishing fallback settings to the host.
+            val tier = com.papi.nova.preferences.NovaStreamSettings.selected(
+                com.papi.nova.profiles.ProfilesManager.getInstance().getOverlayingSharedPreferences(this).all)
+            if (!isWorkerProfile && tier != com.papi.nova.preferences.NovaTier.CUSTOM) {
+                val prepared = kotlinx.coroutines.runBlocking {
+                    com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+                }
+                if (!prepared.tiers.plan(tier).available) return launchPlan
+            }
+            val apiClient = PolarisApiClient(this, activeAddress.address, details.httpsPort, serverCert)
             val mangoHudSynced = isWorkerProfile || apiClient.setMangoHud(polarisGame.id, polarisGame.mangohud)
             if (!mangoHudSynced) {
                 LimeLog.warning("Nova: Shortcut launch MangoHUD state sync failed; continuing launch")
             }
-
             val clientSettings = apiClient.getClientSettings()
             val preferences = PreferenceConfiguration.readPreferences(this)
             val codec = com.papi.nova.ui.NovaVideoCodecOverrides.resolve(
@@ -737,7 +750,7 @@ class ShortcutTrampoline : NovaActivity() {
                 height = preferences.height,
                 fps = preferences.fps,
                 bitrateKbps = requestedBitrateKbps,
-                bitrateLocked = metered,
+                bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(codec, isWorkerProfile, metered),
                 hdr = preferences.enableHdr,
                 clientMaxFps = StreamSyncManager.maxSupportedRefreshRate(
                     ServerHelper.getActiveDisplay(this, preferences)
@@ -872,7 +885,7 @@ class ShortcutTrampoline : NovaActivity() {
         Dialog.displayDialog(
             this@ShortcutTrampoline,
             resources.getString(R.string.conn_error_title),
-            resources.getString(R.string.scut_invalid_app_id) + " (error parsing applist cache)",
+            resources.getString(R.string.hosts_scut_app_cache_unparsed, resources.getString(R.string.scut_invalid_app_id)),
             true,
         )
     }

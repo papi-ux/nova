@@ -30,8 +30,18 @@ QImage requestImage(const QString& id,QSize* size,const QSize&) override {
 int main(int argc,char** argv) {
     QTemporaryDir config; qputenv("XDG_CONFIG_HOME",config.path().toUtf8()); QGuiApplication app(argc,argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("GameTools");
+    std::atomic<int> probeCalls{0};
+    std::atomic<bool> probeMayFinish{false};
     game_tools_fixture::Host host; DeckGameTools tools; DeckPlaySettings settings(config.filePath("play.ini")); DeckGameShortcuts shortcuts;
-    settings.setVideoDecodeSupport({.h264={4096,4096},.hevc={1920,1200},.pyrowave={1920,1200}});
+    settings.setVideoDecodeSupport({.h264={4096,4096},.hevc={1920,1200}});
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    settings.setPyrowaveProbe([&] {
+        ++probeCalls;
+        QElapsedTimer deadline; deadline.start();
+        while (!probeMayFinish && deadline.elapsed() < 5000) QThread::msleep(1);
+        return nova::deck::stream::DeckPyrowaveProbeResult{{1920, 1200}, {}};
+    });
+#endif
     tools.setTarget("host",host.resolver());
     tools.setPreviewPublisher([](const auto&,const auto&,QVariantList items) { int index=0; for(auto& raw:items) {auto value=raw.toMap(); value.remove("previewPath"); value["preview"]="image://art/"+QString::number(index++);raw=value;}return items;});
     QQmlEngine engine; engine.addImageProvider("art",new Artwork);
@@ -66,7 +76,11 @@ int main(int argc,char** argv) {
     auto* setup=root->findChild<QObject*>("play-setup");check(setup,"play setup missing");
     const auto setupState = [&] { QVariant state; check(QMetaObject::invokeMethod(setup,"state",Q_RETURN_ARG(QVariant,state)),"setup state unavailable"); return state.toMap(); };
     wait([&]{return picker->property("opened").toBool();});
-    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
+    // Saving schedules a debounced review. Idle can be true before it starts;
+    // wait for this plan reply before interacting with the host-dependent row.
+    const auto previousPlans = host.planRequests.load();
+    QTest::keyClick(window,Qt::Key_Down);QTest::keyClick(window,Qt::Key_Return);
+    wait([&]{return host.planRequests.load() > previousPlans && !tools.busy();});
     check(settings.load("host","game")["configuration"].toMap()["encoderBackend"]=="vaapi","D-pad encoder not saved");
     check(window->activeFocusItem()==encoder,"host review stole encoder focus");
     // Open Tuning while the host plan is being reviewed again. Saving a choice restarts a 150 ms
@@ -112,7 +126,26 @@ int main(int argc,char** argv) {
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
     check(!setupState()["setupAllowed"].toBool(),"unavailable saved encoder admitted");
 #ifdef NOVA_DECK_BUILD_PYROWAVE
+    check(probeCalls == 0, "opening Play Setup or browsing codecs probed PyroWave");
+    host.advice={{"version",1},{"width",1280},{"height",800},{"fps",60},{"raise_goal_kbps",121125},{"cap_kbps",300000},{"raise_goal_limited_by","advice"}};
     chooseCodec("pyrowave");
+    check(!setupState()["streamPlan"].toMap()["playable"].toBool(), "pending probe enabled Play");
+    probeMayFinish = true;
+    wait([&] { return setupState()["streamPlan"].toMap()["playable"].toBool(); });
+    check(probeCalls == 1, "QML plan refresh repeated the probe");
+    // Probe completion changes the effective plan and starts another debounced
+    // review. Wait for its host response, rather than the earlier idle window.
+    wait([&] { return !tools.busy() && host.adviceRequests > 0
+        && setup->property("recommendedKbps").toInt() == 121125; });
+    check(setup->property("recommendedKbps").toInt()==121125 && setup->property("belowAdvice").toBool(),"host-first advice or low-picture warning missing");
+    capture("play-setup-pyrowave-low-960-large");
+    auto* recommend=item("play-setup-recommended-bitrate");
+    check(recommend->isVisible(),"Also use recommended action missing");
+    item("play-setup-bitrate")->forceActiveFocus();QTest::keyClick(window,Qt::Key_Down);settle();
+    check(window->activeFocusItem()==recommend,"setup suggestion unreachable by controller");
+    QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
+    check(settings.load("host","game")["configuration"].toMap()["bitrateKbps"]==121125 && !setup->property("belowAdvice").toBool(),"suggestion did not save exact request or clear warning");
+    check(window->activeFocusItem()==item("play-setup-bitrate"),"saved recommendation left controller focus on a hidden action");
     const auto pyroState=setupState(); const auto pyroConfig=pyroState["streamPlan"].toMap()["configuration"].toMap();
     check(pyroState["setupAllowed"].toBool() && pyroState["streamPlan"].toMap()["playable"].toBool(),"saved encoder blocked PyroWave");
     check(pyroConfig["encoderBackend"].toString().isEmpty() && pyroConfig["profilePreference"]=="quality","PyroWave review lost tuning or retained encoder");

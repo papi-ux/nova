@@ -1,4 +1,10 @@
 #include <QFile>
+#ifdef NOVA_DECK_QML_DIRECTORY
+#include <QQmlComponent>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QKeyEvent>
+#endif
 #include <QDir>
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_native_session.h"
@@ -22,6 +28,7 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <stdexcept>
 
 using namespace nova::deck::runtime;
 using namespace nova::deck::stream;
@@ -68,7 +75,8 @@ struct Driver final : DeckMoonlightConnectionDriver {
     STREAM_CONFIGURATION receivedConfiguration{};
     bool blockStart = false, blockStop = false;
     Barrier stopBarrier;
-    bool failStart = false;
+    bool failStart = false, terminateAtStart = false;
+    int failedStage = -1, failedStageCode = -1, startReturnCode = -1;
     Barrier startBarrier;
     QThread* startThread = nullptr;
     QThread* stopThread = nullptr;
@@ -85,8 +93,12 @@ struct Driver final : DeckMoonlightConnectionDriver {
         receivedConfiguration = configuration;
         feedback = listener.rumble;
         ++starts;
-        if (blockStart) { startBarrier.wait(); return -1; }
-        if (failStart) return -1;
+        if (blockStart) { startBarrier.wait(); if (!failStart) return -1; }
+        if (failStart) {
+            if (failedStage >= 0) listener.stageFailed(failedStage, failedStageCode);
+            if (terminateAtStart) listener.connectionTerminated(ML_ERROR_NO_VIDEO_TRAFFIC);
+            return startReturnCode;
+        }
         end = disconnect = false;
         listenerThread = std::thread([this, callback = listener.connectionTerminated]() {
             std::unique_lock lock(mutex);
@@ -117,9 +129,9 @@ struct Host {
     bool refuseLaunch = false;
     bool failServerInfo = false;
     bool missingUrl = false;
-    bool refuseCancel = false;
+    bool refuseCancel = false, failCancelTransport = false;
     Driver* driver = nullptr;
-    std::string launchRequest, resumeRequest, serverInfoOverride;
+    std::string launchRequest, resumeRequest, serverInfoOverride, refusalResponse;
     int appId = 17;
     std::string appUuid;
     std::string launchToken = "private-token";
@@ -128,6 +140,9 @@ struct Host {
     std::string resumeResponse = "<root status_code=\"200\"><resume>1</resume><sessionToken>private-token</sessionToken>"
         "<sessionUrl0>rtsp://192.0.2.10:48010</sessionUrl0></root>";
     DeckVideoDecodeSupport decoderSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}};
+    DeckPyrowaveProbeResult pyrowaveSupport{{1920, 1200}, {}};
+    std::atomic<int> pyrowaveChecks{0};
+    std::function<DeckPyrowaveProbeResult()> pyrowaveProbe;
     DeckHudHostFactory hostTelemetry;
     std::function<bool(const QString&, const QString&, const std::function<bool()>&)> authorizeSetup;
     std::function<bool(const std::string&, const std::function<bool()>&)> authorizeMode;
@@ -148,6 +163,7 @@ struct Host {
             target.resolveLaunchTopology = resolveTopology;
             target.verifyStreamCapabilities = verifyStream;
             target.probeVideoSupport = [this] { return decoderSupport; };
+            target.probePyrowaveSupport = [this] { ++pyrowaveChecks; return pyrowaveProbe ? pyrowaveProbe() : pyrowaveSupport; };
             target.hostTelemetry = hostTelemetry;
             target.automaticReconnect = automaticReconnect;
             target.transientCapabilityFailure = [this] { return transientCapabilities; };
@@ -166,7 +182,8 @@ struct Host {
                     DeckHttpResponse{true, 200, "<root status_code=\"200\"><appversion>7.1.431.0</appversion></root>"};
                 if (path == "/launch") {
                     launchRequest = request;
-                    if (refuseLaunch) return DeckHttpResponse{true, 200, "<root status_code=\"503\"><gamesession>0</gamesession></root>"};
+                    if (refuseLaunch) return DeckHttpResponse{true, 200, refusalResponse.empty()
+                        ? "<root status_code=\"503\"><gamesession>0</gamesession></root>" : refusalResponse};
                     return DeckHttpResponse{true, 200, std::string("<root status_code=\"200\"><gamesession>1</gamesession><sessionToken>") + launchToken + "</sessionToken>"
                         + (missingUrl ? "" : "<sessionUrl0>rtsp://192.0.2.10:48010</sessionUrl0>") + "</root>"};
                 }
@@ -174,6 +191,7 @@ struct Host {
                 require(request == "/cancel?sessiontoken=private-token", "cleanup lost session token");
                 if (driver && driver->starts > 0) require(driver->stops == driver->starts, "host cancel ran before stream teardown");
                 ++cancels;
+                if (failCancelTransport) return DeckHttpResponse{false, 0, {}};
                 return DeckHttpResponse{true, 200, refuseCancel
                     ? "<root status_code=\"470\" status_message=\"private-token\"><cancel>0</cancel></root>"
                     : "<root status_code=\"200\"><cancel>1</cancel></root>"};
@@ -305,7 +323,7 @@ void testPyrowaveEncoderOverride() {
     for (int scenario = 0; scenario < 5; ++scenario) {
         Host host; Driver driver;
         std::atomic<int> checks{0};
-        host.decoderSupport.pyrowave = scenario == 4 ? DeckDecodeLimits{} : DeckDecodeLimits{1920, 1200};
+        if (scenario == 4) host.pyrowaveSupport = {{}, "PyroWave device check timed out. Restart Nova to check again."};
         host.verifyStream = [scenario](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
             nova::deck::DeckStreamCapabilities capabilities;
             capabilities.pyrowave = scenario != 3;
@@ -345,10 +363,151 @@ void testPyrowaveEncoderOverride() {
         }
         settled(controller);
         require(checks == expectedChecks && values.value("encoderBackend") == "nvenc", "codec review changed saved choices or checked unavailable tuning");
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        require(host.pyrowaveChecks == (scenario == 3 ? 0 : 1), "explicit PyroWave did not use its isolated probe exactly once");
+        if (scenario == 4) require(controller.state().value("copy") == host.pyrowaveSupport.reason,
+            "launch dropped the named PyroWave refusal");
+#endif
         if (!allowed) require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
             "unsupported codec or refused tuning mutated the host");
     }
 }
+
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+// Use the same keyed cache for review and the actual launch worker. The runtime
+// connection keeps these regressions compilable against the unfixed parent, so
+// their red result is retained success after a real refusal, not a missing API.
+void connectPyrowaveReview(DeckNativeSessionController& controller, DeckPlaySettings& settings) {
+    QObject::connect(&controller, SIGNAL(pyrowaveSupportRefused()),
+        &settings, SLOT(invalidatePyrowaveSupport()));
+}
+
+struct ChangedPyrowaveDevice {
+    DeckPyrowaveProbeCache cache;
+    std::atomic<int> device{0}, children{0}, reviews{0};
+    bool reducedLimits = false;
+    DeckPyrowaveProbeResult probe() {
+        const int current = device.load();
+        return cache.get(QString::number(current), [this, current] {
+            ++children;
+            return current == 0 ? DeckPyrowaveProbeResult{{1920, 1200}, {}}
+                : reducedLimits ? DeckPyrowaveProbeResult{{1280, 800}, {}}
+                : DeckPyrowaveProbeResult{{}, "PyroWave Vulkan decoding is unavailable on this Linux device. Choose another codec."};
+        });
+    }
+};
+
+QVariantMap reviewedPyrowave() {
+    auto values = DeckPlayConfiguration{1920, 1080, 60, 20000}.toMap();
+    values["videoCodec"] = "pyrowave";
+    values["encoderBackend"] = "nvenc";
+    return values;
+}
+const QVariantMap pyrowaveHost{{"h264", true}, {"hevc", true}, {"pyrowave", true}, {"maxFps", 60}};
+
+void testPyrowaveReviewRefresh(bool reducedLimits) {
+    QTemporaryDir directory;
+    DeckPlaySettings settings(directory.filePath("review.ini"));
+    settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+    ChangedPyrowaveDevice device;
+    device.reducedLimits = reducedLimits;
+    settings.setPyrowaveProbe([&] { ++device.reviews; return device.probe(); });
+    const auto values = reviewedPyrowave();
+    require(settings.save("host", "game", values), "PyroWave review preference not saved");
+    const auto saved = settings.load("host", "game");
+    require(!settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "first review did not wait for its worker");
+    until([&] { return settings.videoSupportRevision() == 1; });
+    require(settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "successful device review was not retained");
+    device.device = 1;
+    Host host; Driver driver;
+    host.pyrowaveProbe = [&] { return device.probe(); };
+    host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        nova::deck::DeckStreamCapabilities result; result.pyrowave = true; return result;
+    };
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    connectPyrowaveReview(controller, settings);
+    require(controller.startConfigured("host", "game", values), "changed-device launch was not reviewed");
+    settled(controller);
+    require(phase(controller) == "failed" && host.launches == 0 && driver.starts == 0, "changed device reached host launch");
+    if (!reducedLimits) require(controller.state().value("copy") == device.probe().reason, "launch lost its named refusal");
+    require(settings.videoSupportRevision() == 2, "actual launch refusal left Play Setup's successful review installed");
+    const int beforeReview = device.reviews;
+    for (const auto* codec : {"auto", "h264", "hevc"}) {
+        auto ordinary = values; ordinary["videoCodec"] = codec;
+        require(settings.streamPlan(ordinary, pyrowaveHost, {}).value("playable").toBool(), "refusal disabled an ordinary codec");
+    }
+    require(!settings.streamPlan(values, pyrowaveHost, {}, {}, true).value("playable").toBool(), "Space accepted PyroWave");
+    require(device.reviews == beforeReview && device.children == 2, "ordinary codecs or Space started the lazy probe");
+    require(!settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "launch refusal retained obsolete decoder limits");
+    until([&] { return settings.videoSupportRevision() == 3; });
+    const auto refreshed = settings.streamPlan(values, pyrowaveHost, {});
+    require(!refreshed.value("playable").toBool(), "changed-device review re-enabled an unsupported size");
+    if (reducedLimits) {
+        auto small = values; small["width"] = 1280; small["height"] = 800;
+        require(settings.streamPlan(small, pyrowaveHost, {}).value("playable").toBool(), "size refusal removed still-supported PyroWave sizes");
+    } else require(refreshed.value("reason") == controller.state().value("copy"), "next review lost the named launch refusal");
+    require(device.reviews == 2 && device.children == 2 && host.pyrowaveChecks == 1, "next review reran a keyed child instead of sharing the current result");
+    require(settings.load("host", "game") == saved && values.value("encoderBackend") == "nvenc", "refusal changed saved codec or stream preferences");
+}
+
+void testPyrowaveReviewStaleWorker() {
+    QTemporaryDir directory;
+    DeckPlaySettings settings(directory.filePath("stale-review.ini"));
+    settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+    ChangedPyrowaveDevice device;
+    Barrier oldReview;
+    settings.setPyrowaveProbe([&] {
+        const int review = ++device.reviews;
+        const auto result = device.probe();
+        if (review == 1) oldReview.wait(); // Old success is already out of the shared cache.
+        return result;
+    });
+    const auto values = reviewedPyrowave();
+    settings.streamPlan(values, pyrowaveHost, {});
+    until([&] { return oldReview.entered.load(); });
+    device.device = 1;
+    Host host; Driver driver;
+    host.pyrowaveProbe = [&] { return device.probe(); };
+    host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        nova::deck::DeckStreamCapabilities result; result.pyrowave = true; return result;
+    };
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    connectPyrowaveReview(controller, settings);
+    require(controller.startConfigured("host", "game", values), "stale-worker launch was not reviewed");
+    settled(controller);
+    require(settings.videoSupportRevision() == 1, "launch refusal did not invalidate the in-flight review");
+    oldReview.release();
+    // Repeated explicit reviews must stay refused while the old worker ends and
+    // the new generation consumes the shared, current keyed result.
+    until([&] {
+        const auto plan = settings.streamPlan(values, pyrowaveHost, {});
+        require(!plan.value("playable").toBool(), "stale review completion reinstalled old decoder support");
+        return plan.value("reason") == controller.state().value("copy");
+    });
+    require(device.reviews == 2 && device.children == 2, "stale review blocked the next current keyed review");
+}
+
+void testPyrowaveReviewCancellation() {
+    QTemporaryDir directory;
+    DeckPlaySettings settings(directory.filePath("cancel-review.ini"));
+    settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
+    const auto values = reviewedPyrowave();
+    require(settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "cancellation fixture lacks reviewed support");
+    Host host; Driver driver; Barrier check;
+    host.pyrowaveProbe = [&] { check.wait(); return DeckPyrowaveProbeResult{{}, "changed device refusal"}; };
+    host.verifyStream = [](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        nova::deck::DeckStreamCapabilities result; result.pyrowave = true; return result;
+    };
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    connectPyrowaveReview(controller, settings);
+    require(controller.startConfigured("host", "game", values), "cancelled PyroWave launch not accepted");
+    until([&] { return check.entered.load(); });
+    controller.stop(); check.release(); settled(controller);
+    require(phase(controller) == "cancelled" && settings.videoSupportRevision() == 0 &&
+        settings.streamPlan(values, pyrowaveHost, {}).value("playable").toBool(), "cancelled probe published a stale refusal");
+    require(host.launches == 0 && driver.starts == 0, "cancelled probe reached host launch");
+}
+#endif
 
 void testReviewedConfiguration() {
     Host host;
@@ -461,12 +620,13 @@ void testStreamCapabilitiesAtLaunch() {
 
 void testVideoCodecAtLaunch() {
     // Fresh local decode, catalog and serverinfo checks precede host mutation.
-    for (int scenario = 0; scenario < 8; ++scenario) {
+    for (int scenario = 0; scenario < 9; ++scenario) {
         Host host;
         Driver driver;
         host.verifyStream = [&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
             nova::deck::DeckStreamCapabilities capabilities;
             capabilities.hevc = true;
+            capabilities.pyrowave = true;
             if (scenario == 1) capabilities.hevc = false;
             if (scenario == 7) capabilities.h264 = false;
             return capabilities;
@@ -478,18 +638,19 @@ void testVideoCodecAtLaunch() {
         if (scenario == 6) host.expectedGame = "space.worker";
         DeckNativeSessionController controller(true, host.resolver(), driver);
         auto values = DeckPlayConfiguration{}.toMap();
-        values["videoCodec"] = scenario == 5 ? "auto" : "hevc";
+        values["videoCodec"] = scenario == 8 ? "h264" : scenario == 5 ? "auto" : "hevc";
         require(controller.startConfigured("host", host.expectedGame, values), "codec review not accepted");
-        const bool allowed = scenario == 0 || scenario == 5 || scenario == 7;
+        const bool allowed = scenario == 0 || scenario == 5 || scenario == 7 || scenario == 8;
         if (allowed) {
             until([&] { return phase(controller) == "active"; });
-            require(driver.receivedConfiguration.supportedVideoFormats == (scenario == 5 ? VIDEO_FORMAT_H264 : VIDEO_FORMAT_H265),
+            require(driver.receivedConfiguration.supportedVideoFormats == (scenario == 5 || scenario == 8 ? VIDEO_FORMAT_H264 : VIDEO_FORMAT_H265),
                 "reviewed codec did not reach Moonlight negotiation");
             require(!(driver.receivedConfiguration.supportedVideoFormats & VIDEO_FORMAT_MASK_10BIT) &&
                 driver.receivedConfiguration.colorSpace == COLORSPACE_REC_709, "SDR selected HDR negotiation");
             controller.stop();
         }
         settled(controller);
+        require(host.pyrowaveChecks == 0, "ordinary codec launch ran the PyroWave probe");
         if (!allowed) require(host.launches == 0 && host.resumes == 0 && host.cancels == 0 && driver.starts == 0,
             "unsupported/stale codec mutated host or started transport");
     }
@@ -664,6 +825,245 @@ void testFailures() {
     }
 }
 
+
+void testEndRequestCopy(const QString& outcome) {
+    require(outcome == "accepted" || outcome == "refused" || outcome == "transport" || outcome == "pending",
+        "unknown End request copy case");
+    Host host; Driver driver; host.driver = &driver;
+    host.refuseCancel = outcome == "refused";
+    host.failCancelTransport = outcome == "transport";
+    driver.blockStart = outcome == "pending";
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    require(controller.start("host", "game"), "End request fixture did not start");
+    if (driver.blockStart) until([&] { return driver.startBarrier.entered.load(); });
+    else until([&] { return phase(controller) == "active"; });
+    controller.stop(); controller.stop(); controller.closeSession();
+    settled(controller);
+    require(phase(controller) == (driver.blockStart ? "cancelled" : "stopped"),
+        "End request copy changed the terminal phase");
+    require(host.launches == 1 && host.resumes == 0 && host.cancels == 1 && host.requests == 3 &&
+        driver.starts == 1 && driver.stops == 1 && driver.startThread == driver.stopThread,
+        "End request copy changed first-exit, cancellation, transport ownership or added an idle query");
+    const auto copy = controller.state().value("copy").toString();
+    require(!copy.contains("Game ended."), "cancel admission claimed verified game shutdown");
+    require(copy.startsWith(driver.blockStart ? "Stream cancelled." : "Stream ended."),
+        "End request copy lost completed stream or pending cancellation semantics");
+    if (outcome == "accepted") {
+        require(copy.contains("The PC accepted your request to end the game."),
+            "accepted cancel admission lost its request-only distinction");
+    } else if (outcome == "pending") {
+        require(copy.contains("The PC accepted the host cleanup request."),
+            "pending cancellation lost the actual cleanup admission");
+    } else {
+        require(copy.contains("not confirmed") && !copy.contains("The PC accepted"),
+            "refused or lost End request claimed host acceptance");
+    }
+    const auto publicJson = QJsonDocument::fromVariant(controller.state()).toJson();
+    require(!publicJson.contains("private-token") && !publicJson.contains("192.0.2.10"),
+        "End request status leaked private session material");
+}
+
+
+#ifdef NOVA_DECK_QML_DIRECTORY
+void guiRequire(bool ok, const char* message) {
+    if (!ok) throw std::runtime_error(message);
+}
+template<typename Predicate> void guiUntil(Predicate predicate, int timeoutMs=3000) {
+    QElapsedTimer deadline; deadline.start();
+    while (!predicate() && deadline.elapsed()<timeoutMs) { QCoreApplication::processEvents(); QThread::msleep(1); }
+    guiRequire(predicate(),"timed out waiting for GUI native session");
+}
+// Optional synthetic Qt captures are controller/geometry proof only, not a
+// physical stream, decoder, controller or pairing acceptance check.
+void captureFailure(QQuickWindow& window, const QString& scenario, const QVariantMap& state) {
+    const auto directory = qEnvironmentVariable("NOVA_DECK_FAILURE_CAPTURE_DIR");
+    if (directory.isEmpty()) return;
+    QDir().mkpath(directory);
+    for (int tick=0; tick<10; ++tick) { QCoreApplication::processEvents(); QThread::msleep(10); }
+    guiRequire(window.grabWindow().save(directory+"/"+scenario+".png"),"synthetic failure capture failed");
+    auto receipt=state; receipt["syntheticFixture"]=true; receipt["width"]=window.width(); receipt["height"]=window.height();
+    QFile file(directory+"/"+scenario+".json");
+    guiRequire(file.open(QIODevice::WriteOnly),"failure capture receipt failed");
+    file.write(QJsonDocument::fromVariant(receipt).toJson());
+}
+// The same native worker, real GUI state publication and production QML that
+// standalone uses. Only the host HTTP and moonlight driver are synthetic.
+void testNamedFailureGui(const QString& scenario) {
+    Host host; Driver driver; host.driver = &driver;
+    const bool pyrowave = scenario.startsWith("pyro-") || scenario=="host-capability-launch";
+    const QString captureWords="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
+    if (pyrowave) {
+        host.decoderSupport.pyrowave={1920,1200};
+        host.serverInfoOverride="<root status_code=\"200\"><appversion>7.1.431.0</appversion>"
+            "<ServerCodecModeSupport>8388609</ServerCodecModeSupport></root>";
+        host.verifyStream=[&](const auto&) -> std::optional<nova::deck::DeckStreamCapabilities> {
+            nova::deck::DeckStreamCapabilities caps;
+            caps.pyrowave=scenario!="host-capability-launch";
+            caps.pyrowaveUnavailableReason="fp16_capture";
+            caps.pyrowaveUnavailableMessage=captureWords.toStdString();
+            return caps;
+        };
+    }
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    QTemporaryDir preferences;
+    DeckPlaySettings settings(preferences.filePath("play.ini"));
+    settings.setVideoDecodeSupport(host.decoderSupport);
+    qmlRegisterType<DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty("testSession", &controller);
+    engine.rootContext()->setContextProperty("testSettings", &settings);
+    QQmlComponent component(&engine);
+    const QByteArray imports = "import QtQuick\nimport QtQuick.Controls\nimport \"" +
+        QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n";
+    component.setData(imports + R"(
+        ApplicationWindow {
+            width:1280; height:800; visible:true
+            title:"Synthetic standalone failure route"
+            NativeStreamPreview {
+                session:testSession; settingsProvider:testSettings
+                hostId:"host"; gameId:"game"; hostName:"Living Room PC"; gameTitle:"Moonlit Harbor"
+            }
+
+        }
+    )", QUrl());
+    guiRequire(component.isReady(), qPrintable(component.errorString()));
+    std::unique_ptr<QObject> root(component.create());
+    guiRequire(root != nullptr, qPrintable(component.errorString()));
+    auto* window = qobject_cast<QQuickWindow*>(root.get());
+    auto* preview = root->findChild<QObject*>("native-stream-preview");
+    auto* play = root->findChild<QQuickItem*>("native-preview-action");
+    guiRequire(window && preview && play, "production standalone stream route missing");
+    if (pyrowave) {
+        guiRequire(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"PyroWave fixture choice failed");
+        // The review has an older advertised value; the worker must recheck.
+        preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",true}});
+    }
+    QMetaObject::invokeMethod(preview, "open");
+    guiUntil([&] { return play->isEnabled() && preview->property("opened").toBool(); });
+    if (scenario == "host-capability") {
+        const QString words="PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
+        preview->setProperty("streamCapabilities",QVariantMap{{"valid",true},{"h264",true},{"pyrowave",false},
+            {"pyrowaveUnavailableReason","fp16_capture"},{"pyrowaveUnavailableMessage",words}});
+        guiRequire(settings.saveChoice("host","game",{{"videoCodec","pyrowave"}}),"cannot choose capability-refused codec");
+        QMetaObject::invokeMethod(preview,"close"); QMetaObject::invokeMethod(preview,"open");
+        QCoreApplication::processEvents();
+        auto* setup=root->findChild<QObject*>("play-setup");
+        guiRequire(setup && setup->property("plan").toMap().value("reason")==words,
+            "host capture reason/message did not reach production Play Setup");
+        guiRequire(!play->isEnabled() && host.requests==0 && driver.starts==0,"unavailable PyroWave became playable");
+        return;
+    }
+    QString expected;
+    const bool cancelled = scenario=="cancelled-stage";
+    int stage = -1, error = 0;
+    const bool terminal = scenario.startsWith("term-") || scenario=="pyro-term-fatal";
+    const bool hostCapability = scenario=="host-capability-launch";
+    bool hostRefusal = scenario == "host-refusal";
+    if (scenario == "stage-platform") { stage=STAGE_PLATFORM_INIT; error=-12; expected="platform"; }
+    else if (scenario == "stage-name") { stage=STAGE_NAME_RESOLUTION; error=-2; expected="PC name"; }
+    else if (scenario == "stage-audio") { stage=STAGE_AUDIO_STREAM_START; error=-12; expected="audio decoder"; }
+    else if (scenario == "stage-rtsp") { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="RTSP handshake"; }
+    else if (scenario == "pyro-stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused PyroWave"; }
+    else if (hostCapability) { expected=captureWords; }
+    else if (scenario == "stage-refused") { stage=STAGE_RTSP_HANDSHAKE; error=503; expected="PC refused"; }
+    else if (scenario == "stage-control") { stage=STAGE_CONTROL_STREAM_START; error=-99; expected="control connection"; }
+    else if (scenario == "stage-video") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; }
+    else if (scenario == "stage-input-init") { stage=STAGE_INPUT_STREAM_INIT; error=-12; expected="game input setup"; }
+    else if (scenario == "stage-input") { stage=STAGE_INPUT_STREAM_START; error=-12; expected="game input"; }
+    else if (scenario == "unknown-stage") { stage=99; error=-7001; expected="unrecognized stage (stage 99, error -7001)"; }
+    else if (scenario == "mixed-stage-termination") { stage=STAGE_VIDEO_STREAM_START; error=-12; expected="video decoder"; driver.terminateAtStart=true; }
+    else if (cancelled) { stage=STAGE_RTSP_HANDSHAKE; error=-408; expected="Stream cancelled."; driver.blockStart=true; }
+    else if (scenario == "unknown-start") { driver.startReturnCode=-2222; expected="-2222"; }
+    else if (scenario == "term-graceful") { error=ML_ERROR_GRACEFUL_TERMINATION; expected="PC ended the stream"; }
+    else if (scenario == "term-no-video") { error=ML_ERROR_NO_VIDEO_TRAFFIC; expected="No video traffic"; }
+    else if (scenario == "term-no-frame") { error=ML_ERROR_NO_VIDEO_FRAME; expected="No complete video frame"; }
+    else if (scenario == "term-early") { error=ML_ERROR_UNEXPECTED_EARLY_TERMINATION; expected="shortly after"; }
+    else if (scenario == "term-protected") { error=ML_ERROR_PROTECTED_CONTENT; expected="protected content"; }
+    else if (scenario == "term-conversion") { error=ML_ERROR_FRAME_CONVERSION; expected="convert"; }
+    else if (scenario == "term-fatal" || scenario=="pyro-term-fatal") {
+        error=static_cast<int>(0x800e9403u); expected="PC refused this stream";
+        host.automaticReconnect=true; host.appUuid="game"; controller.setInputFocus(true);
+    }
+    else if (scenario == "term-unknown") { error=-7009; expected="-7009"; }
+    else if (hostRefusal) {
+        expected="PyroWave cannot read this HDR desktop. Choose HEVC or use a Private Stream.";
+        host.refuseLaunch=true;
+        host.refusalResponse="<root status_code=\"503\" status_message=\"" + expected.toStdString() +
+            "\" error_code=\"pyrowave_capture_unreadable\" error_action=\"Choose HEVC or use a Private Stream.\"><gamesession>0</gamesession></root>";
+    } else guiRequire(false, "unknown failure fixture");
+    driver.failStart = !terminal && !hostRefusal && !hostCapability;
+    driver.failedStage=stage; driver.failedStageCode=error;
+    guiRequire(QMetaObject::invokeMethod(play, "clicked"), "controller Play did not activate production QML");
+    if (cancelled) {
+        guiUntil([&] { return driver.startBarrier.entered.load(); });
+        controller.stop(); driver.startBarrier.release();
+    }
+    if (terminal) {
+        guiUntil([&] { return phase(controller)=="active"; });
+        driver.terminate(error);
+    }
+    guiUntil([&] { return !controller.busy(); });
+    captureFailure(*window,scenario,controller.state());
+    guiRequire(controller.state().value("copy").toString().contains(expected,Qt::CaseInsensitive),
+        qPrintable(QString("%1 lost named cause: %2").arg(scenario,controller.state().value("copy").toString())));
+    guiRequire(!controller.state().value("copy").toString().contains("preview",Qt::CaseInsensitive), "working app still calls failure a preview");
+    if (scenario=="stage-rtsp" || scenario=="term-no-video") {
+        guiRequire(controller.state().value("copy").toString().contains("47998") &&
+            controller.state().value("copy").toString().contains("48010"), "transport cause lost actionable port guidance");
+    }
+    if (scenario=="stage-refused" || scenario=="pyro-stage-refused" || hostRefusal || hostCapability) guiRequire(!controller.state().value("copy").toString().contains("47998"), "host refusal blames firewall ports");
+    const auto state=controller.state();
+    if (scenario=="stage-input-init")
+        guiRequire(!state.value("copy").toString().contains("controller",Qt::CaseInsensitive),"input-channel initialization invented a physical controller failure");
+    if (scenario=="term-fatal" || scenario=="pyro-term-fatal") {
+        const auto copy=state.value("copy").toString();
+        guiRequire(!copy.contains("capture",Qt::CaseInsensitive) && !copy.contains("HDR",Qt::CaseInsensitive),"reserved fatal code invented a specific refusal cause");
+    }
+    if (hostCapability) {
+        guiRequire(state.value("copy")==captureWords && state.value("failureSource")=="host-capability" && state.value("hostReason")=="fp16_capture",
+            "fresh native capability check lost exact host refusal");
+        guiRequire(host.requests==0 && driver.starts==0,"fresh unavailable capture started the transport");
+    } else if (cancelled) {
+        guiRequire(phase(controller)=="cancelled" && !state.contains("failureSource") && !state.contains("failedStageErrorCode"),"cancelled native failure exposed an error instead of cancellation");
+    } else if (hostRefusal) {
+        guiRequire(state.value("copy")==expected && state.value("hostReason")=="pyrowave_capture_unreadable" && state.value("hostStatusCode")==503,
+            "host refusal text or typed provenance was changed");
+        guiRequire(driver.starts==0 && host.cancels==0,"refused launch touched native transport or ended an unstarted game");
+    } else if (scenario=="term-graceful") {
+        guiRequire(phase(controller)=="stopped" && !state.contains("failureSource") && !state.value("canReconnect").toBool() && host.cancels==0,
+            "graceful termination invented a failure, recovery authority, or host cancellation");
+    } else if (terminal) {
+        guiRequire(state.value("failureSource")=="termination" && state.value("terminationErrorCode")==error,
+            "termination code/provenance did not reach GUI state");
+        guiRequire(state.value("canReconnect").toBool() && host.cancels==0,"named termination changed safe existing-game recovery");
+    } else {
+        guiRequire(state.value("failureSource")== (scenario=="unknown-start" ? "start" : "stage") && state.value("failedStage")==stage && state.value("failedStageErrorCode")==error &&
+            (scenario!="unknown-start" || state.value("connectionStartCode")==-2222),
+            "stage code/provenance did not reach GUI state");
+    }
+    bool drawn=false;
+    for (auto* item : root->findChildren<QQuickItem*>()) {
+        if (item->property("text").toString()==state.value("copy").toString() && item->isVisible() && item->width()>0 && item->height()>0) {
+            const auto pos=item->mapToScene({0,0});
+            drawn=pos.y()>=0 && pos.y()+item->height()<=window->height();
+        }
+    }
+    guiRequire(drawn,"native failure did not reach the visible production QML status label");
+    guiRequire(play->isEnabled(),"named failure stranded the controller action");
+    const auto json=QJsonDocument::fromVariant(state).toJson();
+    guiRequire(!json.contains("private-token") && !json.contains("192.0.2.10"),"failure diagnostics leaked private session material");
+    // The previous worker must settle before a new stream starts. Its published
+    // failure and typed host reason must not be carried into that generation.
+    driver.failStart=false; driver.blockStart=false; driver.terminateAtStart=false; host.refuseLaunch=false;
+    guiRequire(controller.start("host","game"),"next generation rejected after failure cleanup");
+    guiUntil([&] { return phase(controller)=="active"; });
+    QCoreApplication::processEvents();
+    guiRequire(phase(controller)=="active" && !controller.state().contains("failureSource") &&
+        !controller.state().contains("hostReason"),"old failure provenance contaminated next stream generation");
+    controller.stop(); guiUntil([&] { return !controller.busy(); });
+}
+#endif
+
 void testShutdownAndGlobalExclusion() {
     Host host;
     Driver driver;
@@ -724,7 +1124,7 @@ void testHudObserverDoesNotBlockInput() {
                     while (!stop()) QThread::msleep(1);
                     cancelled = true;
                 }
-                DeckHostTelemetry sample;
+                DeckHostTelemetry sample; sample.encoderCodec="h264";
                 sample.active = sample.owned = sample.authorityValid = true;
                 sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
                 sample.eventsHttpsPort = scenario == 3 ? 47990 : 0;
@@ -780,7 +1180,7 @@ void testDiagnosticsRefreshBoundary() {
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const auto& stop) {
             if (++reads > 1) { waiting = true; while (!stop()) QThread::msleep(1); cancelled = true; }
-            DeckHostTelemetry sample; sample.active = sample.owned = sample.authorityValid = true;
+            DeckHostTelemetry sample; sample.encoderCodec="h264"; sample.active = sample.owned = sample.authorityValid = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             return DeckPolarisResult<DeckHostTelemetry>{DeckPolarisRequestStatus::Ok, 200, {}, sample};
         }, [] { return true; }};
@@ -845,7 +1245,7 @@ void testLiveTuningSessionBoundary() {
     std::atomic<int> reads{0}, writes{0}; std::atomic<bool> entered{false}, cancelled{false};
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const std::function<bool()>&) {
-            DeckHostTelemetry sample;
+            DeckHostTelemetry sample; sample.encoderCodec="h264";
             sample.active = sample.owned = sample.authorityValid = sample.hostTuningAllowed = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             sample.generation = 41; sample.appSession = "fixture-session"; sample.livePresent = true;
@@ -884,7 +1284,7 @@ void testFixedBitrateSessionBoundary() {
     std::atomic<int> reads{0}, writes{0}; std::atomic<bool> entered{false}, cancelled{false};
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const std::function<bool()>&) {
-            DeckHostTelemetry sample;
+            DeckHostTelemetry sample; sample.encoderCodec="h264";
             sample.active = sample.owned = sample.authorityValid = sample.hostTuningAllowed = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             sample.generation = 41; sample.appSession = "fixture-session"; sample.livePresent = true;
@@ -926,7 +1326,7 @@ void testSyncProfileSessionBoundary() {
     std::atomic<int> reads{0}, writes{0}; std::atomic<bool> entered{false}, cancelled{false};
     host.hostTelemetry = [&]() -> std::optional<DeckHudHostTarget> {
         return DeckHudHostTarget{[&](const std::function<bool()>&) {
-            DeckHostTelemetry sample;
+            DeckHostTelemetry sample; sample.encoderCodec="h264";
             sample.active = sample.owned = sample.authorityValid = sample.hostTuningAllowed = true;
             sample.role = "owner"; sample.gameId = 17; sample.gameUuid = "private-game"; sample.sessionToken = "private-token";
             sample.generation = 41; sample.appSession = "fixture-session"; sample.livePresent = true;
@@ -1391,7 +1791,7 @@ void testAutomaticReconnectCancellation() {
 }
 
 void testAutomaticReconnectRefusals() {
-    for (int scenario = 0; scenario < 9; ++scenario) {
+    for (int scenario = 0; scenario < 10; ++scenario) {
         Host host;
         Driver driver;
         host.driver = &driver;
@@ -1409,7 +1809,7 @@ void testAutomaticReconnectRefusals() {
         if (scenario == 4) host.serverInfoOverride = ownedRunningGame("17", "private-token", "0");
         if (scenario == 5) host.automaticReconnect = false;
         driver.terminate(scenario == 6 ? ML_ERROR_PROTECTED_CONTENT : scenario == 7 ? ML_ERROR_FRAME_CONVERSION
-            : scenario == 8 ? ML_ERROR_GRACEFUL_TERMINATION : -7);
+            : scenario == 8 ? ML_ERROR_GRACEFUL_TERMINATION : scenario == 9 ? static_cast<int>(0x800e9403u) : -7);
         settled(controller);
         require(host.resumes == 0 && host.cancels == 0 && driver.starts == 1 && driver.stops == 1,
             "unsafe or nonrecoverable state automatically reconnected");
@@ -2105,11 +2505,28 @@ int main(int argc, char** argv) {
     require(deckSupportReportDirectory().startsWith(settingsDirectory.path()+"/"), "support report destination is not isolated");
     QCoreApplication::setOrganizationName("NovaDeckTests");
     QCoreApplication::setApplicationName("NativeSession");
+    #ifdef NOVA_DECK_QML_DIRECTORY
+    if (const auto index=app.arguments().indexOf("--failure-copy"); index>=0) {
+        require(index+1<app.arguments().size(),"missing failure case");
+        try { testNamedFailureGui(app.arguments().at(index+1)); return 0; }
+        catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
+    }
+#endif
+    if (const auto index = app.arguments().indexOf("--end-request-copy"); index >= 0) {
+        require(index + 1 < app.arguments().size(), "missing End request copy case");
+        testEndRequestCopy(app.arguments().at(index + 1)); return 0;
+    }
     if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (app.arguments().contains("--pyrowave-review-refusal")) { testPyrowaveReviewRefresh(false); return 0; }
+    if (app.arguments().contains("--pyrowave-review-limits")) { testPyrowaveReviewRefresh(true); return 0; }
+    if (app.arguments().contains("--pyrowave-review-stale")) { testPyrowaveReviewStaleWorker(); return 0; }
+    if (app.arguments().contains("--pyrowave-review-cancelled")) { testPyrowaveReviewCancellation(); return 0; }
+#endif
     testNoAutomaticStartOrInvalidSelection();
     testPresentationLifetime();
     testReviewedConfiguration();
@@ -2140,6 +2557,7 @@ int main(int argc, char** argv) {
     testConnectionCancellation();
     testActiveStopRetryAndDisconnect();
     testFailures();
+    for (const auto* outcome : {"accepted", "refused", "transport", "pending"}) testEndRequestCopy(outcome);
     testShutdownAndGlobalExclusion();
     testDeadzoneSnapshotAndRelease();
     testForwardedInputAndFocus();

@@ -61,13 +61,13 @@ class NovaLaunchStreamOverrideTest {
         val raw = deterministicBlob()
         val state = NovaGameDetailOptimizationState(
             rawOptimization = raw,
-            profileSummary = buildNovaLaunchProfileSummary(raw),
+            profileSummary = buildTestLaunchProfileSummary(raw),
             preflightFailed = true,
             reviewRequired = true,
         )
         for (fps in listOf(120, 90, 60, null)) {
             val composed = NovaLaunchStreamOverride.compose(raw, null, fps, 1920, 1080, 60)
-            val preview = state.withLaunchProfileSummary(composed, (fps ?: 60).toDouble())
+            val preview = state.withLaunchProfileSummary(testLaunchProfileText(), composed, (fps ?: 60).toDouble())
             val summary = requireNotNull(preview.profileSummary)
             val expected = fps ?: 60
             assertEquals("Launch Quality profile · $expected FPS", summary.primaryLaunchLabel)
@@ -86,15 +86,15 @@ class NovaLaunchStreamOverrideTest {
         val chosenFps = effectiveFpsPin(60, "high_fps", 120f)
         val composed = NovaLaunchStreamOverride.compose(raw, choice("1280x720x120"), chosenFps, 1920, 1080, 120)
         val summary = requireNotNull(NovaGameDetailOptimizationState(rawOptimization = raw)
-            .withLaunchProfileSummary(composed, 60.0).profileSummary)
+            .withLaunchProfileSummary(testLaunchProfileText(), composed, 60.0).profileSummary)
         assertEquals("Launch Quality profile · 60 FPS", summary.primaryLaunchLabel)
         assertTrue(summary.selectedLine.contains("1280×720 @ 60 FPS"))
     }
 
     @Test
     fun absentLaunchPlanDoesNotRetainAnOldFrameRatePromise() {
-        val state = NovaGameDetailOptimizationState(profileSummary = buildNovaLaunchProfileSummary(deterministicBlob()))
-        assertNull(state.withLaunchProfileSummary(null, 120.0).profileSummary)
+        val state = NovaGameDetailOptimizationState(profileSummary = buildTestLaunchProfileSummary(deterministicBlob()))
+        assertNull(state.withLaunchProfileSummary(testLaunchProfileText(), null, 120.0).profileSummary)
     }
 
     @Test

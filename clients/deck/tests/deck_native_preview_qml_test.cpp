@@ -31,7 +31,9 @@
 
 namespace {
 void require(bool ok, const char* message) {
-    if (!ok) { std::cerr << message << '\n'; std::exit(1); }
+    // Failed assertions may leave Qt rendering threads active. Terminate the
+    // isolated fixture directly; success still exercises normal object teardown.
+    if (!ok) { std::cerr << message << '\n'; std::_Exit(1); }
 }
 void settle() {
     for (int tick = 0; tick < 10; ++tick) {
@@ -128,7 +130,39 @@ int main(int argc, char** argv) {
     };
     focused(*window, primary, "review must focus Play");
     require(primary->property("text") == "Play" && session.starts == 0, "review launched automatically");
+    if (app.arguments().contains("--parity-prelaunch-footer")) {
+        auto* back = root->findChild<QQuickItem*>("play-setup-back"); require(back, "prelaunch Back missing");
+        for (const QSize viewport : {QSize(400,800), QSize(800,1280), QSize(1280,800)}) {
+            window->resize(viewport); settle();
+            const auto playBounds = primary->mapRectToScene(primary->boundingRect());
+            const auto backBounds = back->mapRectToScene(back->boundingRect());
+            for (const auto bounds : {playBounds,backBounds})
+                require(bounds.left() >= 0 && bounds.right() <= window->width() && bounds.top() >= 0 && bounds.bottom() <= window->height(), "prelaunch footer escaped the actual viewport");
+            require(!playBounds.intersects(backBounds), "actual portrait Play and Back targets overlap");
+            primary->forceActiveFocus(); settle(); key(*window, Qt::Key_Left);
+            focused(*window, back, "prelaunch Left did not reach actual Back");
+            key(*window, Qt::Key_Right); focused(*window, primary, "prelaunch Right did not return to actual Play");
+        }
+        auto* summary = root->findChild<QQuickItem*>("play-setup-plan-summary");
+        auto* plan = root->findChild<QQuickItem*>("play-setup-plan");
+        require(summary && summary->isVisible() && plan && !plan->isVisible(), "prelaunch did not keep a compact plan with an explicit detail action");
+        const auto originalChoice = settings.load("fixture-host", "fixture-game");
+        summary->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
+        focused(*window, plan, "plan disclosure did not focus its actual reading pane");
+        require(plan->isVisible(), "plan disclosure omitted its actual facts");
+        require(QMetaObject::invokeMethod(preview, "leave"), "cannot route controller Back from the plan"); settle();
+        require(preview->property("opened").toBool() && !plan->isVisible(), "plan Back dismissed Play Setup instead of collapsing its details");
+        focused(*window, summary, "plan Back did not restore the disclosure target");
+        require(settings.load("fixture-host", "fixture-game") == originalChoice && session.starts == 0, "plan disclosure changed saved choices or launched");
+        primary->forceActiveFocus(); settle();
+        require(session.starts == 0, "footer traversal launched a session");
+        key(*window, Qt::Key_Left); key(*window, Qt::Key_Return);
+        require(!preview->property("opened").toBool() && session.starts == 0, "prelaunch Back did not close without launching");
+        std::cout << "Actual prelaunch footer geometry and controller Back passed\n"; return 0;
+    }
     screenshot("play-setup-defaults.png");
+    auto* planSummary = root->findChild<QQuickItem*>("play-setup-plan-summary");
+    require(planSummary, "missing production plan disclosure");
     // The legacy Space launcher can have the same game ID in two places.
     // Destination identity and readiness must independently invalidate review.
     auto* setup = root->findChild<QObject*>("play-setup");
@@ -327,6 +361,8 @@ int main(int argc, char** argv) {
     preview->setProperty("streamCapabilities", QVariantMap{{"h264", true}, {"maxFps", 30}});
     settle();
     key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "adjusted resolution did not reach the plan disclosure");
+    key(*window, Qt::Key_Up);
     focused(*window, primary, "supported adjusted plan did not restore Play navigation");
     key(*window, Qt::Key_Return);
     require(session.starts == 3 && session.selectedConfiguration.value("fps") == 30,
@@ -353,6 +389,9 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     require(rate->property("value") == "90 fps", "90 FPS choice was not applied to review");
     key(*window, Qt::Key_Up);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "rate did not return to resolution");
+    key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "resolution did not reach the plan disclosure");
     key(*window, Qt::Key_Up);
     focused(*window, primary, "fast-display settings did not return to Play");
     screenshot("display-90-play-setup.png");
@@ -384,7 +423,11 @@ int main(int argc, char** argv) {
     focused(*window, rate, "withdrawn rate left focus on an obsolete popup choice");
     require(!root->findChild<QObject*>("play-setup-picker")->property("opened").toBool(), "withdrawn rate left the picker open");
     key(*window, Qt::Key_Up);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "withdrawn rate did not return to resolution");
     key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "withdrawn rate did not reach the plan disclosure");
+    key(*window, Qt::Key_Up);
+    focused(*window, primary, "withdrawn rate did not return to Play");
     key(*window, Qt::Key_Return);
     require(session.starts == 5 && session.selectedConfiguration.value("fps") == 60, "fallback Play ignored displayed effective rate");
     // Reopen a complete active preview for pointer disconnect and a stale
@@ -729,6 +772,7 @@ int main(int argc, char** argv) {
 
     session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
         {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000}, {"codec", "PyroWave"},
+        {"bitrateUnitsMode","request"},{"maximumBitrateKbps",500000},{"suggestedBitrateKbps",201125},{"fresh",true},{"receivedBitrateKbps",18750},
         {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
     emit session.hudChanged(); settle();
     auto* bitrateAction = root->findChild<QQuickItem*>("native-live-bitrate");
@@ -741,6 +785,8 @@ int main(int argc, char** argv) {
     tuning->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateAction, "fixed bitrate row not reachable from tuning switch");
     const auto readyBitrate = session.tuning;
+    auto* useSuggested=bitratePopup->findChild<QQuickItem*>("live-bitrate-suggested");
+    require(useSuggested,"suggested controller action missing");
     session.tuning = {{"canSetBitrate", false}, {"hostRefreshing", true}, {"bitrateCopy", "Refreshing host state…"}};
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Return);
     focused(*window, bitrateAction, "event refresh moved bitrate row focus");
@@ -748,13 +794,17 @@ int main(int argc, char** argv) {
     session.tuning = readyBitrate; emit session.hudChanged(); settle();
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
     require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
+    key(*window,Qt::Key_Up);focused(*window,useSuggested,"suggestion unreachable by controller");key(*window,Qt::Key_Return);
+    require(bitratePopup->property("draftKbps")==201125 && session.bitrateWrites==0,"suggestion rounded advice or mutated host");
+    require(bitratePopup->findChild<QObject*>("live-bitrate-received")->property("text").toString().contains("18.8 Mbps"),"received payload line missing");
+    bitratePopup->setProperty("draftKbps",20000);key(*window,Qt::Key_Down);
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
-    require(bitratePopup->property("draftKbps") == 21000 && session.bitrateWrites == 0, "draft adjustment mutated host");
+    require(bitratePopup->property("draftKbps") == 30000 && session.bitrateWrites == 0, "draft adjustment mutated host");
     key(*window, Qt::Key_Down); focused(*window, bitrateApply, "Apply not reachable from increment");
     window->resize(1280, 800); settle(); screenshot("live-bitrate-review-1280.png");
     window->resize(960, 600); settle(); screenshot("live-bitrate-review-large-960.png");
     key(*window, Qt::Key_Return); key(*window, Qt::Key_Return);
-    require(session.bitrateWrites == 1 && session.requestedBitrate == 21000 && session.tuning.value("appliedBitrateKbps") == 20000,
+    require(session.bitrateWrites == 1 && session.requestedBitrate == 30000 && session.tuning.value("appliedBitrateKbps") == 20000,
         "Apply duplicated a mutation or optimistically painted requested bitrate");
     focused(*window, bitrateApply, "pending fixed bitrate lost controller focus");
     screenshot("live-bitrate-pending-960.png");
@@ -768,14 +818,14 @@ int main(int argc, char** argv) {
     focused(*window, bitrateAction, "picker Back lost Command Center row");
     key(*window, Qt::Key_Return);
     bitratePopup->setProperty("draftKbps", 300000); bitratePlus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
-    require(bitratePopup->property("draftKbps") == 300000, "picker exceeded upper bound");
+    require(bitratePopup->property("draftKbps") == 310000, "explicit host range was not used");
     session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrateKbps"] = 200000;
     session.tuning["bitrateRequestKbps"] = 300000;
     session.tuning["bitrateCopy"] = "Your 300 Mbps request wasn't confirmed. The PC reports a 200 Mbps target. Check the PC's bitrate limits and current settings.";
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateApply, "high-rate picker lost Apply focus");
     const auto rateLabels = bitratePopup->findChild<QObject*>("live-bitrate-applied")->property("text").toString();
-    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC target: 200 Mbps") &&
+    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC request budget: 200 Mbps") &&
         rateLabels.contains("Encoder applied: 200 Mbps"), "local request was conflated with the PC target or encoder acknowledgement");
     screenshot("live-bitrate-high-rate-large-960.png");
     require(bitrateApply->mapToScene(QPointF(0, bitrateApply->height())).y() <= window->height(), "high-rate feedback clipped with large text");
@@ -787,7 +837,7 @@ int main(int argc, char** argv) {
     QMouseEvent plusDown(QEvent::MouseButtonPress, plusPoint, window->mapToGlobal(plusPoint), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
     QMouseEvent plusUp(QEvent::MouseButtonRelease, plusPoint, window->mapToGlobal(plusPoint), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(window, &plusDown); QCoreApplication::sendEvent(window, &plusUp); settle();
-    require(bitratePopup->property("draftKbps") == 22000 && session.bitrateWrites == 1, "touch adjustment sent a mutation or failed");
+    require(bitratePopup->property("draftKbps") == 31000 && session.bitrateWrites == 1, "touch adjustment sent a mutation or failed");
     session.tuning["canSetBitrate"] = false; session.tuning["bitrateCopy"] = "This session doesn't allow host tuning.";
     emit session.hudChanged(); bitrateApply->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
     require(session.bitrateWrites == 1 && bitrateApply->property("text") == "Unavailable", "permission withdrawal allowed fixed-rate save");
@@ -854,6 +904,17 @@ int main(int argc, char** argv) {
     require(doctorPopup->property("page") == 2 && root->findChild<QObject*>("doctor-host-readings")->property("text").toString().contains("20.0Mbps"),
         "Session page lost separate applied bitrate");
     screenshot("doctor-session-large-960.png");
+    auto* limits = root->findChild<QObject*>("doctor-client-measurement-limits");
+    require(limits && limits->property("text").toString().contains("unavailable until fresh video sequence"), "absent loss presented as measured");
+    session.tuning["fresh"] = true; session.tuning["mediaLossFresh"] = true;
+    session.tuning["mediaLossSource"] = "Video frame sequence"; session.tuning["mediaLoss"] = "2.5%";
+    emit session.hudChanged(); settle();
+    require(limits->property("text").toString().contains("2.5% from video frame sequence gaps"), "Doctor lost measured loss provenance");
+    screenshot("doctor-client-loss-large-960.png");
+    session.tuning["mediaLossSource"] = "Control channel"; emit session.hudChanged(); settle();
+    require(limits->property("text").toString().contains("unavailable until fresh video sequence"), "control loss entered client media reading");
+    session.tuning["mediaLossSource"] = "Video frame sequence"; session.tuning["fresh"] = false; emit session.hudChanged(); settle();
+    require(limits->property("text").toString().contains("unavailable until fresh video sequence"), "stale loss remained visible");
     // Touch uses the same tab/refresh routes.
     const auto tap = [&](QQuickItem* item) {
         const auto point = item->mapToScene(QPointF(item->width()/2, item->height()/2));
@@ -1103,6 +1164,20 @@ int main(int argc, char** argv) {
         !setup->property("notice").toString().isEmpty() && setup->property("error").toString().isEmpty(),
         "retiring a launch mode reset the codec or failed to save");
 
+    // Per-app refusal outranks a mode which is generally available on the PC.
+    preview->setProperty("launchPolicy", QVariantMap{{"known", true}, {"hostDefault", "windowed_stream"},
+        {"followsHostDefault", false}, {"defaultAvailable", false},
+        {"unavailableReason", "The app's compositor is unavailable."}, {"allowed", QVariantList{}}});
+    settle();
+    require(!setup->property("launchModeAllowed").toBool(), "an explicitly unavailable app default remained accepted");
+    preview->setProperty("launchPolicy", QVariantMap{{"known", true}, {"hostDefault", "windowed_stream"},
+        {"followsHostDefault", false}, {"defaultAvailable", true}, {"allowed", QVariantList{"windowed_stream"}}});
+    settle();
+    require(setup->property("launchChoices").toList().front().toMap().value("label") == "App default",
+        "a fixed app pin was labelled Host default");
+    require(setup->property("planHeadline").toString() == "Private Stream (GPU-native)",
+        "a fixed private app pin was presented as Play on Desktop");
+
     // Hiding the two decorations must not hide menu access, diagnostics or
     // controller recovery. Exercise the actual Appearance controls at 130%/960.
     preview->setProperty("attempted", true);
@@ -1112,13 +1187,16 @@ int main(int argc, char** argv) {
     require(appearance && QMetaObject::invokeMethod(appearance, "open"), "cannot open stream appearance");
     settle();
     auto* buttonToggle = root->findChild<QQuickItem*>("appearance-command-center-button");
+    auto* menuOpacity = root->findChild<QQuickItem*>("appearance-menu-opacity");
     auto* hintToggle = root->findChild<QQuickItem*>("appearance-shortcut-hint");
     auto* hint = root->findChild<QQuickItem*>("native-controller-hint");
     auto* shortcut = root->findChild<QQuickItem*>("native-controller-shortcut");
-    require(buttonToggle && hintToggle && hint && shortcut, "missing stream overlay preferences");
+    require(buttonToggle && menuOpacity && hintToggle && hint && shortcut, "missing stream overlay preferences");
     buttonToggle->forceActiveFocus(); settle();
     screenshot("stream-appearance-large-960.png");
     key(*window, Qt::Key_Return);
+    key(*window, Qt::Key_Down);
+    focused(*window, menuOpacity, "button toggle lost D-pad path to menu opacity");
     key(*window, Qt::Key_Down);
     focused(*window, hintToggle, "button toggle lost D-pad path to shortcut toggle");
     key(*window, Qt::Key_Escape);
@@ -1129,6 +1207,8 @@ int main(int argc, char** argv) {
     require(session.controlsVisible(), "hidden touch button blocked menu access");
     QMetaObject::invokeMethod(appearance, "open"); settle();
     hintToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    key(*window, Qt::Key_Up);
+    focused(*window, menuOpacity, "shortcut toggle lost D-pad return path to menu opacity");
     key(*window, Qt::Key_Up);
     focused(*window, buttonToggle, "shortcut toggle lost D-pad return path");
     key(*window, Qt::Key_Escape);

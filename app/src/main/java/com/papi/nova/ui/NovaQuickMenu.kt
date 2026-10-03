@@ -1,23 +1,12 @@
 package com.papi.nova.ui
 
-import android.app.Dialog
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.os.Build
-import android.view.Gravity
 import android.view.HapticFeedbackConstants
-import android.view.KeyEvent
-import android.view.Window
-import android.view.WindowManager
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.ComposeView
-import androidx.core.view.WindowCompat
-import androidx.lifecycle.setViewTreeLifecycleOwner
+import android.view.View
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalView
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -28,85 +17,94 @@ import com.papi.nova.api.PolarisDoctorActionResult
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.input.GameInputDevice
 import com.papi.nova.binding.input.KeyboardTranslator
-import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.nvstream.NvConnection
+import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaPage
+import com.papi.nova.ui.panel.NovaPageScope
+import com.papi.nova.ui.panel.NovaSurfaces
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.DeviceUtils
-import com.papi.nova.utils.UiHelper
+import java.lang.ref.WeakReference
 import java.util.UUID
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * Stream quick menu with grouped sections for tuning, overlays, controls, and session actions.
+ * The Command Center: a panel at the start edge over the stream, or over the companion deck when
+ * [surfaces] belong to a companion display. Its root page is the session, Doctor, overlays,
+ * controls and quick keys; Mouse Mode, More Keys and More Controls are pages pushed inside it, so
+ * choosing one never closes the Command Center and B returns to the row that opened it.
  */
-class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
-    private var dialog: Dialog? = null
-    private var dismissWithMotion: (() -> Unit)? = null
+class NovaQuickMenu(
+    private val game: Game,
+    private val surfaces: NovaSurfaces = game.novaSurfaces,
+) : Game.GameMenuCallbacks {
+    /** The Command Center that is open, or was open last. */
+    private var session: MenuSession? = null
+    /** Where the root page's focus and scroll were when it last closed, for the next opening. */
+    private val rootPlace = NovaQuickMenuPlace()
     private val doctorActionLock = Any()
     private var doctorReceipt: DoctorActionReceipt? = null
     private var doctorReceiptScopeId: String? = null
     private var doctorReceiptValidatedScopeId: String? = null
+    /** A reading validated during this opening may stay visible while a later poll fails. */
+    private var doctorReceiptDisplayScopeId: String? = null
     private var doctorActionGeneration: Long = 0L
     private val doctorMenuRefreshRegistry = DoctorMenuRefreshRegistry()
     private val doctorActionPendingRegistry = DoctorActionPendingRegistry()
     private var doctorVerificationRunnable: Runnable? = null
+    /** The stream's runtime, where the Command Center's work runs. */
+    private val runtime = NovaCommandCenterRuntime.of(game)
+
+    /**
+     * One opening of the Command Center: the controller that opened it, for More Controls, and
+     * what the open pages lend the host code (their scope, for closing and waiting on the
+     * stream's focus, and a view in the panel window for snackbars).
+     */
+    private class MenuSession(val device: GameInputDevice?, val rootKey: String) {
+        var scope: NovaPageScope? = null
+        var bitrateJob: kotlinx.coroutines.Job? = null
+        var anchorRef: WeakReference<View>? = null
+        val anchor: View? get() = anchorRef?.get()
+    }
 
     override fun showMenu(device: GameInputDevice?) {
-        if (dialog?.isShowing == true) return
+        open(device, keysAsRoot = false)
+    }
+
+    /** Opens the Command Center on its Keys page, as the companion deck's Quick Keys does. */
+    fun showKeys() {
+        open(device = null, keysAsRoot = true)
+    }
+
+    private fun open(device: GameInputDevice?, keysAsRoot: Boolean) {
+        if (isMenuOpen()) return
         val menuValidationGeneration = doctorMenuRefreshRegistry.open()
         synchronized(doctorActionLock) {
             doctorReceiptValidatedScopeId = null
+            doctorReceiptDisplayScopeId = null
             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
             doctorVerificationRunnable = null
         }
 
-        val overlay = Dialog(game)
-        overlay.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val composeView = ComposeView(game)
-        composeView.setViewTreeLifecycleOwner(game)
-        composeView.setViewTreeSavedStateRegistryOwner(game)
-        composeView.setBackgroundColor(Color.TRANSPARENT)
-        composeView.isFocusable = true
-        composeView.isFocusableInTouchMode = true
-        overlay.setContentView(composeView)
-        // B, Back, and programmatic hides ask the drawer to slide out; it calls dismiss()
-        // when the motion lands. If composition is not running (paused activity, detached
-        // view) nothing would, so a fallback closes the dialog regardless.
-        val dismissMotionRequests = mutableIntStateOf(0)
-        fun requestDismissWithMotion() {
-            if (dialog !== overlay) return
-            dismissMotionRequests.intValue++
-            game.window.decorView.postDelayed({ if (dialog === overlay) dismiss() }, DISMISS_MOTION_FALLBACK_MS)
-        }
-        dismissWithMotion = { requestDismissWithMotion() }
-        overlay.setOnKeyListener { _, keyCode, event ->
-            when (keyCode) {
-                KeyEvent.KEYCODE_BUTTON_A -> {
-                    // Compose clickables activate for Center/Enter, while Android gamepads
-                    // report their primary action as BUTTON_A. Keep the translation local to
-                    // the modal so the same controller button still reaches the streamed game
-                    // once Command Center closes.
-                    composeView.dispatchKeyEvent(
-                        KeyEvent(
-                            event.downTime,
-                            event.eventTime,
-                            event.action,
-                            KeyEvent.KEYCODE_DPAD_CENTER,
-                            event.repeatCount,
-                            event.metaState,
-                            event.deviceId,
-                            event.scanCode,
-                            event.flags,
-                            event.source,
-                        ),
-                    )
-                    true
-                }
-                KeyEvent.KEYCODE_BUTTON_B -> {
-                    if (event.action == KeyEvent.ACTION_UP) requestDismissWithMotion()
-                    true
-                }
-                else -> false
-            }
-        }
-        overlay.setOnDismissListener {
+        val rootKey = if (keysAsRoot) CommandCenterPage.KeysKey else CommandCenterPage.RootKey
+        val menu = MenuSession(device, rootKey)
+        val commandClient = game.novaApiClient
+        val commandConnection = game.conn
+        session = menu
+        // The panel window keeps A, B and focus to itself and hands input back to the stream (or
+        // the deck) when it closes; what is left here is the Command Center's own teardown.
+        // The HUD's figures read through the panel's glass and collided with its title and header
+        // buttons, so the HUD steps away while the Command Center is open.
+        game.setNovaHudCovered(true)
+        fun onMenuClosed() {
+            menu.bitrateJob?.cancel()
+            game.setNovaHudCovered(false)
             game.cancelRuntimeTask("NovaQuickMenuLiveTuning")
             if (doctorMenuRefreshRegistry.close(menuValidationGeneration)) {
                 synchronized(doctorActionLock) {
@@ -114,30 +112,6 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
                     doctorVerificationRunnable = null
                 }
-            }
-            if (dialog === overlay) dialog = null
-            game.restoreStreamInputAfterModalDismissal()
-        }
-        overlay.setOnShowListener {
-            overlay.window?.apply {
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-                setDimAmount(0f)
-                setGravity(Gravity.START or Gravity.TOP)
-                decorView.setPadding(0, 0, 0, 0)
-                WindowCompat.setDecorFitsSystemWindows(this, false)
-                attributes = attributes.apply {
-                    x = 0
-                    y = 0
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                    }
-                }
-                setLayout(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT
-                )
-                decorView.systemUiVisibility = game.window.decorView.systemUiVisibility
             }
         }
 
@@ -150,9 +124,19 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         val apiClient = game.novaApiClient ?: getServerAddress()?.let {
             PolarisApiClient(game.applicationContext, it, getHttpsPort())
         }
+        // This opening's hold on the host's status, where every status read lands: the status
+        // the client has now, the last reading the host sent, whether the newest read failed, and
+        // whether the host is Polaris at all, known when the Command Center opens.
+        val host = NovaCommandCenterHostStatus(
+            api = apiClient,
+            registry = doctorMenuRefreshRegistry,
+            generation = menuValidationGeneration,
+            polarisServer = game::novaIsPolarisServer,
+            runtime = runtime,
+        )
         val prefs = PreferenceManager.getDefaultSharedPreferences(game)
 
-        var sessionStatus: PolarisSessionStatus? = null
+        val sessionStatus by host::status
         var capabilities: PolarisCapabilities? = null
         var adaptiveSupported = false
         var aiSupported = false
@@ -162,12 +146,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         var stabilityApplied = false
         var advancedTuningVisible = false
         var profileClearInProgress = false
-        var hostStateUnavailable = false
-        var liveTuningPending = false
+        var profileClearResult: String? = null
+        var diagnosticsCopied = false
+        // Results said in their rows' own captions for a moment, where snackbars had floated.
+        var launchPresetSaved = false
+        var launchPresetSaves = 0
         lateinit var scheduleDoctorVerification: (DoctorActionReceipt?) -> Unit
 
         fun menuValidationIsCurrent(): Boolean =
             doctorMenuRefreshRegistry.isCurrent(menuValidationGeneration)
+
+        // Whether this opening of the Command Center is still on screen.
+        fun menuShowing(): Boolean = showingNow(menu)
 
         fun syncSessionDerivedState() {
             adaptiveEnabled = sessionStatus?.liveTuning?.enabled ?: (sessionStatus?.tuning?.adaptiveBitrateEnabled == true || sessionStatus?.adaptiveBitrateEnabled == true)
@@ -178,6 +168,12 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         fun syncDoctorReceiptScope() {
             val status = sessionStatus
+            if (status == null) {
+                // A failed read grants no authority, but does not end the last observed session.
+                // Keep its receipt in place; action and verification paths still require validation.
+                synchronized(doctorActionLock) { doctorReceiptValidatedScopeId = null }
+                return
+            }
             val currentAppUuid = status?.gameUuid.orEmpty().ifBlank { getRunningGameUuid().orEmpty() }
             val authoritativeRecovery = status?.recoveryRecords
                 ?.firstOrNull { it.appUuid.equals(currentAppUuid, ignoreCase = true) && it.runId.isNotBlank() }
@@ -219,21 +215,19 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     nowEpochMs = System.currentTimeMillis()
                 )
                 doctorReceiptValidatedScopeId = nextScope
+                doctorReceiptDisplayScopeId = nextScope
             }
+        }
+
+        // What the page derives from each status the host sends.
+        host.derive = {
+            syncSessionDerivedState()
+            syncDoctorReceiptScope()
         }
 
         // All menu/receipt publication runs on Main. Async completions resolve
         // the current store there, so an earlier GET cannot replay old state.
-        fun publishCurrentSessionStatus(): Boolean {
-            return doctorMenuRefreshRegistry.runIfCurrent(menuValidationGeneration) {
-                apiClient?.withCurrentSessionStatus { current ->
-                    sessionStatus = current
-                    syncSessionDerivedState()
-                    syncDoctorReceiptScope()
-                    current != null
-                } ?: false
-            } ?: false
-        }
+        fun publishCurrentSessionStatus(): Boolean = host.publish()
 
         suspend fun acceptRefreshedSessionStatus(@Suppress("UNUSED_PARAMETER") refreshed: PolarisSessionStatus?): Boolean {
             var accepted = false
@@ -245,6 +239,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             status: PolarisSessionStatus,
             doctor: PolarisSessionStatus.DoctorStatus
         ): Boolean {
+            val tuningEnabled = status.liveTuning?.enabled ?: (status.tuning?.adaptiveBitrateEnabled == true || status.adaptiveBitrateEnabled == true)
+            if (!doctor.canExecuteWithLiveTuning(tuningEnabled)) return false
             val readOnlyRecheck = doctor.actionId in setOf("recheck_network", "recheck_pacing")
             val exactStreamScope = status.appSessionIdPresent &&
                 status.appSessionId.isNotBlank() && status.sessionGeneration > 0L &&
@@ -460,6 +456,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
         // Static per locale; built once per open instead of once per refresh.
         val quickKeys = NovaQuickMenuUiState.quickKeyActions(game)
+        // An opacity row shows its new value at once, while the preference every Nova surface
+        // reads is written once the player stops stepping through the presets.
+        var pendingHudOpacity: Int? = null
+        var pendingMenuOpacity: Int? = null
 
         fun buildState(): NovaQuickMenuUiState {
             val gameName = currentProfileGameName()
@@ -467,10 +467,14 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 context = game,
                 quickKeys = quickKeys,
                 status = sessionStatus,
+                polarisHost = host.polaris,
+                lastStatus = host.last,
+                commandKeysAllowed = game.canSendCommandKeys(),
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
-                hostStateUnavailable = hostStateUnavailable,
-                liveTuningPending = liveTuningPending,
+                hostStateUnavailable = host.unavailable,
+                liveTuningPending = host.liveTuning?.pending == true,
+                liveTuningUnconfirmed = host.liveTuning?.unconfirmed,
                 adaptiveSupported = adaptiveSupported,
                 aiSupported = aiSupported,
                 adaptiveEnabled = adaptiveEnabled,
@@ -479,13 +483,17 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 stabilityApplied = stabilityApplied,
                 advancedExpanded = advancedTuningVisible,
                 profileClearInProgress = profileClearInProgress,
+                profileClearResult = profileClearResult,
                 currentGameName = gameName,
                 currentGameUuid = currentGameUuid(),
                 profilePreference = currentProfilePreference(gameName),
+                launchPresetSaved = launchPresetSaved,
                 hudShowing = game.isNovaHudShowing(),
+                hudLeftPx = game.novaHudLeftPx,
+                hudPositionCorner = game.novaHudPositionCorner,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),
-                hudOpacityPercent = NovaHudPreferences.readOpacityPercent(prefs),
-                menuOpacityPercent = NovaMenuPreferences.readOpacityPercent(prefs),
+                hudOpacityPercent = pendingHudOpacity ?: NovaHudPreferences.readOpacityPercent(prefs),
+                menuOpacityPercent = pendingMenuOpacity ?: NovaMenuPreferences.readOpacityPercent(prefs),
                 perfOverlayEnabled = game.prefConfig.enablePerfOverlay,
                 onscreenControllerEnabled = game.prefConfig.onscreenController,
                 keyboardVisible = game.isKeyboardLayoutVisible,
@@ -500,23 +508,25 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 doctorReceipt = DoctorActionReceiptStore.visibleReceipt(
                     receipt = doctorReceipt,
                     activeScopeId = doctorReceiptScopeId,
-                    validatedScopeId = doctorReceiptValidatedScopeId
+                    validatedScopeId = doctorReceiptDisplayScopeId
                 )
-            )
+            ).let { state ->
+                (if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state)
+                    .copy(liveBitrate = game.novaLiveBitrate.state.value.let { picture ->
+                        if (game.novaApiClient === commandClient && game.conn === commandConnection) picture
+                        else picture.copy(rate = picture.rate.copy(canChange = false), reason = "Stream changed. Reopen Command Center")
+                    })
+            }
         }
 
-        var uiState by mutableStateOf(buildState())
-        fun refreshState() {
-            if (apiClient != null) apiClient.withCurrentSessionStatus { current ->
-                sessionStatus = current
-                hostStateUnavailable = current == null
-                syncSessionDerivedState()
-                syncDoctorReceiptScope()
-                uiState = buildState()
-            } else uiState = buildState()
-        }
+        // A flow, not one state read at the top: each part of the page collects the slice it
+        // shows, so a status refresh recomposes only what changed.
+        val uiState = MutableStateFlow(buildState())
+        host.redraw = { uiState.value = buildState() }
+        fun refreshState() = host.refresh()
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
+            if (!game.canSendCommandKeys()) return
             val quickKeys = when (actionId) {
                 NovaQuickMenuActionId.QUICK_ESC -> keys(KeyboardTranslator.VK_ESCAPE)
                 NovaQuickMenuActionId.QUICK_ALT_ENTER -> keys(KeyboardTranslator.VK_LMENU, KeyboardTranslator.VK_RETURN)
@@ -530,7 +540,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 else -> return
             }
             dismiss()
-            sendKeysWithFocus(quickKeys)
+            sendKeysWithFocus(quickKeys, commandClient, commandConnection)
         }
 
         fun doctorResultMessage(result: PolarisDoctorActionResult): String {
@@ -599,18 +609,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
                 game.runOnMainIfRuntimeActive {
                     doctorActionPendingRegistry.clearIfOwned(undoRequest.generation)
-                    val canPresentHere = menuValidationIsCurrent() && dialog === overlay && overlay.isShowing
+                    val canPresentHere = menuValidationIsCurrent() && menuShowing()
                     if (canPresentHere) {
                         if (result?.status == true && updated != null) {
                             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
                             doctorVerificationRunnable = null
-                            NovaSnackbar.showSuccess(game, doctorResultMessage(result), anchor = composeView)
+                            NovaSnackbar.showSuccess(game, doctorResultMessage(result), anchor = menu.anchor)
                         } else if (requestIsCurrent(undoRequest)) {
                             NovaSnackbar.showError(
                                 game,
                                 result?.error?.takeIf { it.isNotBlank() }
                                     ?: game.getString(R.string.nova_quick_menu_doctor_failed),
-                                anchor = composeView
+                                anchor = menu.anchor
                             )
                         }
                     }
@@ -622,7 +632,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
         fun presentDoctorResult(result: PolarisDoctorActionResult, receipt: DoctorActionReceipt?) {
             val message = doctorResultMessage(result)
             if (!result.status) {
-                NovaSnackbar.showError(game, message, anchor = composeView)
+                NovaSnackbar.showError(game, message, anchor = menu.anchor)
                 return
             }
             if ((sessionStatus?.canAdjustHostTuning == true ||
@@ -635,18 +645,18 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     activity = game,
                     message = message,
                     actionLabel = game.getString(R.string.nova_quick_menu_doctor_undo),
-                    anchor = composeView,
+                    anchor = menu.anchor,
                     onAction = { undoDoctorRun(receipt) }
                 )
             } else {
-                NovaSnackbar.showSuccess(game, message, anchor = composeView)
+                NovaSnackbar.showSuccess(game, message, anchor = menu.anchor)
             }
         }
 
         scheduleDoctorVerification = fun(receipt: DoctorActionReceipt?) {
             doctorVerificationRunnable?.let(game.window.decorView::removeCallbacks)
             doctorVerificationRunnable = null
-            if (!menuValidationIsCurrent() || dialog?.isShowing != true) return
+            if (!menuValidationIsCurrent() || !menuShowing()) return
             val client = apiClient ?: return
             val pending = receipt?.takeIf { it.verificationPending } ?: return
             val scopeIsValidated = synchronized(doctorActionLock) {
@@ -663,7 +673,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             val runnable = Runnable {
                 doctorVerificationRunnable = null
                 if (!menuValidationIsCurrent() ||
-                    dialog?.isShowing != true ||
+                    !menuShowing() ||
                     !requestIsCurrent(request) ||
                     !doctorActionPendingRegistry.begin(request.generation)
                 ) {
@@ -715,7 +725,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             doctorMenuRefreshRegistry.dispatch()
                             return@runOnMainIfRuntimeActive
                         }
-                        if (verification != null && updated != null && dialog?.isShowing == true) {
+                        if (verification != null && updated != null && menuShowing()) {
                             presentDoctorResult(verification, updated)
                         }
                         doctorMenuRefreshRegistry.dispatch()
@@ -726,8 +736,14 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             game.window.decorView.postDelayed(runnable, delayMs)
         }
 
+        host.afterCurrentReading = NovaDoctorVerificationResume(
+            scheduled = { doctorVerificationRunnable != null },
+            pending = doctorActionPendingRegistry::isPending,
+            schedule = { scheduleDoctorVerification(currentDoctorReceipt()) },
+        )::resumeIfIdle
+
         doctorMenuRefreshRegistry.attach(menuValidationGeneration) {
-            if (menuValidationIsCurrent() && dialog?.isShowing == true) {
+            if (menuValidationIsCurrent() && menuShowing()) {
                 scheduleDoctorVerification(currentDoctorReceipt())
                 refreshState()
             }
@@ -744,7 +760,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     latestDoctor.matchesExecutableActionIntent(doctor).not()
                 ) {
                     game.runOnMainIfRuntimeActive {
-                        if (menuValidationIsCurrent() && dialog?.isShowing == true) {
+                        if (menuValidationIsCurrent() && menuShowing()) {
                             refreshState()
                         }
                     }
@@ -763,7 +779,8 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     controllerRevision = latestDoctor.actionControllerRevision,
                     evidenceRevision = latestDoctor.actionEvidenceRevision,
                     requestId = request.requestId,
-                    confirmed = latestDoctor.requiresConfirmation
+                    confirmed = latestDoctor.requiresConfirmation,
+                    goalSource = latestDoctor.actionGoalSource
                 )
                 val readOnlySuccess = result?.let {
                     DoctorActionReceiptStore.successfulReadOnlyNewRunResult(request, it)
@@ -777,10 +794,10 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 game.runOnMainIfRuntimeActive {
                     doctorActionPendingRegistry.clearIfOwned(request.generation)
                     val canPresentHere = requestIsCurrent(request) &&
-                        menuValidationIsCurrent() && dialog === overlay && overlay.isShowing
+                        menuValidationIsCurrent() && menuShowing()
                     if (canPresentHere) {
                         if (result == null) {
-                            NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_doctor_failed), anchor = composeView)
+                            NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_doctor_failed), anchor = menu.anchor)
                         } else if (receipt != null) {
                             presentDoctorResult(result, receipt)
                         } else if (readOnlySuccess) {
@@ -790,13 +807,25 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                                 game,
                                 result.error.takeIf { it.isNotBlank() }
                                     ?: game.getString(R.string.nova_quick_menu_doctor_failed),
-                                anchor = composeView
+                                anchor = menu.anchor
                             )
                         }
                     }
                     doctorMenuRefreshRegistry.dispatch()
                 }
             }
+        }
+
+        // The Doctor card's A copies the details when there is nothing to run; the card's chip
+        // says Copied for a moment, where a floating Toast had said it.
+        fun copyDiagnostics() {
+            game.copyNovaHudDiagnostics()
+            diagnosticsCopied = true
+            refreshState()
+            game.window.decorView.postDelayed({
+                diagnosticsCopied = false
+                refreshState()
+            }, PROFILE_CLEAR_RESULT_SHOWN_MS)
         }
 
         fun runDoctorAction() {
@@ -807,20 +836,59 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 !canExecuteDoctorAction(status, doctor) ||
                 doctorActionPendingRegistry.isPending()
             ) {
-                game.copyNovaHudDiagnostics()
+                copyDiagnostics()
                 return
             }
             if (doctor.requiresConfirmation) {
                 // Legacy next-launch recovery confirmations are intentionally
                 // non-executable. Current Auto Fix actions are reversible
                 // same-stream changes and do not use this confirmation path.
-                game.copyNovaHudDiagnostics()
+                copyDiagnostics()
                 return
             }
             executeConfirmedDoctorAction(doctor, client)
         }
 
+        val sessionEnd = NovaCommandCenterEndSession(
+            polaris = { host.polaris },
+            status = { sessionStatus },
+            space = game::isSpaceSession,
+            standing = { menuValidationIsCurrent() && menuShowing() },
+            close = ::dismiss,
+            end = game::endSession,
+            disconnect = game::disconnect,
+            unavailable = { NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_host_session_unavailable), anchor = menu.anchor) },
+            ending = { NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_shutdown_already_running), anchor = menu.anchor) },
+        )
+
+        fun bitrateMenuCurrent(): Boolean = menuValidationIsCurrent() && menuShowing() &&
+            game.novaApiClient === commandClient && game.conn === commandConnection
+        val bitrateAction = game.novaBitrateAction(::bitrateMenuCurrent)
+        fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) =
+            bitrateAction(token, direction, kbps)
         val callbacks = NovaQuickMenuCallbacks(
+            onBitrateStep = { token, direction -> changeBitrate(token, direction = direction) },
+            onBitrateRecommended = { token -> changeBitrate(token) },
+            onBitrateExact = { picture ->
+                val rate = picture.rate
+                if (bitrateMenuCurrent() && rate.canChange && !rate.busy) {
+                    surfaces.panel.push(com.papi.nova.ui.panel.NovaCommonPage.Form(
+                        key = "stream-bitrate-exact", title = "Bitrate for this stream",
+                        fields = listOf(com.papi.nova.ui.panel.NovaField("kbps", "Bitrate (kbps)",
+                            rate.requestedKbps?.toString().orEmpty(), com.papi.nova.ui.panel.NovaFieldKind.Number)),
+                        submitLabel = "Apply for this stream",
+                        warning = "${rate.minimumKbps} to ${rate.maximumKbps} kbps",
+                        onSubmit = { values ->
+                            val value = values["kbps"]?.toIntOrNull()
+                            when {
+                                !bitrateMenuCurrent() || picture.token != game.novaLiveBitrate.state.value.token -> "Stream changed. Reopen Command Center"
+                                value == null || value !in rate.minimumKbps..rate.maximumKbps -> "Enter a bitrate within this range"
+                                else -> { changeBitrate(picture.token, kbps = value); null }
+                            }
+                        },
+                    ))
+                }
+            },
             onDismiss = { dismiss() },
             onDisconnect = {
                 haptic {
@@ -828,24 +896,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     game.disconnect()
                 }
             },
-            onEndStream = {
-                haptic {
-                    if (sessionStatus?.isViewer != true && sessionStatus?.isShuttingDown == true) {
-                        NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_shutdown_already_running), anchor = composeView)
-                        return@haptic
-                    }
-                    if (sessionStatus?.isViewer != true && sessionStatus?.canQuit == false) {
-                        NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_host_session_unavailable), anchor = composeView)
-                        return@haptic
-                    }
-                    dismiss()
-                    if (sessionStatus?.isViewer == true) {
-                        game.disconnect()
-                    } else {
-                        game.quit()
-                    }
-                }
-            },
+            onEndStream = { haptic(sessionEnd::perform) },
             onStability = {
                 haptic {
                     // This shortcut shares the same evidence-gated Doctor
@@ -859,7 +910,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     if (apiClient == null) return@haptic
                     if (sessionStatus?.syncStatus?.needsRelaunch == true) {
                         dismiss()
-                        NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_relaunching_sync), anchor = composeView)
+                        NovaSnackbar.show(game, game.getString(R.string.nova_quick_menu_relaunching_sync), anchor = menu.anchor)
                         game.relaunchStream()
                         return@haptic
                     }
@@ -871,25 +922,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                     }
                 }
             },
-            onLiveTuning = {
-                val observed = sessionStatus
-                if (apiClient != null && observed?.canAdjustHostTuning == true && !hostStateUnavailable && !liveTuningPending) {
-                    val desired = !(observed.liveTuning?.enabled ?: adaptiveEnabled)
-                    liveTuningPending = true
-                    refreshState()
-                    game.launchRuntimeIo("NovaLiveTuningSave") {
-                        val success = apiClient.setLiveTuningEnabled(desired, observed)
-                        apiClient.getSessionStatus()
-                        game.runOnMainIfRuntimeActive {
-                            if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
-                            liveTuningPending = false
-                            hostStateUnavailable = !publishCurrentSessionStatus()
-                            if (!success) NovaSnackbar.showError(game, "Settings changed or could not be confirmed. Review Live Tuning and try again.", anchor = composeView)
-                            refreshState()
-                        }
-                    }
-                }
-            },
+            // The state the split offered, not a flip of whatever the host says now; the result
+            // is said in the row's own caption (NovaLiveTuningSave).
+            onLiveTuning = host::switchLiveTuning,
             onToggleAdvanced = {
                 haptic {
                     advancedTuningVisible = !advancedTuningVisible
@@ -917,8 +952,16 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                                 false -> R.string.nova_library_reset_game_profile_empty
                                 null -> R.string.nova_library_reset_game_profile_failed
                             }
-                            NovaSnackbar.show(game, game.getString(message), anchor = composeView)
+                            // Said in the row's own caption, where the clear was asked for.
+                            val result = game.getString(message)
+                            profileClearResult = result
                             refreshState()
+                            game.window.decorView.postDelayed({
+                                if (profileClearResult == result) {
+                                    profileClearResult = null
+                                    refreshState()
+                                }
+                            }, PROFILE_CLEAR_RESULT_SHOWN_MS)
                         }
                     }
                 }
@@ -938,7 +981,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             game,
                             game.getString(R.string.nova_mangohud_warning_big_picture),
                             Snackbar.LENGTH_LONG,
-                            anchor = composeView
+                            anchor = menu.anchor
                         )
                     }
                     game.launchRuntimeIo("NovaQuickMenuMangoHud") {
@@ -949,24 +992,11 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                         game.runOnMainIfRuntimeActive {
                             if (!success) {
                                 mangoHudEnabled = !next
-                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_mangohud_failed), anchor = composeView)
+                                NovaSnackbar.showError(game, game.getString(R.string.nova_quick_menu_mangohud_failed), anchor = menu.anchor)
                             }
                             refreshState()
                         }
                     }
-                }
-            },
-            onProfilePreference = { preference ->
-                haptic {
-                    val gameName = currentProfileGameName() ?: return@haptic
-                    val gameUuid = currentGameUuid() ?: return@haptic
-                    AutoQualityProfilePreferences.save(game, gameUuid, gameName, preference)
-                    NovaSnackbar.showSuccess(
-                        game,
-                        game.getString(R.string.nova_quick_menu_profile_preference_saved),
-                        anchor = composeView
-                    )
-                    refreshState()
                 }
             },
             onQuickKey = { actionId ->
@@ -991,7 +1021,7 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             runDoctorAction()
                         }
                         NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> {
-                            game.copyNovaHudDiagnostics()
+                            copyDiagnostics()
                         }
                         else -> Unit
                     }
@@ -1001,6 +1031,19 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             onHudModeSelect = { mode ->
                 haptic {
                     game.setNovaHudMode(mode)
+                    refreshState()
+                }
+            },
+            onHudPreview = { previewing -> game.setNovaHudPreviewing(previewing) },
+            onHudPositionSelect = { corner ->
+                haptic {
+                    game.setNovaHudPosition(corner)
+                    refreshState()
+                }
+            },
+            onHudPositionReset = {
+                haptic {
+                    game.resetNovaHudPosition()
                     refreshState()
                 }
             },
@@ -1018,21 +1061,27 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 }
             },
             onHudOpacityChange = { percent ->
-                haptic {
+                pendingHudOpacity = percent
+                refreshState()
+                writeAfterSteps(HUD_OPACITY_WRITE) {
                     game.launchRuntimeIo("NovaQuickMenuHudOpacity") {
                         NovaHudPreferences.writeOpacityPercent(game, percent)
                         game.runOnMainIfRuntimeActive {
-                            refreshState()
+                            if (pendingHudOpacity == percent) pendingHudOpacity = null
+                            if (menuShowing()) refreshState()
                         }
                     }
                 }
             },
             onMenuOpacityChange = { percent ->
-                haptic {
+                pendingMenuOpacity = percent
+                refreshState()
+                writeAfterSteps(MENU_OPACITY_WRITE) {
                     game.launchRuntimeIo("NovaQuickMenuMenuOpacity") {
                         NovaMenuPreferences.writeOpacityPercent(game, percent)
                         game.runOnMainIfRuntimeActive {
-                            refreshState()
+                            if (pendingMenuOpacity == percent) pendingMenuOpacity = null
+                            if (menuShowing()) refreshState()
                         }
                     }
                 }
@@ -1041,12 +1090,9 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                 haptic {
                     when (actionId) {
                         NovaQuickMenuActionId.MOUSE_MODE -> {
-                            if (game.allowChangeMouseMode) {
-                                // Picking a mouse mode opens a dialog of its own, which needs the
-                                // screen and the touches the drawer is holding.
-                                dismiss()
-                                game.selectMouseMode(game)
-                            }
+                            // More than four modes, so a page pushed in this panel: it opens on
+                            // the current mode, and choosing one returns to this row.
+                            if (game.allowChangeMouseMode) surfaces.panel.push(mouseModePage { refreshState() })
                         }
                         NovaQuickMenuActionId.CONTROLLER -> {
                             // A setting, and nothing else wants the screen: the drawer stays open
@@ -1056,23 +1102,25 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             refreshState()
                         }
                         NovaQuickMenuActionId.KEYBOARD -> {
-                            // The keyboard layout covers the screen and takes every touch on it.
-                            dismiss()
-                            game.toggleFullKeyboard()
+                            // The keyboard layout covers the screen and takes every touch on it,
+                            // so it opens once the stream holds focus again.
+                            closeThenOnStream(menu) { game.toggleFullKeyboard() }
                         }
                         NovaQuickMenuActionId.PLAYERS -> {
                             // The menu takes every pad's buttons while it is open, so nobody
                             // could join; it closes and says what to do instead.
-                            dismiss()
-                            game.reassignPlayers()
-                            // Shown after the menu is gone: its view is detached by then, so
-                            // the snackbar lands on the stream instead of leaving with the menu.
-                            NovaSnackbar.show(
-                                game,
-                                game.getString(R.string.nova_quick_menu_players_reassigned),
-                                com.google.android.material.snackbar.Snackbar.LENGTH_LONG,
-                                anchor = composeView
-                            )
+                            closeThenOnStream(menu) {
+                                game.reassignPlayers()
+                                // Shown once the panel window is gone, so the snackbar lands
+                                // on the stream instead of leaving with the menu.
+                                // The panel's view is detached by then, so this falls back to the stream.
+                                NovaSnackbar.show(
+                                    game,
+                                    game.getString(R.string.nova_quick_menu_players_reassigned),
+                                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG,
+                                    anchor = menu.anchor
+                                )
+                            }
                         }
                         else -> Unit
                     }
@@ -1087,16 +1135,17 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
                             game.sendClipboard(true)
                         }
                         NovaQuickMenuActionId.ROTATE_SCREEN -> {
-                            // The rotation re-lays out everything under the drawer, and the drawer
+                            // The rotation re-lays out everything under the panel, and the panel
                             // with it. It closes so the menu is not resized mid-turn.
-                            dismiss()
-                            game.rotateScreen()
+                            closeThenOnStream(menu) { game.rotateScreen() }
                         }
                         NovaQuickMenuActionId.MORE_KEYS -> {
-                            // Opens the older menu, which is another surface over the stream.
-                            dismiss()
-                            val legacyMenu = com.papi.nova.GameMenu(game)
-                            legacyMenu.showMenu(device)
+                            // The key list itself, pushed in this panel; B comes back here.
+                            surfaces.panel.push(keysPage(menu, besideTheRoot = true))
+                        }
+                        NovaQuickMenuActionId.MORE_CONTROLS -> {
+                            // The legacy Quick Menu's extras, pushed in this panel.
+                            surfaces.panel.push(moreControlsPage(menu.device))
                         }
                         else -> Unit
                     }
@@ -1104,31 +1153,36 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
             }
         )
 
-        composeView.setContent {
-            NovaComposeTheme(menuOpacityPercent = uiState.menuOpacity.percent) {
-                NovaQuickMenuDrawer(
-                    state = uiState,
-                    callbacks = callbacks,
-                    dismissRequests = dismissMotionRequests.intValue
-                )
+        val root: NovaPage = if (keysAsRoot) keysPage(menu, besideTheRoot = false) else CommandCenterPage.Root(uiState.value.title)
+        surfaces.open(root, NovaEdge.Start) { page ->
+            // Every page lends its scope, for closing and then waiting on the stream's focus, and
+            // a view in the panel window, where snackbars about the menu belong.
+            val view = LocalView.current
+            SideEffect {
+                menu.scope = this
+                menu.anchorRef = WeakReference(view)
+            }
+            when (page) {
+                is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)
+                is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
+                else -> Unit
             }
         }
-
-        dialog = overlay
-        overlay.show()
-        overlay.window?.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-        composeView.post {
-            if (dialog === overlay && overlay.isShowing && !composeView.hasFocus()) {
-                composeView.requestFocus()
-            }
+        game.lifecycleScope.launch {
+            snapshotFlow { surfaces.panel.contains(rootKey) }.dropWhile { !it }.first { !it }
+            onMenuClosed()
         }
 
+        menu.bitrateJob = game.lifecycleScope.launch {
+            game.novaLiveBitrate.state.collect { if (menuValidationIsCurrent() && menuShowing()) refreshState() }
+        }
         if (apiClient != null) {
             game.launchReplacingRuntimeIo("NovaQuickMenuLiveTuning") {
                 apiClient.sessionStatusUpdates.collect {
                     game.runOnMainIfRuntimeActive {
                         if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
-                        hostStateUnavailable = !publishCurrentSessionStatus()
+                        publishCurrentSessionStatus()
                         refreshState()
                     }
                 }
@@ -1165,27 +1219,238 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
     }
 
     override fun hideMenu() {
-        dismissWithMotion?.invoke() ?: dismiss()
+        dismiss()
     }
 
     override fun isMenuOpen(): Boolean {
-        return dialog?.isShowing == true
+        val open = session ?: return false
+        return surfaces.panel.contains(open.rootKey)
     }
 
+    /** Closes the Command Center; the panel slides out and the window hands input back when it lands. */
     private fun dismiss() {
-        val activeDialog = dialog ?: return
-        // Relinquish the controller input window before removal. Some Android TV
-        // window managers otherwise leave the dismissed full-screen dialog as the
-        // input target until the Activity is recreated.
-        activeDialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-        activeDialog.dismiss()
-        dialog = null
-        dismissWithMotion = null
+        if (isMenuOpen()) surfaces.panel.close()
     }
 
-    private fun sendKeysWithFocus(keys: ShortArray) {
+    /**
+     * Closes the Command Center and runs [action] once the stream (or the deck) holds focus again,
+     * for actions that need the window they act on: a keyboard, a rotation, a player prompt.
+     */
+    private fun closeThenOnStream(menu: MenuSession, action: () -> Unit) {
+        val scope = menu.scope
+        if (scope != null && showingNow(menu)) {
+            scope.closeThen(awaitHostFocus = true, action = action)
+        } else {
+            dismiss()
+            action()
+        }
+    }
+
+    private fun showingNow(menu: MenuSession): Boolean = session === menu && isMenuOpen()
+
+    private val pendingWrites = HashMap<String, Runnable>()
+
+    /** Runs [write] once no new step has arrived for a moment, replacing a write still waiting. */
+    private fun writeAfterSteps(key: String, write: () -> Unit) {
+        val decor = game.window.decorView
+        pendingWrites.remove(key)?.let(decor::removeCallbacks)
+        val runnable = Runnable {
+            pendingWrites.remove(key)
+            write()
+        }
+        pendingWrites[key] = runnable
+        decor.postDelayed(runnable, SETTING_WRITE_DEBOUNCE_MS)
+    }
+
+    /**
+     * Mouse Mode at the Command Center's width: it opens on the current mode, one A applies a mode
+     * and pops, and the local cursor switches in its own row after the modes.
+     */
+    private fun mouseModePage(onChosen: () -> Unit): CommandCenterPage.MouseMode = NovaMouseModeChoices.page(
+        title = game.getString(R.string.nova_cc_mouse_mode),
+        options = game.mouseModeChoices(),
+        current = game.currentMouseModeChoice,
+        onChoose = { choice ->
+            game.chooseMouseMode(choice)
+            onChosen()
+        },
+        localCursor = NovaLocalCursorRow(
+            label = game.getString(R.string.nova_cc_local_cursor),
+            caption = game.getString(R.string.nova_cc_local_cursor_caption),
+            shown = game.isLocalCursorShown,
+            onChange = { shown ->
+                if (shown != game.isLocalCursorShown) game.chooseMouseMode(NovaMouseModeChoices.LocalCursor)
+                onChosen()
+            },
+        ),
+    )
+
+    /**
+     * The Keys page: the default special keys and the imported custom ones. Pushed from the
+     * Command Center, [besideTheRoot], it leaves out the keys the root already offers, so each key
+     * shows once; as the companion deck's own page it is the whole list.
+     */
+    private fun keysPage(menu: MenuSession, besideTheRoot: Boolean): CommandCenterPage.Keys {
+        val commandClient = game.novaApiClient
+        val commandConnection = game.conn
+        val defaults = if (PreferenceConfiguration.readPreferences(game).disableDefaultExtraKeys) {
+            emptyList()
+        } else {
+            NovaCommandCenterKeys.defaults(game).filterNot { besideTheRoot && it.key in NovaCommandCenterKeys.OnTheRoot }
+        }
+        val custom = NovaCommandCenterKeys.custom(game) { error ->
+            LimeLog.warning("Nova: Custom keys could not be read: ${error.message}")
+            NovaSnackbar.showError(game, game.getString(R.string.wrong_import_format), anchor = menu.anchor)
+        }
+        fun rows(keys: List<NovaCommandCenterKey>) = keys.map { key ->
+            if (key.key == NovaCommandCenterKeys.CLOSE_APP_KEY) {
+                // Alt + F4 closes the host's focused window, normally the game: never one A away (R3).
+                NovaMenuItem.Destructive(
+                    key = key.key,
+                    label = key.label,
+                    confirmLabel = game.getString(R.string.nova_cc_close_app),
+                    consequence = game.getString(R.string.nova_cc_alt_f4_consequence),
+                    onConfirm = { sendKeysWithFocus(key.codes, commandClient, commandConnection) },
+                )
+            } else {
+                NovaMenuItem.Action(key = key.key, label = key.label,
+                    onClick = { sendKeysWithFocus(key.codes, commandClient, commandConnection) })
+            }
+        }
+        val sections = buildList {
+            if (defaults.isNotEmpty()) add(CommandCenterSection(null, rows(defaults)))
+            if (custom.isNotEmpty()) add(CommandCenterSection(game.getString(R.string.nova_cc_custom_keys), rows(custom)))
+            if (isEmpty()) {
+                add(
+                    CommandCenterSection(
+                        null,
+                        listOf(
+                            NovaMenuItem.Action(
+                                key = "no-keys",
+                                label = game.getString(R.string.nova_cc_keys_empty),
+                                disabledReason = game.getString(R.string.nova_cc_keys_empty_reason),
+                                onClick = {},
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
+        return CommandCenterPage.Keys(game.getString(R.string.nova_quick_menu_special_keys), sections)
+    }
+
+    /** The host's server commands, each run once the stream holds focus again. */
+    private fun serverCommandsPage(): CommandCenterPage.ServerCommands {
+        val rows = game.serverCmds.mapIndexed { index, command ->
+            NovaMenuItem.Action(key = "server-command-$index", label = command, onClick = { game.sendExecServerCmd(index) })
+        }
+        return CommandCenterPage.ServerCommands(
+            game.getString(R.string.game_menu_server_cmd),
+            listOf(CommandCenterSection(null, rows)),
+        )
+    }
+
+    /**
+     * Every extra the legacy Quick Menu had and the Command Center's own rows do not: settings
+     * change in place, and actions that need the stream close the panel first.
+     */
+    private fun moreControlsPage(device: GameInputDevice?): CommandCenterPage.MoreControls {
+        val commandClient = game.novaApiClient
+        val commandConnection = game.conn
+        fun switch(key: String, label: Int, current: Boolean, apply: (Boolean) -> Unit) = NovaMenuItem.Value(
+            key = key,
+            label = game.getString(label),
+            options = listOf(
+                NovaOption(false, game.getString(R.string.nova_cc_off)),
+                NovaOption(true, game.getString(R.string.nova_cc_on)),
+            ),
+            current = current,
+            onChange = apply,
+        )
+        val serverCommands = if (game.serverCmds.isEmpty()) {
+            NovaMenuItem.Action(
+                key = "server-commands",
+                label = game.getString(R.string.game_menu_server_cmd),
+                disabledReason = game.getString(R.string.game_dialog_message_server_cmd_empty),
+                onClick = {},
+            )
+        } else {
+            NovaMenuItem.Opens(
+                key = "server-commands",
+                label = game.getString(R.string.game_menu_server_cmd),
+                page = ::serverCommandsPage,
+            )
+        }
+        val host = CommandCenterSection(
+            game.getString(R.string.nova_cc_host_section),
+            listOf(
+                serverCommands,
+                NovaMenuItem.Action(
+                    key = "fetch-clipboard",
+                    label = game.getString(R.string.nova_cc_fetch_clipboard),
+                    caption = game.getString(R.string.nova_cc_fetch_clipboard_caption),
+                    onClick = { game.getClipboard(0) },
+                ),
+                NovaMenuItem.Action(
+                    key = "task-manager",
+                    label = game.getString(R.string.nova_cc_task_manager),
+                    caption = game.getString(R.string.nova_cc_task_manager_caption),
+                    onClick = {
+                        sendKeysWithFocus(
+                            shortArrayOf(
+                                KeyboardTranslator.VK_LCONTROL.toShort(),
+                                KeyboardTranslator.VK_LSHIFT.toShort(),
+                                KeyboardTranslator.VK_ESCAPE.toShort(),
+                            ),
+                            commandClient,
+                            commandConnection,
+                        )
+                    },
+                ),
+            ),
+        )
+        val touch = CommandCenterSection(
+            game.getString(R.string.nova_cc_touch_section),
+            listOfNotNull(
+                NovaMenuItem.Action(
+                    key = "android-keyboard",
+                    label = game.getString(R.string.nova_cc_android_keyboard),
+                    caption = game.getString(R.string.nova_cc_android_keyboard_caption),
+                    onClick = { game.toggleKeyboard() },
+                ),
+                switch("zoom", R.string.nova_cc_zoom, game.isZoomModeEnabled) {
+                    if (it != game.isZoomModeEnabled) game.toggleZoomMode()
+                },
+                // For touch players only: without a touchscreen, or on a TV, there is nothing to press.
+                if (NovaTouchMenuButton.available(game)) {
+                    switch("floating-button", R.string.nova_cc_floating_button, game.isFloatingButtonVisible) {
+                        if (it != game.isFloatingButtonVisible) game.toggleFloatingButtonVisibility()
+                    }
+                } else {
+                    null
+                },
+                switch("special-keys-layout", R.string.nova_cc_special_keys_layout, game.isKeyboardControllerShown) {
+                    if (it != game.isKeyboardControllerShown) game.toggleKeyboardController()
+                },
+                switch("touch-sensitivity", R.string.nova_cc_touch_sensitivity, game.prefConfig.enableTouchSensitivity) {
+                    if (it != game.prefConfig.enableTouchSensitivity) game.switchTouchSensitivity()
+                },
+            ),
+        )
+        val controller = device?.getGameMenuOptions()?.takeIf { it.isNotEmpty() }?.let {
+            CommandCenterSection(game.getString(R.string.nova_cc_controller_section), it)
+        }
+        return CommandCenterPage.MoreControls(
+            game.getString(R.string.nova_cc_more_controls),
+            listOfNotNull(host, touch, controller),
+        )
+    }
+
+    private fun sendKeysWithFocus(keys: ShortArray, client: PolarisApiClient?, connection: NvConnection?) {
+        fun currentTarget() = game.novaApiClient === client && game.conn === connection && game.canSendCommandKeys()
+        if (!currentTarget()) return
         game.window.decorView.postDelayed({
-            if (!game.isFinishing) {
+            if (currentTarget()) {
                 game.sendKeys(keys)
             }
         }, KEY_UP_DELAY)
@@ -1228,8 +1493,32 @@ class NovaQuickMenu(private val game: Game) : Game.GameMenuCallbacks {
 
     companion object {
         private const val KEY_UP_DELAY = 25L
-        // Longer than the drawer's spring needs to settle; only reached if composition
-        // never ran the exit motion.
-        private const val DISMISS_MOTION_FALLBACK_MS = 450L
+        // A held Left or Right steps through presets faster than this; only the last one is written.
+        private const val SETTING_WRITE_DEBOUNCE_MS = 250L
+        /** How long Clear Game Profile's caption says what the clear did. */
+        private const val PROFILE_CLEAR_RESULT_SHOWN_MS = 4_000L
+        private const val HUD_OPACITY_WRITE = "hud-opacity"
+        private const val MENU_OPACITY_WRITE = "menu-opacity"
+    }
+}
+
+/**
+ * Where the Command Center's work runs: off the main thread, back on it while the stream stands,
+ * and on it after a delay. The stream's own runtime in the app; a test's own in a test.
+ */
+internal interface NovaCommandCenterRuntime {
+    fun launchIo(name: String, block: suspend () -> Unit)
+    suspend fun onMain(block: () -> Unit)
+    fun postDelayed(delayMs: Long, block: () -> Unit)
+
+    companion object {
+        /** [game]'s own: its runtime tasks, its main thread while it runs, and its window. */
+        fun of(game: Game): NovaCommandCenterRuntime = object : NovaCommandCenterRuntime {
+            override fun launchIo(name: String, block: suspend () -> Unit) = game.launchRuntimeIo(name) { block() }
+            override suspend fun onMain(block: () -> Unit) = game.runOnMainIfRuntimeActive(block)
+            override fun postDelayed(delayMs: Long, block: () -> Unit) {
+                game.window.decorView.postDelayed(block, delayMs)
+            }
+        }
     }
 }

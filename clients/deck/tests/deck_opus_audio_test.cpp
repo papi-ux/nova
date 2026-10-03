@@ -40,7 +40,17 @@ int main(int argc, char** argv) {
         CHECK(audio.lifecycle().active);
         std::cout << "ready" << std::endl;
         if (controlled) CHECK(fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK) == 0);
+        const auto disconnectBegan = std::chrono::steady_clock::now();
+        const auto disconnectPhase = [&](const char* phase) {
+            if (disconnect) {
+                const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - disconnectBegan).count();
+                std::cerr << "audio_disconnect phase=" << phase << " elapsed_ms=" << elapsed
+                    << " pid=" << getpid() << std::endl;
+            }
+        };
         bool quit = false;
+        disconnectPhase("decode-loop-enter");
         for (int i = 0; i < (controlled ? 3600 : 400); ++i) {
             char command = 0;
             if (controlled && read(STDIN_FILENO, &command, 1) == 1 && command == 'q') { quit = true; break; }
@@ -57,10 +67,18 @@ int main(int argc, char** argv) {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
+        disconnectPhase("decode-loop-return");
+        disconnectPhase("before-stop-lifecycle-enter");
         const auto beforeStop = audio.lifecycle();
+        disconnectPhase("before-stop-lifecycle-return");
+        disconnectPhase("stop-enter");
         audio.stop();
+        disconnectPhase("stop-return");
+        disconnectPhase("cleanup-enter");
         audio.cleanup();
+        disconnectPhase("cleanup-return");
         const auto stats = audio.lifecycle();
+        disconnectPhase("after-stop-lifecycle-return");
         if (controlled) {
             CHECK(quit && !stats.active && !stats.outputReady && !stats.outputRecovering);
             const auto attempts = stats.audioRecoveryAttempts;
@@ -81,6 +99,7 @@ int main(int argc, char** argv) {
         CHECK(stats.submittedFrames <= stats.queuedFrames);
         CHECK(stats.decodeErrors == 0);
         CHECK(!stats.active && !stats.outputReady);
+        disconnectPhase("playback-assertions-passed");
         std::cout << "submittedFrames=" << stats.submittedFrames << '\n';
         // A failed next run cannot inherit the previous run's media counters.
         CHECK(audio.init(AUDIO_CONFIGURATION_STEREO, nullptr, nullptr, 0) < 0);

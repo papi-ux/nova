@@ -14,6 +14,12 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class StreamSyncManagerTest {
 
+    @Test fun trustedManualHostProfileAcceptsFourHundredButRejectsAboveFiveHundred() {
+        assertTrue(StreamSyncManager.hasTrustedResolvedProfile(deterministicOptimization(bitrateKbps=400000, fieldSource="paired_client")))
+        assertTrue(StreamSyncManager.hasTrustedResolvedProfile(deterministicOptimization(bitrateKbps=500000, fieldSource="paired_client")))
+        assertFalse(StreamSyncManager.hasTrustedResolvedProfile(deterministicOptimization(bitrateKbps=500001, fieldSource="paired_client")))
+    }
+
     private fun deterministicOptimization(
         preset: String = "auto",
         displayMode: String? = "1920x1080x60",

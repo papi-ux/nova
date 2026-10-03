@@ -9,7 +9,7 @@ import com.google.gson.reflect.TypeToken
 import com.papi.nova.LimeLog
 import java.io.File
 import java.io.FileReader
-import java.io.FileWriter
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
 
@@ -18,6 +18,14 @@ class ProfilesManager private constructor() {
     private var activeProfileId: UUID? = null
     private val listeners: MutableList<ProfileChangeListener> = ArrayList()
     private var appContext: Context? = null
+    internal var openProfileWriter: (File) -> FileOutputStream = { FileOutputStream(it) }
+    enum class SaveResult { SAVED, SUPERSEDED, FAILED }
+    private val snapshotLock = Any()
+    private val persistenceLock=Any()
+    private val persistenceRevision=java.util.concurrent.atomic.AtomicLong()
+    private val persistenceExecutor=java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread(task,"NovaProfileWriter").apply { isDaemon=true }
+    }
 
     fun load(context: Context?): Boolean {
         LimeLog.info("ArtemisProfile: Loading profile...")
@@ -42,6 +50,7 @@ class ProfilesManager private constructor() {
             if (!file.exists()) {
                 return true
             }
+            var migrated = false
             try {
                 FileReader(file).use { reader ->
                     val type = object : TypeToken<ProfilesData>() {}.type
@@ -49,11 +58,13 @@ class ProfilesManager private constructor() {
                     if (data?.profiles != null) {
                         profiles.clear()
                         for (profile in data.profiles.orEmpty()) {
+                            migrated = profile.migrateStreamOptions() || migrated
                             profiles[profile.getUuid()] = profile
                         }
                         activeProfileId = data.activeProfileId
                     }
                 }
+                if (migrated && !save(safeContext)) return false
             } catch (e: IOException) {
                 LimeLog.warning("ArtemisProfile: Failed to load profiles from file:$e")
                 e.printStackTrace()
@@ -68,36 +79,51 @@ class ProfilesManager private constructor() {
         return true
     }
 
-    fun save(context: Context?): Boolean {
-        if (context == null) {
-            return false
+    private fun snapshotForPersistence(candidate: SettingsProfile? = null): Pair<String, Long> = synchronized(snapshotLock) {
+        val snapshotProfiles = LinkedHashMap(profiles)
+        candidate?.let { snapshotProfiles[it.getUuid()] = it }
+        val data=ProfilesData().apply {
+            profiles=ArrayList(snapshotProfiles.values)
+            activeProfileId=this@ProfilesManager.activeProfileId
         }
+        Gson().toJson(data) to persistenceRevision.incrementAndGet()
+    }
 
+    private fun persistSnapshot(context: Context, snapshot: Pair<String, Long>): SaveResult = synchronized(persistenceLock) {
+        val (json, revision) = snapshot
+        if (revision != persistenceRevision.get()) return@synchronized SaveResult.SUPERSEDED
         try {
-            val dir = File(context.filesDir, PROFILES_DIR)
-            if (!dir.exists() && !dir.mkdirs()) {
-                return false
-            }
-            val file = File(dir, PROFILES_FILE)
-            try {
-                FileWriter(file).use { writer ->
-                    val data = ProfilesData()
-                    data.profiles = ArrayList(profiles.values)
-                    data.activeProfileId = activeProfileId
-                    Gson().toJson(data, writer)
-                }
-            } catch (e: IOException) {
-                LimeLog.warning("ArtemisProfile: Failed to save profiles to file:$e")
-                e.printStackTrace()
-                return false
-            }
-        } catch (e: Exception) {
-            LimeLog.warning("ArtemisProfile: Failed to save profiles:$e")
-            e.printStackTrace()
-            return false
+            val dir=File(context.filesDir,PROFILES_DIR)
+            check(dir.exists() || dir.mkdirs())
+            NovaProfileFile.write(File(dir,PROFILES_FILE), json, openProfileWriter)
+            if (revision == persistenceRevision.get()) SaveResult.SAVED else SaveResult.SUPERSEDED
+        } catch(error:Exception) {
+            LimeLog.warning("Nova: Could not save profiles: ${error.message}")
+            SaveResult.FAILED
         }
+    }
 
-        return true
+    fun save(context: Context?): Boolean {
+        if (context == null) return false
+        return persistSnapshot(context, snapshotForPersistence()) == SaveResult.SAVED
+    }
+
+    /** Publish an editor draft only after its own snapshot saved without being superseded. */
+    fun commit(context: Context, profile: SettingsProfile): Boolean {
+        // The editor still owns its mutable draft while IO runs. Capture a detached
+        // publication object, so later unsaved edits cannot become this write's receipt.
+        val captured = Gson().fromJson(Gson().toJson(profile), SettingsProfile::class.java)
+        val snapshot = snapshotForPersistence(captured)
+        if (persistSnapshot(context, snapshot) != SaveResult.SAVED) return false
+        val committed = synchronized(snapshotLock) {
+            if (snapshot.second != persistenceRevision.get()) false
+            else {
+                profiles[captured.getUuid()] = captured
+                true
+            }
+        }
+        if (committed) notifyListeners()
+        return committed
     }
 
     fun getProfiles(): MutableList<SettingsProfile> = ArrayList(profiles.values)
@@ -113,6 +139,24 @@ class ProfilesManager private constructor() {
         notifyListeners()
         saveIfPossible()
     }
+
+    /** Keep selection immediate; report this immutable snapshot's result on the writer thread. */
+    fun updateDeferred(profile: SettingsProfile, onSaved: (SaveResult) -> Unit = {}) {
+        val snapshot = synchronized(snapshotLock) {
+            profiles[profile.getUuid()] = profile
+            snapshotForPersistence()
+        }
+        notifyListeners()
+        val context=appContext ?: run { onSaved(SaveResult.FAILED); return }
+        // The snapshot lock is never held by disk IO. Revision checks under the IO lock
+        // serialize writers and prevent an older queued snapshot from replacing a newer one.
+        persistenceExecutor.execute {
+            val result = persistSnapshot(context, snapshot)
+            onSaved(result)
+        }
+    }
+
+    internal fun awaitDeferredWritesForTest() = persistenceExecutor.submit {}.get(5,java.util.concurrent.TimeUnit.SECONDS)
 
     fun delete(uuid: UUID?) {
         profiles.remove(uuid)

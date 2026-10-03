@@ -1,20 +1,15 @@
 package com.papi.nova.ui
 
 import android.app.Activity
-import android.os.Build
-import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaProblemBack
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaSurfaces
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,80 +20,56 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Overlay shown when the server's screen is locked.
- * Provides a tap-to-unlock button that calls the Polaris unlock API.
+ * The host's screen is locked: a full-screen state page over the stream. Unlock is focused and
+ * asks Polaris to unlock the host, so A does it; Not Now, which is also what B does, leaves the
+ * lock screen on the stream to sign in there, and the page stays away until the host locks again.
+ * B never unlocks: it carries on with the stream ([NovaProblemBack.Continue]).
+ * The page goes by itself when the host reports it unlocked.
  */
 class LockScreenOverlay(
     private val activity: Activity,
-    private val apiClient: PolarisApiClient
+    private val apiClient: PolarisApiClient,
 ) {
-    private var overlayView: View? = null
     @Volatile private var unlockInProgress = false
     private val fallbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var unlockJob: Job? = null
 
+    // Main thread only.
+    private var shown = false
+    private var setAsideUntilNextLock = false
+
     fun show() {
-        if (overlayView != null) return
-
         activity.runOnUiThread {
+            if (shown || setAsideUntilNextLock || !isActivityUsable()) return@runOnUiThread
+            shown = true
             unlockInProgress = false
-            val container = LinearLayout(activity).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                // Themed scrim: the active theme's window color at the overlay's old opacity,
-                // instead of a hardcoded black that ignored Portable Chrome and Miami.
-                val windowColor = NovaThemeManager.getWindowBackgroundColor(activity)
-                setBackgroundColor((windowColor and 0x00FFFFFF) or 0xEE000000.toInt())
-                setPadding(80, 80, 80, 80)
-                isClickable = true
-                isFocusable = true
-            }
-
-            val title = TextView(activity).apply {
-                text = activity.getString(R.string.nova_lock_overlay_locked)
-                textSize = 24f
-                setTextColor(NovaThemeManager.getTextPrimaryColor(activity))
-                gravity = Gravity.CENTER
-                setPadding(0, 0, 0, 40)
-            }
-            container.addView(title)
-
-            val unlockBtn = Button(activity).apply {
-                text = activity.getString(R.string.nova_lock_overlay_unlock)
-                textSize = 18f
-                setTextColor(NovaThemeManager.getTextPrimaryColor(activity))
-                background = NovaSheetChrome.createActionBackground(activity)
-                setOnClickListener {
-                    requestUnlock(this)
-                }
-            }
-            container.addView(unlockBtn)
-            container.setOnClickListener {
-                requestUnlock(unlockBtn)
-            }
-
-            val params = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-
-            val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-            rootView.addView(container, params)
-            container.bringToFront()
-            overlayView = container
-            // Controller-first: BUTTON_A should unlock immediately without a press spent
-            // establishing focus.
-            unlockBtn.requestFocus()
-
-            LimeLog.info("Nova: Lock screen overlay shown")
+            NovaSurfaces.of(activity).show(page(unlocking = false))
+            LimeLog.info("Nova: Lock screen page shown")
         }
     }
 
-    private fun requestUnlock(unlockBtn: Button) {
+    /**
+     * The page, with [failed] when the last unlock came to nothing: it says so in its own message,
+     * above Unlock, where the press was made. A Toast floated over the stream and was gone (X2).
+     */
+    private fun page(unlocking: Boolean, failed: Boolean = false): NovaStatePage.Problem {
+        val notNow = NovaAction(activity.getString(R.string.nova_stream_lock_not_now)) { setAside() }
+        return NovaStatePage.Problem(
+            key = PAGE_KEY,
+            title = activity.getString(R.string.nova_stream_lock_title),
+            message = activity.getString(if (failed) R.string.nova_lock_overlay_unlock_failed else R.string.nova_stream_lock_message),
+            primary = NovaAction(
+                activity.getString(if (unlocking) R.string.nova_lock_overlay_unlocking else R.string.nova_lock_overlay_unlock),
+            ) { requestUnlock() },
+            back = NovaProblemBack.Continue(notNow),
+            secondary = listOf(notNow),
+        )
+    }
+
+    private fun requestUnlock() {
         if (unlockInProgress) return
         unlockInProgress = true
-        unlockBtn.isEnabled = false
-        unlockBtn.text = activity.getString(R.string.nova_lock_overlay_unlocking)
+        NovaSurfaces.existing(activity)?.update(PAGE_KEY) { page(unlocking = true) }
         LimeLog.info("Nova: Requesting unlock...")
         unlockJob?.cancel()
         unlockJob = unlockScope().launch(Dispatchers.IO + CoroutineName("NovaUnlockScreen")) {
@@ -110,21 +81,26 @@ class LockScreenOverlay(
             }
 
             withContext(Dispatchers.Main.immediate) {
-                if (!isActivityUsable() || overlayView == null) {
+                if (!isActivityUsable() || !shown) {
                     return@withContext
                 }
                 if (unlocked) {
                     dismiss(cancelUnlock = false)
                 } else {
                     unlockInProgress = false
-                    unlockBtn.isEnabled = true
-                    unlockBtn.text = activity.getString(R.string.nova_lock_overlay_unlock)
-                    Toast.makeText(activity, R.string.nova_lock_overlay_unlock_failed, Toast.LENGTH_SHORT).show()
+                    NovaSurfaces.existing(activity)?.update(PAGE_KEY) { page(unlocking = false, failed = true) }
                 }
             }
         }
     }
 
+    /** Not Now: the page goes, and the host's lock screen stays on the stream until it unlocks. */
+    private fun setAside() {
+        setAsideUntilNextLock = true
+        takeDown()
+    }
+
+    /** The host unlocked, or the stream is ending; the next lock shows the page again. */
     fun dismiss() {
         dismiss(cancelUnlock = true)
     }
@@ -135,14 +111,17 @@ class LockScreenOverlay(
             unlockJob = null
         }
         activity.runOnUiThread {
-            unlockInProgress = false
-            val view = overlayView
-            overlayView = null
-            view?.let {
-                safeRemoveFromParent(it)
-                LimeLog.info("Nova: Lock screen overlay dismissed")
-            }
+            setAsideUntilNextLock = false
+            takeDown()
         }
+    }
+
+    private fun takeDown() {
+        unlockInProgress = false
+        if (!shown) return
+        shown = false
+        NovaSurfaces.existing(activity)?.dismiss(PAGE_KEY)
+        LimeLog.info("Nova: Lock screen page dismissed")
     }
 
     fun destroy() {
@@ -151,19 +130,14 @@ class LockScreenOverlay(
         fallbackScope.cancel()
     }
 
-    private fun safeRemoveFromParent(view: View) {
-        val parent = view.parent as? ViewGroup ?: return
-        parent.post {
-            val currentParent = view.parent as? ViewGroup
-            currentParent?.removeView(view)
-        }
-    }
-
     private fun unlockScope(): CoroutineScope =
         (activity as? LifecycleOwner)?.lifecycleScope ?: fallbackScope
 
-    private fun isActivityUsable(): Boolean =
-        !activity.isFinishing && (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 || !activity.isDestroyed)
+    private fun isActivityUsable(): Boolean = !activity.isFinishing && !activity.isDestroyed
 
-    val isShowing get() = overlayView != null
+    val isShowing get() = shown
+
+    private companion object {
+        const val PAGE_KEY = "nova-host-locked"
+    }
 }

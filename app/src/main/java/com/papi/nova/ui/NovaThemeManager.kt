@@ -24,6 +24,7 @@ object NovaThemeManager {
     private const val THEME_PSP = "psp"
     const val THEME_OLED = "oled"
     const val THEME_MIAMI = "miami"
+    const val THEME_DIRECTOR = "director"
     const val THEME_HIGH_CONTRAST = "high_contrast"
     const val THEME_MATERIAL_YOU = "material_you"
 
@@ -44,6 +45,8 @@ object NovaThemeManager {
             theme == THEME_OLED -> activity.setTheme(R.style.AppTheme_OLED)
             theme == THEME_MIAMI && isSettings -> activity.setTheme(R.style.SettingsTheme_Miami)
             theme == THEME_MIAMI -> activity.setTheme(R.style.AppTheme_Miami)
+            theme == THEME_DIRECTOR && isSettings -> activity.setTheme(R.style.SettingsTheme_Director)
+            theme == THEME_DIRECTOR -> activity.setTheme(R.style.AppTheme_Director)
             theme == THEME_HIGH_CONTRAST && isSettings -> activity.setTheme(R.style.SettingsTheme_HighContrast)
             theme == THEME_HIGH_CONTRAST -> activity.setTheme(R.style.AppTheme_HighContrast)
             theme == THEME_MATERIAL_YOU && isSettings -> activity.setTheme(R.style.SettingsTheme_MaterialYou)
@@ -117,7 +120,7 @@ object NovaThemeManager {
 
     private fun normalizeTheme(theme: String?): String {
         return when (theme) {
-            THEME_POLARIS, THEME_PORTABLE_CHROME, THEME_OLED, THEME_MIAMI, THEME_HIGH_CONTRAST, THEME_MATERIAL_YOU -> theme
+            THEME_POLARIS, THEME_PORTABLE_CHROME, THEME_OLED, THEME_MIAMI, THEME_DIRECTOR, THEME_HIGH_CONTRAST, THEME_MATERIAL_YOU -> theme
             THEME_PSP -> THEME_PORTABLE_CHROME
             else -> THEME_POLARIS
         }
@@ -135,6 +138,7 @@ object NovaThemeManager {
     fun isPortableChrome(context: Context): Boolean = getTheme(context) == THEME_PORTABLE_CHROME
     fun isOled(context: Context): Boolean = getTheme(context) == THEME_OLED
     fun isMiami(context: Context): Boolean = getTheme(context) == THEME_MIAMI
+    fun isDirector(context: Context): Boolean = getTheme(context) == THEME_DIRECTOR
     fun isHighContrast(context: Context): Boolean = getTheme(context) == THEME_HIGH_CONTRAST
     fun isMaterialYou(context: Context): Boolean = getTheme(context) == THEME_MATERIAL_YOU
 
@@ -143,7 +147,8 @@ object NovaThemeManager {
             THEME_POLARIS -> THEME_PORTABLE_CHROME
             THEME_PORTABLE_CHROME -> THEME_OLED
             THEME_OLED -> THEME_MIAMI
-            THEME_MIAMI -> THEME_HIGH_CONTRAST
+            THEME_MIAMI -> THEME_DIRECTOR
+            THEME_DIRECTOR -> THEME_HIGH_CONTRAST
             THEME_HIGH_CONTRAST -> if (isMaterialYouAvailable()) THEME_MATERIAL_YOU else THEME_POLARIS
             THEME_MATERIAL_YOU -> THEME_POLARIS
             else -> THEME_POLARIS
@@ -157,6 +162,7 @@ object NovaThemeManager {
             THEME_PORTABLE_CHROME -> context.getString(R.string.nova_theme_portable_chrome_label)
             THEME_OLED -> context.getString(R.string.nova_theme_oled_label)
             THEME_MIAMI -> context.getString(R.string.nova_theme_miami_label)
+            THEME_DIRECTOR -> context.getString(R.string.nova_theme_director_label)
             THEME_HIGH_CONTRAST -> context.getString(R.string.nova_theme_high_contrast_label)
             THEME_MATERIAL_YOU -> context.getString(R.string.nova_theme_material_you_label)
             else -> context.getString(R.string.nova_theme_polaris_label)
@@ -250,24 +256,108 @@ object NovaThemeManager {
         return resolveThemeColor(dynamicContext, attr, systemFallback)
     }
 
-    /** Returns the semantic error/destructive color for the active Android/Nova theme. */
+    /**
+     * Returns the semantic error/destructive color for text: the theme's red where it reads at
+     * 4.5:1 against the card and the focused surface, and the text colour where it does not. It is
+     * for words. A destructive fill takes [getDestructiveFillColor], which never falls back to the
+     * text colour.
+     */
     fun getErrorColor(context: Context): Int {
-        val candidate =
-            if (isPortableChrome(context)) {
-                ContextCompat.getColor(context, R.color.nova_portable_error)
-            } else {
-                resolveThemeColor(
-                    context,
-                    android.R.attr.colorError,
-                    ContextCompat.getColor(context, R.color.nova_error),
-                )
-            }
+        val candidate = themeErrorColor(context)
         val window = getWindowBackgroundColor(context)
         val card = ColorUtils.compositeColors(getCardBackgroundColor(context), window)
         val focused = ColorUtils.compositeColors(getAccentSurfaceColor(context), card)
         val readable = ColorUtils.calculateContrast(candidate, card) >= 4.5 &&
             ColorUtils.calculateContrast(candidate, focused) >= 4.5
         return if (readable) candidate else getTextPrimaryColor(context)
+    }
+
+    /**
+     * Returns the fill of an armed destructive action, such as the End or Delete half of a split
+     * confirm: the theme's own red, never the text colour [getErrorColor] falls back to. A fill
+     * does not have to read as text; its label reads on it (black or white, whichever contrasts
+     * more) and it must stand out from the panel and the tiles on it, at [MIN_FILL_CONTRAST] or
+     * more. Where the theme's red does not, on a light surface, it is the deep red
+     * nova_error_on_light.
+     */
+    fun getDestructiveFillColor(context: Context): Int = destructiveFillFor(
+        candidate = themeErrorColor(context),
+        deep = ContextCompat.getColor(context, R.color.nova_error_on_light),
+        surfaces = fillSurfaces(context),
+    )
+
+    /**
+     * Returns the accent for words, such as a primary button's label at rest on its tile: the
+     * theme's accent where it reads at 4.5:1 on the panel and a tile, each over the window, and
+     * otherwise the accent mixed toward the text colour in tenths until it does. Polaris Aurora's
+     * accent is 3.4:1 on its card, enough for an icon and a ring but not for a label.
+     */
+    fun getAccentTextColor(context: Context): Int =
+        readableAccentFor(getAccentColor(context), getTextPrimaryColor(context), fillSurfaces(context))
+
+    /** [accent], or the first tenth of the way toward [text] that reads at 4.5:1 on every one of [surfaces]. */
+    internal fun readableAccentFor(accent: Int, text: Int, surfaces: List<Int>): Int {
+        for (step in 0..10) {
+            val candidate = ColorUtils.setAlphaComponent(ColorUtils.blendARGB(accent, text, step / 10f), 255)
+            if (surfaces.all { ColorUtils.calculateContrast(candidate, ColorUtils.setAlphaComponent(it, 255)) >= 4.5 }) {
+                return candidate
+            }
+        }
+        return text
+    }
+
+    /** What a destructive fill sits on: the panel and a tile, each over the window. */
+    internal fun fillSurfaces(context: Context): List<Int> {
+        val window = getWindowBackgroundColor(context)
+        return listOf(
+            ColorUtils.compositeColors(getDialogBackgroundColor(context), window),
+            ColorUtils.compositeColors(getCardBackgroundColor(context), window),
+        )
+    }
+
+    /** [candidate] where it stands out from every one of [surfaces], else [deep] where that does. */
+    internal fun destructiveFillFor(candidate: Int, deep: Int, surfaces: List<Int>): Int {
+        fun standsOut(fill: Int) = surfaces.all { ColorUtils.calculateContrast(fill, it) >= MIN_FILL_CONTRAST }
+        return when {
+            standsOut(candidate) -> candidate
+            standsOut(deep) -> deep
+            else -> candidate
+        }
+    }
+
+    /** The theme's own red, before any contrast check. */
+    private fun themeErrorColor(context: Context): Int =
+        if (isDirector(context)) {
+            ContextCompat.getColor(context, R.color.nova_director_error)
+        } else if (isPortableChrome(context)) {
+            ContextCompat.getColor(context, R.color.nova_portable_error)
+        } else {
+            resolveThemeColor(
+                context,
+                android.R.attr.colorError,
+                ContextCompat.getColor(context, R.color.nova_error),
+            )
+        }
+
+    /** A fill stands out from the surface around it at this contrast: WCAG's 3:1 for controls. */
+    const val MIN_FILL_CONTRAST = 3.0
+
+    /**
+     * Returns the semantic positive colour, for something on or healthy: the light green on a dark
+     * card and the deep green on a light one. Like [getErrorColor] it is checked at 4.5:1 against
+     * the card and the focused surface, and falls back to the text colour where neither reads.
+     */
+    fun getPositiveColor(context: Context): Int {
+        val window = getWindowBackgroundColor(context)
+        val card = ColorUtils.compositeColors(getCardBackgroundColor(context), window)
+        val focused = ColorUtils.compositeColors(getAccentSurfaceColor(context), card)
+        val onDark = ContextCompat.getColor(context, R.color.nova_success)
+        val onLight = ContextCompat.getColor(context, R.color.nova_success_on_light)
+        val candidates = if (ColorUtils.calculateLuminance(card) < 0.5) listOf(onDark, onLight) else listOf(onLight, onDark)
+        return candidates.firstOrNull { candidate ->
+            ColorUtils.calculateContrast(candidate, card) >= 4.5 &&
+                ColorUtils.calculateContrast(candidate, focused) >= 4.5
+        } ?: getTextPrimaryColor(context)
     }
 
     /** Returns the semantic Activity surface used behind system bars and custom window backdrops. */
@@ -284,6 +374,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_bg_window)
             isOled(context) -> Color.BLACK
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_bg_window)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_bg_window)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_bg_window)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouSurfaceColor(context)
@@ -315,6 +406,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_bg_card)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_bg_card)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_bg_card)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_bg_card)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_bg_card)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouCardColor(context)
@@ -328,6 +420,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_dialog_bg)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_dialog_bg)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_dialog_bg)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_dialog_bg)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_dialog_bg)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouCardColor(context)
@@ -374,6 +467,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_accent)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_accent)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_accent)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_accent)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_accent)
             else -> ContextCompat.getColor(context, R.color.nova_polaris_accent)
         }
@@ -385,6 +479,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_accent_surface)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_accent_surface)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_accent_surface)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_accent_surface)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_accent_surface)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
@@ -404,6 +499,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_divider)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_divider)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_divider)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_divider)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_divider)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
@@ -423,6 +519,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_primary)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_primary)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_primary)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_text_primary)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_primary)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouTextPrimaryColor(context)
@@ -436,6 +533,7 @@ object NovaThemeManager {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_secondary)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_secondary)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_secondary)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_text_secondary)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_secondary)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 getMaterialYouTextSecondaryColor(context)
@@ -443,12 +541,22 @@ object NovaThemeManager {
         }
     }
 
-    /** Returns the correct text muted color for the current theme */
-    fun getTextMutedColor(context: Context): Int {
+    /**
+     * Returns the muted text colour for the current theme: its own where that reads at 4.5:1 on the
+     * panel and a tile, each over the window, and otherwise that colour lifted toward the text colour
+     * until it does, as [getAccentTextColor] lifts an accent. A caption is text; Polaris's muted grey
+     * read at 3.7:1 on its card and OLED's at 3.0:1 (C23).
+     */
+    fun getTextMutedColor(context: Context): Int =
+        readableAccentFor(themeTextMutedColor(context), getTextPrimaryColor(context), fillSurfaces(context))
+
+    /** The theme's own muted text colour, before any contrast check. */
+    private fun themeTextMutedColor(context: Context): Int {
         return when {
             isPortableChrome(context) -> ContextCompat.getColor(context, R.color.nova_portable_text_muted)
             isOled(context) -> ContextCompat.getColor(context, R.color.nova_oled_text_muted)
             isMiami(context) -> ContextCompat.getColor(context, R.color.nova_miami_text_muted)
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_text_muted)
             isHighContrast(context) -> ContextCompat.getColor(context, R.color.nova_hc_text_muted)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
@@ -464,7 +572,9 @@ object NovaThemeManager {
 
     /** Returns the correct badge/surface-variant color for the current theme. */
     fun getBadgeBackgroundColor(context: Context): Int {
-        return if (isMaterialYou(context) && isMaterialYouAvailable()) {
+        return if (isDirector(context)) {
+            ContextCompat.getColor(context, R.color.nova_director_badge_bg)
+        } else if (isMaterialYou(context) && isMaterialYouAvailable()) {
             getMaterialYouCardColor(context)
         } else {
             ContextCompat.getColor(context, R.color.nova_badge_bg)
@@ -474,6 +584,7 @@ object NovaThemeManager {
     /** Returns a readable foreground for primary/accent controls. */
     fun getOnAccentColor(context: Context): Int {
         return when {
+            isDirector(context) -> ContextCompat.getColor(context, R.color.nova_director_structure)
             isMaterialYou(context) && isMaterialYouAvailable() ->
                 resolveMaterialYouColor(
                     context,
@@ -482,11 +593,23 @@ object NovaThemeManager {
                     com.google.android.material.R.attr.colorOnPrimary,
                     ContextCompat.getColor(context, R.color.nova_bg_window)
                 )
+            // A theme that names no label colour for its accent gets black or white, whichever
+            // reads on the accent. The ice it fell back to read at 2.5:1 on Nova's violet.
             else -> resolveThemeColor(
                 context,
                 com.google.android.material.R.attr.colorOnPrimary,
-                ContextCompat.getColor(context, R.color.nova_ice),
+                readableOn(getAccentColor(context)),
             )
+        }
+    }
+
+    /** Black or white, whichever contrasts more with the opaque [background]. */
+    internal fun readableOn(background: Int): Int {
+        val opaque = ColorUtils.setAlphaComponent(background, 255)
+        return if (ColorUtils.calculateContrast(Color.BLACK, opaque) >= ColorUtils.calculateContrast(Color.WHITE, opaque)) {
+            Color.BLACK
+        } else {
+            Color.WHITE
         }
     }
 }

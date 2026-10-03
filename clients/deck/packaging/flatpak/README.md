@@ -2,11 +2,44 @@
 
 `com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This Alpha targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Steam is optional. Codec, HDR and frame-rate availability depends on the device, drivers, display and host; device acceptance remains tracked in the Linux roadmap and Deck parity checklist.
 
+The 1.4.14 candidate adds landscape/desktop Library and Settings polish, six
+Linux themes including `< Congratulations, Director >`, separate control sizes,
+80–130 percent text, and Command Center background opacity. See the
+[client guide](../../README.md#what-changes-in-1414) for the interface changes.
+
+The [Steam Frame development guide](../../docs/steam-frame.md) describes a
+separate experimental ARM64 build and launcher. The x86_64 release filename is
+not an ARM64 download. Frame codec startup and source tests do not establish
+sustained 1080p/90 playback, color/clarity, HDR or immersive XR acceptance.
+
 Signed channel builds support **Settings → Nova → Nova Updates**, including
 optional automatic installation while idle. Ordinary bundles built with the
 commands below do not configure an update feed. See the
 [Linux update guide](../../../../docs/linux-updates.md) for feed staging,
 publication and migration from an existing bundle.
+
+Release workflows derive Nova's reported version from the exact tag, including
+the numbered beta or rc suffix. Native prerelease builds can set
+`-DNOVA_DECK_VERSION_SUFFIX=-beta.1`; an omitted suffix keeps the numeric version.
+
+## Download and install
+
+Choose a published release at [Nova Releases](https://github.com/papi-ux/nova/releases).
+Download `Nova-Linux-x86_64-alpha.flatpak` and the matching checksum from that
+same release. Latest is stable; a beta is listed separately as a prerelease.
+From the download directory on Linux (Desktop Mode on Steam Deck):
+
+```bash
+sha256sum -c Nova-Linux-x86_64-alpha.flatpak.sha256
+flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
+flatpak run com.papi_ux.Nova --standalone
+```
+
+For an older separate PyroWave bundle, read the
+[migration steps](../../docs/pyrowave.md#packaging-and-compatibility) first.
+For Game Mode, see [Steam registration and pointer input](#steam-registration-and-pointer-input).
+
+## Build from source
 
 Build a bundle from a checkout with its submodules initialised (moonlight-common-c is in-tree):
 
@@ -19,6 +52,8 @@ Install and run it from a Linux desktop (Desktop Mode on Steam Deck):
     flatpak install --user build/Nova-Linux-x86_64-alpha.flatpak
     flatpak run com.papi_ux.Nova --standalone
 
+## Permissions and media backends
+
 Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
 
 The native streaming path uses `xdg-run/pipewire-0` for direct
@@ -26,13 +61,12 @@ PipeWire audio output. This exposes the default PipeWire socket, not the whole
 runtime directory. Packaging this audio backend does not establish standalone
 Deck release readiness.
 
-Releases with the separate-asset workflow also attach
-`Nova-Linux-PyroWave-x86_64-alpha.flatpak` and a matching checksum. That explicitly
-experimental bundle enables PyroWave and replaces the standard app under the
-same ID. See the [PyroWave install and return instructions](../../docs/pyrowave.md#packaging-and-compatibility)
-before switching. The normal bundle keeps PyroWave disabled.
+Starting with 1.4.14, the standard bundle includes PyroWave. Selecting it starts
+an isolated device check; H.264, HEVC and Auto never run that check. The separate
+PyroWave bundle is retired. See the [PyroWave installation guide](../../docs/pyrowave.md#packaging-and-compatibility)
+for compatibility and upgrades from older bundles.
 
-Both manifests also include the opt-in Vulkan stream presenter and a pinned
+The manifest also includes the opt-in Vulkan stream presenter and a pinned
 libplacebo build. The normal launcher continues to use the OpenGL/EGL presenter.
 To exercise the Vulkan path in a development bundle:
 
@@ -44,10 +78,15 @@ display. HDR stream selection, compositor/output metadata and installed OLED
 HDR90 acceptance remain tracked in
 [P14](../../../../docs/linux-objective-status.md).
 
+PyroWave, Granite, volk and Vulkan-Headers are built from the commits pinned in
+`modules/pyrowave.json`. Their licenses install under `/app/share/licenses/pyrowave`.
+
 The KDE runtime supplies Vulkan, shaderc and FFmpeg; libplacebo is built from the
 commit pinned in `modules/libplacebo.json`. Its Jinja/MarkupSafe shader-generation
 sources are checksum-pinned build dependencies and are not installed in the app.
 No additional device or filesystem permission is required for this presenter.
+
+## Steam registration and pointer input
 
 Optionally register Nova with Steam on a Linux device, with Steam closed
 (use Desktop Mode on Steam Deck):

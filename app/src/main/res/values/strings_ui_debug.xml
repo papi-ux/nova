@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the debug screen's panel pages (DebugInfoActivity): the vibration types, the gamepads and the amplitude. -->
+<resources>
+    <!-- Title of the page that lists the vibration types for this device's own motor. -->
+    <string name="debug_info_device_vibration_title">Device vibration</string>
+    <!-- Under Continuous HD Vibration: the amplitude it runs at, which the amplitude page sets. -->
+    <string name="debug_info_continuous_caption">Runs at amplitude %1$d until you stop it</string>
+    <!-- Title of the amplitude page. The amplitude applies to HD vibration only. -->
+    <string name="debug_info_amplitude_title">HD vibration amplitude</string>
+    <!-- The amplitude page's value: the amplitude set, then the highest there is. -->
+    <string name="debug_info_amplitude_value">%1$d of %2$d</string>
+</resources>

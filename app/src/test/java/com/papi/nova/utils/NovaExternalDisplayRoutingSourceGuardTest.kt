@@ -207,8 +207,8 @@ class NovaExternalDisplayRoutingSourceGuardTest {
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlPresentation.kt").readText()
         val controller =
             File("src/main/java/com/papi/nova/utils/ExternalDisplayControlController.kt").readText()
-        val gameMenu = File("src/main/java/com/papi/nova/GameMenu.kt").readText()
         val game = File("src/main/java/com/papi/nova/Game.kt").readText()
+        val panelWindow = File("src/main/java/com/papi/nova/ui/panel/NovaPanelWindow.kt").readText()
 
         assertTrue(presentation.contains("TYPE_APPLICATION_ATTACHED_DIALOG"))
         assertTrue(presentation.contains("createWindowContext("))
@@ -217,47 +217,25 @@ class NovaExternalDisplayRoutingSourceGuardTest {
             "A second TYPE_PRESENTATION window reuses the wrong WindowContext token and crashes",
             presentation.contains("presentationWindow.attributes.type")
         )
-        assertTrue(
-            controller.contains(
-                "GameMenu(game, companionDialogContext, companionDialogWindowType, ::companionDialogWindowToken)"
-            ) ||
-                controller.contains("host.companionDialogContext")
-        )
-        assertTrue(gameMenu.contains("private val dialogWindowTokenProvider: (() -> IBinder?)? = null"))
-        assertTrue(gameMenu.contains("window.setType(windowType)"))
-        assertTrue(gameMenu.contains("window.attributes.token = token"))
+        // The companion's Command Center is the stream's, in a panel window on the companion
+        // display; that window reads the live token and type when it shows.
+        assertTrue(controller.contains("NovaSurfaces.forCompanion(host)"))
+        val showNow = panelWindow.substringAfter("fun showNow()").substringBefore("fun closeNow()")
+        val windowType = showNow.indexOf("window.setType(placement.host.companionDialogWindowType)")
+        val windowToken = showNow.indexOf("token = placement.host.companionDialogWindowToken()")
+        val windowShow = showNow.indexOf("show()", maxOf(windowType, windowToken))
+        assertTrue("The companion panel window's type must be assigned before show()", windowType in 0 until windowShow)
+        assertTrue("The companion panel window's token must be read at show time, before show()", windowToken in 0 until windowShow)
 
-        val showMenuDialog =
-            gameMenu.substringAfter("private fun showMenuDialog(").substringBefore("private fun showSpecialKeysMenu(")
-        val menuWindowBinding = showMenuDialog.indexOf("applyDialogWindowType(sheet)")
-        val menuShow = showMenuDialog.indexOf("sheet.show()")
-        assertTrue("Menu BottomSheetDialog must be bound before show()", menuWindowBinding in 0 until menuShow)
+        // Mouse Mode is a page inside that window and needs no window of its own.
+        assertFalse(game.contains("fun selectMouseMode("))
+        assertTrue(game.contains("fun mouseModeChoices()"))
 
-        val serverCommandDialog =
-            gameMenu.substringAfter("val serverCommandDialog =").substringBefore("} else {")
-        val serverWindowBinding = serverCommandDialog.indexOf("applyDialogWindowType(serverCommandDialog)")
-        val serverShow = serverCommandDialog.indexOf("serverCommandDialog.show()")
-        assertTrue("Server-command AlertDialog must be bound before show()", serverWindowBinding in 0 until serverShow)
-
-        assertTrue(
-            gameMenu.contains(
-                "selectMouseMode(dialogScreenContext, dialogWindowType, dialogWindowTokenProvider?.invoke())"
-            )
-        )
-        val mouseMode =
-            game.substringAfter("fun selectMouseMode(").substringBefore("private fun toggleMouseLocalCursor(")
-        val mouseType = mouseMode.indexOf("mouseModeDialog.window?.setType(windowType)")
-        val mouseToken = mouseMode.indexOf("mouseModeDialog.window?.attributes?.token = dialogWindowToken")
-        val mouseShow = mouseMode.indexOf("mouseModeDialog.show()")
-        assertTrue("Mouse-mode dialog type must be assigned before show()", mouseType in 0 until mouseShow)
-        assertTrue("Mouse-mode dialog token must be assigned before show()", mouseToken in 0 until mouseShow)
-
+        // The one confirm with no button of its own shows on the companion display's panel when
+        // the companion controls are showing.
         val quit = game.substringAfter("fun quit()").substringBefore("override fun showGameMenu(")
-        val quitType = quit.indexOf("sheet.window?.setType(companionPresentation.companionDialogWindowType)")
-        val quitToken = quit.indexOf("sheet.window?.attributes?.token = companionPresentation.companionDialogWindowToken()")
-        val quitShow = quit.indexOf("sheet.show()")
-        assertTrue("Quit sheet type must be assigned before show()", quitType in 0 until quitShow)
-        assertTrue("Quit sheet token must be assigned before show()", quitToken in 0 until quitShow)
+        assertTrue(quit.contains("ExternalDisplayControlController.surfacesFor(it)"))
+        assertTrue(quit.contains("surfaces.present("))
     }
 
     @Test
@@ -299,12 +277,13 @@ class NovaExternalDisplayRoutingSourceGuardTest {
         )
         assertTrue(
             "Game must route companion displays through the tested host-selection policy",
-            game.contains("when (CompanionControlHostPolicy.select(companionDisplayId))")
+            game.contains("CompanionControlHostPolicy.select(companionDisplayId, companionDisplay.flags and Display.FLAG_PRESENTATION != 0)")
         )
         assertTrue(
-            "The Activity policy branch must launch the default-display fallback",
+            "The Activity policy branch must launch the selected-display fallback",
             game.contains("CompanionControlHostPolicy.HostType.ACTIVITY") &&
-                game.contains("ExternalDisplayControlActivity.launch(this, companionDisplayId)")
+                game.contains("launchCompanionControlActivity(companionDisplayId)") &&
+                game.contains("ExternalDisplayControlActivity.launch(this, displayId)")
         )
         assertTrue(activity.contains("options.setLaunchDisplayId(displayId)"))
         assertTrue(activity.contains("Intent.FLAG_ACTIVITY_NEW_TASK"))

@@ -36,6 +36,47 @@ class PolarisStreamDisplayModeTest {
         assertEquals("Host Virtual Display", PolarisClientSettings.labelForMode("virtual_display"))
         assertEquals("Mirror Desktop", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_DESKTOP_DISPLAY))
         assertEquals("Private Stream (GPU-native)", PolarisClientSettings.labelForMode(PolarisClientSettings.MODE_GPU_NATIVE_TEST))
+        assertEquals("Private Stream (GPU-native)", PolarisClientSettings.labelForMode("gpu_native"))
+    }
+
+    /**
+     * gamescope_stream and headless_dongle are session modes of their own: by the mode the host
+     * selected, by the one asked for while the host names none, and by the host's own name for
+     * them. What the host selected outranks what was asked for: a gamescope_stream request the host
+     * ran as a Private Stream is a Private Stream.
+     */
+    @Test
+    fun gamescopeAndTheDongleAreSessionModesOfTheirOwn() {
+        fun session(selection: String = "", requested: String = "", label: String = "") = PolarisSessionStatus(
+            state = "streaming",
+            displayMode = PolarisSessionStatus.DisplayModeStatus(
+                selection = selection,
+                requested = requested,
+                label = label,
+                effectiveHeadless = true,
+            ),
+        )
+        val gamescope = PolarisSessionStatus.SessionMode.GAMESCOPE_STREAM
+        val dongle = PolarisSessionStatus.SessionMode.HEADLESS_DONGLE
+        assertEquals("selected", gamescope, session(selection = "gamescope_stream").sessionMode)
+        assertEquals("selected", dongle, session(selection = "headless_dongle").sessionMode)
+        assertEquals("asked for", gamescope, session(requested = "gamescope_stream").sessionMode)
+        assertEquals("asked for", dongle, session(requested = "headless_dongle").sessionMode)
+        assertEquals(
+            "asked for, run as a Private Stream",
+            PolarisSessionStatus.SessionMode.PRIVATE_STREAM,
+            session(selection = "headless_stream", requested = "gamescope_stream").sessionMode,
+        )
+        assertEquals(
+            PolarisSessionStatus.SessionMode.PRIVATE_STREAM,
+            session(selection = "headless_stream", requested = "headless_dongle").sessionMode,
+        )
+        assertEquals("by the host's name", gamescope, session(label = "Gamescope Stream").sessionMode)
+        assertEquals("by the host's name", dongle, session(label = "Headless Dongle").sessionMode)
+        assertEquals("by the host's name in any case", dongle, session(label = "headless dongle").sessionMode)
+        assertEquals("the HUD's English", "Gamescope Stream", session(selection = "gamescope_stream").sessionModeLabel)
+        assertEquals("the HUD's English", "Headless Dongle", session(selection = "headless_dongle").sessionModeLabel)
+        assertEquals("the HUD's English", "Headless Dongle", session(label = "headless dongle").sessionModeLabel)
     }
 
     @Test

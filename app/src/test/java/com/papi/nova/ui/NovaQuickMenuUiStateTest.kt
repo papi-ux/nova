@@ -1,6 +1,8 @@
 package com.papi.nova.ui
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Resources
 import com.papi.nova.api.PolarisSessionStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +20,16 @@ class NovaQuickMenuUiStateTest {
         get() = RuntimeEnvironment.getApplication()
 
     @Test
+    fun aNewOpeningWithoutTelemetryStillUsesTheStreamsInputRestriction() {
+        val state = quickState(status = null, commandKeysAllowed = false)
+        assertTrue(state.quickKeys.none { it.enabled })
+        assertTrue(state.pinnedQuickKeys.none { it.enabled })
+        assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
+        assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
+        assertTrue(quickState(status = status(), commandKeysAllowed = true).quickKeys.any { it.enabled })
+    }
+
+    @Test
     fun viewerSessionShowsLeaveAndLocksOwnerOnlyControls() {
         val state = quickState(
             status = status(
@@ -33,12 +45,25 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Leave", state.endAction.label)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.MOUSE_MODE }.enabled)
         assertFalse(state.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.enabled)
+        assertTrue("pinned and grid quick keys cannot send viewer input", state.quickKeys.none { it.enabled })
+        assertTrue(state.pinnedQuickKeys.none { it.enabled })
         assertEquals(
             listOf(NovaQuickMenuActionId.CLEAR_GAME_PROFILE, NovaQuickMenuActionId.MANGOHUD),
             state.advancedRows.map { it.id }
         )
         assertEquals("Owner", state.stability.chip.label)
         assertEquals(NovaQuickMenuTone.MUTED, state.stability.chip.tone)
+    }
+
+    @Test
+    fun losingQuitAuthorityNeverEnablesEndAndRecoveryRequiresAnAllowedReading() {
+        val denied = status(ownedByClient = false, controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false, quitAllowed = false))
+        assertFalse("the fixture independently denies End", denied.canQuit)
+        assertFalse(quickState(status = denied).endAction.enabled)
+        val unavailable = quickState(status = null, lastStatus = denied, hostStateUnavailable = true)
+        assertFalse("a failed read grants no End authority", unavailable.endAction.enabled)
+        assertTrue("safe local disconnect remains available", unavailable.disconnectAction.enabled)
+        assertTrue(quickState(status = status()).endAction.enabled)
     }
 
     @Test
@@ -131,7 +156,6 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("HDR requested, but Private Stream is 10-bit SDR.", state.healthSummary)
         assertEquals("Private Stream does not report HDR metadata. Polaris is sending 10-bit SDR; use an HDR-capable display path for true HDR.", state.healthDetail)
-        assertEquals("", state.stability.caption)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
     }
 
@@ -151,6 +175,31 @@ class NovaQuickMenuUiStateTest {
         assertEquals("Frame pacing", state.healthSummary)
         assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
         assertFalse(state.healthSummary.contains("Stable", ignoreCase = true))
+    }
+
+    @Test
+    fun failedPollKeepsTheLastHdrDetailMarkedAsOld() {
+        val last = status(health = PolarisSessionStatus.HealthStatus(
+            grade = "watch", primaryIssue = "hdr_downgraded", issues = listOf("hdr_downgraded")
+        ))
+        val fresh = quickState(last)
+        val failed = quickState(null, lastStatus = last, hostStateUnavailable = true)
+        assertTrue(fresh.healthDetail.isNotBlank())
+        assertTrue(failed.healthDetail.contains(fresh.healthDetail))
+        assertTrue(failed.healthDetail.startsWith("Last confirmed:"))
+        assertEquals("", quickState(status(), lastStatus = last).healthDetail)
+    }
+
+    @Test
+    fun failedPollKeepsTheRecoveryReceiptVisibleButCannotUndoIt() {
+        val receipt = DoctorActionReceipt(
+            scopeId = "scope", runId = "recovery-run-a", state = "applied", message = "Bitrate lowered.",
+            undoAvailable = true, undoActionId = "undo_recovery_profile_next_launch"
+        )
+        val failed = quickState(null, lastStatus = status(), hostStateUnavailable = true, doctorReceipt = receipt)
+        assertTrue(failed.doctorReceiptAction.visible)
+        assertFalse(failed.doctorReceiptAction.enabled)
+        assertTrue(failed.doctorReceiptAction.caption.startsWith("Last confirmed:"))
     }
 
     @Test
@@ -282,6 +331,59 @@ class NovaQuickMenuUiStateTest {
     }
 
     @Test
+    fun endSessionIsTheHeadersSplitAndInASpaceItReadsLeaveSpace() {
+        val preview = NovaQuickMenuUiState.preview(context)
+        assertTrue("an owner's End Session confirms in place, so it is destructive", preview.endAction.destructive)
+        assertEquals(
+            "the armed split says what ending does",
+            context.getString(com.papi.nova.R.string.nova_cc_end_session_consequence),
+            preview.endAction.caption,
+        )
+        assertTrue(
+            "the legacy Quick Menu's extras have a row of their own in Session",
+            preview.sessionRows.any { it.id == NovaQuickMenuActionId.MORE_CONTROLS && it.label == "More Controls" }
+        )
+
+        val space = NovaQuickMenuUiState.from(
+            context = context,
+            status = status(),
+            apiAvailable = true,
+            adaptiveSupported = true,
+            aiSupported = true,
+            adaptiveEnabled = false,
+            aiEnabled = false,
+            mangoHudEnabled = false,
+            stabilityApplied = false,
+            advancedExpanded = false,
+            profileClearInProgress = false,
+            currentGameName = "Portal",
+            currentGameUuid = "game-1",
+            profilePreference = "auto",
+            hudShowing = false,
+            perfOverlayEnabled = false,
+            onscreenControllerEnabled = false,
+            keyboardVisible = false,
+            mouseModeLabel = "Direct",
+            allowChangeMouseMode = true,
+            isOnExternalDisplay = false,
+            fallbackBitrateKbps = 20000,
+            fallbackTargetFps = 60.0,
+            spaceSession = true,
+        )
+        assertEquals("Leave Space", space.endAction.label)
+        assertTrue(space.endAction.visible && space.endAction.destructive && space.endAction.enabled)
+        assertFalse("in a Space, Disconnect would leave the Space anyway, so it gives way to the split", space.disconnectAction.visible)
+
+        val viewer = quickState(
+            status = status(
+                clientRole = "viewer",
+                controls = PolarisSessionStatus.ControlsStatus(hostTuningAllowed = false, quitAllowed = false)
+            )
+        )
+        assertFalse("a viewer's Leave ends nothing on the host, so it needs no split", viewer.endAction.destructive)
+    }
+
+    @Test
     fun commandCenterLabelsPrivateGpuNativeCaptureInsteadOfRawHeadless() {
         val state = quickState(
             status = status(
@@ -315,11 +417,202 @@ class NovaQuickMenuUiStateTest {
         assertFalse(state.sessionMode.label.contains("Headless"))
         // The capture path belongs to the detail line, not the pill, so the health summary
         // beside the pill keeps its room.
-        assertFalse(state.sessionMode.label.contains("GPU-native DMA-BUF"))
+        assertFalse(state.sessionMode.label.contains("GPU capture"))
         assertFalse(state.sessionMode.label.contains("owner"))
-        assertTrue(state.sessionDetail.contains("GPU-native DMA-BUF"))
-        assertTrue(state.sessionDetail.contains("Explicit choice"))
-        assertTrue(state.sessionDetail.contains("Owner"))
+        // N26 and review finding 10: plain words. It read "GPU-native DMA-BUF · Explicit choice ·
+        // Owner", then "GPU capture (DMA-BUF) · ...".
+        assertEquals("GPU capture · Mode you picked · Your session", state.sessionDetail)
+    }
+
+    @Test
+    fun gpuEncodingAndCpuCaptureCopiesAreExplainedTogether() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(
+                    codec = "hevc_vulkan",
+                    activeBackend = "vulkan",
+                    targetDevice = "vulkan",
+                    targetResidency = "gpu",
+                    targetFormat = "nv12",
+                ),
+                capture = PolarisSessionStatus.CaptureStatus(
+                    transport = "shm",
+                    residency = "cpu",
+                ),
+                displayMode = PolarisSessionStatus.DisplayModeStatus(requested = "desktop_display"),
+            )
+        )
+
+        assertEquals(
+            "GPU encoding · Capture uses CPU copies · Mode you picked · Your session",
+            state.sessionDetail,
+        )
+        assertEquals("Mirror Desktop · Vulkan", state.sessionMode.label)
+        assertEquals(NovaQuickMenuTone.MUTED, state.healthTone)
+    }
+
+    @Test
+    fun cpuCaptureDoesNotClaimGpuEncodingFromTheCodecOrBackendName() {
+        for (residency in listOf("", "cpu")) {
+            val state = quickState(
+                status = status(
+                    encoder = PolarisSessionStatus.EncoderStatus(
+                        codec = "hevc_vulkan",
+                        activeBackend = "vulkan",
+                        targetDevice = "vulkan",
+                        targetResidency = residency,
+                    ),
+                    capture = PolarisSessionStatus.CaptureStatus(transport = "shm", residency = "cpu"),
+                )
+            )
+
+            assertEquals("CPU capture · Mode you picked · Your session", state.sessionDetail)
+        }
+    }
+
+    @Test
+    fun gpuEncodingWithCpuCapturePreservesDoctorAttention() {
+        val state = quickState(
+            status = status(
+                encoder = PolarisSessionStatus.EncoderStatus(targetDevice = "vulkan", targetResidency = "gpu"),
+                capture = PolarisSessionStatus.CaptureStatus(transport = "shm", residency = "cpu"),
+                doctor = PolarisSessionStatus.DoctorStatus(
+                    available = true,
+                    version = 2,
+                    resultId = "encoder-pressure-current",
+                    status = "watch",
+                    severity = "warning",
+                    trafficLight = "yellow",
+                    primaryIssue = "encoder_pressure",
+                    likelyCause = "Encoding is taking longer than the frame interval.",
+                ),
+            )
+        )
+
+        assertEquals(
+            "GPU encoding · Capture uses CPU copies · Mode you picked · Your session",
+            state.sessionDetail,
+        )
+        assertEquals("Needs attention", state.healthSummary)
+        assertEquals(NovaQuickMenuTone.WARNING, state.healthTone)
+        assertEquals("Encoding is taking longer than the frame interval.", state.diagnosis.likelyCause)
+    }
+
+    /**
+     * The host's own name for a mode is its name. Polaris names windowed_stream "Private Stream
+     * (GPU-native)" and headless_stream "Private Stream", and the library's picker, the game page
+     * and Settings show those names, so the pill does too. Round 3 made the pill say Private Stream
+     * for both, and round 4 then renamed windowed_stream everywhere, so two modes shared a name.
+     * A host that sends no name gets Nova's, which for windowed_stream is the same one.
+     */
+    @Test
+    fun theSessionPillNamesTheModeAsItsHostDoes() {
+        val gpuNative = "Private Stream (GPU-native)"
+        assertEquals("the host's name", gpuNative, pill("windowed_stream", label = gpuNative))
+        assertEquals("the host's name, whatever Nova calls the mode", "Mirror Desktop", pill("desktop_display", label = "Mirror Desktop"))
+        assertEquals("Nova's name when the host sends none", gpuNative, pill("windowed_stream"))
+        assertEquals("Private Stream", pill("headless", headless = true))
+        assertEquals("Private Stream", pill("headless_stream", label = "Private Stream", headless = true))
+    }
+
+    /**
+     * No locale translates the mode names yet, so English resources and English literals read the
+     * same. For a host that sends no name, the pill runs here against resources that name each
+     * mode in other words, which only a pill that reads its names from resources can say. A name
+     * the host sends, such as a Space's, is the host's own.
+     */
+    @Test
+    fun theSessionPillNamesEveryModeFromResources() {
+        val named = contextNaming(
+            com.papi.nova.R.string.nova_session_mode_headless to "Privater Stream",
+            com.papi.nova.R.string.nova_library_launch_gpu_native_test to "Privater Stream (GPU-nativ)",
+            com.papi.nova.R.string.nova_session_mode_host_display to "Desktop spiegeln",
+            com.papi.nova.R.string.nova_session_mode_desktop_takeover to "Desktop übernehmen",
+            com.papi.nova.R.string.nova_session_mode_virtual_display to "Virtuelle Anzeige",
+        )
+        assertEquals(
+            listOf("Privater Stream (GPU-nativ)", "Privater Stream", "Desktop spiegeln", "Desktop übernehmen", "Virtuelle Anzeige", "Living Room Space"),
+            listOf(
+                pill("windowed_stream", context = named),
+                pill("headless", headless = true, context = named),
+                pill("desktop_display", context = named),
+                pill("desktop_takeover", context = named),
+                pill("virtual_display", virtual = true, context = named),
+                pill("", label = "Living Room Space", context = named),
+            ),
+        )
+    }
+
+    /**
+     * Review finding 8's follow up, settled the other way: round 4 named windowed_stream Private
+     * Stream wherever Nova names it, which is headless_stream's name. Nova's own names for it, for
+     * a host that sends none, are the host's: Private Stream (GPU-native), in the picker, the Play
+     * badge, the launch snackbar, the settings and the pill alike, and never headless_stream's.
+     */
+    @Test
+    fun windowedStreamHasItsHostsNameWhereverNovaNamesIt() {
+        val gpuNative = "Private Stream (GPU-native)"
+        val library = context.getString(com.papi.nova.R.string.nova_library_launch_gpu_native_test)
+        assertEquals("the picker, the Play badge and the launch snackbar", gpuNative, library)
+        val settings = com.papi.nova.api.PolarisClientSettings
+        assertEquals("the settings", gpuNative, settings.labelForMode(settings.MODE_GPU_NATIVE_TEST))
+        assertEquals("the pill", gpuNative, pill("windowed_stream"))
+        assertFalse(
+            "headless_stream's name",
+            settings.labelForMode(settings.MODE_HEADLESS_STREAM) == settings.labelForMode(settings.MODE_GPU_NATIVE_TEST) ||
+                context.getString(com.papi.nova.R.string.nova_library_launch_headless) == library ||
+                pill("headless_stream", headless = true) == pill("windowed_stream"),
+        )
+    }
+
+    /**
+     * gamescope_stream and headless_dongle, which the library names in resources, had no session
+     * mode: a host that sent no name for them read as Private Stream by its flags. They are named
+     * from the library's resources then, and a name the host sends, a Space's included, is the
+     * host's own.
+     */
+    @Test
+    fun theSessionPillNamesGamescopeAndTheDongleAsTheLibraryDoes() {
+        val named = contextNaming(
+            com.papi.nova.R.string.nova_library_launch_gamescope to "Gamescope Übertragung",
+            com.papi.nova.R.string.nova_library_launch_dongle to "Kopfloser Dongle",
+        )
+        assertEquals("Gamescope Übertragung", pill("gamescope_stream", headless = true, context = named))
+        assertEquals("Kopfloser Dongle", pill("headless_dongle", headless = true, context = named))
+        assertEquals("the host's own name for it", "Gamescope Stream", pill("", label = "Gamescope Stream", context = named))
+        assertEquals("a Space's own label still wins", "Living Room Space", pill("gamescope_stream", label = "Living Room Space", context = named))
+    }
+
+    private fun pill(
+        requested: String,
+        label: String = "",
+        headless: Boolean = false,
+        virtual: Boolean = false,
+        context: Context = this.context,
+    ) = quickState(
+        status = status(
+            displayMode = PolarisSessionStatus.DisplayModeStatus(
+                requested = requested,
+                label = label,
+                effectiveHeadless = headless,
+                virtualDisplay = virtual,
+            ),
+        ),
+        context = context,
+    ).sessionMode.label
+
+    /** The app's context, with the given string resources saying other words. */
+    private fun contextNaming(vararg names: Pair<Int, String>): Context {
+        val base = context
+        val words = names.toMap()
+        @Suppress("DEPRECATION")
+        val resources = object : Resources(base.assets, base.resources.displayMetrics, base.resources.configuration) {
+            override fun getString(id: Int): String = words[id] ?: super.getString(id)
+            override fun getText(id: Int): CharSequence = words[id] ?: super.getText(id)
+        }
+        return object : ContextWrapper(base) {
+            override fun getResources(): Resources = resources
+        }
     }
 
     @Test
@@ -441,6 +734,65 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.diagnosis.actionExecutable)
         assertEquals(NovaQuickMenuDoctorCapability.AUTO_FIX, state.diagnosis.capability)
         assertEquals(16000, state.diagnosis.targetBitrateKbps)
+        assertFalse("a reading Nova can act on is not the quiet kind", state.diagnosis.informational)
+    }
+
+    /**
+     * Review finding 1: a reading kept through a failed status read is a few seconds old, and A
+     * runs nothing on it; it copies the details. It never names the reading's own action as what
+     * A does, though the status that carried the reading let this device run it.
+     */
+    @Test
+    fun aKeptReadingNeverNamesItsRunnableActionAsWhatADoes() {
+        val runnable = status(
+            doctor = PolarisSessionStatus.DoctorStatus(
+                available = true,
+                version = 2,
+                resultId = "doctor-v2-needs_action-network_jitter",
+                classification = "NET",
+                likelyCause = "Wi-Fi jitter is the likely bottleneck.",
+                evidence = listOf("3.4% packet loss"),
+                confidence = "high",
+                primaryIssue = "network_jitter",
+                actionId = "lower_bitrate",
+                actionLabel = "Auto Fix",
+                actionCapability = "auto_fix",
+                actionKind = "live_tuning",
+                actionEndpoint = "/api/doctor/action",
+                actionMethod = "POST",
+                actionPayloadId = "lower_bitrate",
+                actionSourceResultId = "doctor-v2-needs_action-network_jitter",
+                actionContractTyped = true,
+                targetBitrateKbps = 16000,
+                targetBitratePresent = true,
+                targetBitrateTyped = true,
+                verificationDelaySeconds = 8,
+                verificationMode = "live_telemetry",
+                verificationEndpoint = "/api/doctor/action",
+                undoSupported = true,
+                undoEndpoint = "/api/doctor/action",
+                requiresOwner = true,
+                evidenceItems = listOf(
+                    PolarisSessionStatus.DoctorStatus.EvidenceItem(
+                        id = "packet_loss",
+                        status = "fail",
+                        source = "media_transport",
+                        value = 3.4
+                    )
+                ),
+                packetLossPct = 3.4,
+                latencyMs = 12.0
+            )
+        )
+        val fresh = quickState(status = runnable)
+        assertTrue("the fresh reading runs its action", fresh.diagnosis.actionExecutable)
+        assertEquals("Auto Fix", fresh.diagnosis.actionLabel)
+
+        val kept = quickState(status = null, lastStatus = runnable, hostStateUnavailable = true)
+        assertTrue(kept.diagnosis.stale)
+        assertEquals("the same reading", "Wi-Fi jitter is the likely bottleneck.", kept.diagnosis.likelyCause)
+        assertFalse("A runs nothing on a kept reading", kept.diagnosis.actionExecutable)
+        assertEquals("A copies its details", NovaQuickMenuDoctorCapability.MANUAL, kept.diagnosis.capability)
     }
 
     @Test
@@ -529,7 +881,7 @@ class NovaQuickMenuUiStateTest {
 
         assertFalse(diagnose.enabled)
         assertEquals("N/A", diagnose.chip!!.label)
-        assertEquals("Connect to Polaris for HOST / NET / CLIENT diagnostics.", diagnose.caption)
+        assertEquals("before a reading it is checking, as the strip is", "Checking session health", diagnose.caption)
         assertEquals(NovaQuickMenuDoctorCapability.MANUAL, state.diagnosis.capability)
     }
 
@@ -794,11 +1146,10 @@ class NovaQuickMenuUiStateTest {
         assertEquals("", state.diagnosis.evidenceHighlight)
         assertEquals("Frame pacing telemetry needs attention.", state.diagnosis.likelyCause)
         assertEquals("Frame pacing", state.healthSummary)
-        // The strip and the Doctor card already carry the sentence; the Stream card keeps
-        // its chip and target line and drops the duplicate.
+        // The strip and the Doctor card already carry the sentence; the Stream card has its
+        // chip and target line and no caption of its own.
         assertEquals("Stream", state.stability.title)
-        assertEquals("", state.stability.caption)
-        assertEquals("Launch preset", state.stability.profileTitle)
+        assertEquals("Launch Preset", state.stability.profileTitle)
     }
 
     @Test
@@ -832,8 +1183,32 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Copy HUD Diagnostics", diagnostics.label)
         assertEquals("Privacy-safe stream summary for bug reports.", diagnostics.caption)
-        assertEquals("Safe", diagnostics.chip!!.label)
-        assertEquals(NovaQuickMenuTone.INFO, diagnostics.chip.tone)
+        // Privacy-safe is said in the caption; a chip says only a state, and Safe was a category.
+        assertEquals(null, diagnostics.chip)
+    }
+
+    /**
+     * N26: the trailing chips meant a state, a category or an action from row to row. Each says a
+     * state now, and Paste and Rotate say what they do.
+     */
+    @Test
+    fun commandCenterChipsSayAStateAndEveryActionSaysWhatItDoes() {
+        val collapsed = quickState(status = status(), advancedExpanded = false)
+        val expanded = quickState(status = status(), advancedExpanded = true)
+
+        assertEquals(null, collapsed.overlayRows.first { it.id == NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS }.chip)
+        assertEquals("Reassign is what the row does, not a state", null, collapsed.controlRows.first { it.id == NovaQuickMenuActionId.PLAYERS }.chip)
+        assertEquals("Hidden", collapsed.controlRows.first { it.id == NovaQuickMenuActionId.KEYBOARD }.chip?.label)
+        assertEquals("Hidden", collapsed.advancedToggle.chip?.label)
+        assertEquals("Shown", expanded.advancedToggle.chip?.label)
+        assertEquals(
+            "Copies this device's clipboard to the host.",
+            collapsed.sessionRows.first { it.id == NovaQuickMenuActionId.PASTE_CLIPBOARD }.caption,
+        )
+        assertEquals(
+            "Closes Command Center and turns the stream between landscape and portrait.",
+            collapsed.sessionRows.first { it.id == NovaQuickMenuActionId.ROTATE_SCREEN }.caption,
+        )
     }
 
     @Test
@@ -1005,6 +1380,68 @@ class NovaQuickMenuUiStateTest {
         assertEquals(NovaMenuPreferences.OPACITY_PRESETS, state.menuOpacity.presets)
     }
 
+    /**
+     * The Command Center's Live Tuning caption says what it is doing and the bitrate it applied,
+     * in the player's words. It read "Live Tuning On, stable. Host setting. 20 Mbps applied /
+     * 20 Mbps limit": the title twice, and a slash. What it changes goes under its split now.
+     */
+    @Test
+    fun liveTuningSaysWhatItIsDoingInPlainWords() {
+        val fixtures = org.json.JSONArray(javaClass.getResource("/live-tuning-v1.json")!!.readText())
+        fun live(name: String) = (0 until fixtures.length()).map { fixtures.getJSONObject(it) }
+            .first { it.getString("name") == name }
+            .let { com.papi.nova.api.LiveTuningStatus.parse(it.getJSONObject("live_tuning"))!! }
+
+        val stable = quickState(status = status().copy(liveTuning = live("stable"), liveTuningPresent = true))
+        assertEquals("Live Tuning", stable.liveTuningAction.label)
+        assertEquals("On", stable.liveTuningAction.chip?.label)
+        assertEquals("Steady. 20 Mbps applied, 20 Mbps limit.", stable.liveTuningAction.caption)
+
+        val off = quickState(status = status().copy(liveTuning = live("off"), liveTuningPresent = true))
+        assertEquals("Off", off.liveTuningAction.chip?.label)
+        assertEquals("The bitrate stays where the stream started.", off.liveTuningAction.caption)
+    }
+
+    /**
+     * N28 (rest) and review finding 1: a reading with nothing to run informs, and reads quieter in
+     * the card's one place under the strip, only while the strip does not warn. "Control-channel
+     * retries, but no confirmed loss" is one the strip warns about, and the card said "Nothing to
+     * fix" under "Needs attention"; it now says what the strip says (NovaCommandCenterDoctorCard
+     * ComposeTest reads the words).
+     */
+    @Test
+    fun aReadingInformsOnlyWhileTheStripDoesNotWarn() {
+        fun verdict(primaryIssue: String, severity: String, light: String, cause: String) = PolarisSessionStatus.DoctorStatus(
+            available = true,
+            version = 2,
+            resultId = "doctor-$primaryIssue",
+            status = if (severity == "info") "ok" else "watch",
+            severity = severity,
+            trafficLight = light,
+            likelyCause = cause,
+            primaryIssue = primaryIssue,
+        )
+        val healthy = quickState(status = status(doctor = verdict("none", "info", "green", "Streaming telemetry looks ready")))
+        val observation = quickState(
+            status = status(
+                doctor = verdict(
+                    "control_channel_observation",
+                    "warning",
+                    "amber",
+                    "Control-channel retries were observed, but video packet loss is not confirmed",
+                ),
+            ),
+        )
+        val hostRender = quickState(
+            status = status(doctor = verdict("host_render_limited", "warning", "amber", "Host is rendering below the stream target")),
+        )
+
+        assertTrue("a healthy reading with nothing to run informs", healthy.diagnosis.informational)
+        assertEquals("the strip warns about this observation", NovaQuickMenuTone.WARNING, observation.healthTone)
+        assertFalse("so the card does not say it only informs", observation.diagnosis.informational)
+        assertFalse("a reading the strip warns about explains it at full strength", hostRender.diagnosis.informational)
+    }
+
     @Test
     fun pendingLiveTuningSaveKeepsTheRowUnderTheCursor() {
         // Disabling the row while its save was pending dropped controller focus mid-press,
@@ -1016,8 +1453,51 @@ class NovaQuickMenuUiStateTest {
         assertTrue(state.liveTuningAction.enabled)
     }
 
+    /**
+     * Review finding 5: a Live Tuning save the host did not confirm floated an error snackbar, and
+     * a Launch Preset pick floated "Launch preset saved for next launch". Each is its row's caption.
+     * Live Tuning's says the state the host reports now, as its chip does, and never "Try again",
+     * which from that state would undo the change; it is announced, and a failed refresh of the
+     * host's state does not hide it behind Reconnecting.
+     */
     @Test
-    fun aSpaceSaysItsVerdictOnceAndCallsItsBitrateFixed() {
+    fun liveTuningAndLaunchPresetSayTheirResultsOnTheirRows() {
+        val fixtures = org.json.JSONArray(javaClass.getResource("/live-tuning-v1.json")!!.readText())
+        fun live(name: String) = (0 until fixtures.length()).map { fixtures.getJSONObject(it) }
+            .first { it.getString("name") == name }
+            .let { com.papi.nova.api.LiveTuningStatus.parse(it.getJSONObject("live_tuning"))!! }
+        val on = status().copy(liveTuning = live("stable"), liveTuningPresent = true)
+        val off = status().copy(liveTuning = live("off"), liveTuningPresent = true)
+
+        val kept = quickState(status = on, liveTuningUnconfirmed = false)
+        assertEquals("asked for Off, the host kept On", "The host kept Live Tuning On.", kept.liveTuningAction.caption)
+        assertEquals("as its chip says", "On", kept.liveTuningAction.chip?.label)
+        assertTrue("said to TalkBack", kept.liveTuningAction.announce)
+        assertEquals("The host kept Live Tuning Off.", quickState(status = off, liveTuningUnconfirmed = true).liveTuningAction.caption)
+
+        val applied = quickState(status = off, liveTuningUnconfirmed = false)
+        assertEquals("applied with its answer lost: nothing went wrong", "The bitrate stays where the stream started.", applied.liveTuningAction.caption)
+        assertFalse(applied.liveTuningAction.announce)
+
+        val unanswered = quickState(status = on, hostStateUnavailable = true, liveTuningUnconfirmed = false)
+        assertEquals("a failed refresh still says the save failed", "The host did not answer, so the change is not confirmed.", unanswered.liveTuningAction.caption)
+        assertEquals("Unknown", unanswered.liveTuningAction.chip?.label)
+        assertTrue("and its row stays enabled, so focus stays on it", unanswered.liveTuningAction.enabled)
+        assertFalse(
+            "a host it cannot read, with no result to show, leaves the row disabled",
+            quickState(status = on, hostStateUnavailable = true).liveTuningAction.enabled,
+        )
+
+        val again = quickState(status = on, liveTuningPending = true, liveTuningUnconfirmed = false)
+        assertEquals("a new save says Saving", "Saving…", again.liveTuningAction.caption)
+        assertFalse(again.liveTuningAction.announce)
+
+        assertEquals("Applies next launch for Portal", quickState(status = status()).stability.profileCaption)
+        assertEquals("Saved. Applies next launch for Portal", quickState(status = status(), launchPresetSaved = true).stability.profileCaption)
+    }
+
+    @Test
+    fun aSpaceShowsItsVerdictInTheCardAndCallsItsBitrateFixed() {
         // What Polaris sends for a Space (nvhttp.cpp profile_session_status): a health summary,
         // no Doctor object, and live_tuning null.
         val space = com.papi.nova.api.PolarisApiClient.parseSessionStatusResponse(
@@ -1034,7 +1514,10 @@ class NovaQuickMenuUiStateTest {
         val state = quickState(status = space, currentGameName = "papi - heroic")
 
         assertEquals("Profile performance diagnostics are not available yet.", state.healthSummary)
-        assertFalse("the Doctor card would only repeat the strip", state.diagnosis.visible)
+        // Review finding 1: hiding the card for a Space moved every row under it as a Space's
+        // first answer arrived. The card keeps its place and shows the Space's own verdict.
+        assertTrue("the Doctor card shows the Space's verdict", state.diagnosis.visible)
+        assertEquals("Profile performance diagnostics are not available yet.", state.diagnosis.likelyCause)
         assertEquals("Fixed", state.liveTuningAction.chip?.label)
         assertEquals("This Space uses the bitrate selected when the stream starts.", state.liveTuningAction.caption)
     }
@@ -1071,6 +1554,9 @@ class NovaQuickMenuUiStateTest {
         status: PolarisSessionStatus?,
         apiAvailable: Boolean = true,
         liveTuningPending: Boolean = false,
+        liveTuningUnconfirmed: Boolean? = null,
+        hostStateUnavailable: Boolean = false,
+        launchPresetSaved: Boolean = false,
         adaptiveSupported: Boolean = true,
         aiSupported: Boolean = true,
         adaptiveEnabled: Boolean = false,
@@ -1086,12 +1572,20 @@ class NovaQuickMenuUiStateTest {
         hudOpacityPercent: Int = 90,
         menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
         fallbackTargetFps: Double = 60.0,
-        doctorReceipt: DoctorActionReceipt? = null
+        doctorReceipt: DoctorActionReceipt? = null,
+        lastStatus: PolarisSessionStatus? = null,
+        commandKeysAllowed: Boolean = true,
+        context: Context = this.context,
     ) = NovaQuickMenuUiState.from(
         context = context,
         status = status,
+        lastStatus = lastStatus,
+        commandKeysAllowed = commandKeysAllowed,
         apiAvailable = apiAvailable,
         liveTuningPending = liveTuningPending,
+        liveTuningUnconfirmed = liveTuningUnconfirmed,
+        hostStateUnavailable = hostStateUnavailable,
+        launchPresetSaved = launchPresetSaved,
         adaptiveSupported = adaptiveSupported,
         aiSupported = aiSupported,
         adaptiveEnabled = adaptiveEnabled,

@@ -24,6 +24,9 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], shadows = [ShadowMoonBridge::class, ShadowGameManager::class])
 @RunWith(RobolectricTestRunner::class)
 class StartupCrashTest {
+    @Test fun manifestApplicationRunsInStartupCoverage() {
+        org.junit.Assert.assertTrue(ApplicationProvider.getApplicationContext<Context>() is NovaApplication)
+    }
     private lateinit var context: Context
 
     @Before

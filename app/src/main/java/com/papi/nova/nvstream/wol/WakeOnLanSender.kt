@@ -163,6 +163,14 @@ class WakeOnLanSender {
             return normalized.toString()
         }
 
+        @JvmStatic
+        fun usableMacAddress(value: String?): String? {
+            val normalized = normalizeMacAddress(value) ?: return null
+            if (!normalized.matches(Regex("[0-9A-F]{2}(:[0-9A-F]{2}){5}")) ||
+                normalized == "00:00:00:00:00:00" || (normalized.substring(0, 2).toInt(16) and 1) != 0) return null
+            return normalized
+        }
+
         private fun macStringToBytes(macAddress: String): ByteArray {
             val macBytes = ByteArray(6)
 
@@ -181,9 +189,9 @@ class WakeOnLanSender {
             }
         }
 
-        private fun createWolPayload(computer: ComputerDetails): ByteArray {
+        internal fun createWolPayload(computer: ComputerDetails): ByteArray {
             val payload = ByteArray(102)
-            val macAddress = macStringToBytes(computer.macAddress!!)
+            val macAddress = macStringToBytes(computer.wakeMacAddress ?: throw IOException("No usable wake address"))
             var i: Int
 
             // 6 bytes of FF

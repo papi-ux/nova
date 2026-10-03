@@ -6,8 +6,15 @@
 #include <QTimer>
 #include <functional>
 #include <memory>
+#include <cstdint>
+#include <cstddef>
 
 namespace nova::deck::runtime {
+
+struct DeckFrameDeliveryStats {
+    std::uint64_t dropped = 0;
+    std::size_t queued = 0;
+};
 
 // Latency mode holds the newest frame; Balanced holds at most two and spaces
 // delivery at the admitted stream rate. One GUI notification/timer is outstanding.
@@ -23,6 +30,7 @@ public:
     Publisher publisher() const;
     // Worker-safe, once before the first decoded frame, with the admitted FPS.
     Configure configurator() const;
+    DeckFrameDeliveryStats stats() const;
     void close();
 private:
     struct State;

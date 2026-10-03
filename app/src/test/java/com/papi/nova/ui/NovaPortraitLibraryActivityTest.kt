@@ -1,0 +1,164 @@
+package com.papi.nova.ui
+
+import android.content.Context
+import android.content.Intent
+import android.os.Looper
+import android.os.Bundle
+import androidx.compose.runtime.MutableState
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.preference.PreferenceManager
+import androidx.test.core.app.ApplicationProvider
+import com.papi.nova.TestLogSuppressor
+import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.ui.panel.novaSurfaces
+import com.papi.nova.shared.polaris.model.PolarisGame
+import org.junit.BeforeClass
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.Mockito.mock
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.LooperMode
+
+/** Real Library rendering, including the visibility conditions that the old rail tests missed. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], qualifiers = "w412dp-h915dp-port")
+@LooperMode(LooperMode.Mode.PAUSED)
+class NovaPortraitLibraryActivityTest {
+    @get:Rule val rule = createEmptyComposeRule()
+    private val context: Context get() = ApplicationProvider.getApplicationContext()
+    private val game = PolarisGame(id = "recent", name = "A recent game", source = "steam", lastLaunched = 100)
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> state(activity: NovaLibraryActivity, name: String): MutableState<T> =
+        NovaLibraryActivity::class.java.getDeclaredField(name + "\$delegate").run {
+            isAccessible = true
+            get(activity) as MutableState<T>
+        }
+
+    private fun library(layout: NovaLibraryLayoutMode = NovaLibraryLayoutMode.GRID, block: (NovaLibraryActivity) -> Unit) {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        preferences.edit().putString("nova_library_layout_mode", layout.name).commit()
+        val intent = Intent(context, NovaLibraryActivity::class.java)
+            .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
+            .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 9)
+            .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 9)
+        val controller = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create()
+        val activity = controller.get()
+        try {
+            NovaLibraryActivity::class.java.getDeclaredField("apiClient").apply {
+                isAccessible = true
+                set(activity, mock(PolarisApiClient::class.java))
+            }
+            controller.start().resume().visible()
+            repeat(3) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(50) }
+            state<Boolean>(activity, "isInitialLoading").value = false
+            state<String?>(activity, "loadErrorMessage").value = null
+            state<List<PolarisGame>>(activity, "allGames").value = listOf(game)
+            rule.waitForIdle()
+            block(activity)
+        } finally {
+            controller.pause().stop().destroy()
+            preferences.edit().clear().commit()
+        }
+    }
+
+    @Test fun regularDoesNotRepeatRecentGamesAboveItsGrid() = library {
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+    }
+
+    @Test fun savedStageUsesTheRegularGridInPortraitWithoutChangingTheSavedChoice() = library(NovaLibraryLayoutMode.STAGE) {
+        rule.onNodeWithTag("nova-library-stage").assertDoesNotExist()
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+        rule.onNodeWithText("Options").assertIsDisplayed()
+        org.junit.Assert.assertEquals(NovaLibraryLayoutMode.STAGE.name,
+            PreferenceManager.getDefaultSharedPreferences(context).getString("nova_library_layout_mode", null))
+    }
+
+    @Test fun portraitOptionsAndSystemAreVisibleWithoutAMenuToggle() = library {
+        rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+        rule.onNodeWithText("Hide menu").assertDoesNotExist()
+        rule.onNodeWithText("Options").assertIsDisplayed().performClick()
+        rule.onNodeWithText("Library Options").assertIsDisplayed()
+        it.onBackPressedDispatcher.onBackPressed()
+        rule.waitForIdle()
+        rule.onNodeWithText("System").assertIsDisplayed().performClick()
+        org.junit.Assert.assertTrue(it.novaSurfaces.panel.isOpen)
+        rule.onNodeWithText("Polaris Sync").assertIsDisplayed()
+    }
+
+    @Test fun compactDoesNotRepeatItsRecentGameInPortrait() = library(NovaLibraryLayoutMode.COMPACT) {
+        // Exercise the obsolete expanded state too, so the pre-fix hidden rail cannot pass.
+        if (rule.onAllNodesWithTag("nova-portrait-menu-toggle").fetchSemanticsNodes().isNotEmpty()) {
+            rule.onNodeWithTag("nova-portrait-menu-toggle").performClick()
+        }
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
+        rule.onAllNodesWithTag("nova-poster-recent").assertCountEquals(1)
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w915dp-h650dp-land")
+    fun compactDoesNotRepeatItsRecentGameInFilteredLandscape() = library(NovaLibraryLayoutMode.COMPACT) { activity ->
+        // A live filter used to restore the landscape Continue rail even without a hero.
+        state<String>(activity, "searchQuery").value = "recent"
+        rule.waitForIdle()
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertDoesNotExist()
+        rule.onAllNodesWithTag("nova-poster-recent").assertCountEquals(1)
+        rule.onNodeWithTag("nova-poster-recent").assertIsDisplayed()
+    }
+
+    @Test fun anActiveSessionKeepsResumeAndEndAlongsideThePortraitToolbar() = library { activity ->
+        state<NovaLibraryActiveSessionUiState?>(activity, "activeSession").value =
+            NovaLibraryActiveSessionUiState(24, "recent", "A recent game", "Test device", true, 0, false, false, 1920, 1080, 60f)
+        rule.waitForIdle()
+        rule.onNodeWithText("Options").assertIsDisplayed()
+        rule.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+        rule.onNodeWithTag(NOVA_LIBRARY_HERO_TAG).assertIsDisplayed()
+        rule.onNodeWithText("Resume Stream").assertIsDisplayed()
+        rule.onNodeWithText("End Session").assertIsDisplayed()
+        rule.onNodeWithText("Continue").assertDoesNotExist()
+    }
+
+    @Test fun searchAndFocusSurviveActivityRecreation() {
+        val intent = Intent(context, NovaLibraryActivity::class.java)
+            .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
+            .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 9)
+            .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 9)
+        val controller = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create()
+        val saved = Bundle()
+        try {
+            state<String>(controller.get(), "searchQuery").value = "recent"
+            state<String?>(controller.get(), "lastFocusedGameId").value = "recent"
+            controller.saveInstanceState(saved)
+        } finally {
+            controller.destroy()
+        }
+        val restored = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create(saved)
+        try {
+            org.junit.Assert.assertEquals("recent", state<String>(restored.get(), "searchQuery").value)
+            org.junit.Assert.assertEquals("recent", state<String?>(restored.get(), "lastFocusedGameId").value)
+        } finally {
+            restored.destroy()
+        }
+    }
+
+    companion object {
+        @JvmStatic @BeforeClass fun suppressLogs() { TestLogSuppressor.install() }
+    }
+}

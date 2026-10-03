@@ -21,6 +21,9 @@ struct DeckHudHostTarget {
     std::function<polaris::DeckPolarisResult<polaris::DeckHostSettings>(const std::function<bool()>&)> readProfile;
     std::function<polaris::DeckPolarisResult<polaris::DeckHostSettings>(const QString&, int, bool,
         const polaris::DeckLiveTuningTelemetry&, const std::function<bool()>&)> writeProfile;
+    // Present only after an explicit live_media_telemetry_v1 advertisement.
+    std::function<polaris::DeckPolarisResult<bool>(const polaris::DeckClientMediaSample&, const polaris::DeckClientMediaScope&,
+        const std::function<bool()>&)> uploadMedia;
 };
 // Called on a dedicated observer thread, so network objects never cross threads.
 using DeckHudHostFactory = std::function<std::optional<DeckHudHostTarget>()>;
@@ -42,6 +45,7 @@ public:
     DeckHudHostObserver(const DeckHudHostObserver&) = delete;
     DeckHudHostObserver& operator=(const DeckHudHostObserver&) = delete;
     QVariantMap snapshot() const;
+    bool submitClientMedia(const polaris::DeckClientMediaSample& sample);
     bool setLiveTuningEnabled(bool enabled);
     bool setFixedBitrate(int bitrateKbps);
     bool setSyncProfile(const QString& display, int bitrateKbps, bool clear, const QVariantMap& reviewed);

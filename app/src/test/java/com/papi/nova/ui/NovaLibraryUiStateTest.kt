@@ -173,10 +173,6 @@ class NovaLibraryUiStateTest {
             listOf("Portal 2", "Hades", "Desktop", "Black Myth: Wukong"),
             sortedNames(NovaLibrarySortMode.SOURCE)
         )
-        assertEquals(
-            listOf("Black Myth: Wukong", "Desktop", "Hades", "Portal 2"),
-            sortedNames(NovaLibrarySortMode.HDR_FIRST)
-        )
     }
 
     @Test
@@ -229,7 +225,6 @@ class NovaLibraryUiStateTest {
 
         assertEquals(3, model.summary.totalCount)
         assertEquals(2, model.summary.recentCount)
-        assertEquals(1, model.summary.hdrCount)
         assertEquals(listOf("Portal", "Hades"), model.recentGames.map { it.name })
         assertEquals("No matching games", model.hero.title)
         assertEquals(NovaLibraryHeroReason.EMPTY, model.hero.reason)
@@ -280,13 +275,7 @@ class NovaLibraryUiStateTest {
         assertTrue(hero.badges.contains("Virtual display"))
         assertEquals("Resume this stream, or end it if the host game is stale.", hero.caption)
         assertTrue(hero.badges.contains("1920×1080 60fps"))
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = hero.reason,
-                recentCount = 2
-            )
-        )
+
     }
 
     @Test
@@ -555,7 +544,7 @@ class NovaLibraryUiStateTest {
         assertNull(offline.secondaryActionLabel)
 
         assertEquals("Polaris unavailable", unavailable.title)
-        assertEquals("Manage Server", unavailable.primaryActionLabel)
+        assertEquals("Manage Host", unavailable.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, unavailable.primaryAction)
         assertEquals("HTTP 404 polaris/v1/games", unavailable.detail)
         assertNull(unavailable.secondaryActionLabel)
@@ -572,7 +561,7 @@ class NovaLibraryUiStateTest {
         val state = NovaLibraryUiStateMapper.launchFailureRecoveryState("Missing Polaris session details")
 
         assertEquals("Launch blocked", state.title)
-        assertEquals("Manage Server", state.primaryActionLabel)
+        assertEquals("Manage Host", state.primaryActionLabel)
         assertEquals(NovaLibraryRecoveryAction.MANAGE_LIBRARY, state.primaryAction)
         assertEquals("Missing Polaris session details", state.detail)
         assertNull(state.secondaryActionLabel)
@@ -682,76 +671,12 @@ class NovaLibraryUiStateTest {
 
     @Test
     fun stageMetricsCenterTheFocusedGameAndPreservePortraitGeometry() {
-        val thorWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 833,
-            isLandscape = true
-        )
-        val thorLargeTextWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 833,
-            isLandscape = true,
-            largeText = true
-        )
-        val compactThorLargeTextWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 472,
-            isLandscape = true,
-            largeText = true
-        )
-        val phoneWidth = NovaLibraryUiStateMapper.stageCardWidthDp(
-            availableWidthDp = 430,
-            isLandscape = false
-        )
-
-        assertEquals(149, thorWidth)
-        assertEquals(190, thorLargeTextWidth)
-        assertEquals(100, compactThorLargeTextWidth)
-        assertEquals(84, phoneWidth)
-        assertTrue(thorWidth * 5 + 16 * 4 + 24 <= 833)
-        // End inset tracks the viewport so a focused first/last poster is not crowded
-        // against the screen edge (concept: 54px on a 1920px stage).
-        assertEquals(
-            23,
-            NovaLibraryUiStateMapper.stageHorizontalContentPaddingDp(
-                availableWidthDp = 833,
-                cardWidthDp = thorWidth
-            )
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 148, heightDp = 222),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(thorWidth),
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 190, heightDp = 285),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(thorLargeTextWidth),
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 100, heightDp = 150),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(compactThorLargeTextWidth),
-        )
-        assertEquals(
-            NovaPortraitPosterSize(widthDp = 84, heightDp = 126),
-            NovaLibraryUiStateMapper.portraitPosterSizeForWidth(phoneWidth),
-        )
-
-        val stagePresentation = NovaLibraryUiStateMapper.posterPresentationSpec(
-            NovaLibraryLayoutMode.STAGE,
-        )
-        val constrainedSizes = listOf(
-            310 to NovaPortraitPosterSize(widthDp = 180, heightDp = 270),
-            400 to NovaPortraitPosterSize(widthDp = 234, heightDp = 351),
-            126 to NovaPortraitPosterSize(widthDp = 68, heightDp = 102),
-        )
-        constrainedSizes.forEach { (railHeightDp, expectedSize) ->
-            val actualSize = NovaLibraryUiStateMapper.portraitPosterSizeForRail(
-                railHeightDp = railHeightDp,
-                presentationSpec = stagePresentation,
-            )
-            assertEquals(expectedSize, actualSize)
-            assertEquals(actualSize.widthDp * 3, actualSize.heightDp * 2)
-            assertTrue(
-                actualSize.heightDp * stagePresentation.focusedScale +
-                    stagePresentation.focusGutterDp * 2 <= railHeightDp + 0.0001f,
-            )
-        }
+        val rp6 = novaLibraryStageGeometry(833, 354, 1f)
+        assertEquals(NovaPortraitPosterSize(224, 336), rp6.selected)
+        assertEquals(NovaPortraitPosterSize(120, 180), rp6.neighbour)
+        val tall = novaLibraryStageGeometry(833, 450, 1f)
+        assertTrue(tall.selected.heightDp > rp6.selected.heightDp)
+        assertTrue(tall.selected.widthDp <= 833 * .30f)
     }
 
     @Test
@@ -762,9 +687,9 @@ class NovaLibraryUiStateTest {
         assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, "missing"))
         assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(gameIds, null))
         assertEquals(0, NovaLibraryUiStateMapper.stageRestoreIndex(emptyList(), "bravo"))
-        assertEquals(0, NovaLibraryUiStateMapper.stageAdjacentIndex(0, -1, gameIds.size))
+        assertEquals(2, NovaLibraryUiStateMapper.stageAdjacentIndex(0, -1, gameIds.size))
         assertEquals(1, NovaLibraryUiStateMapper.stageAdjacentIndex(0, 1, gameIds.size))
-        assertEquals(2, NovaLibraryUiStateMapper.stageAdjacentIndex(2, 1, gameIds.size))
+        assertEquals(0, NovaLibraryUiStateMapper.stageAdjacentIndex(2, 1, gameIds.size))
         assertEquals(1, NovaLibraryUiStateMapper.stageAdjacentIndex(2, -1, gameIds.size))
     }
 
@@ -847,45 +772,6 @@ class NovaLibraryUiStateTest {
     }
 
     @Test
-    fun landscapeRecentRailDoesNotDuplicateResumeHero() {
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 500,
-                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
-                recentCount = 4
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.LAST_PLAYED,
-                recentCount = 4
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.ACTIVE_SESSION,
-                recentCount = 4
-            )
-        )
-        assertFalse(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
-                recentCount = 0
-            )
-        )
-        assertTrue(
-            NovaLibraryUiStateMapper.showLandscapeRecentRail(
-                screenHeightDp = 600,
-                heroReason = NovaLibraryHeroReason.FIRST_FILTERED,
-                recentCount = 4
-            )
-        )
-    }
-
-    @Test
     fun landscapeRailScrollPaddingKeepsFocusedFiltersClearOfSafeArea() {
         assertTrue(NovaLibraryUiStateMapper.railScrollBottomPaddingDp() >= 96)
     }
@@ -901,9 +787,10 @@ class NovaLibraryUiStateTest {
         val filterCount = NovaLibraryPrimaryFilter.entries.size
 
         assertEquals(2, NovaLibraryUiStateMapper.railFilterColumns(retroidRailWidth))
-        assertEquals(3, NovaLibraryUiStateMapper.railFilterRows(filterCount, retroidRailWidth))
+        // All, Recent, Sources and More: two rows of two since the HDR filter went (N14).
+        assertEquals(2, NovaLibraryUiStateMapper.railFilterRows(filterCount, retroidRailWidth))
         assertTrue(
-            "Retroid landscape rail should show every primary filter in roughly three compact rows instead of clipping the bottom filter below the fold",
+            "Retroid landscape rail should show every primary filter in compact rows instead of clipping the bottom filter below the fold",
             NovaLibraryUiStateMapper.railFilterGridHeightDp(filterCount, retroidRailWidth) <= 124
         )
     }
@@ -920,7 +807,7 @@ class NovaLibraryUiStateTest {
         assertEquals(3, NovaLibraryUiStateMapper.railActionColumns(retroidRailWidth))
         assertEquals(2, NovaLibraryUiStateMapper.railActionRows(actionCount, retroidRailWidth))
         assertTrue(
-            "Retroid landscape rail should keep Refresh/Options/System/Switch plus All/Recent/Sources/HDR/More compact enough for the initial rail viewport",
+            "Retroid landscape rail should keep Refresh/Options/System/Switch plus All/Recent/Sources/More compact enough for the initial rail viewport",
             actionAndFilterStackHeight <= 206
         )
     }
@@ -933,7 +820,7 @@ class NovaLibraryUiStateTest {
 
         assertTrue(widths.values.all { it >= 112 })
         assertTrue(widths.getValue(NovaLibraryPrimaryFilter.SOURCES) > widths.getValue(NovaLibraryPrimaryFilter.ALL))
-        assertTrue(widths.getValue(NovaLibraryPrimaryFilter.RECENT) > widths.getValue(NovaLibraryPrimaryFilter.HDR))
+        assertTrue(widths.getValue(NovaLibraryPrimaryFilter.RECENT) > widths.getValue(NovaLibraryPrimaryFilter.ALL))
     }
 
     @Test
@@ -1175,6 +1062,41 @@ class NovaLibraryUiStateTest {
             stageDisplayTitle("Control Ultimate Edition", largeText = false)
         )
         assertEquals("Alan Wake 2", stageDisplayTitle("Alan Wake 2", largeText = true))
+    }
+
+    @Test
+    fun aRefusedEndPutsItsLineInTheEyebrowAndTryAgainOnEnd() {
+        val games = listOf(game("active", "Active Game"))
+        val session = NovaLibraryActiveSessionUiState(24, "active", "Active Game", "Retroid Pocket", true, 0, false, false, 1920, 1080, 60f)
+        val model = NovaLibraryUiStateMapper.build(games, "", NovaLibraryFilterState(), activeSession = session)
+
+        val ending = NovaLibraryUiStateMapper.withEndStatus(model, session, NovaLibraryEndStatus.Ending(24), "Try Again")
+        assertEquals(NovaLibraryEndStatus.Ending(24), ending.hero.endStatus)
+        assertEquals("End Session", ending.hero.secondaryActionLabel)
+        assertEquals(model.hero.eyebrow, ending.hero.eyebrow)
+
+        val refused = NovaLibraryUiStateMapper.withEndStatus(
+            model, session, NovaLibraryEndStatus.Failed(24, "Could not end the session"), "Try Again",
+        )
+        assertEquals("Could not end the session", refused.hero.eyebrow)
+        assertEquals("Try Again", refused.hero.secondaryActionLabel)
+        assertEquals("the End still ends the session", NovaLibraryHeroSecondaryAction.END_SESSION, refused.hero.secondaryAction)
+        assertEquals("Resume stays", model.hero.actionLabel, refused.hero.actionLabel)
+    }
+
+    @Test
+    fun anEndStatusForAnotherSessionOrNoneChangesNothing() {
+        val games = listOf(game("active", "Active Game"))
+        val session = NovaLibraryActiveSessionUiState(24, "active", "Active Game", "Retroid Pocket", true, 0, false, false, 1920, 1080, 60f)
+        val model = NovaLibraryUiStateMapper.build(games, "", NovaLibraryFilterState(), activeSession = session)
+        val stale = NovaLibraryEndStatus.Failed(99, "Could not end the session")
+        assertEquals(model, NovaLibraryUiStateMapper.withEndStatus(model, session, stale, "Try Again"))
+        assertEquals(model, NovaLibraryUiStateMapper.withEndStatus(model, null, NovaLibraryEndStatus.Ending(24), "Try Again"))
+        assertEquals(model, NovaLibraryUiStateMapper.withEndStatus(model, session, null, "Try Again"))
+        // A watch-only session has no End to refuse.
+        val watching = session.copy(ownedByClient = false)
+        val watchModel = NovaLibraryUiStateMapper.build(games, "", NovaLibraryFilterState(), activeSession = watching)
+        assertEquals(watchModel, NovaLibraryUiStateMapper.withEndStatus(watchModel, watching, NovaLibraryEndStatus.Ending(24), "Try Again"))
     }
 
     private fun game(

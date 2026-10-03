@@ -1,4 +1,5 @@
 #pragma once
+#include "polaris/deck_client_media.h"
 #include "polaris/deck_launch_modes.h"
 #include "polaris/deck_stream_capabilities.h"
 
@@ -77,12 +78,14 @@ struct DeckPolarisCapabilities {
     std::string server;
     std::string version;
     bool gameLibrary = false;
+    bool liveMediaTelemetry = false;
     bool sessionLifecycle = false;
     bool clientSettings = false;
     bool resolvedProfileProvenance = false;
     bool expectedTopologyAssertion = false;
     bool hostSleep = false;
     bool spaces = false;
+    bool pyrowaveAdvice = false, bitrateUnitsV1 = false;
     DeckHostPower hostPower;
     std::string captureBackend;
     std::vector<std::string> codecs;
@@ -121,6 +124,11 @@ struct DeckPolarisGame {
     DeckLaunchModePolicy launchPolicy;
     DeckStreamCapabilities streamCapabilities;
     DeckDisplayPlanner displayPlanner;
+    bool launchAsPresent = false;
+    std::string launchAs;
+    std::optional<bool> launchAsAvailable;
+    std::string launchAsUnavailableReason;
+    bool launchFollowsHostDefault = true;
 };
 
 struct DeckPolarisGamesPage {
@@ -191,6 +199,8 @@ public:
     [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchSpaceLibrary(const std::string& id,
         const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisSessionStatus> fetchSessionStatus() const;
+    [[nodiscard]] DeckPolarisResult<bool> uploadClientMedia(const DeckClientMediaSample& sample, const DeckClientMediaScope& scope,
+        const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostTelemetry> fetchHostTelemetry(const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckDoctorReceipt> runDoctorAction(const DeckDoctorRequest& request,
         const std::function<bool()>& cancelled = {}) const;
@@ -204,6 +214,7 @@ public:
         const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<bool> setFixedBitrate(int bitrateKbps,
         const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<QVariantMap> fetchPyrowaveAdvice(int width, int height, int fps, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostPower> fetchHostPower() const;
     [[nodiscard]] DeckPolarisResult<DeckHostSettings> fetchHostSettings(const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<bool> fetchHostSettingsIdle(const std::function<bool()>& cancelled = {}) const;

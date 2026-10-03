@@ -8,16 +8,22 @@ QVariantMap DeckHudMetrics::empty() {
     const QVariantMap local{{"fps", "--"}, {"incoming", "--"}, {"decoded", "--"}, {"target", ""},
         {"host", "--"}, {"rtt", "--"}, {"jitter", "--"}, {"bitrate", "--"},
         {"resolution", "--"}, {"codec", "--"}, {"history", QVariantList{}},
-        {"videoWork", "--"}, {"refused", "--"},
-        {"fresh", false}, {"truth", "Waiting for stream readings"}};
+        {"videoWork", "--"}, {"refused", "--"}, {"submitted", "--"},
+        {"decoderBackend", "--"}, {"frameTransferPath", "--"}, {"cpuUploadCompositions", "--"},
+        {"requestedFps", "--"}, {"deliveryDrops", "--"}, {"deliveryQueueDepth", "--"},
+        {"mediaLoss", "--"}, {"mediaLossFresh", false}, {"mediaLossSource", "Unavailable"},
+        {"receivedBitrateKbps", 0}, {"fresh", false}, {"truth", "Waiting for stream readings"}};
     for (auto it = local.cbegin(); it != local.cend(); ++it) result.insert(it.key(), it.value());
     return result;
 }
 QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     auto out = empty();
     out["codec"] = s.codec.isEmpty() ? "--" : s.codec;
+    out["decoderBackend"] = s.decoderBackend.isEmpty() ? "--" : s.decoderBackend;
+    out["frameTransferPath"] = s.frameTransferPath.isEmpty() ? "--" : s.frameTransferPath;
     if (s.width > 0 && s.height > 0) out["resolution"] = QString("%1×%2").arg(s.width).arg(s.height);
     if (s.targetFps > 0) out["target"] = QString("/ %1 target").arg(s.targetFps);
+    if (s.targetFps > 0 && s.targetFps <= 240) out["requestedFps"] = QString::number(s.targetFps);
     const auto previous = previous_;
     previous_ = s;
     // Do not bridge a stall, reconnect, counter reset or surface replacement.
@@ -26,7 +32,10 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
         s.bytes < previous->bytes || s.decoded < previous->decoded || s.composed < previous->composed ||
         s.videoWorkMicros < previous->videoWorkMicros || s.videoWorkSamples < previous->videoWorkSamples || s.refused < previous->refused ||
         s.hostLatencySamples < previous->hostLatencySamples || s.hostLatencyTenths < previous->hostLatencyTenths ||
-        s.compositionAvailable != previous->compositionAvailable) {
+        s.submitted < previous->submitted || s.cpuUploadCompositions < previous->cpuUploadCompositions ||
+        s.compositionAvailable != previous->compositionAvailable || s.cpuUploadsAvailable != previous->cpuUploadsAvailable ||
+        s.deliveryAvailable != previous->deliveryAvailable || s.deliveryDrops < previous->deliveryDrops ||
+        s.decoderBackend != previous->decoderBackend || s.frameTransferPath != previous->frameTransferPath) {
         history_.clear(); return out;
     }
     const auto rate = [elapsed](std::uint64_t delta) { return delta * 1000.0 / elapsed; };
@@ -35,6 +44,14 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     out["truth"] = "Composed FPS · video payload bitrate";
     out["incoming"] = QString::number(rate(s.incoming - previous->incoming), 'f', 1);
     out["decoded"] = QString::number(rate(s.decoded - previous->decoded), 'f', 1);
+    out["submitted"] = QString::number(rate(s.submitted - previous->submitted), 'f', 1);
+    if (s.deliveryAvailable) {
+        out["deliveryDrops"] = QString::number(s.deliveryDrops);
+        out["deliveryQueueDepth"] = QString::number(s.deliveryQueueDepth);
+    }
+    if (s.cpuUploadsAvailable)
+        out["cpuUploadCompositions"] = QString::number(rate(s.cpuUploadCompositions - previous->cpuUploadCompositions), 'f', 1);
+    out["receivedBitrateKbps"] = rate(s.bytes - previous->bytes) * 8 / 1000;
     out["bitrate"] = QString::number(rate(s.bytes - previous->bytes) * 8 / 1000000, 'f', 1) + "M";
     const auto workSamples = s.videoWorkSamples - previous->videoWorkSamples;
     if (workSamples) out["videoWork"] = QString::number(
@@ -45,6 +62,19 @@ QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
         history_.append(fps);
         while (history_.size() > 60) history_.removeFirst();
         out["history"] = history_;
+    }
+    if (s.media && previous->media && polaris::freshClientMedia(*s.media, s.media->atMs) &&
+        polaris::validClientMedia(*previous->media) && s.media->atMs > previous->media->atMs &&
+        s.media->atMs - previous->media->atMs >= 500 && s.media->atMs - previous->media->atMs <= 2500 &&
+        s.media->counts.decoderGeneration == previous->media->counts.decoderGeneration) {
+        const auto& current = s.media->counts; const auto& before = previous->media->counts;
+        if (current.expected > before.expected && current.received >= before.received && current.lost >= before.lost) {
+            const auto expected = current.expected - before.expected, received = current.received - before.received, lost = current.lost - before.lost;
+            if (received <= expected && lost == expected - received) {
+                out["mediaLossFresh"] = true; out["mediaLossSource"] = "Video frame sequence";
+                out["mediaLoss"] = QString::number(lost * 100.0 / expected, 'f', 1) + "%";
+            }
+        }
     }
     const auto hostCount = s.hostLatencySamples - previous->hostLatencySamples;
     if (hostCount) out["host"] = QString::number((s.hostLatencyTenths - previous->hostLatencyTenths) / (10.0 * hostCount), 'f', 1) + "ms";

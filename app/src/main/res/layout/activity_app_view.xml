@@ -16,35 +16,55 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header -->
+        <!-- Header: the title, and the preset in use beside it. The preset was a floating button
+             over the tiles, which covered them and cut the last row. -->
         <LinearLayout
             android:id="@+id/appListHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:paddingStart="24dp"
             android:paddingEnd="20dp"
             android:paddingTop="14dp"
             android:paddingBottom="12dp">
 
-            <TextView
-                android:id="@+id/appListText"
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textSize="@dimen/nova_text_header"
-                android:textColor="?attr/colorOnSurface"
-                android:fontFamily="sans-serif-medium" />
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <TextView
-                android:layout_width="match_parent"
+                <TextView
+                    android:id="@+id/appListText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="@dimen/nova_text_header"
+                    android:textColor="?attr/colorOnSurface"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/server_library_label"
+                    android:textSize="@dimen/nova_text_badge"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.08"
+                    android:textAllCaps="true"
+                    android:paddingTop="4dp" />
+            </LinearLayout>
+
+            <!-- A long preset name wraps inside the pill rather than being cut. -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/profilesButton"
+                style="@style/NovaTonalPillButton"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/server_library_label"
-                android:textSize="@dimen/nova_text_badge"
-                android:textColor="?android:attr/textColorSecondary"
-                android:fontFamily="sans-serif-medium"
-                android:letterSpacing="0.08"
-                android:textAllCaps="true"
-                android:paddingTop="4dp" />
+                android:maxWidth="260dp"
+                android:layout_marginStart="12dp"
+                android:focusable="true"
+                android:text="@string/profile_manager_choose_profile" />
 
         </LinearLayout>
 
@@ -94,7 +114,7 @@
             <androidx.cardview.widget.CardView
                 android:layout_width="86dp"
                 android:layout_height="112dp"
-                app:cardCornerRadius="14dp"
+                app:cardCornerRadius="@dimen/nova_radius_row"
                 app:cardElevation="0dp"
                 app:cardBackgroundColor="?attr/colorSurface">
 
@@ -170,24 +190,13 @@
                     android:paddingEnd="14dp"
                     android:paddingBottom="10dp" />
 
-                <TextView
+                <!-- End Session, drawn by NovaSplitConfirm: it splits in place into Stay and End
+                     Session rather than opening a confirm of its own. -->
+                <androidx.compose.ui.platform.ComposeView
                     android:id="@+id/recently_played_end_session"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:minWidth="72dp"
-                    android:gravity="center"
-                    android:text="@string/applist_menu_quit"
-                    android:textSize="12sp"
-                    android:textColor="@color/nova_error"
-                    android:fontFamily="sans-serif-medium"
-                    android:background="@drawable/nova_featured_action_bg"
-                    android:paddingStart="14dp"
-                    android:paddingTop="10dp"
-                    android:paddingEnd="14dp"
-                    android:paddingBottom="10dp"
-                    android:focusable="true"
-                    android:clickable="true"
                     android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
@@ -222,7 +231,6 @@
                 android:paddingTop="22dp"
                 android:paddingEnd="22dp"
                 android:paddingBottom="22dp"
-                android:focusable="true"
                 android:visibility="gone">
 
                 <TextView
@@ -263,17 +271,5 @@
 
     </LinearLayout>
 
-    <!-- Profiles FAB -->
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/profilesButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end|bottom"
-        android:layout_marginBottom="24dp"
-        android:layout_marginEnd="24dp"
-        android:contentDescription="@string/profile_manager_choose_profile"
-        app:icon="@drawable/ic_profiles"
-        app:backgroundTint="?attr/colorAccent"
-        app:iconTint="?attr/colorOnPrimary" />
 
 </FrameLayout>

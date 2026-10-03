@@ -837,13 +837,14 @@ int main(int argc, char** argv) {
         NOVA_TEST_REQUIRE(stopped.hostCancelRequested && stopped.hostCancelled);
         NOVA_TEST_REQUIRE(hostTargets.size() == 1);
         NOVA_TEST_REQUIRE(hostTargets[0] == std::string("/cancel?sessiontoken=tok-1"));
-        NOVA_TEST_REQUIRE(stopped.hostCancelSummary.find("confirmed") != std::string::npos);
+        NOVA_TEST_REQUIRE(stopped.hostCancelSummary == std::string("host accepted the request to end the game (attempt 1)"));
+        NOVA_TEST_REQUIRE(stopped.hostCancelSummary.find("app ended") == std::string::npos);
         const auto stoppedAgain = realGate.stop();
         NOVA_TEST_REQUIRE(stoppedAgain.statusCode == std::string("already-stopped-no-network"));
         NOVA_TEST_REQUIRE(hostTargets.size() == 1 && driver.stopCalls == 1);
 
         // cancel forwards through the gate and the producer, tears the
-        // connection down and ends the host app the same way.
+        // connection down and requests host app termination the same way.
         const auto startedAgain = realGate.startAuthorizedHostSession(approvedPolicy.snapshot(), realRequest, connection, hostFetcher);
         NOVA_TEST_REQUIRE(startedAgain.statusCode == std::string("host-network-started"));
         NOVA_TEST_REQUIRE(driver.startCalls == 2);

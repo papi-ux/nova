@@ -2,7 +2,89 @@
 
 ## Unreleased
 
-- **Nova Linux (Alpha)** is the name of the native client for x86_64 Linux desktops, laptops and handhelds, including Steam Deck. New release bundles use `Nova-Linux-x86_64-alpha.flatpak` and a matching checksum. Hardware-specific codec, HDR and frame-rate limits still apply.
+## 1.4.14 - 2026-10-01
+
+A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. This release brings the Android interface together, gives PyroWave advice that starts from the screen in your hands, and makes the controls easier to use with touch or a controller. Existing pairings, saved setups and artwork stay yours.
+
+**The game comes first**
+
+Stage gives the selected game the room it deserves. The other layouts get quieter, and the controls stop competing with the artwork.
+
+- Stage puts the game up front with its backdrop, title, play time, last played and a wrapping poster row. A opens its game page. A running game keeps its Resume and End actions.
+- Regular and Compact show each recent game once in the grid. The old Continue row is gone from both.
+- Portrait uses Regular while remembering your Stage choice for landscape. Options and System stay directly available; there is no extra Hide Menu button in the portrait Library.
+- A missing or slow poster keeps the game's name visible. Search and the focused game survive a screen rotation, and the footer names the Library consistently across layouts.
+- Hosts, Library and update buttons fit narrow screens. Empty Hosts actions scroll on short screens, so the next step stays reachable by touch and controller.
+- Phone menus fill the screen edges, with nearby text and controls kept clear of camera cutouts. Hosts puts its identity and Menu in one bar; portrait Settings puts Menu on the left.
+
+**Make it your size**
+
+Smaller text does not have to mean smaller buttons. Nova now lets you choose them separately.
+
+- Control Size offers distinct Compact, Standard and Large layouts. Nova Text Size starts at 80 percent, can be changed independently, and still respects Android's text scaling. Compact keeps full touch targets.
+- Text size and bitrate have small-step buttons alongside touch adjustment and exact entry. The opened editor keeps changes as a draft until Save; Back leaves the saved value alone.
+- Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen. Settings can hide its supporting menu when the rows need more room.
+- Settings, pickers, sheets and Command Center use consistent focus and Back behavior. The Mouse Mode picker takes D-pad focus, and End Session confirmation opens with a focused action.
+- Android and Linux add `< Congratulations, Director >`: crimson surfaces, warm white text and black controls. It is a separate theme, so your current choice stays intact.
+- Changing themes from Home no longer leaves Nova unresponsive on affected Android handhelds.
+
+**Play Setup knows the device**
+
+A phone, a handheld and a television should not all start from the same guessed stream settings.
+
+- Stream tiers use the device's display and decoder support to offer Recommended, Max and Custom choices. Custom keeps its own bitrate and automatic setting when you switch to another tier.
+- Resume follows the running stream's display mode instead of quietly substituting the device's current preference.
+- Saved setups keep their numeric overrides and automatic bitrate choice. Changing resolution or frame rate and then entering a manual bitrate keeps that manual choice.
+- A host-specific Launch As restriction keeps the host's reason. Spaces use their worker's allowed mode without borrowing the desktop's choices, and an unavailable Space remains unavailable.
+
+**PyroWave gets a more useful starting point**
+
+It still wants a fast local network. The advice now distinguishes a screen held nearby from one across the room, instead of asking a handheld to spend television-sized bandwidth.
+
+- Handheld advice uses the calibrated 31 dB target; the room target stays 35 dB. For Android 1080p at 120 fps in 4:4:4, the handheld model suggests about 215 Mbps as a request, rather than the old figure of about 359 Mbps. The scene and network still determine the received rate and quality.
+- Automatic raises and Use recommended stay at or below 300 Mbps. Android manual requests can reach 500 Mbps when the host advertises that limit; older hosts retain their 300 Mbps limit. The model's own estimate can be higher without authorizing an automatic raise past the ceiling.
+- Android Command Center uses ten-percent bitrate steps for PyroWave and 5 Mbps steps for H.264 and HEVC. A compatible host supplies the units needed to distinguish the client's request from the encoder's video budget. Unknown units stay read-only.
+- A manual live change turns Live Tuning off for that stream only. It leaves the host's saved settings alone.
+- With a compatible host, Doctor can offer a reversible PyroWave quality increase on a clean network, or a lower bitrate after sustained measured media loss. Verify checks the result; Undo restores the previous bitrate and Live Tuning state.
+- PyroWave remains experimental in Nova Beta on Android. Devices missing its Vulkan features get a reason instead of an unusable choice. Auto does not select it.
+
+**The menu and HUD tell the same story**
+
+- NovaHUD keeps its corner position, compact readout and sparkline colors. Its numbers distinguish unavailable or stale measurements from healthy ones, and media loss from control-channel retries.
+- Command Center background opacity works again, independently of the HUD. Its pickers, focus and confirmation actions follow the rest of Nova.
+- The capture explanation shows GPU encoding alongside CPU capture copies when both are true. A system-memory capture path no longer reads as software encoding, and Doctor's own health verdict remains visible.
+- Shield controller motion during stream startup and malformed decoder packets are handled safely. Older Android versions can open the new panels without loading newer platform Back APIs.
+
+**Nova Linux, closer to Nova**
+
+The Linux interface gets the same attention as the Android one: a quieter Library, controls that fit an 800p handheld, and preferences you can adjust without committing each step.
+
+- Hosts, Settings, Library and Play Setup fit landscape handhelds and desktop windows. Smaller resized windows keep actions reachable; Stage uses Regular when the window is taller than it is wide, while retaining the landscape choice. Back clears a Settings search before leaving.
+- Appearance offers Compact, Standard and Large controls, the Director theme, and 80–130 percent text in one-percent steps. New installations start at 80 percent; existing saved sizes stay intact. Text and menu-opacity previews apply after Save.
+- Command Center has its own background-opacity control and stacks its session actions in narrow windows. HUD text remains readable over video, with debug groups that wrap.
+- The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device when you choose that codec. H.264, HEVC and Auto do not run the PyroWave check. The separate PyroWave bundle is retired; install the standard bundle over it, keeping app data, pairing and preferences.
+- Linux PyroWave supports SDR 8-bit 4:2:0. HDR, 4:4:4 and Spaces remain outside this route, and Auto does not select it. Play Setup names an incompatible build, GPU, host or size before launch.
+- Play Setup can use the host's recommended PyroWave rate, with calibrated local advice when the host has none. A low-rate warning explains the shortfall. Live controls offer 10 Mbps steps, Use recommended and the measured received video rate.
+- Controller navigation supports held-button repeat, the left stick, shoulder paging and Back. First launch opens pairing, and decoder, launch, traffic and capture failures name a cause and a next step.
+- Save a PC's MAC address and use Wake PC from its System menu. Nova confirms that it sent the packet; the PC's connection state tells you whether it woke.
+- System offers a reviewed Add Nova to Steam action. The first Moonlight handoff explains its limits before launching, and Back cancels it.
+- Compatible Polaris hosts receive fresh measured video-loss evidence. Decoder refusals and control retries stay separate; missing measurements stay unavailable.
+- PipeWire audio recovery no longer occasionally hangs during disconnect when the audio service disappears. Stereo, 5.1 and 7.1 keep the same recovery and shutdown deadlines.
+- End Session distinguishes the PC accepting the request from verified game shutdown. A failed update check keeps Retry available and uses the production feed address; a bundle without a configured signed channel still gives installation guidance.
+
+**Steam Frame: experimental groundwork**
+
+- The ARM64 development route adds a pinned FFmpeg provider and hardware H.264/HEVC decoding through Frame's Qualcomm V4L2 interface, with bounded frame ownership and Vulkan presentation. It refuses compressed capture layouts it cannot safely read.
+- Startup and Play Setup use the same backend discovery, so a qualified decoder does not appear unavailable merely because the device lacks VA-API. PyroWave keeps its separate Vulkan and DMA-BUF checks.
+- Real Frame streams have produced pictures with all three codecs, but this is still experimental development work. The sustained 1080p at 90 fps target, color and clarity checks are incomplete. Immersive XR and HDR are separate work; this does not announce Steam Frame Verified support or a public ARM64 download.
+
+**Before you update**
+
+- Keep in Step starts on for new pairings.
+- Android beta APKs are named `Nova-Beta-Android-<abi>.apk`, install beside stable Nova, and follow the beta update channel. Numbered builds identify themselves as `1.4.14-beta.1`. New pairings use Beta instead of Pre; an existing host-stored pairing name changes only after pairing again.
+- Linux uses the same app ID when replacing an older bundle. Keep its app data and do not uninstall with `--delete-data`.
+- A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games; full per-game shutdown is a separate follow-up.
+- Nova Linux remains an Alpha, and the Frame route is experimental. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
 
 ## 1.4.13 - 2026-09-24
 

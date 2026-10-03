@@ -14,7 +14,7 @@ class NovaLibraryTopBarFitTest {
 
     /** Text widths in dp at font scale 0.85, from the screenshot. */
     private object Retroid {
-        const val HOST_NAME = 49f // "pc-papi.lan"
+        const val HOST_NAME = 49f // "test-pc.lan"
         const val HOST_STATUS = 53f // "Polaris ready"
         const val CAPTION = 45f // "Your Space"
         const val SPACE_NAME = 65f // "papi - steam"
@@ -24,6 +24,7 @@ class NovaLibraryTopBarFitTest {
         const val SYSTEM = 28f // "System"
         const val EYEBROW = 100f // "RESUME YOUR STREAM"
         const val TITLE = 72f // "Animal Well"
+        const val TITLE_WORD = 41f // "Animal", as narrow as the title goes on two lines
         const val RESUME = 62f // "Resume Stream"
         const val END = 53f // "End Session"
         const val STRIP = 815f
@@ -60,7 +61,10 @@ class NovaLibraryTopBarFitTest {
             continueCard = if (!live) null else NovaTopBarContinueWidths(
                 padding = 4f,
                 cover = if (largeText) 63f else 49f,
-                textMin = minOf(maxOf(Retroid.EYEBROW, Retroid.TITLE) * k, 64f),
+                // The words are measured whole: the eyebrow on one line over the title, which has
+                // two lines under it until large text leaves the strip room for one.
+                textMin = maxOf(Retroid.EYEBROW, if (fontScale >= 1.2f) Retroid.TITLE else Retroid.TITLE_WORD) * k,
+                titleMin = Retroid.TITLE_WORD * k,
                 gap = 7f,
                 primary = maxOf(88f, Retroid.RESUME * k + 24f),
                 secondary = maxOf(72f, Retroid.END * k + 24f),
@@ -95,13 +99,62 @@ class NovaLibraryTopBarFitTest {
     }
 
     @Test
-    fun atDefaultTextALiveLibraryKeepsEverything() {
-        // With the count and layout name out of the strip, a live Grid library at font scale 1.0
-        // no longer has to give anything up.
+    fun atDefaultTextALiveLibraryGivesUpOnlyTheEyebrow() {
+        // The card's words are measured whole now rather than cut to 64 dp, and "RESUME YOUR
+        // STREAM" whole is 117 dp at 1.0. It says what Resume Stream beside it says, so it is the
+        // first to go, and the title, the Space and the host keep everything.
         val widths = widths(fontScale = 1f, playing = true, live = true)
         val fit = novaLibraryTopBarFit(widths)
-        assertEquals(NovaTopBarFit(), fit)
+        assertEquals(NovaTopBarFit(showContinueEyebrow = false), fit)
+        assertEquals(
+            "without the eyebrow the card measures its title alone",
+            widths.continueCard!!.titleMin,
+            novaTopBarContinueWidth(widths.continueCard!!, fit) - novaTopBarContinueWidth(
+                widths.continueCard!!,
+                fit.copy(showContinueText = false),
+            ) - widths.continueCard!!.gap,
+            0.01f,
+        )
         fits(widths, fit)
+    }
+
+    // A refused End's reason is the card's words, and nothing else in the strip says it (XR3). The
+    // longest, "Another device started this session. End it there or on the host.", is 66
+    // characters: 367 dp on one line at 0.85, at the 5.56 dp a character "RESUME YOUR STREAM"
+    // measured. Over one title line it takes two lines, alone three, with room for a word that
+    // does not break. It is never left out; what gives way after it does instead.
+    @Test
+    fun aRefusedEndsReasonIsNeverLeftOutOnTheRetroid() {
+        for (fontScale in listOf(1f, 1.3f)) {
+            val k = fontScale / 0.85f
+            val oneLine = 367f * k
+            val word = 12f * k
+            val base = widths(fontScale = fontScale, playing = true, live = true)
+            val refused = base.copy(
+                continueCard = base.continueCard!!.copy(
+                    textMin = maxOf(oneLine / 2f + word, Retroid.TITLE * k),
+                    titleMin = oneLine / 3f + word,
+                    // Another device's session: End is gone, and no Try Again takes its place.
+                    secondary = 0f,
+                    keepsText = true,
+                ),
+            )
+            val fit = novaLibraryTopBarFit(refused)
+            assertTrue("the reason stays at $fontScale: $fit", fit.showContinueText)
+            fits(refused, fit)
+        }
+    }
+
+    @Test
+    fun theCardsTitleTakesTheLinesTheStripHasAndNeverAThird() {
+        // The Retroid's 60 dp strip, 49 dp inside: two 16 dp title lines under an 11 dp eyebrow.
+        assertEquals(2, novaTopBarTitleLines(roomPx = 49f - 11f - 1f, linePx = 16f))
+        // At 1.3 the lines are 20.8 dp and the eyebrow 14: one line under it, two without it.
+        assertEquals(1, novaTopBarTitleLines(roomPx = 49f - 14f - 1f, linePx = 20.8f))
+        assertEquals(2, novaTopBarTitleLines(roomPx = 49f, linePx = 20.8f))
+        assertEquals("a tall strip still stops at two", 2, novaTopBarTitleLines(roomPx = 200f, linePx = 16f))
+        assertEquals("no room, no line", 0, novaTopBarTitleLines(roomPx = 12f, linePx = 16f))
+        assertEquals(0, novaTopBarTitleLines(roomPx = 49f, linePx = 0f))
     }
 
     @Test
@@ -113,6 +166,7 @@ class NovaLibraryTopBarFitTest {
                 showSpaceCaption = false,
                 showHostStatus = false,
                 showContinueCover = false,
+                showContinueEyebrow = false,
                 showContinueText = false,
                 compactSpaceStatus = true,
             ),
@@ -249,5 +303,15 @@ class NovaLibraryTopBarFitTest {
         assertEquals("A", novaSpaceInitials("Alex's Space"))
         assertEquals("2F", novaSpaceInitials("2nd Floor"))
         assertEquals("", novaSpaceInitials("  "))
+    }
+
+    @Test
+    fun aHostNameTooLongForItsPlaceDropsItsDomainAndAnAddressStaysWhole() {
+        // The strip ended "living-room-gaming-pc.papi..." in an ellipsis; the name alone is whole.
+        assertEquals("living-room-gaming-pc", novaShortHostLabel("living-room-gaming-pc.papi.miami"))
+        assertEquals("test-pc", novaShortHostLabel("test-pc.lan"))
+        assertEquals("192.0.2.10", novaShortHostLabel("192.0.2.10"))
+        assertEquals("fe80::1", novaShortHostLabel("fe80::1"))
+        assertEquals("Living Room", novaShortHostLabel("Living Room"))
     }
 }

@@ -1,5 +1,6 @@
 #include "runtime/deck_input_hub.h"
 #include "runtime/deck_input_device_policy.h"
+#include "runtime/deck_ui_navigation.h"
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_rumble.h"
 #include "deck_gamepad.h"
@@ -40,6 +41,7 @@ struct DeckInputHub::Device {
     QSocketNotifier* notifier = nullptr;
     stream::DeckControllerDecoder decoder;
     DeckRumbleController rumble;
+    DeckUiNavigation navigation;
     ~Device() {
         delete notifier;
         rumble.setDevice(-1);
@@ -54,6 +56,9 @@ DeckInputHub::DeckInputHub(QObject* parent) : QObject(parent), assignments_(isDe
     connect(qApp, &QGuiApplication::applicationStateChanged, this, [this] { syncFocus(); });
     connect(&scanTimer_, &QTimer::timeout, this, &DeckInputHub::scan);
     scanTimer_.start(1000);
+    navigationClock_.start();
+    connect(&navigationTimer_, &QTimer::timeout, this, &DeckInputHub::updateNavigation);
+    navigationTimer_.start(20);
     scan();
 }
 DeckInputHub::~DeckInputHub() = default;
@@ -114,6 +119,14 @@ void DeckInputHub::syncFocus() {
     const auto* window = QGuiApplication::focusWindow();
     if ((!window || !window->isActive()) && primaryHeld()) { primaryOwner_.clear(); emit primaryHeldChanged(); }
     if (session_) session_->setInputFocus(window && window->isActive());
+    for (const auto& device : devices_) device->navigation.update(device->decoder.state(), false, navigationClock_.elapsed());
+}
+void DeckInputHub::updateNavigation() {
+    const auto* window = QGuiApplication::focusWindow();
+    const bool enabled = window && window->isActive() && (!session_ || !session_->capturesGamepad());
+    for (const auto& device : devices_)
+        for (const auto key : device->navigation.update(device->decoder.state(), enabled && device->decoder.ready(), navigationClock_.elapsed()))
+            navigationKey(key);
 }
 void DeckInputHub::activateFocusedItem() { navigationKey(Qt::Key_Return); }
 void DeckInputHub::navigationKey(int key) {
@@ -235,17 +248,15 @@ void DeckInputHub::read(Device& device) {
                 }
                 const int player = assignments_.player(device.id);
                 if (player >= 0) session_->updatePlayerController(player, state, device.decoder.ready());
-                if (captured || session_->capturesGamepad()) continue;
+                if (captured || session_->capturesGamepad()) {
+                    device.navigation.update(state, false, navigationClock_.elapsed());
+                    continue;
+                }
             }
-            if (!window || !window->isActive()) continue;
+            const bool uiEnabled = window && window->isActive() && device.decoder.ready();
+            for (const auto key : device.navigation.update(state, uiEnabled, navigationClock_.elapsed())) navigationKey(key);
+            if (!uiEnabled || !device.navigation.armed()) continue;
             const auto pressed = (raw.type & JS_EVENT_INIT) ? 0u : state.buttons & ~before.buttons;
-            // The decoder normalizes both hat axes and BTN_DPAD_* devices.
-            // Reading hats separately would leave button-based D-pads inert in
-            // the UI even though the same controller worked during gameplay.
-            if (pressed & LEFT_FLAG) navigationKey(Qt::Key_Left);
-            if (pressed & RIGHT_FLAG) navigationKey(Qt::Key_Right);
-            if (pressed & UP_FLAG) navigationKey(Qt::Key_Up);
-            if (pressed & DOWN_FLAG) navigationKey(Qt::Key_Down);
             if (pressed & A_FLAG) {
                 if (primaryHeld()) { primaryOwner_.clear(); emit primaryHeldChanged(); }
                 primaryOwner_ = device.id;

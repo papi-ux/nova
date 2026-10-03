@@ -83,7 +83,7 @@ class StreamSettingsModernButtonSourceTest {
     @Test
     fun modernActionPersistsComposeModeAndReturnsWithoutScrolling() {
         val source = File(main, "java/com/papi/nova/preferences/StreamSettings.kt").readText()
-        val legacy = source.substringAfter("private fun showLegacySettings()").substringBefore("private fun handleComposeAction")
+        val legacy = source.substringAfter("private fun showLegacySettings(").substringBefore("private fun handleComposeAction")
 
         assertTrue(legacy.contains("R.id.modernSettingsButton"))
         assertTrue(legacy.contains("setComposeSettingsEnabled(this@StreamSettings, true)"))

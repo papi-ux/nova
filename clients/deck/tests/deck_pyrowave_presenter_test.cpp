@@ -9,6 +9,10 @@
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
+#ifdef NOVA_DECK_TEST_VULKAN_PRESENTATION
+#include "stream/deck_placebo_color_renderer.h"
+#include <libplacebo/vulkan.h>
+#endif
 using namespace nova::deck::stream;
 namespace {
 void require(bool value, const std::string& message) {
@@ -126,6 +130,41 @@ int main(int argc, char** argv) try {
     auto lease = DeckQrhiVaapiFrameLease::retainPyrowaveFrame(gpu);
     require(lease && lease->valid(), "GPU frame lease invalid");
     gpu = {}; decoder.close(); encoder.close();
+#ifdef NOVA_DECK_TEST_VULKAN_PRESENTATION
+    auto vkParams = pl_vulkan_default_params;
+    auto vk = pl_vulkan_create(nullptr, &vkParams);
+    require(vk != nullptr, "Vulkan presentation device unavailable");
+    const auto format = pl_find_fmt(vk->gpu, PL_FMT_FLOAT, 4, 16, 32,
+        static_cast<pl_fmt_caps>(PL_FMT_CAP_RENDERABLE | PL_FMT_CAP_HOST_READABLE));
+    require(format != nullptr, "Vulkan readback target unavailable");
+    pl_tex_params targetParams{};
+    targetParams.w = width; targetParams.h = height; targetParams.format = format;
+    targetParams.renderable = targetParams.host_readable = targetParams.blit_dst = true;
+    auto target = pl_tex_create(vk->gpu, &targetParams);
+    require(target != nullptr, "Vulkan target allocation failed");
+    {
+        DeckPlaceboColorRenderer presenter(vk->gpu);
+        require(presenter.render(*lease->frame(), target, DeckColorOutput::Srgb), presenter.error());
+        require(presenter.pendingFrames() > 0 && presenter.pendingFrames() <= 3, "unbounded DMA-BUF retention");
+        std::vector<float> readback(width * height * 4);
+        pl_tex_transfer_params transfer{};
+        transfer.tex = target; transfer.ptr = readback.data();
+        require(pl_tex_download(vk->gpu, &transfer), "Vulkan DMA-BUF readback failed");
+        const float expected[] = {179.f / 255, 120.f / 255, 58.f / 255};
+        for (int y = hostFixture ? 24 : 8; y < height - (hostFixture ? 24 : 8); y += 8)
+            for (int x = 8; x < width - 8; x += 8) for (int c = 0; c < 3; ++c) {
+                const auto actual = readback[(y * width + x) * 4 + c];
+                require(std::isfinite(actual) && std::abs(actual - expected[c]) <= 18.f / 255,
+                    "Vulkan PyroWave color mismatch");
+            }
+        pl_gpu_finish(vk->gpu);
+        presenter.retireFrames();
+        require(presenter.pendingFrames() == 0, "Vulkan retained a retired DMA-BUF");
+    }
+    pl_tex_destroy(vk->gpu, &target);
+    pl_vulkan_destroy(&vk);
+    std::cout << "PyroWave DMA-BUF -> Nova Vulkan/libplacebo color and retirement checks passed\n";
+#endif
     auto drm = lease->exportDrmPrimeDescriptor();
     require(drm.status == DeckQrhiVaapiImportStatus::DrmPrimeExported && drm.layerCount == 3, "three planes not exported");
     DeckVaapiEglImagePresenter::Resource resource;

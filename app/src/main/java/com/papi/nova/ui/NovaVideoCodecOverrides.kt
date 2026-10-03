@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import com.papi.nova.binding.video.PyroWaveAvailability
 import android.content.Context
 import android.content.Intent
 import com.papi.nova.BuildConfig
@@ -75,38 +76,92 @@ object NovaVideoCodecOverrides {
     }
 }
 
-/** Uses the same variant-specific resource catalog as Settings; stable has no experimental entry. */
+/**
+ * Uses the same variant-specific resource catalog as Settings; stable has no experimental entry.
+ * The row opens its page (R2): each codec carries a sentence, and PyroWave's is too long for a
+ * row. [preview] gives what the plan card shows while a codec has focus there, from the codec it
+ * would launch with; null for one that leaves the choice to the app setting or the host.
+ */
+/**
+ * One sentence for each codec, the same on Play Setup's page and in Settings: every standard codec
+ * had carried one shared sentence, and "Recommended" sat in the name instead of leading its note.
+ */
+internal fun novaCodecOptionDetail(context: Context, value: String): String = context.getString(
+    when (value) {
+        "auto" -> R.string.nova_codec_detail_auto
+        "forceav1" -> R.string.nova_codec_detail_av1
+        "forceh265" -> R.string.nova_codec_detail_hevc
+        "neverh265" -> R.string.nova_codec_detail_h264
+        "forcepyrowave" -> R.string.nova_play_setup_codec_pyrowave_detail
+        else -> R.string.nova_play_setup_codec_standard_detail
+    },
+)
+
 internal fun novaPlaySetupCodecRow(
     context: Context,
     selected: String?,
     appSetting: FormatOption?,
+    preview: (FormatOption) -> NovaPlaySetupPreview? = { null },
+    onSelect: (String?) -> Unit,
+): NovaPlaySetupRowState {
+    return novaPlaySetupHostCodecRow(context, selected, appSetting,
+        availability = { PyroWaveAvailability.inspect(context.applicationContext) },
+        hostUnavailable = { null }, isCurrent = { true }, preview = preview, onSelect = onSelect)
+}
+
+/** A host refusal is launch advice for this host/game, never a global device preference. */
+internal fun novaPlaySetupHostCodecRow(
+    context: Context,
+    selected: String?,
+    appSetting: FormatOption?,
+    availability: () -> PyroWaveAvailability.Status,
+    hostUnavailable: () -> com.papi.nova.api.PolarisCapabilities.PyrowaveUnavailable?,
+    isCurrent: () -> Boolean,
+    preview: (FormatOption) -> NovaPlaySetupPreview? = { null },
     onSelect: (String?) -> Unit,
 ): NovaPlaySetupRowState {
     val values = context.resources.getStringArray(R.array.video_format_values)
     val labels = context.resources.getStringArray(R.array.video_format_names)
     val effective = NovaVideoCodecOverrides.resolve(selected, appSetting)
     val options = values.zip(labels).filter { NovaVideoCodecOverrides.normalize(it.first) != null }
+    val deviceStatus = if (options.any { it.first == "forcepyrowave" }) availability()
+        else PyroWaveAvailability.Status.AVAILABLE
+    val unavailableReason = hostUnavailable()?.message?.takeIf { it.isNotBlank() }
+        ?: PyroWaveAvailability.reason(context, deviceStatus)
+    fun canChoose(format: FormatOption?): Boolean = isCurrent() &&
+        (format != FormatOption.FORCE_PYROWAVE ||
+            (hostUnavailable() == null && PyroWaveAvailability.canLaunch(format, availability())))
+    fun guarded(value: String?, format: FormatOption?): (() -> Unit)? =
+        if (canChoose(format)) ({ if (canChoose(format)) onSelect(value) }) else null
     return NovaPlaySetupRowState(
         row = NovaPlaySetupRow.VIDEO_CODEC,
         label = context.getString(R.string.nova_play_setup_video_codec),
         value = if (selected == null) context.getString(R.string.nova_play_setup_codec_inherited,
             NovaVideoCodecOverrides.label(appSetting)) else options.firstOrNull { it.first == selected }?.second.orEmpty(),
-        caption = context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
-            R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_caption),
-        stripTitle = context.getString(R.string.nova_play_setup_video_codec),
+        caption = if (effective == FormatOption.FORCE_PYROWAVE && unavailableReason.isNotEmpty())
+            unavailableReason else context.getString(if (effective == FormatOption.FORCE_PYROWAVE)
+                R.string.nova_play_setup_codec_pyrowave_caption else R.string.nova_play_setup_codec_caption),
         options = listOf(NovaPlaySetupOption(
             label = context.getString(R.string.nova_play_setup_codec_app_setting),
-            consequence = context.getString(R.string.nova_play_setup_codec_inherit_detail),
+            value = NovaVideoCodecOverrides.label(appSetting),
+            consequence = if (!canChoose(appSetting))
+                unavailableReason else context.getString(R.string.nova_play_setup_codec_inherit_detail),
             current = selected == null,
-            onSelect = { onSelect(null) },
-        )) + options.map { (value, label) -> NovaPlaySetupOption(
-            label = label,
-            consequence = context.getString(if (value == "forcepyrowave")
-                R.string.nova_play_setup_codec_pyrowave_detail else R.string.nova_play_setup_codec_standard_detail),
-            current = value == selected,
-            onSelect = { onSelect(value) },
-        ) },
+            enabled = canChoose(appSetting),
+            onSelect = guarded(null, appSetting),
+        )) + options.map { (value, label) ->
+            val format = NovaVideoCodecOverrides.resolve(value, null)
+            NovaPlaySetupOption(
+                label = label,
+                consequence = if (value == "forcepyrowave" && unavailableReason.isNotEmpty())
+                    unavailableReason else novaCodecOptionDetail(context, value),
+                current = value == selected,
+                enabled = canChoose(format),
+                onSelect = guarded(value, format),
+                preview = format?.takeIf { it != FormatOption.AUTO }?.let(preview),
+            )
+        },
         overridden = selected != null,
-        optionsPerRow = 3,
+        opensPage = true,
     )
 }

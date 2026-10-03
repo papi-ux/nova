@@ -17,10 +17,60 @@ historical implementation note below as an open assignment. The
 LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
 Alpha client; a successful build does not validate every Linux configuration.
 
+## Find your next step
+
+- [Install the Flatpak and configure Steam Input](packaging/flatpak/README.md).
+- [Current interface](#what-changes-in-1414), [window controls](#linux-window-controls),
+  [PC discovery](#local-pc-search), and [frame rates and bitrate](#linux-frame-rates-and-bitrate).
+- [PyroWave and older-bundle migration](docs/pyrowave.md).
+- [Experimental Steam Frame development](docs/steam-frame.md).
+- [Build and smoke routes](#runnable-smoke-paths) and
+  [dependency notes](#fedora-or-steamos-dependency-notes) for contributors.
+
+## What changes in 1.4.14
+
+The Library, Hosts, Settings and Play Setup now fit landscape handhelds and
+resized desktop windows more comfortably. Stage keeps the selected game's art
+up front; Regular and Compact keep recent games in the grid without the old
+Continue row. Stage uses Regular in a taller window and remembers the landscape
+choice. This is a window adaptation, not a requirement to use Linux in portrait.
+
+**System → Appearance** separates Compact, Standard and Large controls from
+text size. Text supports 80–130 percent in one-percent steps; new installations
+start at 80 percent and existing saved sizes stay intact. Opened text and opacity
+editors keep a draft until Save. The six Linux themes now include
+`< Congratulations, Director >`, with crimson surfaces, warm white text and
+black controls. Command Center has its own background-opacity setting.
+
+![Nova Linux 1.4.14-beta.1 candidate Appearance settings in the Director theme, with independent text, control size and library layout](../../docs/screenshots/nova-linux-director-appearance-v1.4.14-beta.1.webp)
+
+*Production Release binary, captured at 1280×800 in an isolated software-rendered
+window. [Source and image provenance](../../docs/screenshots/beta1-readme-provenance.json).
+This UI capture does not qualify hardware streaming or frame rate.*
+
+First launch opens pairing. Settings search, held controller repeat, left-stick
+navigation, shoulder paging and Back use the same native interface. System
+offers **Add Nova to Steam** and **Wake PC** after you save that PC's MAC address.
+A sent wake packet is not proof that a PC is awake. Decoder and launch failures
+name a cause and a next step; End Session distinguishes an accepted request from
+verified game shutdown.
+
+The standard x86_64 bundle includes experimental PyroWave with a device check
+that runs only when the codec is selected. H.264, HEVC and Auto skip that check.
+The [PyroWave guide](docs/pyrowave.md) covers migration from the retired separate
+bundle, SDR limits, calibrated advice and live controls.
+
+The [Steam Frame development guide](docs/steam-frame.md) covers the experimental
+ARM64 route. Real streams have produced pictures with H.264, HEVC and PyroWave;
+sustained 1080p/90 performance and color/clarity checks remain incomplete. This
+is not a public ARM64 download, HDR qualification or immersive XR support.
+
 Current implementation includes:
 
 - Standalone PIN/Trusted Pair and explicit local PC discovery.
-- VA-API video, Opus/PipeWire audio, controllers, keyboard and direct/relative mouse input.
+- VA-API video and experimental PyroWave, Opus/PipeWire audio, controllers,
+  keyboard and direct/relative mouse input. The Frame development route adds
+  hardware V4L2 decoding separately.
 - Desktop fullscreen/window controls, display-aware rates through 240 fps and
   host-validated bitrate settings.
 - Native themes, accessible text sizing and controller/mouse/touch UI navigation.
@@ -70,10 +120,14 @@ whole-number rates follow the current Polaris profile contract, 15–240 fps.
 
 The old 100 Mbps numeric-parser limit and 150 Mbps host-plan request limit are
 removed. Decimal custom bitrates now reach storage, defaults, Sync, host planning,
-launch and recovery without those client-side ceilings. Polaris currently accepts
-1–300 Mbps for profiles and live bitrate changes; this remains an explicit host
-constraint. Neither a requested rate nor the capability check proves measured
-240 FPS playback or a sustained network bitrate.
+launch and recovery without those client-side ceilings. Storage and the request contract allow up to 500 Mbps, but review and launch use
+the PC's advertised manual limit; without that capability the limit is 300 Mbps.
+The Play Setup picker has preset choices through 300 Mbps and retains a saved
+custom value when the PC allows it. Live Bitrate can reach the advertised limit
+with its slider and 10 Mbps buttons. Automatic advice and Use recommended stay
+at or below 300 Mbps. These controls do not guarantee measured 240 FPS playback
+or a sustained network bitrate; the [PyroWave guide](docs/pyrowave.md#bitrate-advice-and-limits)
+explains request and encoder units.
 
 Preferences survive a move to a slower display. Play Setup explains any lower
 frame rate used for that stream and leaves the saved preference intact. Launch
@@ -81,7 +135,14 @@ rechecks the display and host; resume and reconnect preserve the reviewed values
 Tests cover 240 FPS transport configuration, recovery, bounded frame delivery,
 225.5 Mbps custom entry and host plans, plus existing scope/authorization guards.
 
-## Local Android v1.4.11 parity work
+<details>
+<summary>Historical Android v1.4.11 parity checkpoint and implementation record</summary>
+
+## Historical Android v1.4.11 parity checkpoint
+
+This section retains the earlier implementation and test record. Use the
+1.4.14 summary above for current appearance and release behavior. The five-theme
+and discrete text-size descriptions below refer to that earlier checkpoint.
 
 The standalone library now shares theme colors and focus controls across pairing,
 PC management, browsing, Play Setup, audio, rumble and the streaming overlay.
@@ -352,9 +413,11 @@ Support-report export, richer explanations, persistent receipt recovery, Sync an
 real-host/physical acceptance remain open. The full
 [parity inventory](../../docs/deck-release-parity.md) remains open.
 
+</details>
+
 ## Current preview smoke scope
 
-The default offline smoke validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and controller routing. It does not load an identity or start a stream.
+The explicit test-only `--fixture` offline smoke validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and controller routing. It does not load an identity or start a stream.
 
 Live library reads, Moonlight handoff and native streaming are separate opt-in routes described below. Offline smoke results do not establish physical streaming acceptance.
 
@@ -379,7 +442,7 @@ Full Qt shell smoke, when Qt deps are present:
     cmake --build build/deck-smoke-qt
     ctest --test-dir build/deck-smoke-qt --output-on-failure
 
-The Qt smoke runs nova-deck --smoke-exit with QT_QPA_PLATFORM=offscreen, so it verifies QML object creation and sample library-card data binding without launching a visible desktop window. It does not verify real D-pad focus or game launch behavior yet.
+An ordinary `nova-deck` launch, including bare `flatpak run com.papi_ux.Nova`, opens Nova-owned pairing on first run and the saved library afterwards. `nova-deck --smoke-exit` checks this startup path offscreen. Sample libraries require a build with `BUILD_TESTING=ON` and an explicit `--fixture` or `NOVA_DECK_FRONTEND_SMOKE=1` route; production bundles do not install the sample fixtures.
 
 Steam Deck Game Mode rootless Podman validation route, for preview/QSG render cards that must run against the actual Deck gamescope socket:
 
@@ -417,7 +480,7 @@ It prints the identity source, each host's probe result (`ok`, `unreachable`, `c
 
 ## Handoff: Play in Moonlight
 
-On the live route the launch card's A button hands the highlighted game to Moonlight-Qt instead of copying a plan. The first press arms the request for eight seconds and says so, B or Escape cancels, and a second press within the window runs `moonlight stream <host-uuid> "<app>" --display-mode fullscreen`, where the host is named by the UUID Moonlight already knows, so no address enters the command line. While Moonlight runs, Nova asks Polaris for the session truth every five seconds and shows it under the card; A asks Moonlight to end the stream; when Moonlight exits, Nova asks for focus back.
+On the live route the launch card's A button hands the highlighted game to Moonlight-Qt instead of copying a plan. The first press opens a limitation review and arms the request for up to sixty seconds. NovaHUD, Command Center, Doctor, live tuning/bitrate and Nova’s PyroWave path are unavailable during Moonlight handoff. B or Escape cancels; an expired or changed-game review cannot launch. Confirming within the window runs `moonlight stream <host-uuid> "<app>" --display-mode fullscreen`, where the host is named by the UUID Moonlight already knows, so no address enters the command line. While Moonlight runs, Nova asks Polaris for the session truth every five seconds and shows it under the card; A asks Moonlight to end the stream; when Moonlight exits, Nova asks for focus back.
 
 `src/runtime/deck_moonlight_launcher.*` is the only place in the client that starts another program. It finds Moonlight as a native binary on PATH, as the `com.moonlight_stream.Moonlight` Flatpak, or through `NOVA_DECK_MOONLIGHT_BIN` for tests; inside a Flatpak sandbox it prefixes `flatpak-spawn --host` and forwards the display Nova is on, because the host runs the command with its own environment and under gamescope that environment names no display, so Moonlight would try to drive DRM directly and be refused. Only two names travel: `DISPLAY` as Nova sees it, and `WAYLAND_DISPLAY` translated back to the host's socket name, since Flatpak renames any host socket that does not start with `wayland-` (the Deck's `gamescope-0`) to `wayland-0` inside the sandbox; the bound socket keeps its inode, and the manifest binds `xdg-run/gamescope-0`, so the launcher finds the host name by matching inodes. When a Wayland socket travels, `QT_QPA_PLATFORM=wayland;xcb` goes with it so Moonlight draws on it directly. Sandbox-only paths such as `XAUTHORITY` and Nova's own platform choice never leave the sandbox. Every argv token is checked to be plain (no control characters; shell characters are fine because no shell is involved, and game titles carry ampersands), the child is started without a shell, and its output is kept only as a bounded backend-only tail that never reaches the shell.
 
@@ -827,7 +890,7 @@ Deck preview. Extended focus/overlay, hotplug and recovery acceptance remains op
 
 ### Flatpak and Steam shortcut
 
-`packaging/flatpak/` builds the shell as the `com.papi_ux.Nova` Flatpak on `org.kde.Platform` 6.10; see its README for the build, install and permission notes. `nova-deck --register-steam-shortcut` adds Nova to Steam as a non-Steam game so Game Mode can launch it: `src/runtime/deck_steam_shortcuts.*` parses and rewrites Steam's binary `shortcuts.vdf` byte for byte, registers or replaces one "Nova" entry, writes atomically, and refuses while Steam runs because Steam rewrites that file on exit. Inside the Flatpak the entry runs `flatpak run com.papi_ux.Nova --standalone`. Updating a Flatpak does not change existing Steam launch options; re-register an older `--live` shortcut with Steam closed. Registration preserves the app ID and player customizations. Fixtures are found at runtime under `/app/share/nova-deck/fixtures` or next to the installed binary before the source tree is tried, and moonlight-common-c is linked statically so an installed binary carries it.
+`packaging/flatpak/` builds the shell as the `com.papi_ux.Nova` Flatpak on `org.kde.Platform` 6.10; see its README for the build, install and permission notes. `nova-deck --register-steam-shortcut` adds Nova to Steam as a non-Steam game so Game Mode can launch it: `src/runtime/deck_steam_shortcuts.*` parses and rewrites Steam's binary `shortcuts.vdf` byte for byte, registers or replaces one "Nova" entry, writes atomically, and refuses while Steam runs because Steam rewrites that file on exit. Inside the Flatpak the entry runs `flatpak run com.papi_ux.Nova --standalone`. Updating a Flatpak does not change existing Steam launch options; re-register an older `--live` shortcut with Steam closed. Registration preserves the app ID and player customizations. Testing builds can install sample fixtures under `/app/share/nova-deck/fixtures`; production startup never selects them. moonlight-common-c is linked statically so an installed binary carries it.
 
 ## Shared Polaris DTO boundary
 
@@ -1791,3 +1854,32 @@ Settings and Command Center regressions cover persisted mode, unavailable
 capture, keyboard navigation, and enlarged text. Retained local evidence:
 `../../build/linux-mouse/EVIDENCE.md`; these checks do not claim installed Flatpak
 or physical game acceptance.
+
+
+Linux UI navigation reads the normalized controller state from `DeckInputHub`.
+D-pad and left-stick directions repeat after 400 ms, then every 80 ms. The left
+stick uses a 16000 entry threshold and 10000 release threshold to avoid drift;
+LB/RB send one library page action per press. Input must return to neutral after
+focus or gameplay capture changes. A confirms and B follows the current view's
+Back handler, including nested sheets. Policy and library/QML tests cover these
+routes; physical controllers and installed first-run acceptance remain separate.
+H.264/HEVC failures distinguish the PC's codec offer, the local VA-API decoder,
+and local decoder size limits. A missing decoder points to the Linux driver and
+Flatpak graphics runtime before retrying.
+
+
+**Wake PC** is available from the library's System menu, including when the saved
+PC is offline. Enter the wired network adapter's MAC address using the hex
+keyboard or a physical keyboard, then Save. A separate Wake PC action sends one
+standard magic packet by UDP broadcast on port 9. Nova stores the MAC locally
+for the selected saved PC; another PC cannot inherit it. Back cancels an unsaved
+edit, and closing the hex keyboard returns to the MAC field. Clear and Save
+removes that PC's saved MAC. A sent packet does not prove the PC woke: wait, then
+refresh. Wake-on-LAN must be enabled in the PC firmware and wired adapter, and
+the network must permit local Wake packets. Wi-Fi and routed networks may not
+support it. Loopback UDP, persistence/failure and UI tests cover software
+behavior; physical sleeping-PC acceptance remains unrun.
+
+The Library's System menu includes **Add Nova to Steam**. Review the sheet and choose Add explicitly with Steam closed (Desktop Mode on Steam Deck). Nova reuses the CLI registration helper, preserves other shortcuts, and refuses if Steam's running state cannot be checked. The entry launches the installed app in standalone mode. Opening or leaving the sheet does not change Steam; headless route checks only open and cancel it. Registration success/refusal/retry are tested with injected operations and isolated VDF tests, not a user Steam installation.
+
+The in-stream Command Center uses compact 16px gutters, 8px spacing and a 64px minimum header at the default scale. At 1280×800 with three controller rows, NovaHUD fits on the first page. The same scroll column reveals focused controls at 130% text on 960×600; buttons retain a 48px minimum touch target. Players and keyboard/mouse guidance remain available, and Reassign shows the join-order prompt when chosen. Headless QML tests verify geometry and lifecycle boundaries; physical 800p readability remains an acceptance check.

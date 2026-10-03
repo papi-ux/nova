@@ -9,7 +9,7 @@ struct DeckGameTools::Job {
     std::atomic<bool> cancelled{false};
     quint64 generation = 0;
     QString action, copy;
-    QVariantMap values, result, settings, steam;
+    QVariantMap values, result, settings, advice, steam;
     bool ok = false, sent = false, available = false;
     std::function<bool()> valid;
 };
@@ -39,7 +39,7 @@ DeckGameTools::~DeckGameTools() { if (job_) job_->cancelled = true; if (worker_)
 bool DeckGameTools::writing() const { return busy() && job_ && mutation(job_->action); }
 QVariantMap DeckGameTools::state() const {
     return {{"busy", busy()}, {"writing", writing()}, {"available", available_ && !blocked_}, {"copy", copy_}, {"host", host_}, {"game", game_},
-        {"settings", settings_}, {"plan", plan_}, {"steam", steam_}, {"candidates", candidates_}, {"choices", choices_},
+        {"settings", settings_}, {"plan", plan_}, {"pyrowaveAdvice", advice_}, {"steam", steam_}, {"candidates", candidates_}, {"choices", choices_},
         {"candidate", candidate_}, {"kind", kind_}, {"selections", selections_}, {"uncertain", uncertain_}, {"artworkResolution", artworkResolution_},
         {"spaceArtwork", validSpaceArtworkId(game_)},
         {"canRefreshArtwork", active_ && available_ && !blocked_ && !busy() && !uncertain_ && (validGameToolId(game_) || validSpaceArtworkId(game_))},
@@ -49,7 +49,7 @@ QVariantMap DeckGameTools::state() const {
 void DeckGameTools::setTarget(QString host, DeckGameToolsResolver resolver) {
     if (host != host_) { active_ = false; game_.clear(); artworkResolution_.clear(); }
     ++generation_; if (job_) job_->cancelled = true;
-    resolver_ = std::move(resolver); host_ = std::move(host); available_ = false; settings_.clear(); plan_.clear(); steam_.clear();
+    resolver_ = std::move(resolver); host_ = std::move(host); available_ = false; settings_.clear(); plan_.clear(); advice_.clear(); steam_.clear();
     pendingReview_.reset(); clearEditing(); emit stateChanged();
     if (active_ && !game_.isEmpty()) QTimer::singleShot(0, this, [this] { if (active_) review(configuration_); });
 }
@@ -70,7 +70,7 @@ bool DeckGameTools::prepare(const QString& host, const QString& game, const QVar
 }
 bool DeckGameTools::review(const QVariantMap& configuration) {
     if (!active_ || blocked_ || !DeckPlayConfiguration::fromMap(configuration)) return false;
-    configuration_ = configuration; plan_.clear();
+    configuration_ = configuration; plan_.clear(); advice_.clear();
     if (busy()) { ++generation_; job_->cancelled = true; pendingReview_ = configuration; emit stateChanged(); return true; }
     return start("review", configuration);
 }
@@ -154,6 +154,11 @@ bool DeckGameTools::start(const QString& action, QVariantMap values) {
                 job->copy = "Steam launch settings changed. Review the current choice, then try again."; return;
             }
             if (job->action == "review") {
+                if (job->values.value("videoCodec") == "pyrowave") {
+                    const auto advice=target->request(game,"bitrateAdvice",job->values,cancelled);
+                    if (cancelled()) return;
+                    if (advice.ok()) job->advice=*advice.value;
+                }
                 const auto settings = target->request(game, "settings", {}, cancelled);
                 if (cancelled()) return;
                 if (!settings.ok()) { job->copy = failure(settings, false); return; }
@@ -200,7 +205,7 @@ void DeckGameTools::poll() {
         copy_ = job->copy; available_ = job->available;
         if (!job->steam.isEmpty()) steam_ = job->steam;
         if (job->action == "review") {
-            settings_ = job->settings; plan_ = job->result; uncertain_ = false;
+            settings_ = job->settings; plan_ = job->result; advice_ = job->advice; uncertain_ = false;
             if (job->ok && validSpaceArtworkId(game_) && !artworkResolution_.isEmpty()) copy_ = spaceResult(artworkResolution_);
         }
         if (job->ok) {
@@ -221,7 +226,7 @@ void DeckGameTools::poll() {
         } else if (job->sent) uncertain_ = true;
     }
     if (current && job->valid && !job->valid()) {
-        available_ = false; plan_.clear(); uncertain_ = uncertain_ || job->sent;
+        available_ = false; plan_.clear(); advice_.clear(); uncertain_ = uncertain_ || job->sent;
         copy_ = "This PC's pairing changed. Refresh the library before using game tools.";
     }
     emit stateChanged();

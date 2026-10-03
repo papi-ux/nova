@@ -7,11 +7,13 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.Preference
 import androidx.preference.PreferenceDataStore
@@ -31,84 +33,143 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.profiles.SettingsProfile
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.NovaAction
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaEdge
+import com.papi.nova.ui.panel.NovaField
+import com.papi.nova.ui.panel.NovaFocusReturn
+import com.papi.nova.ui.panel.NovaMenuHeader
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaProblemBack
+import com.papi.nova.ui.panel.NovaStatePage
+import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.utils.UiHelper
+import java.io.Serializable
 import java.util.UUID
 
+/**
+ * The preset editor. Every edit lands in a draft ([Draft]) and nothing reaches the preset until
+ * Save, which keeps it only once the file has saved. Back with changes not saved asks, in the right
+ * edge panel, whether to save them, discard them or keep editing.
+ */
 class EditProfileActivity : NovaActivity() {
-    private var profileUuid: String? = null
     private var currentProfile: SettingsProfile? = null
-    private lateinit var inMemoryPrefs: InMemorySharedPreferences
+    private lateinit var draft: Draft
     private var prefsFragment: ProfilePreferenceFragment? = null
-    private var pendingProfileName: String? = null
     private var legacyMode = false
+
+    /**
+     * The row whose setting only the Legacy screen has, while that screen shows for it. B goes back
+     * to that row in the Compose editor instead of leaving the preset.
+     */
+    private var legacyFallbackRow: String? = null
+
+    /** The editor's title, which Rename changes without rebuilding the screen. */
+    private var editorTitle by mutableStateOf("")
+
+    private val leaveCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() = leaveEditor()
+    }
+
+    private val draftPrefs: InMemorySharedPreferences
+        get() = draft.prefs!!
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
 
         UiHelper.setLocale(this)
+        onBackPressedDispatcher.addCallback(this, leaveCallback)
 
-        profileUuid = intent.getStringExtra("profileUuid")
-
+        val profileUuid = intent.getStringExtra(EXTRA_PROFILE_UUID)
         if (profileUuid != null) {
-            for (profile in ProfilesManager.getInstance().getProfiles()) {
-                if (profile.getUuid().toString() == profileUuid) {
-                    currentProfile = profile
-                    break
-                }
-            }
-
-            val profile = currentProfile
-            if (profile != null) {
-                title = getString(R.string.profile_manager_edit_profile) + profile.getName()
-                inMemoryPrefs = InMemorySharedPreferences(profile.getOptions())
-            } else {
-                Toast.makeText(this, R.string.profile_manager_profile_not_found, Toast.LENGTH_SHORT).show()
-                finish()
+            currentProfile = ProfilesManager.getInstance().getProfiles().firstOrNull { it.getUuid().toString() == profileUuid }
+            if (currentProfile == null) {
+                // A state page with Close, not a Toast over a screen that had already closed.
+                showProfileNotFound()
                 return
             }
-        } else {
-            title = getString(R.string.profile_manager_new_profile)
-            inMemoryPrefs = InMemorySharedPreferences(emptyMap<String, Any>())
         }
 
-        if (NovaSettingsFeatureFlags.isComposeSettingsEnabled(this)) {
+        draft = ViewModelProvider(this)[Draft::class.java].also { held ->
+            // A recreate keeps the ViewModel and its draft. Only a new one, after the process was
+            // stopped or on first open, starts from the saved state or from the preset itself.
+            if (held.prefs == null) {
+                @Suppress("DEPRECATION", "UNCHECKED_CAST")
+                val saved = savedInstanceState?.getSerializable(STATE_DRAFT) as? HashMap<String, Any>
+                held.prefs = InMemorySharedPreferences(saved ?: currentProfile?.getOptions() ?: emptyMap<String, Any>())
+                held.name = savedInstanceState?.getString(STATE_DRAFT_NAME)
+            }
+        }
+        legacyFallbackRow = savedInstanceState?.getString(STATE_LEGACY_FALLBACK_ROW)
+        updateTitle()
+
+        val fallbackRow = legacyFallbackRow
+        if (fallbackRow != null) {
+            showLegacyProfileEditor(fallbackFor = NovaSettingDefinitions.load(this).find(fallbackRow))
+        } else if (NovaSettingsFeatureFlags.isComposeSettingsEnabled(this)) {
             showComposeProfileEditor()
         } else {
-            showLegacyProfileEditor()
+            showLegacyProfileEditor(fallbackFor = null)
         }
     }
 
-    private fun showComposeProfileEditor() {
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (!::draft.isInitialized) return
+        outState.putSerializable(STATE_DRAFT, draftSnapshot())
+        draft.name?.let { outState.putString(STATE_DRAFT_NAME, it) }
+        legacyFallbackRow?.let { outState.putString(STATE_LEGACY_FALLBACK_ROW, it) }
+    }
+
+    /** The draft's values that a saved state can carry: everything a preset stores. */
+    private fun draftSnapshot(): HashMap<String, Any> {
+        val snapshot = HashMap<String, Any>()
+        for ((key, value) in draftPrefs.all) {
+            when (value) {
+                is Set<*> -> snapshot[key] = HashSet(value)
+                is Collection<*> -> snapshot[key] = ArrayList(value)
+                is Serializable -> snapshot[key] = value
+                else -> Unit
+            }
+        }
+        return snapshot
+    }
+
+    private fun showComposeProfileEditor(returnToRow: String? = null) {
         legacyMode = false
         val definitions = NovaSettingsAvailability.filterForProfileEditor(
             NovaSettingsAvailability.filter(this, NovaSettingDefinitions.load(this))
         )
         val store = NovaSharedPreferencesSettingsStore(
-            prefs = inMemoryPrefs,
-            fallbackPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+            prefs = draftPrefs,
+            fallbackPrefs = PreferenceManager.getDefaultSharedPreferences(this),
+            context = applicationContext,
         )
         val viewModel = ViewModelProvider(
             this,
             NovaSettingsViewModel.Factory(definitions, store)
         )[NovaSettingsViewModel::class.java]
+        // The Legacy screen wrote to the same draft, so the rows read it again on the way back.
+        if (returnToRow != null) viewModel.refresh()
         val content = ComposeView(this).apply {
             setContent {
                 NovaComposeTheme {
                     NovaSettingsScreen(
                         viewModel = viewModel,
-                        title = title.toString(),
-                        subtitle = "Profile overrides",
-                        onBack = { finish() },
+                        title = editorTitle,
+                        subtitle = getString(R.string.nova_settings_profile_subtitle),
+                        onBack = ::leaveEditor,
                         onOpenLegacy = {
                             NovaSettingsFeatureFlags.setComposeSettingsEnabled(this@EditProfileActivity, false)
-                            showLegacyProfileEditor()
+                            showLegacyProfileEditor(fallbackFor = null)
                         },
                         onAction = ::handleComposeAction,
                         headerActions = listOf(
-                            NovaSettingsHeaderAction("Rename") { showRenameDialog() },
-                            NovaSettingsHeaderAction("Save") { saveProfile() }
-                        )
+                            NovaSettingsHeaderAction(getString(R.string.nova_settings_profile_rename)) { showRenamePage() },
+                            NovaSettingsHeaderAction(getString(R.string.nova_panel_save)) { saveProfile() }
+                        ),
+                        returnToRow = returnToRow,
                     )
                 }
             }
@@ -127,7 +188,9 @@ class EditProfileActivity : NovaActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {
-                finish()
+                // Up is Back: it asks before changes are lost, and from a row's Legacy screen it
+                // returns to that row.
+                leaveEditor()
                 true
             }
             R.id.action_save -> {
@@ -135,7 +198,7 @@ class EditProfileActivity : NovaActivity() {
                 true
             }
             R.id.action_rename -> {
-                showRenameDialog()
+                showRenamePage()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -143,121 +206,249 @@ class EditProfileActivity : NovaActivity() {
     }
 
     fun reloadSettings() {
-        val currentPrefs = prefsFragment?.getPrefs() ?: inMemoryPrefs
+        val currentPrefs = prefsFragment?.getPrefs() ?: draftPrefs
         prefsFragment = ProfilePreferenceFragment(this, currentPrefs)
         supportFragmentManager.beginTransaction()
             .replace(R.id.preferences_container, prefsFragment!!)
             .commitAllowingStateLoss()
     }
 
-    private fun showLegacyProfileEditor() {
+    /**
+     * The Legacy editor. For a row the Compose editor cannot show ([fallbackFor]), the toolbar says
+     * which setting it is and that Back returns, and the list opens on that setting.
+     */
+    private fun showLegacyProfileEditor(fallbackFor: NovaSettingDefinition?) {
         legacyMode = true
         setContentView(R.layout.activity_edit_profile)
 
         val toolbar: Toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.subtitle = fallbackFor?.let { getString(R.string.nova_settings_profile_legacy_fallback, it.title) }
+        invalidateOptionsMenu()
 
-        prefsFragment = ProfilePreferenceFragment(this, inMemoryPrefs)
+        prefsFragment = ProfilePreferenceFragment(this, draftPrefs)
         supportFragmentManager
             .beginTransaction()
             .replace(R.id.preferences_container, prefsFragment!!)
             .commit()
+        fallbackFor?.let { prefsFragment?.scrollToPreference(it.key) }
 
         UiHelper.notifyNewRootView(this)
     }
 
+    /** A row only the Legacy screen can show opens it there, and B brings the player back to the row. */
     private fun handleComposeAction(definition: NovaSettingDefinition) {
-        Toast.makeText(
-            this,
-            "Opening legacy profile settings for ${definition.title}",
-            Toast.LENGTH_SHORT
-        ).show()
-        showLegacyProfileEditor()
+        legacyFallbackRow = definition.key
+        showLegacyProfileEditor(fallbackFor = definition)
     }
 
+    /**
+     * Back, from B, the header, the toolbar's Up or the back gesture: out of a row's Legacy screen to
+     * the row, then out of the editor, asking first when there are changes Save has not kept.
+     */
+    private fun leaveEditor() {
+        if (!::draft.isInitialized) {
+            finish()
+            return
+        }
+        val row = legacyFallbackRow
+        if (legacyMode && row != null) {
+            legacyFallbackRow = null
+            showComposeProfileEditor(returnToRow = row)
+            return
+        }
+        if (hasUnsavedChanges()) showLeavePage() else finish()
+    }
+
+    /** Whether Save would change the preset: a value edited, or a name it does not have yet. */
+    private fun hasUnsavedChanges(): Boolean {
+        val saved = persistableOptions(currentProfile?.getOptions().orEmpty())
+        val edited = persistableOptions(draftPrefs.all)
+        val renamed = draft.name?.let { it != currentProfile?.getName() } ?: false
+        return edited.keys != saved.keys || edited.any { (key, value) ->
+            val old = saved[key]
+            when {
+                value is Number && old is Number -> {
+                    // SharedPreferences stores fractional values as Float; JSON reads
+                    // numbers as Double. Compare at the precision of the stored value.
+                    if (value is Float || old is Float) value.toFloat() != old.toFloat()
+                    else java.math.BigDecimal(value.toString()).compareTo(java.math.BigDecimal(old.toString())) != 0
+                }
+                else -> value != old
+            }
+        } || renamed
+    }
+
+    /** Save, Discard or Keep Editing, in the right edge panel. B keeps editing. */
+    private fun showLeavePage() {
+        NovaSurfaces.of(this).open(
+            root = NovaCommonPage.Menu(
+                key = LEAVE_PAGE,
+                title = getString(R.string.profile_editor_unsaved_title),
+                header = NovaMenuHeader(
+                    title = draft.name ?: currentProfile?.getName() ?: getString(R.string.profile_manager_new_profile),
+                    hint = getString(R.string.profile_editor_unsaved_hint),
+                ),
+                items = listOf(
+                    NovaMenuItem.Action(
+                        key = "save",
+                        label = getString(R.string.nova_panel_save),
+                        emphasis = true,
+                        onClick = ::saveProfile,
+                    ),
+                    NovaMenuItem.Action(
+                        key = "keep-editing",
+                        label = getString(R.string.profile_editor_keep_editing),
+                        onClick = {},
+                    ),
+                    NovaMenuItem.Destructive(
+                        key = "discard",
+                        label = getString(R.string.profile_editor_discard),
+                        confirmLabel = getString(R.string.profile_editor_discard_confirm),
+                        consequence = getString(R.string.profile_editor_discard_consequence),
+                        stayLabel = getString(R.string.nova_settings_keep),
+                        onConfirm = ::finish,
+                    ),
+                ),
+            ),
+            edge = NovaEdge.End,
+            returnFocus = currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
+        )
+    }
+
+    /**
+     * Saves the draft as the preset and closes the editor. The preset list changes only once the
+     * file has saved; a failed save leaves the preset as it was, keeps the editor open with every
+     * edit, and says so in the right edge panel with Try Again.
+     */
     private fun saveProfile() {
-        val profileOptions = HashMap<String, Any>()
-        for ((key, value) in inMemoryPrefs.all) {
-            if (value != null && NovaSettingsAvailability.shouldPersistProfileOverride(key)) {
-                profileOptions[key] = value
-            }
-        }
-
-        val displayName: String
+        val options = persistableOptions(draftPrefs.all)
+        val now = System.currentTimeMillis()
         val profile = currentProfile
-        if (profile != null) {
-            profile.setOptions(profileOptions)
-            profile.setModifiedUtc(System.currentTimeMillis())
-            displayName = profile.getName()
-            ProfilesManager.getInstance().update(profile)
+        val candidate = if (profile != null) {
+            SettingsProfile(profile.getUuid(), draft.name ?: profile.getName(), profile.getCreatedUtc(), now, options)
+                .also { it.setActive(profile.isActive()) }
         } else {
-            var profileName = pendingProfileName?.trim()
-            if (profileName.isNullOrEmpty()) {
-                profileName = getString(R.string.profile_manager_profile) +
-                    (ProfilesManager.getInstance().getProfiles().size + 1)
-            }
-            val now = System.currentTimeMillis()
-            val newProfile = SettingsProfile(
-                UUID.randomUUID(),
-                profileName,
-                now,
-                now,
-                profileOptions,
-            )
-            displayName = profileName
-            ProfilesManager.getInstance().add(newProfile)
+            val name = draft.name?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: (getString(R.string.profile_manager_profile) + (ProfilesManager.getInstance().getProfiles().size + 1))
+            SettingsProfile(UUID.randomUUID(), name, now, now, options)
         }
 
-        if (ProfilesManager.getInstance().save(this)) {
-            Toast.makeText(
-                this,
-                getString(R.string.profile_manager_profile_saved, displayName),
-                Toast.LENGTH_SHORT,
-            ).show()
+        if (ProfilesManager.getInstance().commit(this, candidate)) {
+            // The preset list shows the saved preset; nothing floats over it to say so.
+            finish()
         } else {
-            Toast.makeText(this, R.string.profile_manager_failed_to_save, Toast.LENGTH_LONG).show()
+            showSaveFailed()
         }
-
-        finish()
     }
 
-    private fun showRenameDialog() {
-        val input = EditText(this)
-        val initial = currentProfile?.getName() ?: pendingProfileName ?: ""
-        input.setText(initial)
-        input.setSelection(initial.length)
+    private fun showSaveFailed() {
+        NovaSurfaces.of(this).present(
+            NovaCommonPage.Notice(
+                key = SAVE_FAILED_PAGE,
+                title = getString(R.string.profile_editor_save_failed_title),
+                message = getString(R.string.profile_editor_save_failed_message),
+                primary = NovaAction(getString(R.string.nova_panel_try_again), run = ::saveProfile),
+                closeLabel = getString(R.string.profile_editor_keep_editing),
+            ),
+        )
+    }
 
-        AlertDialog.Builder(this)
-            .setTitle(R.string.profile_manager_edit_profile_name)
-            .setView(input)
-            .setPositiveButton("OK") { _, _ ->
-                val newName = input.text.toString().trim()
-                if (newName.isEmpty()) {
-                    Toast.makeText(this, R.string.profile_manager_name_cannot_be_blank, Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
+    private fun showProfileNotFound() {
+        val close = NovaAction(getString(R.string.nova_panel_close)) { finish() }
+        NovaSurfaces.of(this).show(
+            NovaStatePage.Problem(
+                key = PROFILE_NOT_FOUND_PAGE,
+                title = getString(R.string.profile_manager_profile_not_found),
+                message = getString(R.string.profile_editor_not_found_message),
+                primary = close,
+                back = NovaProblemBack.Close(close),
+            ),
+        )
+    }
 
-                val profile = currentProfile
-                if (profile != null) {
-                    profile.setName(newName)
-                    profile.setModifiedUtc(System.currentTimeMillis())
-                    ProfilesManager.getInstance().update(profile)
-                    title = getString(R.string.profile_manager_edit_profile_with, newName)
-                } else {
-                    pendingProfileName = newName
-                    title = getString(R.string.profile_manager_new_profile_with, newName)
-                }
+    /**
+     * Rename, as a Form page in the right-edge panel: the name at the top with Save under it. A
+     * blank name stays on the page with the reason under the field. The name is part of the draft,
+     * so it reaches the preset with Save, as every other change does.
+     */
+    private fun showRenamePage() {
+        val initial = draft.name ?: currentProfile?.getName() ?: ""
+        NovaSurfaces.of(this).open(
+            root = NovaCommonPage.Form(
+                key = "rename-profile",
+                title = getString(R.string.profile_manager_edit_profile_name),
+                fields = listOf(
+                    NovaField(key = RENAME_FIELD, label = getString(R.string.nova_settings_profile_name), initial = initial),
+                ),
+                submitLabel = getString(R.string.nova_panel_save),
+                onSubmit = { values ->
+                    val newName = values[RENAME_FIELD].orEmpty().trim()
+                    if (newName.isEmpty()) {
+                        getString(R.string.profile_manager_name_cannot_be_blank)
+                    } else {
+                        rename(newName)
+                        null
+                    }
+                },
+            ),
+            edge = NovaEdge.End,
+            returnFocus = currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
+        )
+    }
 
-                if (!legacyMode) {
-                    showComposeProfileEditor()
+    private fun rename(newName: String) {
+        draft.name = newName
+        updateTitle()
+    }
+
+    private fun updateTitle() {
+        val name = draft.name ?: currentProfile?.getName()
+        val text = when {
+            currentProfile != null -> getString(R.string.profile_manager_edit_profile_with, name)
+            name != null -> getString(R.string.profile_manager_new_profile_with, name)
+            else -> getString(R.string.profile_manager_new_profile)
+        }
+        title = text
+        editorTitle = text
+    }
+
+    fun getInMemoryPrefs(): SharedPreferences = draftPrefs
+
+    /**
+     * The preset being edited, held outside the screen: a recreate (the device turned, a new text
+     * size) keeps it through this ViewModel, and the saved state brings it back after Android has
+     * stopped the app in the background.
+     */
+    class Draft : ViewModel() {
+        internal var prefs: InMemorySharedPreferences? = null
+
+        /** A name given with Rename that Save has not kept yet. */
+        var name: String? = null
+    }
+
+    private companion object {
+        const val EXTRA_PROFILE_UUID = "profileUuid"
+        const val RENAME_FIELD = "name"
+        const val LEAVE_PAGE = "profile-unsaved"
+        const val SAVE_FAILED_PAGE = "profile-save-failed"
+        const val PROFILE_NOT_FOUND_PAGE = "profile-not-found"
+        const val STATE_DRAFT = "com.papi.nova.profile.DRAFT"
+        const val STATE_DRAFT_NAME = "com.papi.nova.profile.DRAFT_NAME"
+        const val STATE_LEGACY_FALLBACK_ROW = "com.papi.nova.profile.LEGACY_FALLBACK_ROW"
+
+        /** What a preset keeps of [values]: every value set, less the settings that belong to the device. */
+        fun persistableOptions(values: Map<String, *>): Map<String, Any> {
+            val options = HashMap<String, Any>()
+            for ((key, value) in values) {
+                if (value != null && NovaSettingsAvailability.shouldPersistProfileOverride(key)) {
+                    options[key] = value
                 }
             }
-            .setNegativeButton(getString(R.string.cancel), null)
-            .show()
+            return options
+        }
     }
-
-    fun getInMemoryPrefs(): SharedPreferences = inMemoryPrefs
 
     class ProfilePreferenceFragment(
         context: EditProfileActivity,
@@ -331,14 +522,32 @@ class EditProfileActivity : NovaActivity() {
             return super.onCreateView(inflater, container, savedInstanceState, true)
         }
 
+        private val correctedStreamKeys = mutableSetOf<String>()
+
+        override fun onStreamPreferenceCorrected(key: String) { correctedStreamKeys += key }
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             val activity = requireActivity() as EditProfileActivity
             val memPrefs = activity.getInMemoryPrefs()
             preferenceManager.preferenceDataStore = InMemoryPreferenceDataStore(memPrefs)
 
+            // AndroidX persists XML defaults during inflation when a data store is installed.
+            // A saved setup must retain only its actual overrides until the player edits it.
+            val overrides = memPrefs.all.filterValues { it != null }.mapValues { it.value!! }
+            correctedStreamKeys.clear()
             super.onCreatePreferences(savedInstanceState, rootKey)
+            val migration = com.papi.nova.preferences.NovaSettingsMigration
+            // Keep corrections to actual overrides, then discard XML-only defaults. A bitrate
+            // calculated during inflation saw those defaults instead of inherited stream values.
+            val corrections = memPrefs.all.filterKeys { it in correctedStreamKeys && it in overrides }
+            memPrefs.edit().clear().apply()
+            migration.writeDifference(memPrefs, overrides + corrections)
+            if (corrections.isNotEmpty()) {
+                resetBitrateToDefault(memPrefs, null, null)
+            }
 
             findPreference<Preference>("nova_ui_font_scale_percent")?.isVisible = false
+            findPreference<Preference>("nova_control_size")?.isVisible = false
             findPreference<Preference>("option_reset_osc_preference")?.isVisible = false
             findPreference<Preference>("import_keyboard_file")?.isVisible = false
             findPreference<Preference>("export_keyboard_file")?.isVisible = false
@@ -374,22 +583,18 @@ class EditProfileActivity : NovaActivity() {
         private companion object {
             private fun diff(target: Map<String, *>, newPrefs: Map<String, *>): Map<String, Any?> {
                 val patch = HashMap<String, Any?>()
-                for ((key, value) in target) {
-                    if (newPrefs.containsKey(key)) {
-                        val defaultValue = newPrefs[key]
-                        if (value == null || value != defaultValue) {
-                            patch[key] = value
-                        }
-                    } else {
-                        patch[key] = value
-                    }
+                for ((key, value) in newPrefs) {
+                    val inherited = target[key]
+                    val same = if (value is Number && inherited is Number)
+                        value.toDouble() == inherited.toDouble() else value == inherited
+                    if (!target.containsKey(key) || !same) patch[key] = value
                 }
                 return patch
             }
         }
     }
 
-    private class InMemorySharedPreferences(initialValues: Map<String, *>?) : SharedPreferences {
+    internal class InMemorySharedPreferences(initialValues: Map<String, *>?) : SharedPreferences {
         private val values: MutableMap<String, Any?> = HashMap()
 
         init {
@@ -423,7 +628,7 @@ class EditProfileActivity : NovaActivity() {
 
         override fun getFloat(key: String?, defValue: Float): Float {
             val value = values[key]
-            return if (value is Float) value else defValue
+            return if (value is Number) value.toFloat() else defValue
         }
 
         override fun getBoolean(key: String?, defValue: Boolean): Boolean {

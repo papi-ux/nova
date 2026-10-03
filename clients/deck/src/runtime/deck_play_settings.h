@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QObject>
+#include <QThread>
+#include "stream/deck_pyrowave_probe.h"
 #include <QVariantMap>
 #include <optional>
 #include "stream/deck_video_capabilities.h"
@@ -35,6 +37,7 @@ struct DeckPlayConfiguration {
 
 class DeckPlaySettings final : public QObject {
     Q_OBJECT
+    Q_PROPERTY(int videoSupportRevision READ videoSupportRevision NOTIFY videoSupportChanged)
     Q_PROPERTY(QString defaultFaceButtonLayout READ defaultFaceButtonLayout NOTIFY defaultFaceButtonLayoutChanged)
     Q_PROPERTY(QVariantMap audioSettings READ audioSettings NOTIFY audioSettingsChanged)
     Q_PROPERTY(bool rumbleEnabled READ rumbleEnabled NOTIFY rumbleEnabledChanged)
@@ -46,18 +49,25 @@ class DeckPlaySettings final : public QObject {
     Q_PROPERTY(QString mouseMode READ mouseMode NOTIFY mouseModeChanged)
 public:
     explicit DeckPlaySettings(QString fileName = {}, QObject* parent = nullptr);
+    ~DeckPlaySettings() override;
+    int videoSupportRevision() const { return videoSupportRevision_; }
+    void setPyrowaveProbe(std::function<stream::DeckPyrowaveProbeResult()> probe) { pyrowaveProbe_ = std::move(probe); }
+    // GUI-thread notification from a launch checked against the current device.
+    // Preferences and ordinary decoder support are unchanged.
+    Q_SLOT void invalidatePyrowaveSupport();
     Q_INVOKABLE QVariantMap load(const QString& hostId, const QString& gameId) const;
     Q_INVOKABLE bool save(const QString& hostId, const QString& gameId, const QVariantMap& configuration);
     Q_INVOKABLE bool saveChoice(const QString& hostId, const QString& gameId, const QVariantMap& choice);
     Q_INVOKABLE bool resetChoice(const QString& hostId, const QString& gameId, const QString& field);
     Q_INVOKABLE bool reset(const QString& hostId, const QString& gameId);
     Q_INVOKABLE QVariantMap streamPlan(const QVariantMap& configuration,
-        const QVariantMap& capabilities, const QVariantMap& planner, const QVariantMap& display = {}, bool spaceSession = false) const;
+        const QVariantMap& capabilities, const QVariantMap& planner, const QVariantMap& display = {}, bool spaceSession = false);
+    Q_INVOKABLE QVariantMap bitrateAdvice(const QVariantMap& configuration, const QVariantMap& hostAdvice = {}) const;
     Q_INVOKABLE int displayRateLimit(double refreshHz) const;
     QVariantMap streamLimits() const;
     QString mouseMode() const;
     Q_INVOKABLE bool setMouseMode(const QString& mode);
-    // Startup snapshot for review. The session worker probes again before launch.
+    // VAAPI startup snapshot. PyroWave uses a shared lazy probe on selection.
     void setVideoDecodeSupport(stream::DeckVideoDecodeSupport support) { videoSupport_ = support; }
     QString defaultFaceButtonLayout() const;
     Q_INVOKABLE bool setDefaultFaceButtonLayout(const QString& layout);
@@ -87,6 +97,7 @@ public:
     Q_INVOKABLE QVariantMap logoPlacement(const QString& hostId, const QString& gameId, const QVariantMap& fallback = {}) const;
     Q_INVOKABLE bool saveLogoPlacement(const QString& hostId, const QString& gameId, const QVariantMap& values, const QVariantMap& expected, const QVariantMap& fallback = {});
 signals:
+    void videoSupportChanged();
     void mouseModeChanged();
     void logoPlacementChanged();
     void streamDefaultsChanged();
@@ -97,6 +108,12 @@ signals:
     void framePacingModeChanged();
     void stickDeadzonePercentChanged();
 private:
+    void requestPyrowaveSupport();
+    std::function<stream::DeckPyrowaveProbeResult()> pyrowaveProbe_;
+    std::optional<stream::DeckPyrowaveProbeResult> pyrowaveResult_;
+    QThread* pyrowaveWorker_ = nullptr;
+    quint64 pyrowaveGeneration_ = 0;
+    int videoSupportRevision_ = 0;
     QString fileName_;
     stream::DeckVideoDecodeSupport videoSupport_;
 };

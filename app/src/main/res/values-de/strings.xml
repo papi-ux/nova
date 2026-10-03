@@ -33,11 +33,9 @@
 \n</string>
     <string name="nettest_text_blocked">Die aktuelle Netzwerkverbindung deines Geräts blockiert Nova. Das Streaming über das Internet funktioniert möglicherweise nicht, während du mit diesem Netzwerk verbunden bist.</string>
     <!-- Pair messages -->
-    <string name="pairing">Koppeln…</string>
     <string name="pair_pc_offline">Host ist offline</string>
     <string name="pair_pc_ingame">Auf dem Host ist bereits eine App aktiv. Du musst die App vor dem koppeln beenden.</string>
     <string name="pair_pairing_title">Koppeln</string>
-    <string name="pair_pairing_msg">Bitte gebe folgenden PIN auf deinem Host ein:</string>
     <string name="pair_incorrect_pin">PIN inkorrekt</string>
     <string name="pair_fail">Koppeln fehlgeschlagen</string>
     <string name="pair_already_in_progress">Koppeln bereits im Gange</string>
@@ -54,7 +52,7 @@
     <string name="unpair_error">Gerät wurde nicht gekoppelt</string>
     <!-- Errors -->
     <string name="error_pc_offline">Host ist offline</string>
-    <string name="error_manager_not_running">Der ComputerManager Dienst läuft nicht. Bitte warte ein paar Sekunden oder starte die App neu.</string>
+    <string name="error_manager_not_running">Nova lädt die Liste der Hosts noch. Warte ein paar Sekunden und versuche es dann erneut.</string>
     <string name="error_unknown_host">Hostname konnte nicht aufgelöst werden</string>
     <string name="error_404">GFE ist auf einen HTTP 404 Fehler gestoßen. Stelle sicher, dass die GPU deines Hosts unterstützt wird. Die Verwendung von Remote-Desktop Software kann ebenso diesen Fehler verursachen. Starte deinen Host neu oder installiere GFE neu.</string>
     <string name="title_decoding_error">Video Dekodierer ist abgestürzt</string>
@@ -80,15 +78,10 @@
     <string name="conn_terminated_msg">Die Verbindung wurde beendet.</string>
     <!-- General strings -->
     <string name="ip_hint">IP-Adresse des GeForce Hosts</string>
-    <string name="searching_pc">Suche nach Host PCs in deinem lokalen Netzwerk…
+    <string name="searching_pc">Suche nach Hosts in deinem lokalen Netzwerk…
 \n
 \nStelle sicher, dass Sunshine läuft oder GameStream in den GeForce Experience SHIELD-Einstellungen aktiviert ist.</string>
-    <string name="yes">Ja</string>
-    <string name="no">Nein</string>
-    <string name="lost_connection">Verbindung zum Host verloren</string>
     <string name="title_details">Details</string>
-    <string name="help">Hilfe</string>
-    <string name="delete_pc_msg">Bist du sicher, dass du diesen Host löschen möchtest\?</string>
     <string name="slow_connection_msg">Langsame Verbindung zum Host
 \nReduziere die Bitrate</string>
     <string name="poor_connection_msg">Sehr langsame Verbindung zum Host</string>
@@ -111,18 +104,14 @@
     <string name="applist_refresh_msg">Apps aktualisieren…</string>
     <string name="applist_refresh_error_title">Fehler</string>
     <string name="applist_refresh_error_msg">Die App-Liste konnte nicht geladen werden</string>
-    <string name="applist_quit_app">Beenden</string>
     <string name="applist_quit_success">Erfolgreich beendet</string>
     <string name="applist_quit_fail">Beenden fehlgeschlagen</string>
-    <string name="applist_quit_confirmation">Bist du sicher, dass du die laufende App schließen möchtest\? Ungespeicherte Daten gehen verloren.</string>
     <string name="applist_details_id">App ID:</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">Host manuell hinzufügen</string>
     <string name="msg_add_pc">Verbinde zum Host…</string>
     <string name="addpc_fail">Verbindung fehlgeschlagen. Stelle sicher, dass die benötigten Ports von deiner Firewall nicht gesperrt sind.</string>
-    <string name="addpc_success">Host erfolgreich hinzugefügt</string>
     <string name="addpc_unknown_host">Auflösen der Hostadresse fehlgeschlagen. Stelle sicher, dass die Adresse keine Tippfehler beinhaltet.</string>
-    <string name="addpc_enter_ip">Du musst eine IP-Adresse eingeben</string>
     <string name="addpc_wrong_sitelocal">Diese Adresse sieht falsch aus. Du musst die öffentliche IP-Adresse deines Routers benutzen, um übers Internet zu Streamen.</string>
     <!-- Preferences -->
     <string name="category_basic_settings">Allgemeine Einstellungen</string>
@@ -194,17 +183,17 @@
     <string name="title_video_format">Codec-Einstellungen ändern</string>
     <string name="summary_video_format">Neuere Codecs können die Anforderungen an die Videobandbreite senken, wenn diese vom Gerät unterstützt werden. Codec-Auswahl kann ignoriert werden, sollte diese von der Host-Software oder GPU nicht unterstützt werden.</string>
     <string name="title_enable_hdr">HDR aktivieren (experimentell)</string>
-    <string name="summary_enable_hdr">Streame HDR, wenn das Spiel und die PC-GPU dies unterstützen. HDR erfordert eine GPU mit HEVC Main 10-Codierungsunterstützung.</string>
+    <string name="summary_enable_hdr">Streame HDR, wenn das Spiel und die GPU des Hosts dies unterstützen. HDR erfordert eine GPU mit HEVC Main 10-Codierungsunterstützung.</string>
     <string name="title_enable_perf_overlay">Performance Overlay aktivieren</string>
     <string name="summary_enable_perf_overlay">Leistungsmerkmale während des Streamens in Echtzeit einblenden</string>
     <string name="title_enable_post_stream_toast">Zeige Latenz-Informationen nach dem Streaming</string>
     <string name="summary_enable_post_stream_toast">Anzeige einer Informationsmeldung über die Latenz nach dem Ende des Streams</string>
     <string name="resolution_prefix_native">Nativ</string>
-    <string name="text_native_res_dialog">Native Auflösungsmodi werden unter Umständen nicht vom Streaming Server unterstützt. Wahrscheinlich musst du diese manuell für den Host einstellen.
+    <string name="text_native_res_dialog">Native Auflösungsmodi werden unter Umständen nicht vom Host unterstützt. Wahrscheinlich musst du diese manuell für den Host einstellen.
 \n
-\nWenn du eine benutzerdefinierte Auflösung in der NVIDIA Systemsteuerung erstellst, um die Auflösung deines Geräts anzupassen, stelle bitte sicher, dass du die Warnung von NVIDIA bezüglich möglicher Monitorschäden, PC-Instabilität und anderer potenzieller Probleme gelesen und verstanden hast.
+\nWenn du eine benutzerdefinierte Auflösung in der NVIDIA Systemsteuerung erstellst, um die Auflösung deines Geräts anzupassen, stelle bitte sicher, dass du die Warnung von NVIDIA bezüglich möglicher Monitorschäden, Systeminstabilität und anderer potenzieller Probleme gelesen und verstanden hast.
 \n
-\nWir übernehmen keine Verantwortung für Probleme, die aus der Erstellung einer angepassten Auflösung auf deinem PC resultieren.
+\nWir übernehmen keine Verantwortung für Probleme, die aus der Erstellung einer angepassten Auflösung auf deinem Host resultieren.
 \n
 \nEs kann sein, dass dein Monitor eine notwendige Konfiguration nicht unterstützt. In diesem Fall, kann ein Virtuelles Display Abhilfe schaffen. Allerdings kann es sein, dass dein Gerät oder dein Host das Streaming in einer bestimmten Auflösung oder Bildwiederholrate nicht unterstützt.</string>
     <string name="title_native_res_dialog">Native Auflösungswarnung</string>
@@ -245,7 +234,7 @@
     <string name="title_troubleshooting">Anleitung zur Fehlersuche</string>
     <string name="title_privacy_policy">Datenschutzbestimmungen</string>
     <string name="title_checkbox_enable_audiofx">Unterstützung des System-Equalizer aktivieren</string>
-    <string name="summary_setup_guide">Zeige Anweisungen zum Einrichten Ihres Gaming-PCs für das Streaming an</string>
+    <string name="summary_setup_guide">Zeige Anweisungen zum Einrichten Ihres Hosts für das Streaming an</string>
     <string name="title_checkbox_absolute_mouse_mode">Modus für ferngesteuerte Maus</string>
     <string name="category_help">Hilfe</string>
     <string name="title_setup_guide">Einstellungsanleitung</string>
@@ -256,16 +245,15 @@
     <string name="title_checkbox_reduce_refresh_rate">Aktualisierungsrate verringern erlauben</string>
     <string name="summary_checkbox_reduce_refresh_rate">Durch das Verringern der Display Aktualisierungsrate, kann, auf Kosten der Video-Latenz, der Akkuverbrauch reduziert werden</string>
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
-    <string name="frame_conversion_error">Der Host-PC hat einen schwerwiegenden Videocodierungsfehler gemeldet.
+    <string name="frame_conversion_error">Der Host hat einen schwerwiegenden Videocodierungsfehler gemeldet.
 \n
-\nVersuchen Sie, den HDR-Modus zu deaktivieren, die Streaming-Auflösung zu ändern oder die Bildschirmauflösung des Host-PCs zu ändern.</string>
+\nVersuchen Sie, den HDR-Modus zu deaktivieren, die Streaming-Auflösung zu ändern oder die Bildschirmauflösung des Hosts zu ändern.</string>
     <string name="title_native_fps_dialog">Native FPS Warnung</string>
     <string name="videoformat_av1always">Immer AV1 verwenden (Experimentell)</string>
     <string name="title_checkbox_gamepad_motion_sensors">Erlaube Benutzen von Gamepad Bewegungssensoren</string>
     <string name="videoformat_h264always">Immer H.264 verwenden</string>
     <string name="fps_suffix_fps">FPS</string>
     <string name="category_gamepad_settings">Gamepad Einstellungen</string>
-    <string name="pair_pairing_help">Wenn dein Host PC Sunshine verwendet, navigiere zur Sunshine Web UI und gebe dort die PIN ein.</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Die Maus immer mit dem Touchpad steuern</string>
     <string name="perf_overlay_hostprocessinglatency">Host Verarbeitungslatenz min/max/avg: %1$.1f/%2$.1f/%3$.1f ms</string>
     <string name="title_analog_scrolling">Verwenden Sie zum Scrollen einen Analogstick</string>
@@ -294,7 +282,7 @@
     Bitte prüfe sie vor dem Teilen, wenn du diese Informationen nicht offenlegen möchtest.\n\n
     Issue-Tracker: https://github.com/papi-ux/nova/issues\n\n</string>
     <string name="email_recipient"></string>
-    <string name="email_subject">Nova - Performance Log</string>
+    <string name="email_subject">Nova Performance Log</string>
     <string name="email_chooser_title">Performance Log teilen...</string>
     <string name="toast_no_email_clients">Keine kompatiblen Apps zum Teilen installiert.</string>
     <string name="toast_no_logs">Es sind noch keine Leistungsdaten gespeichert.</string>

@@ -131,6 +131,30 @@ int main(int argc, char** argv) {
     engine.rootContext()->setContextProperty("novaPairing", &fixture);
     engine.rootContext()->setContextProperty("novaDiscovery", &discovery);
     engine.rootContext()->setContextProperty("novaGamepad", &gamepad);
+    if (app.arguments().contains("--parity-hosts-portrait")) {
+        QQmlComponent management(&engine, QUrl::fromLocalFile(QStringLiteral(NOVA_DECK_QML_DIRECTORY) + "/SavedPcs.qml"));
+        require(management.isReady(), qPrintable(management.errorString()));
+        auto root = std::unique_ptr<QObject>(management.create());
+        auto* window = qobject_cast<QQuickWindow*>(root.get()); require(window, "actual Hosts window missing");
+        window->resize(400,800); settle(); key(*window, Qt::Key_Return);
+        auto* keep = item(window->contentItem(), "saved-pcs-keep");
+        require(keep && window->activeFocusItem() == keep && fixture.removals == 0, "Hosts management did not start on safe Keep PC");
+        QList<QRectF> targets;
+        for (const auto* name : {"saved-pcs-unpair", "saved-pcs-forget", "saved-pcs-keep"}) {
+            auto* action = item(window->contentItem(), name); require(action && action->isVisible(), name);
+            const auto bounds = action->mapRectToScene(action->boundingRect());
+            require(bounds.left() >= 0 && bounds.right() <= window->width() && bounds.top() >= 0 && bounds.bottom() <= window->height(), "portrait Hosts manage action escaped its window");
+            auto* copy = qvariant_cast<QQuickItem*>(action->property("contentItem"));
+            require(copy && copy->height() + 1 >= copy->implicitHeight(), "portrait Hosts management cut a wrapped action label");
+            for (const auto previous : targets) require(!bounds.intersects(previous), "portrait Hosts manage targets overlap");
+            targets.append(bounds);
+        }
+        require(window->title() == "Nova — Hosts", "host management navigation still has a different Saved PCs name");
+        key(*window, Qt::Key_Return); require(fixture.removals == 0, "Keep PC mutated pairing");
+        key(*window, Qt::Key_Escape);
+        require(!window->isVisible() && root->property("openLibrary").toBool() && fixture.removals == 0, "Hosts Back changed pairing or lost Library return");
+        std::cout << "Hosts portrait manage geometry, safe Keep and Library Back passed\n"; return 0;
+    }
     QQmlComponent component(&engine, QUrl::fromLocalFile(QStringLiteral(NOVA_DECK_QML_DIRECTORY) + "/PairHost.qml"));
     require(component.isReady(), qPrintable(component.errorString()));
     std::unique_ptr<QObject> root(component.create());

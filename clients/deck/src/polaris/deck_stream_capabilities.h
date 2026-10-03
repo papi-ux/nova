@@ -11,7 +11,7 @@ namespace nova::deck {
 inline constexpr int deckMinProfileFps = 15;
 inline constexpr int deckMaxProfileFps = 240;
 inline constexpr int deckMinProfileBitrateKbps = 1000;
-inline constexpr int deckMaxProfileBitrateKbps = 300000;
+inline constexpr int deckMaxProfileBitrateKbps = 500000;
 inline bool supportedDeckProfileRate(int fps) { return fps >= deckMinProfileFps && fps <= deckMaxProfileFps; }
 inline bool supportedDeckProfileBitrate(int bitrate) { return bitrate >= deckMinProfileBitrateKbps && bitrate <= deckMaxProfileBitrateKbps; }
 
@@ -36,9 +36,11 @@ inline bool supportedDeckResolution(int width, int height) {
 struct DeckStreamCapabilities {
     bool valid = true;
     bool h264 = true; // Missing legacy metadata keeps GameStream's H.264 default.
+    int manualMaximumKbps = 300000;
     double maxFps = 0; // Zero means not advertised, never inferred from a game HDR badge.
     bool hevc = false; // Explicit 8-bit HEVC support only.
     bool pyrowave = false; // Requires the exact pinned native extension.
+    std::string pyrowaveUnavailableReason, pyrowaveUnavailableMessage; // host-wide public refusal, when supplied
     bool supports(int width, int height, int fps) const {
         return valid && (h264 || hevc || pyrowave) && supportedDeckResolution(width, height) &&
             supportedDeckProfileRate(fps) && (maxFps == 0 || fps <= maxFps) &&

@@ -123,6 +123,19 @@ class HostSleepSequence {
         return true
     }
 
+    /**
+     * A request confirmed where it was asked, by the host menu's split, so no
+     * countdown follows it. @return false when a request is already counting
+     * down or out.
+     */
+    fun startRequest(): Boolean {
+        if (phase != Phase.IDLE) {
+            return false
+        }
+        phase = Phase.REQUESTING
+        return true
+    }
+
     /** The grace ran out. @return false when it was called off first, so nothing may be sent. */
     fun countdownElapsed(): Boolean {
         if (phase != Phase.COUNTING_DOWN) {

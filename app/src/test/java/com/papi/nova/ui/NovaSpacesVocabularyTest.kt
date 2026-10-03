@@ -24,7 +24,8 @@ class NovaSpacesVocabularyTest {
         "src/main/java/com/papi/nova/ui/NovaGameDetailOverview.kt",
         "src/main/java/com/papi/nova/grid/PcGridAdapter.kt",
         "src/main/java/com/papi/nova/Game.kt",
-        "src/main/java/com/papi/nova/GameMenu.kt",
+        // The legacy menu's successor: the Command Center's pages.
+        "src/main/java/com/papi/nova/ui/NovaCommandCenterPages.kt",
         "src/main/java/com/papi/nova/ui/NovaQuickMenuUiState.kt",
     )
 
@@ -149,9 +150,11 @@ class NovaSpacesVocabularyTest {
             strip.contains("horizontalScroll(") || strip.contains("rowWidth") || strip.contains("980.dp") || strip.contains("700.dp"),
         )
         assertTrue("what gives way is decided by the tested fit, from measured text", strip.contains("rememberNovaLibraryTopBarFit(") && strip.contains("novaLibraryTopBarFit("))
+        val hostRow = strip.substringBefore("NovaLibraryToolbarIdentity(").substringAfterLast("Row(")
         assertTrue(
-            "the host side is the weighted part, so Row measures the right-hand cluster first and the menus never shrink",
-            strip.contains("modifier = Modifier.weight(1f).fillMaxHeight()"),
+            "the host side stays weighted so menus measure first, and wraps camera clearance vertically",
+            hostRow.contains("modifier = Modifier.weight(1f),") && !hostRow.contains("fillMaxHeight()") &&
+                strip.contains("heightIn(min = NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp"),
         )
     }
 
@@ -166,7 +169,7 @@ class NovaSpacesVocabularyTest {
     @Test
     fun theChooserIsBuiltFromTheDetailWindowRows() {
         val chooser = File("src/main/java/com/papi/nova/ui/NovaSpaceChooser.kt").readText()
-        assertTrue(chooser.contains("NovaSteamChoiceRow(") && chooser.contains("NovaControllerHintBar("))
+        assertTrue(chooser.contains("NovaSteamChoiceRow(") && chooser.contains("NovaPanelHintBar("))
         assertFalse(
             "focus is claimed once when the chooser opens; re-requesting it on every snapshot moved the cursor on poll blips",
             chooser.contains("LaunchedEffect(snapshot"),

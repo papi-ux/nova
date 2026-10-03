@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the Hosts screen, the App list, pairing, shortcuts and first run on the panel foundation. -->
+<resources>
+    <!-- The titles of the right-edge panels a host card and an app tile open. The header under the
+         title names the host or the app. -->
+    <string name="hosts_panel_host_title">Host</string>
+    <string name="hosts_panel_app_title">App</string>
+
+    <!-- Delete PC splits in its row into Stay and Delete PC; this line says what confirming does. -->
+    <string name="hosts_delete_consequence">Nova forgets this host and its pairing.</string>
+    <string name="hosts_delete_consequence_paired">The host is asked to forget this device too, so using it again means pairing again.</string>
+    <string name="hosts_delete_consequence_running">The host is asked to forget this device too, and that can close the game running on it.</string>
+
+    <!-- Quit Current Game and Start splits in its row; the confirming half and its consequence. -->
+    <string name="hosts_quit_and_start_confirm">Quit and Start</string>
+    <string name="hosts_quit_and_start_consequence">The running game closes on the host, and anything it has not saved is lost.</string>
+
+    <!-- The pairing PIN page. Close hides it; pairing carries on until the host answers. -->
+    <string name="hosts_pairing_code_title">Enter this PIN on the host</string>
+    <string name="hosts_pairing_code_message">Type it on the host\'s pairing page, in its web UI. Closing this page keeps pairing going, and Nova says when the host answers.</string>
+    <string name="hosts_pairing_failed_title">Pairing did not finish</string>
+    <!-- The Pairing page while there is no PIN to show yet. %1$s is the scanned host's address. -->
+    <string name="hosts_pairing_asking">Asking the host to pair with this device.</string>
+    <string name="hosts_qr_connecting">Finding %1$s on the network.</string>
+    <string name="hosts_qr_unreachable">Nova could not reach %1$s. Check that the host is on and on this network, then scan again.</string>
+    <string name="hosts_not_ready_title">Hosts Not Ready</string>
+    <string name="nova_host_console_title">Host Console</string>
+    <string name="nova_host_console_opening">Opening the host\'s console…</string>
+    <string name="nova_host_console_refused">The console answered with a certificate Nova did not pair with, so Nova will not open it. If the host was set up again, pair with it again.</string>
+    <!-- The first page of a host Nova has not paired with, over Back and Open Anyway. -->
+    <string name="nova_host_console_unpaired">Nova cannot check this host until it is paired, so it cannot be sure this is the host\'s own console. Open it anyway only if this is your host, on your own network.</string>
+    <string name="nova_host_console_open_anyway">Open Anyway</string>
+    <!-- A console opened anyway that later showed a certificate other than the one it opened with. -->
+    <string name="nova_host_console_visit_refused">The console answered with a different certificate from the one it opened with, so Nova stopped it. Pair with the host so Nova can check it.</string>
+    <!-- The console's own questions, asked in its page: OK answers, and a prompt's field is its answer. -->
+    <string name="nova_host_console_ok">OK</string>
+    <string name="nova_host_console_answer">Answer</string>
+    <!-- The console asked whether to leave a page it has changes on. -->
+    <string name="nova_host_console_leave_page">Leave this page of the console? Changes not saved on it are lost.</string>
+    <string name="nova_host_console_failed">The host\'s console did not load. Check that the host is awake and on this network, then try again.</string>
+    <!-- A link the console opened that Nova cannot follow: for another client app, or a host or an app Nova does not know. -->
+    <string name="nova_host_console_link_elsewhere">This link is for another app, so Nova cannot open it.</string>
+    <!-- The console asked Nova to pair with a host it is already paired with. -->
+    <string name="nova_host_console_link_paired">Nova is already paired with this host, so there is nothing to pair.</string>
+
+    <!-- The App list's host went away while it was open: a Problem page whose Close goes back to Hosts. -->
+    <string name="hosts_app_list_lost_title">Connection Lost</string>
+    <string name="hosts_app_list_lost_message">This host stopped answering. Hosts shows it as offline until it answers again.</string>
+    <string name="hosts_app_list_unpaired_title">Not Paired</string>
+    <string name="hosts_app_list_unpaired_message">This host no longer lists this device. Pair it again from Hosts to see its apps.</string>
+
+    <!-- A start refused because the host is not answering, on a Notice page. -->
+    <string name="hosts_offline_title">Host Offline</string>
+    <string name="hosts_offline_message">The host is not answering. Check that it is on and awake, then try again.</string>
+    <!-- An End the host refused without a reason of its own. %1$s is the game. -->
+    <string name="hosts_end_failed_message">The host did not end %1$s.</string>
+
+    <!-- Add a host by address: said under the field when OK is pressed with it empty. -->
+    <string name="hosts_add_enter_address">Enter the host\'s IP address or name first.</string>
+
+    <!-- OTP pairing, a form in the host panel. -->
+    <string name="hosts_otp_pin">PIN</string>
+    <string name="hosts_pair">Pair</string>
+
+    <!-- Theme page captions, short enough to keep to two lines beside a swatch in a panel. -->
+    <string name="hosts_theme_caption_polaris">Polaris blue cockpit, a balanced dark shell</string>
+    <string name="hosts_theme_caption_portable_chrome">Graphite handheld chrome, PlayStation accents</string>
+    <string name="hosts_theme_caption_oled">OLED black with a high contrast glow</string>
+    <string name="hosts_theme_caption_miami">Miami neon, flamingo pink and a cyan night</string>
+    <string name="hosts_theme_caption_director">Crimson · warm white · black structure</string>
+    <string name="hosts_theme_caption_high_contrast">Maximum contrast, accessibility first focus</string>
+    <string name="hosts_theme_caption_material_you">System dynamic colors where Android has them</string>
+
+    <!-- The App list's panel: a switch reads Off or On, and Pin keeps an app at the top. -->
+    <string name="hosts_value_off">Off</string>
+    <string name="hosts_value_on">On</string>
+    <string name="hosts_app_pin_to_top">Pin to Top</string>
+    <string name="hosts_app_status_running">Running on the host</string>
+    <string name="hosts_app_status_watchable">Another device is playing it</string>
+
+    <!-- The QR pairing scanner's panel along the bottom edge. -->
+    <string name="hosts_qr_title">Scan Pairing Code</string>
+    <string name="hosts_qr_hint">Point the camera at the QR code on your Polaris host.</string>
+
+    <!-- Welcome, shown once on first launch. The numbered labels are set in capitals. -->
+    <string name="nova_welcome_title">Welcome to Nova</string>
+    <string name="nova_welcome_subtitle">Your host\'s games on Android TVs, handhelds, tablets, and phones.</string>
+    <string name="nova_welcome_step_find">01  Find your host</string>
+    <string name="nova_welcome_step_find_body">Nova finds hosts on your network. You can also add one by its address.</string>
+    <string name="nova_welcome_step_pair">02  Pair with confidence</string>
+    <string name="nova_welcome_step_pair_body">Pair any host with a PIN, or scan the pairing QR code Polaris shows.</string>
+    <!-- The same card on a device with no camera, where there is nothing to scan with. -->
+    <string name="nova_welcome_step_pair_body_no_camera">Pair any host with a PIN, Polaris included.</string>
+    <string name="nova_welcome_step_play">03  Made for every screen</string>
+    <string name="nova_welcome_step_play_body">Use a controller, a TV remote or touch. A stream overlay shows how the stream is doing.</string>
+    <string name="nova_welcome_discover">Discover Hosts</string>
+    <string name="nova_welcome_add_manually">Add Manually</string>
+    <!-- Short: it shares a row with the other two buttons, a third of it on a landscape phone. -->
+    <string name="nova_welcome_scan_qr">Scan QR</string>
+
+    <!-- Shortcut and .art file launch errors. %1$s is "Provided App is not valid" or the reason. -->
+    <string name="hosts_art_invalid_uri">Nova cannot open a .art file from that location.</string>
+    <string name="hosts_art_read_error">Nova could not read the .art file: %1$s</string>
+    <string name="hosts_scut_app_cache_empty">%1$s: the saved app list is empty or unreadable.</string>
+    <string name="hosts_scut_app_not_in_cache">%1$s: the app is not in the saved app list.</string>
+    <string name="hosts_scut_app_cache_unparsed">%1$s: the saved app list could not be parsed.</string>
+</resources>

@@ -41,10 +41,10 @@ class NovaDashboardRevampContractTest {
             assertTrue("${layout.path} should make Theme a labeled pill", headerXml.contains("@string/pcview_quick_theme"))
             assertTrue("${layout.path} should make GitHub a labeled pill", headerXml.contains("@string/pcview_quick_github"))
             val expectedActionHeight = if (layout.path.contains("layout-land")) "wrap_content" else "@dimen/nova_dashboard_top_action_height"
-            val expectedActionRadius = if (layout.path.contains("layout-land")) "17dp" else "@dimen/nova_dashboard_top_action_radius"
-            assertTrue("${layout.path} should use compact pilled top actions", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
+            val expectedActionRadius = "@dimen/nova_radius_row"
+            assertTrue("${layout.path} should use compact grouped top rows", headerXml.contains("""android:layout_height="$expectedActionHeight"""") && headerXml.contains("""app:cornerRadius="$expectedActionRadius""""))
             if (layout.path.contains("layout-land")) {
-                assertTrue("landscape text actions should grow above their compact baseline", headerXml.contains("""android:minHeight="34dp"""))
+                assertTrue("landscape text actions should grow above their48dp baseline", headerXml.contains("""android:minHeight="48dp"""))
             }
         }
     }
@@ -147,7 +147,13 @@ class NovaDashboardRevampContractTest {
         ).forEach { id ->
             assertTrue("portrait one-screen action grid should keep $id visible before mode controls", railXml.contains(id))
         }
-        assertTrue("portrait update labels should remain bounded inside the grid cell", railXml.contains("""android:id="@+id/updateStatusLabel"""") && railXml.contains("""android:id="@+id/updateVersionLabel"""") && railXml.contains("""android:layout_width="0dp"""") && railXml.contains("""android:layout_weight="1"""") && railXml.contains("""android:maxLines="1"""") && railXml.contains("""android:ellipsize="end""""))
+        val updateXml = railXml.substring(railXml.indexOf("@+id/actionNovaUpdate"))
+        assertTrue("portrait update is a full-width row beneath the grouped actions",
+            updateXml.substringBefore('>').contains("""android:layout_width="match_parent"""") &&
+                updateXml.contains("""android:id="@+id/updateStatusLabel"""") &&
+                updateXml.contains("""android:id="@+id/updateVersionLabel""""))
+        assertFalse("portrait update wraps the complete version instead of truncating the grid cell",
+            updateXml.contains("android:maxLines=") || updateXml.contains("android:ellipsize="))
         assertTrue("portrait controls should start close under the visible action grid to keep hosts on-screen", headerXml.contains("""android:id="@+id/dashboardHomeControls"""") && headerXml.contains("""android:layout_marginTop="10dp"""))
     }
 
@@ -217,7 +223,7 @@ class NovaDashboardRevampContractTest {
             val selectorXml = xml.substring(selectorIndex, hostsIndex)
             assertTrue("${layout.path} compact selector should keep Servers mode target", selectorXml.contains("@+id/modeServers"))
             assertTrue("${layout.path} compact selector should keep Library mode target", selectorXml.contains("@+id/modeLibrary"))
-            assertTrue("${layout.path} compact selector should use shared pill radius", selectorXml.contains("@dimen/nova_dashboard_pill_radius"))
+            assertTrue("${layout.path} compact selector should use bounded shared group radius", selectorXml.contains("@dimen/nova_radius_hero"))
             assertFalse("${layout.path} should remove hero-mode CURRENT badge copy from dashboard XML", selectorXml.contains("pcview_destination_current"))
             assertFalse("${layout.path} should remove hero-mode OPEN badge copy from dashboard XML", selectorXml.contains("pcview_destination_open"))
             assertFalse("${layout.path} should remove hero-mode summary paragraphs from compact selector", selectorXml.contains("pcview_destination_servers_summary") || selectorXml.contains("pcview_destination_library_summary"))
@@ -249,10 +255,10 @@ class NovaDashboardRevampContractTest {
             if (layout.path.contains("layout-land")) {
                 assertTrue("${layout.path} setup row should fill the compact left rail", setupXml.contains("""android:layout_width="match_parent"""))
                 assertTrue("${layout.path} expanded setup actions should split into compact paired rail pills", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
-                assertTrue("${layout.path} setup actions should retain compact minimums while growing for larger text", setupXml.contains("""android:layout_height="wrap_content""") && setupXml.contains("""android:minHeight="34dp""") && setupXml.contains("""app:cornerRadius="17dp"""))
+                assertTrue("${layout.path} setup actions should retain compact minimums while growing for larger text", setupXml.contains("""android:layout_height="wrap_content""") && setupXml.contains("""android:minHeight="48dp""") && setupXml.contains("""app:cornerRadius="@dimen/nova_radius_row"""))
             } else {
                 assertTrue("${layout.path} setup row should fill portrait width for large touch targets", setupXml.contains("""android:layout_width="match_parent"""))
-                assertTrue("${layout.path} setup actions should use shared pill tokens", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_dashboard_pill_radius"))
+                assertTrue("${layout.path} setup actions should retain their sizing with bounded row corners", setupXml.contains("@dimen/nova_dashboard_pill_height") && setupXml.contains("@dimen/nova_radius_row"))
                 assertTrue("${layout.path} setup actions should split into equal-width portrait targets", setupXml.contains("""android:layout_width="0dp""") && setupXml.contains("android:layout_weight"))
             }
         }
@@ -429,14 +435,17 @@ class NovaDashboardRevampContractTest {
 
         listOf(
             "nova_dashboard_top_action_height",
-            "nova_dashboard_top_action_radius",
-            "nova_dashboard_top_action_gap",
             "nova_dashboard_top_action_padding_horizontal",
             "nova_dashboard_top_action_icon_gap",
         ).forEach { token ->
             assertTrue("portrait top action token $token should be defined", dimens.contains(token))
             assertTrue("portrait action grid should use $token instead of hard-coded per-button values", railXml.contains("@dimen/$token"))
         }
+
+        val shapes = File("src/main/res/values/nova_tokens.xml").readText()
+        assertTrue("Nova's row and group tokens remain bounded", shapes.contains("name=\"nova_radius_row\">6dp") && shapes.contains("name=\"nova_radius_hero\">8dp"))
+        assertTrue("Hosts uses the shared row and group shapes", railXml.contains("@dimen/nova_radius_row") && portrait.contains("@dimen/nova_radius_hero"))
+        assertFalse("Hosts action rows no longer use the oversized pill radius", railXml.contains("@dimen/nova_dashboard_top_action_radius"))
 
         assertFalse(
             "portrait action grid should avoid sub-11sp eyebrow text that becomes unreadable on handheld portrait screens",
@@ -481,20 +490,18 @@ class NovaDashboardRevampContractTest {
             "@+id/actionGithub" to listOf(
                 """android:nextFocusLeft="@id/actionTheme"""",
                 """android:nextFocusUp="@id/profilesButton"""",
-                """android:nextFocusDown="@id/actionNovaUpdate"""",
+                """android:nextFocusDown="@id/actionSettings"""",
             ),
             "@+id/actionSettings" to listOf(
                 """android:nextFocusUp="@id/actionTheme"""",
-                """android:nextFocusRight="@id/actionNovaUpdate"""",
-                """android:nextFocusDown="@id/modeServers"""",
+                """android:nextFocusDown="@id/actionNovaUpdate"""",
             ),
             "@+id/actionNovaUpdate" to listOf(
-                """android:nextFocusLeft="@id/actionSettings"""",
-                """android:nextFocusUp="@id/actionGithub"""",
-                """android:nextFocusDown="@id/modeLibrary"""",
+                """android:nextFocusUp="@id/actionSettings"""",
+                """android:nextFocusDown="@id/modeServers"""",
             ),
             "@+id/modeServers" to listOf(
-                """android:nextFocusUp="@id/actionSettings"""",
+                """android:nextFocusUp="@id/actionNovaUpdate"""",
             ),
             "@+id/modeLibrary" to listOf(
                 """android:nextFocusUp="@id/actionNovaUpdate"""",

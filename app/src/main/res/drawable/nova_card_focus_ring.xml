@@ -5,5 +5,5 @@
     <stroke
         android:width="3dp"
         android:color="?attr/colorAccent" />
-    <corners android:radius="18dp" />
+    <corners android:radius="@dimen/nova_radius_row" />
 </shape>

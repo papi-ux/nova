@@ -40,6 +40,11 @@ object NovaSettingsAvailability {
             keys += touchOnlyKeys
         }
 
+        // The touch menu button is for touch players, and a TV never needs it.
+        if (!com.papi.nova.ui.NovaTouchMenuButton.available(context)) {
+            keys += com.papi.nova.ui.NovaTouchMenuButton.SETTING_KEY
+        }
+
         if (
             Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
             pm.hasSystemFeature("com.nvidia.feature.shield")
@@ -98,6 +103,8 @@ object NovaSettingsAvailability {
         }
 
     private val touchOnlyKeys = setOf(
+        // Touchscreen Mode was the first Input row on the Shield, which has no touchscreen.
+        "mouse_mode_list",
         "list_onscreen_controls_layout_preset",
         "checkbox_hide_osc_when_has_gamepad",
         "checkbox_vibrate_osc",
@@ -118,6 +125,7 @@ object NovaSettingsAvailability {
     fun shouldPersistProfileOverride(key: String): Boolean = key !in profileEditorHiddenKeys
 
     private val profileEditorHiddenKeys = setOf(
+        "nova_control_size",
         "nova_ui_font_scale_percent",
         "option_reset_osc_preference",
         "nova_reset_stream_ui",

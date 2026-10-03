@@ -42,7 +42,7 @@ class NovaSpaceUiStateTest {
 
     @Test fun settingsExcludeHostTopologyAndSteamAccountControls() {
         val rows = NovaPlaySetupRow.entries.map { row ->
-            NovaPlaySetupRowState(row, row.name, "", "", "", emptyList())
+            NovaPlaySetupRowState(row, row.name, "", "", emptyList())
         }
         assertEquals(listOf(NovaPlaySetupRow.RESOLUTION, NovaPlaySetupRow.FRAME_RATE),
             NovaSpaceUiState.streamingRows(rows).map { it.row })

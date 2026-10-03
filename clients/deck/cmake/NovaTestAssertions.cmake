@@ -1,0 +1,15 @@
+# C assert belongs to the test oracle even when production uses Release.
+# Apply privately to test translation units, never to a production library.
+function(nova_deck_enable_test_assertions target)
+    get_target_property(target_type ${target} TYPE)
+    if(NOT target_type STREQUAL "EXECUTABLE")
+        message(FATAL_ERROR "Assertion enforcement requires a test executable: ${target}")
+    endif()
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
+        target_compile_options(${target} PRIVATE -UNDEBUG)
+    else()
+        message(FATAL_ERROR "No test assertion option for ${CMAKE_CXX_COMPILER_ID}")
+    endif()
+endfunction()

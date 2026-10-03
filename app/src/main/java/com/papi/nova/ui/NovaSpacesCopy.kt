@@ -79,7 +79,7 @@ internal object NovaSpacesCopy {
      * What the library's Space control shows, from the host's words only: a caption, the
      * current name, an optional status and whether there is anything to choose.
      *
-     * Desktop is not a Space, so its caption names the computer instead of calling it "Your
+     * Desktop is not a Space, so its caption names the host instead of calling it "Your
      * Space". While a change is on the wire the caption says so in place of the usual word.
      */
     fun environmentLabel(snapshot: PolarisSpaces, statusKnown: Boolean = true, changing: Boolean = false): NovaEnvironmentLabel {
@@ -156,6 +156,24 @@ internal object NovaSpacesCopy {
         state == "in_use" -> R.string.nova_space_in_use
         state == "unavailable" -> R.string.nova_space_blocked_unavailable
         else -> R.string.nova_space_blocked_generic
+    }
+
+    /** The environment guard shared by Play's enabled state and the launch attempt. */
+    fun canLaunchSpace(snapshot: PolarisSpaces?, spaceId: String): Boolean =
+        snapshot != null && snapshot.enabled && snapshot.available &&
+            snapshot.selectedId == spaceId && snapshot.selected?.id == spaceId &&
+            snapshot.selected?.openable == true
+
+    /** Explain the existing Space launch gate without changing its admission decision. */
+    @StringRes
+    fun launchBlockedReason(snapshot: PolarisSpaces?, spaceId: String, changing: Boolean, launchModeAvailable: Boolean): Int? {
+        if (changing) return R.string.nova_space_changing
+        snapshot ?: return R.string.nova_space_checking_status
+        unavailableReason(snapshot)?.let { return it }
+        if (snapshot.selectedId != spaceId) return R.string.nova_space_status_changed
+        val selected = snapshot.selected ?: return R.string.nova_space_blocked_generic
+        openBlockedReason(selected)?.let { return it }
+        return if (launchModeAvailable) null else R.string.nova_space_launch_mode_unavailable
     }
 
     /** The short form of [openBlockedReason], for a Play button that cannot act yet. */

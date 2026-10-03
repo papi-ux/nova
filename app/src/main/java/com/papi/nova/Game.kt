@@ -47,6 +47,8 @@ import com.papi.nova.runtime.BackgroundResumePolicy
 import com.papi.nova.runtime.DoctorTelemetryUploadGate
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.runtime.PolarisLiveStatusRefreshPolicy
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.collect
 import com.papi.nova.ui.ExternalControllerView
 import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaHudSessionSummaryLog
@@ -55,11 +57,14 @@ import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaHudMode
 import com.papi.nova.ui.NovaHudUiState
 import com.papi.nova.ui.NovaLaunchStreamOverride
+import com.papi.nova.ui.novaLaunchIssuePage
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
-import com.papi.nova.ui.NovaSheetChrome
 import com.papi.nova.ui.StreamContainer
-import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.papi.nova.ui.NovaMouseModeChoices
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.DeviceUtils
 import com.papi.nova.utils.DisplayFocusTelemetry
@@ -68,11 +73,11 @@ import com.papi.nova.utils.CompanionControlLifecyclePolicy
 import com.papi.nova.utils.CompanionControlReopenGeneration
 import com.papi.nova.utils.DualScreenQuickMenuPolicy
 import com.papi.nova.utils.ExternalDisplayControlActivity
+import com.papi.nova.utils.ExternalDisplayControlController
 import com.papi.nova.utils.ExternalDisplayControlHost
 import com.papi.nova.utils.ExternalDisplayControlPresentation
 import com.papi.nova.utils.GameDisplayLaunchTrampolineActivity
 import com.papi.nova.utils.AndroidStreamDisplayTarget
-import com.papi.nova.utils.MouseModeOption
 import com.papi.nova.utils.PanZoomHandler
 import com.papi.nova.utils.PerformanceDataTracker
 import com.papi.nova.utils.ServerHelper
@@ -84,7 +89,6 @@ import org.json.JSONObject
 
 import android.annotation.SuppressLint
 import android.annotation.TargetApi
-import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.app.Service
 import android.content.ClipData
@@ -133,8 +137,6 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
@@ -175,11 +177,49 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 
 
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
+private var novaStreamHostMaximumKbps: Int? = null
+internal val novaLiveBitrate by lazy {
+    com.papi.nova.manager.NovaStreamBitrateOwner(lifecycleScope,
+        { novaApiClient }, { conn }, { isStreamActive && connected && !isFinishing && !isDestroyed },
+        {
+            val room = isOnExternalDisplay || (getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager)
+                ?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+            com.papi.nova.manager.NovaLiveStreamInputs(displayWidth, displayHeight,
+                configuredStreamFrameRateFps.toInt(),
+                if (room) com.papi.nova.preferences.NovaDistance.ROOM else com.papi.nova.preferences.NovaDistance.HAND,
+                when { watchOnlyRequested -> "Watching another player's stream"
+                    spaceSession -> "Space manages picture settings"
+                    else -> null })
+        }, { novaStreamHostMaximumKbps })
+}
+/** Captures this opening's actual API/connection, including the final dispatch standing check. */
+internal fun novaBitrateAction(menuCurrent: () -> Boolean):
+    (com.papi.nova.manager.NovaLiveBitrateToken?, Int?, Int?) -> Unit {
+    val client = novaApiClient
+    val connection = conn
+    fun standing() = menuCurrent() && novaApiClient === client && conn === connection
+    return { token, direction, kbps ->
+        if (standing()) launchRuntimeIo("NovaQuickMenuBitrate") {
+            novaLiveBitrate.change(token, ::standing, direction, kbps)
+        }
+    }
+}
+private fun attachNovaLiveBitrate() {
+    val client = novaApiClient ?: return
+    val connection = conn ?: return
+    runtimeTasks.launchIoReplacing("NovaStreamBitrateStatus") {
+        client.sessionStatusUpdates.collect { reading ->
+            novaLiveBitrate.observe(client, connection, reading, currentNovaCapabilities())
+        }
+    }
+}
+
 private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
 private val doctorTelemetry:NovaHudSessionStats = NovaHudSessionStats()
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
 private var configuredDisplayRefreshRateHz:Float = 0f
+private var launchManualBitrateMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
 private var configuredStreamBitrateKbps:Int = 0
 private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
@@ -276,6 +316,8 @@ com.papi.nova.manager.ClientProfileProvenance(com.papi.nova.manager.ClientProfil
 private var launchProfilePreference:String = "auto"
 private var launchOptimizationJson:String? = null
 private var launchResolvedProfileTrusted:Boolean = false
+/** The preset this launch was resolved to, for the HUD's stream line; empty when it has none. */
+private var novaHudLaunchPresetLabel:String = ""
 private val launchPolicyGateGeneration = AtomicLong(0L)
 private val launchPolicyGatePending = AtomicBoolean(false)
 private var launchPolicyHandoffRecreation:Boolean = false
@@ -285,7 +327,8 @@ val policyBlocked:Boolean,
 val profilePreference:String,
 val resolvedProfileTrusted:Boolean,
 val policyMessage:String = "",
-val policyReason:com.papi.nova.manager.LaunchRefusalReason? = null
+val policyReason:com.papi.nova.manager.LaunchRefusalReason? = null,
+val manualBitrateMaximumKbps:Int = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
 )
 private var resumeExistingRequested:Boolean = false
 private var mirrorDesktop:Boolean = false
@@ -433,6 +476,14 @@ get() {
 return keyBoardLayoutController != null && keyBoardLayoutController!!.shown
 }
 
+ /** Whether the on-screen special keys layout is showing. */
+ val isKeyboardControllerShown:Boolean
+get() = keyBoardController?.shown == true
+
+ /** Whether the touch menu button, which opens the Command Center, is showing. */
+ val isFloatingButtonVisible:Boolean
+get() = floatingMenuButton?.getVisibility() == View.VISIBLE
+
 private val streamingDisplay:Display?
 get() {
 var display:Display? = null
@@ -544,13 +595,9 @@ val currentPresentation:ExternalDisplayControlHost? = externalDisplayControlPres
 if (currentPresentation == null || !currentPresentation.isHostShowing() || companionControlDisplayId != companionDisplayId)
 {
 currentPresentation?.dismissAfterCurrentCallback()
-when (CompanionControlHostPolicy.select(companionDisplayId)) {
+when (CompanionControlHostPolicy.select(companionDisplayId, companionDisplay.flags and Display.FLAG_PRESENTATION != 0)) {
 CompanionControlHostPolicy.HostType.ACTIVITY -> {
-externalDisplayControlPresentation = null
-companionControlDisplayId = companionDisplayId
-companionControlHasWindowFocus = false
-ExternalDisplayControlActivity.launch(this, companionDisplayId)
-ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+launchCompanionControlActivity(companionDisplayId)
 }
 CompanionControlHostPolicy.HostType.PRESENTATION -> {
 val presentation = ExternalDisplayControlPresentation(this, companionDisplay)
@@ -590,11 +637,27 @@ lastQuickMenuInteractionDisplayId = streamingDisplayId
 companionControlDisplayId = INVALID_DISPLAY_ID
 companionControlHasWindowFocus = false
 LimeLog.warning("Nova: Android companion presentation unavailable display_id=$companionDisplayId")
+launchCompanionControlActivity(companionDisplayId)
 }
 }
 }
 }
 listenForExternalDisplayRemoval()
+}
+}
+
+private fun launchCompanionControlActivity(displayId: Int) {
+externalDisplayControlPresentation = null
+companionControlDisplayId = displayId
+companionControlHasWindowFocus = false
+if (ExternalDisplayControlActivity.launch(this, displayId)) {
+ExternalDisplayControlPresentation.ensureCompanionControlsNotification(this)
+} else {
+companionControlDisplayId = INVALID_DISPLAY_ID
+if (lastQuickMenuInteractionDisplayId == displayId) {
+lastQuickMenuInteractionDisplayId = streamingDisplayId
+}
+LimeLog.warning("Nova: Android companion activity unavailable display_id=$displayId")
 }
 }
 
@@ -683,7 +746,7 @@ explicitUserRequest = false,
 return false
 }
 val companionDisplayId = getCompanionControlDisplay()?.displayId ?: return false
-if (companionDisplayId != Display.DEFAULT_DISPLAY)
+if (activity.controlDisplay.displayId != companionDisplayId)
 {
 return false
 }
@@ -782,6 +845,7 @@ UiHelper.setLocale(this)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
 
  // Read the stream preferences
+        val tierSnapshotAtRead = com.papi.nova.preferences.NovaTierRuntime.snapshot()
         prefConfig = PreferenceConfiguration.readPreferences(this)
         com.papi.nova.ui.NovaVideoCodecOverrides.applyToLaunch(this, intent, prefConfig)
         // A per-game face-button choice from Play Setup outranks the Settings flip for this
@@ -799,17 +863,28 @@ finish()
 return
 }
 
+// Saved profiles and per-game overrides can bypass the picker. Refuse before creating a
+// renderer or starting any host connection, preserving the player's codec preference.
+if (prefConfig.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROWAVE) {
+    val availability = com.papi.nova.binding.video.PyroWaveAvailability.inspect(applicationContext)
+    if (!com.papi.nova.binding.video.PyroWaveAvailability.canLaunch(prefConfig.videoFormat, availability)) {
+        val reason = com.papi.nova.binding.video.PyroWaveAvailability.reason(this, availability)
+        LimeLog.warning("PyroWave: launch refused: $availability")
+        Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+        finish()
+        return
+    }
+}
+
 if (prefConfig!!.fullScreen)
 {
  // Full-screen
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
- // If we're going to use immersive mode, we want to have
-            // the entire screen
-            getWindow().getDecorView().setSystemUiVisibility(
-(View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN))
+// Immersive from the first frame, not only laid out for it: with the layout flags alone the
+// navigation bar's gesture handle was drawn over the stream until hideSystemUi ran, a second
+// after the connection started (in-game #19). The same flags hideSystemUi keeps setting.
+hideSystemUi.run()
 }
 
 getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
@@ -1111,7 +1186,7 @@ e!!.printStackTrace()
 novaFeatureScope = com.papi.nova.manager.FeatureFlagManager.beginScope()
 novaApiClient = com.papi.nova.api.PolarisApiClient(this, host ?: "", httpsPort, serverCert)
 novaLockScreenOverlay = com.papi.nova.ui.LockScreenOverlay(this, novaApiClient!!)
-novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this)
+novaReconnectOverlay = com.papi.nova.ui.ReconnectOverlay(this) { disconnect() }
 val reconnectAttemptsUsed:Int = this@Game.getIntent().getIntExtra(EXTRA_RECONNECT_ATTEMPT, 0)
 if (reconnectAttemptsUsed > 0)
 {
@@ -1143,6 +1218,27 @@ if (appId == StreamConfiguration.INVALID_APP_ID)
 {
 finish()
 return
+}
+
+// A cold shortcut can arrive before the application worker finishes the metadata probe.
+// Reuse the existing lifecycle-bound launch handoff instead of probing in readPreferences.
+val tierPreferences = ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
+val needsGeneratedTier = com.papi.nova.manager.NovaTierLaunchPolicy.needsGeneratedTier(
+    com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all), watchOnlyRequested,
+    resumeExistingRequested, com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID ?: appId.toString()))
+// A no-change refresh can resume initialization without recreating the activity.
+val continueLaunch = fun() {
+
+isMetered = connMgr!!.isActiveNetworkMetered()
+
+if (needsGeneratedTier) {
+    val plan = com.papi.nova.preferences.NovaStreamSettings.generatedPlan(tierPreferences)
+    if (plan == null || !plan.available) {
+        Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+            plan?.limits?.firstOrNull()?.message ?: getString(R.string.nova_tier_no_decoder)), Toast.LENGTH_LONG).show()
+        finish()
+        return
+    }
 }
 
 var launchOptimization:JSONObject? = null
@@ -1288,7 +1384,7 @@ bitrateLocked = isMetered,
 requestedWidth = displayWidth,
 requestedHeight = displayHeight,
 requestedFps = optimizationRequestedFps,
-displayLocked = watchStreamWidth > 0 && watchStreamHeight > 0,
+displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.sessionModeLocked(watchOnlyRequested, resumeExistingRequested, watchStreamWidth, watchStreamHeight),
 displayModeExplicit = displayModeExplicit,
 resumeExistingOnly = resumeExistingRequested,
 requestedHdr = willStreamHdr
@@ -1320,7 +1416,7 @@ isMetered,
 displayWidth,
 displayHeight,
 optimizationRequestedFps,
-watchStreamWidth > 0 && watchStreamHeight > 0,
+com.papi.nova.manager.NovaTierLaunchPolicy.sessionModeLocked(watchOnlyRequested, resumeExistingRequested, watchStreamWidth, watchStreamHeight),
 topologyLocked = displayModeExplicit,
 requestedHdr = willStreamHdr,
 requestedProfilePreference = launchProfilePreference
@@ -1344,14 +1440,12 @@ if (policyMessage != null) {
 (policyReason?.name ?: "unproven deterministic launch authority")
 }
 )
-Toast.makeText(
-this@Game,
+// A state page with Retry and Back, not a Toast cut off by its ellipsis as the page closed.
+refuseAtLaunchPolicyGate(
 policyMessage ?: getString(
 policyReason?.messageRes() ?: R.string.nova_launch_deterministic_host_required
-),
-Toast.LENGTH_LONG
-).show()
-finish()
+)
+)
 }
 return@launchRuntimeIo
 }
@@ -1360,7 +1454,8 @@ launchPolicyFingerprint,
 com.papi.nova.manager.NovaLaunchPolicyGateStore.Decision(
 optimizationJson = launchDecision.optimization?.toString(),
 profilePreference = launchDecision.profilePreference,
-resolvedProfileTrusted = launchDecision.resolvedProfileTrusted
+resolvedProfileTrusted = launchDecision.resolvedProfileTrusted,
+manualBitrateMaximumKbps = launchDecision.manualBitrateMaximumKbps
 )
 )
 runOnMainIfRuntimeActive {
@@ -1382,6 +1477,7 @@ com.papi.nova.manager.NovaLaunchPolicyGateStore.consume(nextToken, launchPolicyF
 }
 return
 }
+launchManualBitrateMaximumKbps = policyDecision.manualBitrateMaximumKbps
 launchProfilePreference = policyDecision.profilePreference
 launchPolicyGatePending.set(false)
 launchResolvedProfileTrusted = policyDecision.resolvedProfileTrusted
@@ -1400,8 +1496,12 @@ if (launchPolicyTokenInvalid)
 {
 // The one-shot handoff token was stale or already spent, which says nothing about the host.
 LimeLog.severe("Nova: Refusing launch because the one-shot launch policy handoff was not valid")
-Toast.makeText(this, R.string.nova_launch_retry, Toast.LENGTH_LONG).show()
-finish()
+// The launch issue page with Try Again and Back, not a Toast floated as the screen closed. A
+// Space launch retries through the library's Space path, which checks the Space again; the
+// handoff that would have said it was one is the part that failed, so the app it asked for says
+// so (X1).
+spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
+showNovaLaunchIssueSheet(getString(R.string.nova_launch_retry))
 return
 }
 val workerLaunch = com.papi.nova.manager.WorkerLaunchContract.parse(launchOptimization)
@@ -1416,11 +1516,13 @@ com.papi.nova.manager.LaunchTopologyEnvelope.resolvedSelection(launchOptimizatio
 if (launchResolvedProfileTrusted && expectedLaunchTopology.isBlank())
 {
 LimeLog.severe("Nova: Refusing launch because the deterministic topology assertion is missing")
-Toast.makeText(this, R.string.nova_launch_deterministic_host_required, Toast.LENGTH_LONG).show()
-finish()
+// The host answered as a current Polaris and left the display topology unsettled, so "Update
+// Polaris" named the one cause it was not. It says what happened, on the launch issue page.
+showNovaLaunchIssueSheet(getString(R.string.nova_launch_profile_not_settled))
 return
 }
 launchInitializationCommitted = true
+novaHudLaunchPresetLabel = com.papi.nova.ui.NovaLaunchPresetLabel.resolved(resources, launchOptimization, launchResolvedProfileTrusted)
 startNovaFeatureProbe()
 willStreamHdr = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeHdr(
 willStreamHdr,
@@ -1466,19 +1568,8 @@ if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_PYROW
             MoonBridge.VIDEO_FORMAT_PYROWAVE or MoonBridge.VIDEO_FORMAT_PYROWAVE_444
         }
 
- // Said rather than silently corrected, because the bitrate is the player's to choose and a
-        // stream that quietly used four times the bandwidth asked for would be worse than a soft
-        // picture. Every frame of this codec is a keyframe, so a budget that would carry H.264
-        // comfortably leaves this one nothing to spend on detail, and the result looks like a broken
-        // codec rather than a starved one.
-        val wantedMbps = com.papi.nova.binding.video.PyroWaveDecoderRenderer.advisedMbps(
-prefConfig!!.width, prefConfig!!.height, prefConfig!!.fps.toInt())
-if (wantedMbps > 0 && prefConfig!!.bitrate < wantedMbps * 1000)
-{
-LimeLog.warning("PyroWave: " + prefConfig!!.bitrate + " kbps for " + prefConfig!!.width + "x" +
-prefConfig!!.height + " at " + prefConfig!!.fps.toInt() + "; it wants about " + wantedMbps + " Mbps")
-NovaSnackbar.showQuiet(this, getString(R.string.nova_pyrowave_bitrate_low, wantedMbps))
-}
+        // The bitrate advice for this offer is given further down, once the launch has settled the
+        // stream it describes.
 }
 else
 {
@@ -1609,16 +1700,9 @@ if (!exactMediaCadence && prefConfig!!.framePacingWarpFactor > 0)
 chosenFrameRate *= prefConfig!!.framePacingWarpFactor
 }
 
-configuredStreamBitrateKbps = if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate
-var autoSafeBitrateKbps:Int = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
-configuredStreamBitrateKbps,
-launchOptimization
-)
-if (autoSafeBitrateKbps > 0 && autoSafeBitrateKbps != configuredStreamBitrateKbps)
-{
-LimeLog.info(("Nova: Auto Safe launch bitrate " + configuredStreamBitrateKbps +
-" -> " + autoSafeBitrateKbps + " kbps"))
-configuredStreamBitrateKbps = autoSafeBitrateKbps
+configureLaunchBitrate(isMetered, launchOptimization)
+novaStreamHostMaximumKbps = launchOptimization?.let {
+    com.papi.nova.manager.NovaStreamSourceLine.fromPreflight(it).capKbps
 }
 var autoSafeResolution:com.papi.nova.manager.StreamSyncManager.StreamResolution? = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeResolution(
 displayWidth,
@@ -1643,8 +1727,64 @@ launchRefreshRate = autoSafeTargetFps
 chosenFrameRate = autoSafeTargetFps
 }
 configuredStreamFrameRateFps = chosenFrameRate
+refreshLaunchSurfaceFrameRate()
 configuredHudTargetFps = launchRefreshRate
 configuredStreamHdr = willStreamHdr
+        // PyroWave's bitrate advice. Said rather than silently corrected, because the bitrate is the
+        // player's to choose and a stream that quietly used four times the bandwidth asked for would be
+        // worse than a soft picture. Every frame of this codec is a keyframe, so a budget that would
+        // carry H.264 comfortably leaves this one nothing to spend on detail, and the result looks like
+        // a broken codec rather than a starved one.
+        //
+        // Given here, once everything above has settled the stream, and not from the saved settings,
+        // because the two part ways. The size can come from the display, a watched stream or Auto Safe.
+        // The frame rate is held to the display's maximum and moved by Auto Safe and frame pacing, and
+        // it is the rate the encoder is asked for. The bitrate is the metered one on a metered network,
+        // and Auto Safe's when it sets one. A Space launch replaces the PyroWave offer with H.264, and
+        // an H.264 stream gets no PyroWave advice at all. The host can still lower the frame rate when
+        // it negotiates, which can only make this ask for more than the stream needs, not less.
+        //
+        // The calibrated model targets 31 dB on handhelds and 35 dB across the room. The chroma is the one the offer settles
+        // on, because the host and client have not negotiated yet: the player chose PyroWave, the offer
+        // carries 4:4:4, and a host that serves PyroWave takes it. The distance is H 2.0 for a television
+        // or a stream on an external display and H 2.87 for the device's own screen.
+        // PyroWaveDecoderRenderer.adviceChroma444 and viewingHeightFactor say why, and bitrateAdvice
+        // quotes request units; warnings respect both host and client input limits.
+        if ((supportedVideoFormats and MoonBridge.VIDEO_FORMAT_MASK_PYROWAVE) != 0)
+        {
+            val pyroWaveFps = Math.round(chosenFrameRate)
+            val pyroWaveTelevision = (getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager)
+                ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+            val pyroWaveAdvice = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateAdvice(
+                displayWidth, displayHeight, pyroWaveFps,
+                chroma444 = com.papi.nova.binding.video.PyroWaveDecoderRenderer.adviceChroma444(supportedVideoFormats),
+                heightFactor = com.papi.nova.binding.video.PyroWaveDecoderRenderer.viewingHeightFactor(
+                    television = pyroWaveTelevision,
+                    onExternalDisplay = isOnExternalDisplay,
+                ),
+            )
+            // Once per stream, whatever the player set, so a report says which rule and distance the
+            // advice came from even when it asked for nothing more. The model was measured on SDR, so an
+            // HDR stream is given the SDR figure, and the line says which this stream is.
+            LimeLog.info("PyroWave: bitrate advice for " + displayWidth + "x" + displayHeight +
+                " at " + pyroWaveFps + " fps: " + pyroWaveAdvice.describe() +
+                "; television=" + pyroWaveTelevision + " external_display=" + isOnExternalDisplay +
+                " hdr=" + willStreamHdr)
+            // Under the advice the log always says so, and the player is told only while the bitrate
+            // input can still go higher. Auto stays quiet at its automatic cap as well.
+            val pyroWaveWarning = com.papi.nova.binding.video.PyroWaveDecoderRenderer.bitrateWarning(
+                configuredStreamBitrateKbps, displayWidth, displayHeight, pyroWaveFps, pyroWaveAdvice,
+                maximumKbps = minOf(launchManualBitrateMaximumKbps, PreferenceConfiguration.MAX_BITRATE_KBPS),
+                automatic = com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all) !=
+                    com.papi.nova.preferences.NovaTier.CUSTOM ||
+                    com.papi.nova.preferences.NovaStreamSettings.customAutomatic(tierPreferences.all),
+            )
+            if (pyroWaveWarning != null)
+            {
+                LimeLog.warning(pyroWaveWarning.logLine)
+                // Actionable advice stays in Command Center's recommendation row.
+            }
+        }
 doctorTelemetry.reset()
 doctorTelemetryUploadFailureLogged.set(false)
 doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())
@@ -1801,7 +1941,7 @@ spinner = null
 
  // If we can't find an AVC decoder, we can't proceed
             Dialog.displayDialog(this, getResources().getString(R.string.conn_error_title),
-"This device or ROM doesn't support hardware accelerated H.264 playback.", true)
+getResources().getString(R.string.nova_stream_h264_unsupported), true)
 return
 }
 
@@ -1933,7 +2073,73 @@ catch (ignored:Throwable) {}
 }
 }
 catch (ignored:Throwable) {}
+}
 
+if (needsGeneratedTier && (com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers?.inputsHash == "failed" ||
+        !com.papi.nova.preferences.NovaTierRuntime.isPrepared() ||
+        com.papi.nova.preferences.NovaTierRuntime.snapshot()?.tiers != tierSnapshotAtRead?.tiers)) {
+    val gateIntent = intent
+    val gateGeneration = launchPolicyGateGeneration.incrementAndGet()
+    launchPolicyGatePending.set(true)
+    launchRuntimeIo("NovaLaunchPolicyGate") {
+        val prepared = com.papi.nova.preferences.NovaTierRuntime.prepare(applicationContext)
+        runOnMainIfRuntimeActive {
+            if (launchPolicyGateGeneration.get() == gateGeneration && intent === gateIntent) {
+                launchPolicyGatePending.set(false)
+                completeTierPreparation(prepared, tierSnapshotAtRead?.tiers, continueLaunch)
+            }
+        }
+    }
+    return
+}
+
+continueLaunch()
+}
+
+/** Apply the host ceiling after both the saved request and the authenticated host override. */
+internal fun configureLaunchBitrate(isMetered: Boolean, launchOptimization: JSONObject?) {
+configuredStreamBitrateKbps = (if (isMetered) prefConfig!!.meteredBitrate else prefConfig!!.bitrate)
+    .coerceAtMost(launchManualBitrateMaximumKbps)
+var autoSafeBitrateKbps:Int = com.papi.nova.manager.StreamSyncManager.resolveAutoSafeBitrateKbps(
+configuredStreamBitrateKbps,
+launchOptimization
+)
+if (autoSafeBitrateKbps > 0 && autoSafeBitrateKbps != configuredStreamBitrateKbps)
+{
+LimeLog.info(("Nova: Auto Safe launch bitrate " + configuredStreamBitrateKbps +
+" -> " + autoSafeBitrateKbps + " kbps"))
+configuredStreamBitrateKbps = autoSafeBitrateKbps.coerceAtMost(launchManualBitrateMaximumKbps)
+}
+}
+
+/** The generation and intent fence is checked by the IO caller before entering this boundary. */
+internal fun completeTierPreparation(
+    prepared: com.papi.nova.preferences.NovaTierRuntime.Snapshot,
+    tiersAtRead: com.papi.nova.preferences.NovaStreamTiers?,
+    continueLaunch: () -> Unit,
+) {
+    if (prepared.tiers.inputsHash == "failed") {
+        Toast.makeText(this, getString(R.string.nova_tier_unavailable,
+            prepared.tiers.recommended.limits.firstOrNull()?.message ?: getString(R.string.nova_tier_no_decoder)),
+            Toast.LENGTH_LONG).show()
+        finish()
+        return
+    }
+    val current = com.papi.nova.preferences.NovaTierRuntime.snapshot()
+    if (!com.papi.nova.preferences.NovaTierRuntime.isPrepared() || current?.tiers != prepared.tiers ||
+        prepared.tiers != tiersAtRead) {
+        launchPolicyHandoffRecreation = true
+        recreate()
+        return
+    }
+    try {
+        // The callback only dirtied the cache. Finish this activity's launch once.
+        continueLaunch()
+    } catch (failure: Exception) {
+        LimeLog.severe("Nova: Continued launch initialization failed: ${failure.message}")
+        Toast.makeText(this, R.string.nova_launch_retry, Toast.LENGTH_LONG).show()
+        finish()
+    }
 }
 
 @SuppressLint("ClickableViewAccessibility")
@@ -2669,6 +2875,7 @@ launchProfilePreference,
 launchOptimizationJson.orEmpty(),
 streamMode,
 encoderBackend,
+prefConfig.videoFormat?.name.orEmpty(),
 mirrorDesktop.toString(),
 vDisplay.toString(),
 bitrateLocked.toString(),
@@ -2835,13 +3042,41 @@ resolvedProfileTrusted = false,
 policyMessage = message,
 policyReason = reason
 )
+if (novaApiClient == null)
+{
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
+}
+
+val hostKind = try
+{
+novaApiClient!!.identifyLaunchHost()
+}
+catch (e:Exception)
+{
+LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
+}
+if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
+{
+LimeLog.info("Nova: Stock host confirmed; launching with local settings and no resolvedProfile marker")
+return LaunchOptimizationDecision(null, false, preference, false)
+}
+if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
+{
+LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
+return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
+}
+val observedManualMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
+novaApiClient!!.getLaunchCapabilities()?.features?.manualBitrateMaxKbps)
 val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
 height = requestedHeight,
 fps = requestedFps,
-displayLocked = displayLocked,
-bitrateKbps = if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate,
-bitrateLocked = bitrateLocked
+displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,
+    com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity)),
+bitrateKbps = (if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate).coerceAtMost(observedManualMaximumKbps),
+bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(prefConfig.videoFormat,
+    com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity), bitrateLocked)
 )
 val requestedTopology = requestedLaunchTopology()
 val exactTopologyLocked = topologyLocked || mirrorDesktop ||
@@ -2858,7 +3093,7 @@ try
 val preflight = JSONObject(launchOptimizationJson!!)
 if (com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(preflight))
 {
-val clientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+val clientMaximumFps = getMaxSupportedRefreshRate(streamingDisplay)
 val containsNovaLaunchOverride = preflight.optString("normalization_reason", "") ==
 NovaLaunchStreamOverride.NORMALIZATION_REASON
 val preflightTopologyHonored = com.papi.nova.manager.LaunchTopologyEnvelope.matches(
@@ -2879,7 +3114,7 @@ callerRequest.bitrateKbps,
 requestedWidth,
 requestedHeight,
 requestedFps,
-displayLocked,
+callerRequest.displayLocked,
 preference.equals("high_fps", ignoreCase = true),
 requestedTopology,
 exactTopologyLocked,
@@ -2923,30 +3158,6 @@ LimeLog.warning("Nova: Rejecting malformed preflight optimization payload")
 return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
 }
-if (novaApiClient == null)
-{
-return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
-}
-
-val hostKind = try
-{
-novaApiClient!!.identifyLaunchHost()
-}
-catch (e:Exception)
-{
-LimeLog.severe("Nova: Launch identity failed closed: " + e.message)
-return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_UNREACHABLE)
-}
-if (hostKind == com.papi.nova.api.PolarisLaunchHostKind.NON_POLARIS)
-{
-LimeLog.info("Nova: Stock host confirmed; launching with local settings and no resolvedProfile marker")
-return LaunchOptimizationDecision(null, false, preference, false)
-}
-if (hostKind != com.papi.nova.api.PolarisLaunchHostKind.CURRENT_POLARIS)
-{
-LimeLog.severe("Nova: Legacy or unknown host cannot prove deterministic launch authority")
-return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
-}
 val resolverRequest = preflightSelection.resolverRequest ?: callerRequest
 val optimizationResult = try {
 preflightSelection.trustedPreflight ?: novaApiClient!!.getOptimization(
@@ -2962,9 +3173,10 @@ displayLocked = resolverRequest.displayLocked,
 bitrateKbps = resolverRequest.bitrateKbps,
 bitrateLocked = resolverRequest.bitrateLocked,
 hdr = requestedHdr,
-clientMaxFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay()),
+clientMaxFps = getMaxSupportedRefreshRate(streamingDisplay),
 launchBounded = true,
-encoderBackend = encoderBackend)
+encoderBackend = encoderBackend,
+manualBitrateMaximumKbps = observedManualMaximumKbps)
 }
 catch (e:com.papi.nova.api.PolarisApiRejectedException)
 {
@@ -2982,7 +3194,7 @@ if (!com.papi.nova.manager.StreamSyncManager.hasTrustedResolvedProfile(optimizat
 {
 return blocked(com.papi.nova.manager.LaunchRefusalReason.PROFILE_NOT_DETERMINISTIC)
 }
-val currentClientMaximumFps = getMaxSupportedRefreshRate(getWindowManager().getDefaultDisplay())
+val currentClientMaximumFps = getMaxSupportedRefreshRate(streamingDisplay)
 val envelopeViolation = launchEnvelopeViolation(
 optimizationResult,
 requestedHdr,
@@ -3006,7 +3218,8 @@ LimeLog.severe("Nova: Rejecting resolved profile outside the launch envelope: " 
 return blocked(envelopeViolation)
 }
 }
-return LaunchOptimizationDecision(optimizationResult, false, preference, true)
+return LaunchOptimizationDecision(optimizationResult, false, preference, true,
+manualBitrateMaximumKbps = observedManualMaximumKbps)
 }
 
 private fun getMaxSupportedRefreshRate(display:Display?):Float {
@@ -3408,6 +3621,7 @@ stopListeningForExternalDisplayRemoval()
 
  // Nova: clean up Polaris integration
         stopPolarisLiveSessionStatusRefresh()
+novaLiveBitrate.retire()
 runtimeTasks.cancelAll()
 stopCursorVisibilitySync()
 if (novaEventSource != null) novaEventSource!!.stop()
@@ -3885,7 +4099,19 @@ return modifier
 override fun onKeyDown(keyCode:Int, event:KeyEvent):Boolean {
 return handleKeyDown(event) || super.onKeyDown(keyCode, event)
 }
+/**
+ * The stream container gets its input callbacks in onCreate, long before the controller handler
+ * and the connection exist, and a refused launch calls finish() with both still unset. A key in
+ * either window must pass through instead of reaching a partial session.
+ */
+private fun isKeyInputReady():Boolean =
+    !isFinishing && !isDestroyed && ::prefConfig.isInitialized &&
+        controllerHandler != null && conn != null
 override fun handleKeyDown(event:KeyEvent):Boolean {
+if (!isKeyInputReady())
+{
+return false
+}
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4007,6 +4233,10 @@ return true
 return handleKeyUp(event) || super.onKeyUp(keyCode, event)
 }
 override fun handleKeyUp(event:KeyEvent):Boolean {
+if (!isKeyInputReady())
+{
+return false
+}
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4108,12 +4338,21 @@ conn!!.sendUtf8Text(event!!.getCharacters())
 return true
 }
 
+internal fun canSendCommandKeys(): Boolean {
+if (watchOnlyRequested || isFinishing || isDestroyed) return false
+val client = novaApiClient
+return if (client != null) client.commandKeysAllowed && client.sessionStatusUpdates.value?.isViewer != true
+else lastPolarisSessionStatus?.isViewer != true
+}
+
  fun sendKeys(keys:ShortArray?) {
+if (!canSendCommandKeys() || keys == null) return
+val keyConnection = conn ?: return
 	var modifier:ByteArray = byteArrayOf(0.toByte())
 
 for (key:Short in keys!!)
 {
-	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
+	keyConnection.sendKeyboardInput(key, KeyboardPacket.KEY_DOWN, modifier[0], 0.toByte())
 
  // Apply the modifier of the pressed key, e.g. CTRL first issues a CTRL event (without
             // modifier) and then sends the following keys with the CTRL modifier applied
@@ -4127,8 +4366,8 @@ var key:Short = keys!![pos]
  // Remove the keys modifier before releasing the key
                 modifier[0] = (modifier[0].toInt() and KeyboardTranslator.getModifier(key).toInt().inv()).toByte()
 
-	conn!!.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
-} }), GameMenu.KEY_UP_DELAY)
+	keyConnection.sendKeyboardInput(key, KeyboardPacket.KEY_UP, modifier[0], 0.toByte())
+} }), SENT_KEY_UP_DELAY_MS)
 }
 
 override fun handleFocusChange(hasFocus:Boolean):Boolean {
@@ -4641,6 +4880,13 @@ else
  // Returns true if the event was consumed
     // NB: View is only present if called from a view callback
      fun handleMotionEvent(view:View?, event:MotionEvent?):Boolean {
+// Android can dispatch controller motion while onCreate is still setting up input,
+// or after a refused launch has called finish(). Nothing may reach a partial session.
+if (event == null || isFinishing || isDestroyed || !::prefConfig.isInitialized ||
+    controllerHandler == null || conn == null || inputCaptureProvider == null || streamContainer == null)
+{
+return false
+}
 view?.display?.displayId?.let(::recordQuickMenuInteraction)
  // Pass through mouse/touch/joystick input if we're not grabbing
         if (!grabbedInput)
@@ -5343,6 +5589,8 @@ aTouchContext!!.setPointerCount(0)
 }
 // The hat is controller input for the host here, never a press to spend on focus.
 override val hatPressLeavesTouchMode: Boolean = false
+// The same for A and B: the stream hands them to the host, so the screen's key gate stays off.
+override val novaKeyGate: Boolean = false
 
 override fun onGenericMotionEvent(event:MotionEvent?):Boolean {
 return handleMotionEvent(null, event) || super.onGenericMotionEvent(event)
@@ -5430,6 +5678,8 @@ if (connecting || connected)
 connected = false
 connecting = connected
 isStreamActive = false
+novaLiveBitrate.retire()
+runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
 doctorTelemetryUploadGate.invalidate()
@@ -5490,9 +5740,15 @@ this@Game.runOnUiThread({ Toast.makeText(this@Game, e!!.message, Toast.LENGTH_LO
 }
 }
 override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
+// A 503 is the host answering and refusing, so the network reached it. "Failed to start RTSP
+// handshake (error 503)" and a list of firewall ports sent someone to fix a network that worked;
+// Mirror Desktop with PyroWave can be refused when a KDE HDR desktop cannot be read.
+val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE
  // Perform a connection test if the failure could be due to a blocked port
-        // This does network I/O, so don't do it on the main thread.
-        var portTestResult:Int = MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags)
+        // This does network I/O, so don't do it on the main thread. Not for a host that answered:
+        // the outside test has nothing to say about it, and its "blocking Nova" sentence under the
+        // host's refusal sent people to their network (XR4).
+        var portTestResult:Int = if (hostAnswered) MoonBridge.ML_TEST_RESULT_INCONCLUSIVE else MoonBridge.testClientConnectivity(ServerHelper.CONNECTION_TEST_SERVER, 443, portFlags)
 
 if (errorCode == 0 && portFlags != 0 && (portTestResult == MoonBridge.ML_TEST_RESULT_INCONCLUSIVE || portTestResult == 0))
 {
@@ -5527,6 +5783,10 @@ var dialogText:String = getResources().getString(R.string.conn_error_msg) + " " 
 {
 dialogText = getResources().getString(R.string.nova_pyrowave_profile_unavailable)
 }
+if (hostAnswered)
+{
+dialogText = getResources().getString(R.string.nova_launch_host_refused_stream)
+}
  // A Polaris host says why it refused; that beats "error 503" and a generic sentence.
 val hostRefusal = conn?.lastHostRefusal
 if (hostRefusal != null && errorCode != 0)
@@ -5556,13 +5816,13 @@ else -> {
  // Not when the refusal was about the codec. The ports are reported for whatever the handshake
                     // happened to be using, and listing them under a sentence that just said the network is
                     // fine sends someone to open ports that are already open.
-                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE)
+                    if (portFlags != 0 && errorCode != MoonBridge.ML_ERROR_PYROWAVE_PROFILE_UNAVAILABLE && !hostAnswered)
 {
 dialogText += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
 MoonBridge.stringifyPortFlags(portFlags, "\n"))
 }
 
-if (portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)
+if (!hostAnswered && portTestResult != MoonBridge.ML_TEST_RESULT_INCONCLUSIVE && portTestResult != 0)
 {
 dialogText += "\n\n" + getResources().getString(R.string.nettest_text_blocked)
 }
@@ -5576,6 +5836,22 @@ finishSecondScreen()
 return false
 }
 
+/**
+ * The launch policy gate refused this launch, for [message]: the launch issue page says so. A Space
+ * refused here retries through the library's Space path, which checks the Space again, as a stale
+ * handoff does: the page is built before the launch is set up, so the app it asked for says
+ * whether it was a Space (X1).
+ */
+internal fun refuseAtLaunchPolicyGate(message: String) {
+spaceSession = com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
+showNovaLaunchIssueSheet(message)
+}
+
+/**
+ * A launch the host refused or Nova gave up on, as a full-screen state page over the stream
+ * ([novaLaunchIssuePage]): Try Again is focused, and B returns to Nova without retrying. In a
+ * Space the retry is the library's, which checks the Space again before it starts anything.
+ */
 private fun showNovaLaunchIssueSheet(message: String) {
 runOnUiThread {
 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -5583,78 +5859,27 @@ if (spinner != null) {
 spinner!!.dismiss()
 spinner = null
 }
-val sheet = BottomSheetDialog(this@Game)
-val density = resources.displayMetrics.density
-fun dp(value: Int): Int = (value * density).toInt()
-val container = LinearLayout(this@Game).apply {
-orientation = LinearLayout.VERTICAL
-setPadding(dp(18), dp(14), dp(18), dp(18))
-background = NovaSheetChrome.createSheetBackground(this@Game)
-}
-val handle = View(this@Game).apply {
-background = NovaSheetChrome.createHandleBackground(this@Game)
-}
-NovaSheetChrome.attachHandleDragToDismiss(handle, sheet)
-container.addView(handle, LinearLayout.LayoutParams(dp(42), dp(4)).apply {
-gravity = Gravity.CENTER_HORIZONTAL
-bottomMargin = dp(14)
-})
-val title = TextView(this@Game).apply {
-text = if (spaceSession) getString(R.string.nova_space_launch_issue_title) else getString(R.string.nova_launch_issue_title)
-setTextColor(NovaThemeManager.getTextPrimaryColor(this@Game))
-textSize = 20f
-}
-container.addView(title)
-val body = TextView(this@Game).apply {
-text = if (spaceSession) listOfNotNull(conn?.lastHostRefusal?.message,
-    conn?.lastHostRefusal?.action ?: getString(R.string.nova_space_launch_issue_default))
-    .joinToString("\n\n") else message
-setTextColor(NovaThemeManager.getTextSecondaryColor(this@Game))
-textSize = 14f
-setPadding(0, dp(10), 0, dp(12))
-}
-val scroll = ScrollView(this@Game).apply {
-addView(body)
-}
-container.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
- // Every action wears the sheet chrome; a stock Button read as a stranger here.
-fun sheetAction(label: String, onClick: () -> Unit): TextView = TextView(this@Game).apply {
-text = label
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { onClick() }
-}
-fun addAction(action: TextView) {
-container.addView(action, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-}
-if (spaceSession) {
-val explanation = body.text
-var detailsVisible = false
-val details = sheetAction(getString(R.string.nova_space_launch_issue_details)) {}
-details.setOnClickListener {
-detailsVisible = !detailsVisible
-body.text = if (detailsVisible) "$explanation\n\n$message" else explanation
-details.text = getString(if (detailsVisible) R.string.nova_space_launch_issue_hide_details else R.string.nova_space_launch_issue_details)
-}
-addAction(details)
- // Try Again hands the retry to the library, which re-checks the Space before it starts anything.
-addAction(sheetAction(getString(R.string.nova_space_launch_issue_retry)) {
-NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST))
-sheet.dismiss()
+// The startup card stayed up behind the page and ghosted through it.
+novaProgressOverlay?.dismiss()
+val surfaces = novaSurfaces
+val page = novaLaunchIssuePage(
+context = this,
+key = LAUNCH_ISSUE_PAGE,
+message = message,
+space = spaceSession,
+refusal = if (spaceSession) conn?.lastHostRefusal else null,
+retry = if (spaceSession) {
+{
+NovaSpaceRetrySignal.mark(this@Game, this@Game.getIntent().getStringExtra(EXTRA_PC_UUID), host ?: this@Game.getIntent().getStringExtra(EXTRA_HOST), appUUID?.takeIf { it.isNotBlank() } ?: appId.toString())
 finish()
-})
 }
-addAction(sheetAction(if (spaceSession) getString(R.string.nova_space_launch_issue_back) else getString(R.string.nova_launch_issue_dismiss)) {
-sheet.dismiss()
-finish()
-})
-sheet.setContentView(container)
- // A tap beside the sheet is not a decision to leave the failure behind; Back and the actions are.
-sheet.setCanceledOnTouchOutside(false)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
-sheet.setOnDismissListener { finish() }
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+} else {
+{ relaunchStream() }
+},
+leave = { finish() },
+takeDown = { surfaces.dismiss(LAUNCH_ISSUE_PAGE) },
+)
+surfaces.show(page)
 }
 }
 
@@ -5742,7 +5967,8 @@ MoonBridge.stringifyPortFlags(portFlags, "\n"))
 Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_terminated_title),
 message, true,
 getResources().getString(R.string.nova_conn_reconnect),
-Runnable { relaunchStream() })
+Runnable { relaunchStream() },
+help = true)
 }
 else
 {
@@ -5760,7 +5986,12 @@ if (prefConfig!!.disableWarnings)
 return
 }
 
-if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
+if (connectionStatus == MoonBridge.CONN_STATUS_POOR && com.papi.nova.ui.NovaLegacyConnectionWarning.suppressed(lastPolarisSessionStatus))
+{
+// Live Tuning owns the bitrate, or Doctor reads the stream: the legacy advice contradicted them.
+requestedNotificationOverlayVisibility = View.GONE
+}
+else if (connectionStatus == MoonBridge.CONN_STATUS_POOR)
 {
 if (configuredStreamBitrateKbps > 5000)
 {
@@ -5833,7 +6064,7 @@ gyroAimController!!.start()
 com.papi.nova.service.NovaStreamNotification.show(
 this@Game,
 if (appName != null) appName!! else "Streaming",
-if (pcName != null) pcName!! else "Server"
+if (pcName != null) pcName!! else "Host"
 )
 updatePipAutoEnter()
 
@@ -5892,6 +6123,7 @@ fun handleStreamStartedState() {
 connected = true
 connecting = false
 isStreamActive = true
+attachNovaLiveBitrate()
 stopBackgroundResumeWindow()
 syncDisconnectResumeTimeoutPolicy()
 syncPolarisCursorVisibility()
@@ -5913,6 +6145,7 @@ override fun run() {
 // owner's shape, and a 16:10 Deck stream drawn into a 16:9 box is stretched by a tenth.
 displayWidth = width
 displayHeight = height
+novaLiveBitrate.observe(novaApiClient, conn, novaApiClient?.sessionStatusUpdates?.value, currentNovaCapabilities())
 if (prefConfig!!.videoScaleMode != PreferenceConfiguration.ScaleMode.STRETCH) {
 streamContainer?.setDesiredAspectRatio(width.toDouble() / height.toDouble())
 }
@@ -5977,9 +6210,18 @@ updatePipAutoEnter()
 }
 }
 override fun surfaceCreated(holder:SurfaceHolder) {
-var desiredFrameRate:Float
-
 surfaceCreated = true
+applySurfaceFrameRateHint(holder)
+}
+
+internal fun refreshLaunchSurfaceFrameRate() {
+if (surfaceCreated) {
+    streamContainer?.getSurfaceView()?.holder?.takeIf { it.surface.isValid }?.let(::applySurfaceFrameRateHint)
+}
+}
+
+private fun applySurfaceFrameRateHint(holder:SurfaceHolder) {
+var desiredFrameRate:Float
 
  // Android will pick the lowest matching refresh rate for a given frame rate value, so we want
         // to report the true FPS value if refresh rate reduction is enabled. We also report the true
@@ -6318,64 +6560,43 @@ else
 applyMouseMode(savedMouseModeIndex)
 }
 }
-// Converted JavaDoc marker retained as a line comment.
-     @JvmOverloads
-     fun selectMouseMode(context:Context?, dialogWindowType:Int? = null, dialogWindowToken:IBinder? = null) {
-var allModes:Array<String?>? = getResources().getStringArray(R.array.mouse_mode_names)
-
-var allowedLabels:Set<String> = HashSet(Arrays.asList(
+/**
+ * The mouse modes this display allows, with their original indexes as values. On an external
+ * display only the touchpad modes and Disabled make sense. The local cursor is a row of its own.
+ */
+fun mouseModeChoices():List<NovaOption<Int>> = NovaMouseModeChoices.options(
+modeNames = getResources().getStringArray(R.array.mouse_mode_names).toList(),
+onExternalDisplay = isOnExternalDisplay,
+externalModes = setOf(
 getString(R.string.mouse_mode_track_pad_natural),
 getString(R.string.mouse_mode_track_pad_gaming),
 getString(R.string.mouse_mode_disabled)
-))
+),
+)
 
-var options:MutableList<MouseModeOption> = ArrayList()
+/** Whether the local mouse cursor is drawn on this device, for the Mouse Mode page's switch. */
+val isLocalCursorShown:Boolean
+get() = cursorVisible
 
-for (i:Int in allModes!!.indices)
-{
-var label:String = allModes!![i]!!
-var isAllowed:Boolean = !isOnExternalDisplay || allowedLabels.contains(label)
-if (isAllowed)
-{
-options.add(MouseModeOption(i, label))
-}
-}
+/** The mouse mode in use, as the value [mouseModeChoices] marks current. */
+val currentMouseModeChoice:Int
+get() = currentMouseModeIndex
 
-options.add(MouseModeOption(-1, getString(R.string.toggle_local_mouse_cursor)))
-
-var labels:Array<String?> = arrayOfNulls<String?>(options.size)
-for (i:Int in 0 until options.size)
-{
-labels[i] = options[i].label
-}
-var optionArray:Array<MouseModeOption> = options.toTypedArray()
-
-val mouseModeDialog = AlertDialog.Builder(context)
-.setTitle(getString(R.string.game_menu_select_mouse_mode))
-.setItems(labels, { dialog, which->
-dialog!!.dismiss()
-var selected:MouseModeOption = optionArray[which]
-if (selected.index == -1)
+/** Applies a choice from [mouseModeChoices], remembering the mode when Settings asks to. */
+fun chooseMouseMode(choice:Int) {
+if (choice == NovaMouseModeChoices.LocalCursor)
 {
 toggleMouseLocalCursor()
+return
 }
-else
-{
-applyMouseMode(selected.index)
+applyMouseMode(choice)
 if (prefConfig!!.rememberMouseMode)
 {
 ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
 .edit()
-.putString("mouse_mode_list", java.lang.String.valueOf(selected.index))
+.putString("mouse_mode_list", java.lang.String.valueOf(choice))
 .apply()
 }
-} })
-.create()
-dialogWindowType?.let { windowType ->
-mouseModeDialog.window?.setType(windowType)
-}
-mouseModeDialog.window?.attributes?.token = dialogWindowToken
-mouseModeDialog.show()
 }
 
  //本地鼠标光标切换
@@ -6490,7 +6711,7 @@ block()
 private fun currentNovaCapabilities():com.papi.nova.api.PolarisCapabilities? =
 com.papi.nova.manager.FeatureFlagManager.capabilitiesForScope(novaFeatureScope)
 
-private fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
+internal fun novaIsPolarisServer():Boolean = currentNovaCapabilities() != null
 
 private fun novaHasCursorVisibilityControl():Boolean =
 currentNovaCapabilities()?.features?.cursorVisibilityControl == true
@@ -7015,7 +7236,7 @@ val diagnosticText:String = novaHud?.getDiagnosticSummaryText()
     ?: "Nova stream diagnostics\nNo active Nova HUD sample yet. Enable Nova HUD during a stream and try again."
 val clipboard:ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 clipboard.setPrimaryClip(ClipData.newPlainText("Nova HUD diagnostics", diagnosticText))
-Toast.makeText(this, R.string.nova_quick_menu_hud_diagnostics_copied, Toast.LENGTH_SHORT).show()
+// The Command Center says Copied on the card that was pressed; a Toast floated over it (R6).
 }
 
 fun showNovaHud():com.papi.nova.ui.NovaStreamHud {
@@ -7035,6 +7256,8 @@ hud = com.papi.nova.ui.NovaStreamHud(this@Game) {
 showGameMenu(null)
 }
 novaHud = hud
+// A HUD turned on from the Command Center starts as dim as the panel keeps the one it replaces (XR2).
+applyNovaHudCovered()
 hud!!.show()
 syncPerfTextWanted()
 configureNovaHud(hud!!)
@@ -7044,12 +7267,65 @@ return hud!!
 private fun configureNovaHud(hud:com.papi.nova.ui.NovaStreamHud) {
 hud.setTargetFps(configuredHudTargetFps.toDouble())
 hud.setTargetBitrateKbps(configuredStreamBitrateKbps)
+hud.setLaunchPresetLabel(novaHudLaunchPresetLabel)
 if (lastPolarisSessionStatus != null)
 {
 hud.applySessionStatus(lastPolarisSessionStatus)
 }
 
 schedulePolarisLiveSessionStatusRefresh(true)
+}
+
+/**
+ * Dims the HUD while a panel over the stream covers it, and brings it back after. Kept here, not
+ * only in the HUD, so a HUD made while the panel is open is dimmed as well (XR2).
+ */
+fun setNovaHudCovered(covered:Boolean) {
+novaHudCovered = covered
+// A panel that closes takes its focused rows with it.
+if (!covered) novaHudPreviewing = false
+applyNovaHudCovered()
+}
+
+private var novaHudCovered:Boolean = false
+
+/**
+ * While a Command Center row that changes the HUD has focus (HUD Mode, HUD Opacity), the HUD shows
+ * at full strength, so the change can be seen as it is made (in-game #4).
+ */
+fun setNovaHudPreviewing(previewing:Boolean) {
+novaHudPreviewing = previewing
+applyNovaHudCovered()
+}
+
+private var novaHudPreviewing:Boolean = false
+
+private fun applyNovaHudCovered() {
+novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
+}
+
+val novaHudPositionCorner:com.papi.nova.ui.NovaHudCorner?
+get() = novaHud?.positionCorner
+
+fun setNovaHudPosition(corner:com.papi.nova.ui.NovaHudCorner) {
+novaHud?.setPosition(corner)
+}
+
+fun resetNovaHudPosition() {
+novaHud?.resetPosition()
+}
+
+/**
+ * Where the HUD's left edge sits across the stream window, in pixels, for the Command Center's HUD
+ * rows to compare with the part of the stream the panel covers. Ask the laid-out HUD, since its
+ * saved position is relative to its safe surface and changes with layout and display size.
+ */
+val novaHudLeftPx:Float
+get() {
+return com.papi.nova.ui.NovaCommandCenterHudCorner.leftPx(
+measuredX = novaHud?.leftPx ?: Float.NaN,
+density = resources.displayMetrics.density,
+television = UiHelper.isTvDevice(this))
 }
 
 override fun cycleNovaHudFromController() {
@@ -7295,68 +7571,47 @@ return
 novaReconnectOverlay?.dismiss()
 connectionTerminated(errorCode)
 }
+ /**
+  * Ends the session for good: the host closes the app and the resumable stream goes with it.
+  * Every button that asks first (the Command Center's End Session split, the companion deck's
+  * End tile) has already asked, so this does not ask again.
+  */
+ fun endSession() {
+quitOnStop = true
+markLocalSessionEnd()
+finish()
+}
+
+ /**
+  * Asks, then ends the session. Only for paths with no button to split, such as Disconnect in a
+  * Space, which would end the Space's game session: a Confirm page with Stay focused, on the
+  * companion display when its controls are showing, and over the stream otherwise.
+  */
  fun quit() {
 val companionPresentation:ExternalDisplayControlHost? = externalDisplayControlPresentation
 ?.takeIf { it.isHostShowing() }
-val context:Context = companionPresentation?.companionDialogContext ?: this
-
-val sheet = BottomSheetDialog(context)
-if (companionPresentation != null)
-{
-sheet.window?.setType(companionPresentation.companionDialogWindowType)
-sheet.window?.attributes?.token = companionPresentation.companionDialogWindowToken()
-}
-val container = NovaSheetChrome.createSheetContainer(context)
-
-val title = TextView(context).apply {
-if (spaceSession) setText(R.string.nova_space_leave_title) else setText(R.string.game_dialog_title_quit_confirm)
-textSize = 20f
-NovaSheetChrome.styleSheetTitle(this)
-}
-container.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-val message = TextView(context).apply {
-if (spaceSession) setText(R.string.nova_space_leave_message)
-else setText(R.string.game_dialog_message_quit_confirm)
-textSize = 15f
-setPadding(0, UiHelper.dpToPx(context, 10f).toInt(), 0, UiHelper.dpToPx(context, 18f).toInt())
-setTextColor(com.papi.nova.ui.NovaThemeManager.getTextSecondaryColor(context))
-}
-container.addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-val stay = TextView(context).apply {
-text = getString(R.string.game_dialog_action_stay_in_game)
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this)
-setOnClickListener { sheet.dismiss() }
-}
-container.addView(stay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()))
-
-val endSession = TextView(context).apply {
-text = if (spaceSession) getString(R.string.nova_space_leave_action) else getString(R.string.game_dialog_action_end_session)
-gravity = Gravity.CENTER
-NovaSheetChrome.styleSheetAction(this, destructive = true)
-setOnClickListener {
-quitOnStop = true
-markLocalSessionEnd()
-sheet.dismiss()
-finish()
-}
-}
-container.addView(endSession, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, UiHelper.dpToPx(context, 48f).toInt()).apply {
-topMargin = UiHelper.dpToPx(context, 10f).toInt()
-})
-
-sheet.setContentView(container)
-sheet.setOnShowListener { NovaSheetChrome.applyBottomSheetChrome(sheet, container) }
-sheet.show()
-NovaSheetChrome.applyBottomSheetChrome(sheet, container)
+val surfaces = companionPresentation?.let { ExternalDisplayControlController.surfacesFor(it) } ?: novaSurfaces
+surfaces.present(
+NovaCommonPage.Confirm(
+key = END_SESSION_PAGE,
+title = getString(if (spaceSession) R.string.nova_space_leave_title else R.string.game_dialog_title_quit_confirm),
+message = androidx.compose.ui.text.AnnotatedString(
+getString(if (spaceSession) R.string.nova_space_leave_message else R.string.game_dialog_message_quit_confirm)
+),
+stayLabel = getString(R.string.nova_panel_stay),
+actionLabel = getString(if (spaceSession) R.string.nova_space_leave_action else R.string.game_dialog_action_end_session),
+destructive = true,
+onConfirm = { endSession() },
+)
+)
 }
 override fun showGameMenu(device:GameInputDevice?) {
 showGameMenuFromDisplay(INVALID_DISPLAY_ID, device)
 }
 
 fun showGameMenuFromDisplay(originDisplayId:Int, device:GameInputDevice?) {
+// An on-screen keys editor's Clear All left armed under the Command Center is taken back first.
+keyBoardController?.disarmEditControls()
 val companionPresentation = externalDisplayControlPresentation
 val presentation = companionPresentation?.takeIf { it.isCompanionDisplayAvailable() }
 val companionDisplayId = if (presentation != null && companionControlDisplayId != INVALID_DISPLAY_ID)
@@ -7408,7 +7663,8 @@ externalDisplayControlPresentation?.hideGameMenu()
 }
 
 private fun updateFloatingButtonVisibility(show:Boolean) {
-floatingMenuButton!!.setVisibility(if (show) View.VISIBLE else View.GONE)
+// The touch menu button is for touch players: never shown without a touchscreen or on a TV.
+floatingMenuButton!!.setVisibility(if (show && com.papi.nova.ui.NovaTouchMenuButton.available(this)) View.VISIBLE else View.GONE)
 }
  fun toggleFloatingButtonVisibility() {
 if (floatingMenuButton != null)
@@ -7500,6 +7756,8 @@ return null
 }
 
 companion object {
+/** The RTSP answer of a host that reached the launch and refused to start the stream. */
+private const val RTSP_SERVICE_UNAVAILABLE = 503
  @JvmField var instance:Game? = null
  @JvmField @Volatile var isStreamActive:Boolean = false
 
@@ -7542,6 +7800,10 @@ companion object {
  private const val FIVE_FINGER_TAP_THRESHOLD:Int = 300
  private const val NOVA_PROGRESS_READY_DISMISS_DELAY_MS:Long = 350L
  private const val INVALID_DISPLAY_ID:Int = -1
+ private const val LAUNCH_ISSUE_PAGE:String = "nova-launch-issue"
+ private const val END_SESSION_PAGE:String = "nova-end-session"
+ /** How long a sent key combination is held before its keys are released, last first. */
+ const val SENT_KEY_UP_DELAY_MS:Long = 25
 
  const val EXTRA_HOST:String = "Host"
  const val EXTRA_PORT:String = "Port"

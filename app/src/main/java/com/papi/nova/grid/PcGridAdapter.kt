@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -16,15 +17,21 @@ import androidx.core.widget.ImageViewCompat
 import androidx.core.widget.TextViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import androidx.preference.PreferenceManager
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.ui.NovaControlSize
+import com.papi.nova.ui.NovaControlSizePreferences
+import com.papi.nova.ui.NovaHostsViewMetrics
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.novaBreakAtDots
+import com.papi.nova.ui.panel.NovaViewBridge
 import java.util.IdentityHashMap
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class PcGridAdapter(
     context: Context,
@@ -169,6 +176,11 @@ class PcGridAdapter(
         setItems(emptyList())
     }
 
+    /** A device appearance change rebinds existing stable rows without replacing their host IDs. */
+    fun refreshControlSize() {
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount, SERVER_ROW_REFRESH_PAYLOAD)
+    }
+
     fun setOnServerActionListener(listener: (PcViewModel.ComputerObject) -> Unit) {
         serverActionListener = listener
     }
@@ -189,6 +201,8 @@ class PcGridAdapter(
         var identity: View? = null
         var actions: View? = null
         var watchesWidth = false
+        lateinit var metrics: NovaHostsViewMetrics
+        var controlSize: NovaControlSize? = null
         /** Null until the card has been arranged once, so the first arrangement always applies. */
         var stacked: Boolean? = null
     }
@@ -213,6 +227,7 @@ class PcGridAdapter(
         holder.body = parentView.findViewById(R.id.server_card_body)
         holder.identity = parentView.findViewById(R.id.server_card_identity)
         holder.actions = parentView.findViewById(R.id.server_card_actions)
+        holder.metrics = NovaHostsViewMetrics(context).apply { capture(parentView) }
         parentView.setTag(TAG_PC_HOLDER, holder)
         return holder
     }
@@ -227,6 +242,12 @@ class PcGridAdapter(
         obj: PcViewModel.ComputerObject
     ) {
         val pcHolder = getPcHolder(parentView)
+        val controlSize = NovaControlSizePreferences.read(PreferenceManager.getDefaultSharedPreferences(context))
+        if (pcHolder.controlSize != controlSize) {
+            pcHolder.metrics.apply(controlSize)
+            pcHolder.controlSize = controlSize
+            pcHolder.stacked = null
+        }
         val online = obj.details.state == ComputerDetails.State.ONLINE
         applyCardTheme(parentView, imgView, prgView!!, txtView, pcHolder, online)
         fitCardToWidth(parentView, pcHolder)
@@ -363,12 +384,14 @@ class PcGridAdapter(
                 statusText.setText(R.string.pcview_card_status_offline)
                 statusText.setTextColor(NovaThemeManager.getTextMutedColor(context))
             }
-            if (obj.details.macAddress != null) {
+            if (obj.details.wakeMacAddress != null) {
                 primaryAction?.setText(R.string.pcview_card_action_wake)
                 setPrimaryActionReady(primaryAction, true)
                 setStatusHint(statusHint, R.string.pcview_card_hint_wake)
             } else {
-                primaryAction?.setText(R.string.pcview_card_action_refreshing)
+                // Nothing to wake it with, so no action at all: it said Refreshing forever, a
+                // disabled button that read as one more thing to press.
+                primaryAction?.visibility = View.GONE
                 setStatusHint(statusHint, R.string.pcview_card_hint_offline_no_wake)
             }
         } else {
@@ -383,7 +406,8 @@ class PcGridAdapter(
         }
         primaryAction?.let {
             it.contentDescription = it.text
-            it.isSelected = false
+            // Filled while the card holds focus: that is what A on the card presses.
+            it.isSelected = it.isActivated && parentView.isFocused
         }
 
         prgView.visibility = if (obj.details.state == ComputerDetails.State.UNKNOWN) View.VISIBLE else View.INVISIBLE
@@ -412,7 +436,7 @@ class PcGridAdapter(
 
     override fun onItemFocusChanged(parentView: View, hasFocus: Boolean) {
         val primaryAction = getPcHolder(parentView).primaryAction
-        primaryAction?.isSelected = false
+        primaryAction?.isSelected = hasFocus && primaryAction?.isActivated == true
     }
 
     /**
@@ -444,8 +468,14 @@ class PcGridAdapter(
         val identity = holder.identity ?: return
         val actions = holder.actions ?: return
         val resources = context.resources
+        val scale = holder.controlSize?.layoutScale ?: 1f
+        val spacing = resources.getDimensionPixelSize(R.dimen.nova_spacing_md)
+        val gap = resources.getDimensionPixelSize(R.dimen.nova_spacing_sm)
+        val actualExtraPadding = holder.metrics.horizontalPaddingDelta(body, holder.primaryAction,
+            holder.serverActions?.findViewById<View>(R.id.server_actions_label)) +
+            (gap * scale).roundToInt() - gap + (spacing * scale).roundToInt() - spacing
         val stacked = novaHostCardStacks(
-            cardWidthDp = widthPx / resources.displayMetrics.density,
+            cardWidthDp = (widthPx - actualExtraPadding) / resources.displayMetrics.density,
             fontScale = resources.configuration.fontScale,
         )
         if (holder.stacked == stacked) return
@@ -460,34 +490,30 @@ class PcGridAdapter(
             // Under the text rather than under the icon: the actions belong to the lines above them.
             marginStart = if (stacked) {
                 resources.getDimensionPixelSize(R.dimen.nova_icon_server_container) +
-                    resources.getDimensionPixelSize(R.dimen.nova_spacing_lg)
+                    (resources.getDimensionPixelSize(R.dimen.nova_spacing_lg) * scale).roundToInt()
             } else {
-                resources.getDimensionPixelSize(R.dimen.nova_spacing_md)
+                (resources.getDimensionPixelSize(R.dimen.nova_spacing_md) * scale).roundToInt()
             }
-            topMargin = if (stacked) resources.getDimensionPixelSize(R.dimen.nova_spacing_sm) else 0
+            topMargin = if (stacked) (resources.getDimensionPixelSize(R.dimen.nova_spacing_sm) * scale).roundToInt() else 0
         }
     }
 
     private fun setPrimaryActionReady(primaryAction: TextView?, ready: Boolean) {
         primaryAction ?: return
+        primaryAction.visibility = View.VISIBLE
         primaryAction.isActivated = ready
         primaryAction.isSelected = false
-        // The one filled control on the card: what a press on the card does. The fill is built
-        // here and not in the chip's XML because the accent is the theme manager's to say, and
-        // under Material You it is not the colour the theme attribute holds. Filled, its ink is
-        // the accent's own; until it is ready it is the same quiet outline as any other chip.
+        // What a press on the card does, drawn as every primary is: a tile with its label in the
+        // accent at rest, and the accent fill while the card holds focus. It was filled at rest,
+        // as loud as focus, so the ring never said which card A would act on. Until it is ready
+        // it is the same quiet tile as any other chip.
         if (ready) {
-            primaryAction.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = context.resources.displayMetrics.density * NOVA_HOST_CARD_PILL_RADIUS_DP
-                setColor(NovaThemeManager.getAccentColor(context))
-            }
+            primaryAction.background = NovaViewBridge.primaryButton(context)
+            primaryAction.setTextColor(NovaViewBridge.primaryButtonText(context))
         } else {
             primaryAction.setBackgroundResource(R.drawable.nova_chip_default)
+            primaryAction.setTextColor(NovaThemeManager.getTextMutedColor(context))
         }
-        primaryAction.setTextColor(
-            if (ready) NovaThemeManager.getOnAccentColor(context) else NovaThemeManager.getTextMutedColor(context),
-        )
     }
 
     private fun formatAddressSuffix(address: String?): String =
@@ -510,7 +536,7 @@ class PcGridAdapter(
             badge.setTextColor(ink)
             badge.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = density * 6f
+                cornerRadius = context.resources.getDimension(R.dimen.nova_radius_row)
                 setColor(ColorUtils.setAlphaComponent(ink, 0x1F))
                 setStroke(density.toInt().coerceAtLeast(1), ColorUtils.setAlphaComponent(ink, 0x52))
             }
@@ -544,6 +570,9 @@ class PcGridAdapter(
         holder.badges?.visibility = if (badges.polaris || badges.spaces) View.VISIBLE else View.GONE
     }
 
+    // FrameLayout.setForeground exists on API 21; the emitted call targets FrameLayout. Lint
+    // resolves the newer inherited SDK declaration to View.setForeground (API 23).
+    @android.annotation.SuppressLint("NewApi")
     private fun applyCardTheme(
         parentView: View,
         imgView: ImageView,
@@ -570,18 +599,22 @@ class PcGridAdapter(
         } else {
             GradientDrawable.Orientation.LEFT_RIGHT
         }
+        val corner = context.resources.getDimension(R.dimen.nova_radius_row)
         val background = GradientDrawable(fromLeadingEdge, intArrayOf(leading, cardColor, cardColor))
         background.shape = GradientDrawable.RECTANGLE
-        background.cornerRadius = density * 16f
-        background.setStroke(
-            density.toInt().coerceAtLeast(1),
-            if (online) ColorUtils.blendARGB(NovaThemeManager.getDividerColor(context), accent, 0.35f) else NovaThemeManager.getDividerColor(context),
-        )
+        background.cornerRadius = corner
+        // The hairline is the divider on every card: an accent outline on the online one read as
+        // focus beside the real ring (R9). Online still shows in the wash and the well.
+        background.setStroke(density.toInt().coerceAtLeast(1), NovaThemeManager.getDividerColor(context))
         card.background = background
+        // The one focus look (spec section 2): the 3dp ring drawn inside the card's corner, in the
+        // Compose components' colours. The row holds focus and pads the card; a FrameLayout draws
+        // its foreground inside its padding, so the ring lands on the card, not around it.
+        (parentView as? FrameLayout)?.foreground = NovaViewBridge.focusRing(context)
 
         pcHolder.well?.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = density * 14f
+            cornerRadius = corner
             setColor(
                 if (online) {
                     ColorUtils.blendARGB(cardColor, accent, 0.26f)
@@ -627,9 +660,6 @@ internal fun novaHostCardStacks(cardWidthDp: Float, fontScale: Float): Boolean =
     cardWidthDp < NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP * fontScale.coerceAtLeast(1f)
 
 internal const val NOVA_HOST_CARD_SIDE_BY_SIDE_MIN_DP = 500f
-
-/** The corner nova_chip_default gives Manage, so the filled pill beside it is the same shape. */
-private const val NOVA_HOST_CARD_PILL_RADIUS_DP = 12f
 
 /** A badge's icon, in ems of the badge's type, so it grows with the text and never past it. */
 private const val NOVA_HOST_BADGE_ICON_EM = 1.2f

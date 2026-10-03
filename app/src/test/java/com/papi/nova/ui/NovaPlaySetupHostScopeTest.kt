@@ -115,8 +115,8 @@ class NovaPlaySetupHostScopeTest {
         assertFalse(following.value.contains("2560"))
         assertEquals(2, following.options.size)
         // The device option carries the measured panel as its consequence, so the row says what it
-        // will actually ask for rather than only naming itself.
-        assertEquals("2560x1600x60", following.options[0].consequence)
+        // will actually ask for rather than only naming itself, as a person reads a size.
+        assertEquals("2560\u00d71600 at 60\u00a0Hz", following.options[0].consequence)
         assertFalse(following.options[0].current)
         assertTrue(following.options[1].current)
 
@@ -128,7 +128,7 @@ class NovaPlaySetupHostScopeTest {
             recorded,
         ).first { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD }
         // Set: the row reads as the screen the host will make, and says it is not the default.
-        assertEquals("2560x1600x60", set.value)
+        assertEquals("2560\u00d71600 at 60\u00a0Hz", set.value)
         assertTrue(set.overridden)
         assertTrue(set.options[0].current)
         assertFalse(set.options[1].current)
@@ -137,6 +137,25 @@ class NovaPlaySetupHostScopeTest {
         set.options[1].onSelect?.invoke()
         // Clearing sends an empty value, which is what the host reads as "follow the stream".
         assertEquals(listOf("screen:@0.0"), recorded.calls)
+    }
+
+    @Test
+    fun aSizeTheHostWasGivenElsewhereIsTheCurrentOptionAndTheRowStillChangesInPlace() {
+        // 2560x1440 at 120 set from the host's own console is neither this device nor the stream.
+        // It is what the host will make, so the row reads it and marks it current; the two choices
+        // stay one step away rather than the row turning into a stop that does nothing.
+        val recorded = RecordedActions()
+        val row = rows(
+            sync(deviceScreenMode = "1920x1080x120", screenToAddMode = "2560x1440x120"),
+            recorded,
+        ).first { it.row == NovaPlaySetupRow.HOST_SCREEN_TO_ADD }
+
+        assertEquals("2560\u00d71440 at 120\u00a0Hz", row.value)
+        assertEquals(3, row.options.size)
+        assertTrue(row.options[0].current)
+        assertNull(row.options[0].onSelect)
+        assertEquals(NovaPlaySetupRowKind.IN_PLACE, novaPlaySetupRowKind(row))
+        assertEquals(1, novaPlaySetupStep(row.options, 0, 1, wrap = true))
     }
 
     @Test
@@ -171,9 +190,9 @@ class NovaPlaySetupHostScopeTest {
         // This device first, then the fixed steps that are not the same answer twice: 2x is what
         // this tablet reports, so it appears once, as Match This Device.
         assertEquals(3, row.options.size)
-        assertEquals("1280x800", row.options[0].consequence)
+        assertEquals("1280\u00d7800", row.options[0].consequence)
         assertEquals("1x", row.options[1].label)
-        assertEquals("2560x1600", row.options[1].consequence)
+        assertEquals("2560\u00d71600", row.options[1].consequence)
         assertEquals("1.5x", row.options[2].label)
         assertTrue(row.options[1].current)
         assertFalse(row.options[0].current)
@@ -284,6 +303,29 @@ class NovaPlaySetupHostScopeTest {
             recorded.actions,
         )
         assertEquals(listOf("mode:host_virtual_display"), recorded.calls)
+    }
+
+    @Test
+    fun defaultDisplayOpensItsPageOnlyWhenTheHostOffersMoreThanThePair() {
+        val recorded = RecordedActions()
+        fun defaultDisplay(sync: NovaPolarisSyncUiState) =
+            rows(sync, recorded).single { it.row == NovaPlaySetupRow.HOST_DEFAULT_DISPLAY }
+        assertFalse(
+            "the classic pair changes in its own row (R1)",
+            defaultDisplay(sync()).opensPage,
+        )
+        assertTrue(
+            "a catalog past the pair does not fit a row, so A opens its page (R2)",
+            defaultDisplay(
+                sync(
+                    modes = listOf(
+                        mode("headless_stream", desired = true, effective = true),
+                        mode("desktop_display"),
+                        mode("host_virtual_display"),
+                    ),
+                ),
+            ).opensPage,
+        )
     }
 
     @Test

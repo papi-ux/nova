@@ -17,20 +17,35 @@ or installation command. The app handles offline checks, portal loss and update
 errors without reporting success. An update that requires extra sandbox
 permissions must be completed in the system software manager.
 
-The publication workflow defines **stable**, **beta**, and **pyrowave** channels.
+The publication workflow defines **stable** and **beta** channels.
 Use the bundles attached to the selected release until a signed channel installer
 is announced. A channel defined in the workflow is not evidence that its public
-feed exists. Once published, PyroWave-enabled packages use their own experimental
-channel, with no automatic channel switch. Regular downloaded bundles and native
+feed exists. Starting with 1.4.14, both channels include PyroWave with a lazy
+device check; the separate codec channel is retired. Regular downloaded bundles and native
 builds show installation guidance instead of claiming that a feed is configured.
+
+## Architecture and candidate scope
+
+The regular release bundle is `Nova-Linux-x86_64-alpha.flatpak`. The experimental
+[Steam Frame route](../clients/deck/docs/steam-frame.md) builds an ARM64
+development package with its own qualification record. ARM-aware updater tests
+do not establish an available ARM64 public feed, installer or supported release.
+Do not install an x86_64 bundle as a Frame update.
+
+For the 1.4.14 candidate, the app uses the production feed address and retains
+Retry after a failed check. An ordinary private or downloaded bundle can still
+show installation guidance because no signed channel was configured for it.
+Preparing source or a private rehearsal does not publish a feed.
 
 ## First publication
 
 The implementation and workflow do not make the feed live by themselves. Before
 the first public channel is available:
 
-1. Merge the updater and publish a reviewed release containing it. Use an
-   explicitly marked prerelease for beta or PyroWave. Before tagging, include
+1. Merge the updater and publish a reviewed release containing it, version 1.4.14
+   or later. Feed preparation requires the standard package with PyroWave, so
+   1.4.13 is not eligible for the first feed publication. Use an
+   explicitly marked prerelease for beta. Before tagging, include
    the [Linux update channels](https://papi-ux.github.io/nova/) link in that
    release's checked-in notes so **Open Nova Downloads** leads users to the
    installer. Publish the feed before announcing the channel's availability.
@@ -93,7 +108,7 @@ ctest --test-dir build-deck -R 'nova_deck_(updates_test|settings_hub_qml_test)$'
 
 The update test starts a private D-Bus service through `dbus-run-session`; it
 never calls the real system updater or installs an application. Feed preparation
-tests cover release admission, codec/channel separation, signed installer
+tests cover release admission, the standard package codec requirement, signed installer
 metadata and preservation of other channel catalogs.
 The optional signing smoke needs Linux with Flatpak, OSTree and GnuPG. It
 creates an ephemeral test key and repositories, exports a no-op fixture,

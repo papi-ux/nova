@@ -82,6 +82,16 @@ class WorkerLaunchContractTest {
         }
     }
 
+    @Test fun spaceDisplayOverridesRemainFreeWhileMeteredBitrateIsACeiling() {
+        val codec=com.papi.nova.preferences.PreferenceConfiguration.FormatOption.FORCE_PYROWAVE
+        for(metered in listOf(false,true)) for(ceiling in listOf(4000,8000)) {
+            assertEquals("metered=$metered ceiling=$ceiling",!metered || ceiling>=8000,
+                WorkerLaunchContract.honors(fixture(),WorkerLaunchContract.APP_UUID,1280,720,60f,120f,
+                    NovaTierLaunchPolicy.displayLocked(true,true),NovaTierLaunchPolicy.bitrateLocked(codec,true,metered),
+                    ceiling,false,false,""))
+        }
+    }
+
     @Test fun catalogIdentifiersPreserveCaseAndAcceptTheHostTokenFormat() {
         for (id in listOf("02CC2BAD-C86D-0D0E-3F9F-AA51619E432E", "profile-a", "_profile", "a".repeat(128))) {
             val payload = fixture()

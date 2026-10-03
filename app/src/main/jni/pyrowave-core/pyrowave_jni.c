@@ -5,7 +5,9 @@
 #include <pyrowave/pyrowave.h>
 
 #include "pyrowave_device_c.h"
+#include "pyrowave_probe_features.h"
 #include "pyrowave_renderer_c.h"
+#include "pyrowave_packet_guard.h"
 
 #include <android/native_window_jni.h>
 
@@ -46,10 +48,12 @@ Java_com_papi_nova_binding_video_PyroWave_nativeProbeDecoder(JNIEnv *env, jclass
     (void) clazz;
 
     pyrowave_device device = NULL;
-    void *owned = pyrowave_device_acquire(false, &device);
+    uint32_t missing_features = 0;
+    void *owned = pyrowave_device_acquire_diagnosed(false, &device, &missing_features);
     if (owned == NULL || device == NULL) {
         LOGI("no usable Vulkan device");
-        return PROBE_UNUSABLE;
+        return missing_features != 0 ? -(jint)(PYROWAVE_PROBE_FEATURE_FAILURE_BASE + missing_features)
+                                     : PROBE_UNUSABLE;
     }
 
     // Upstream recommends the fragment path for mobile GPUs with weak compute. On the devices this
@@ -125,7 +129,8 @@ Java_com_papi_nova_binding_video_PyroWave_nativeDecodeSelfTest(
             break;
         }
 
-        if (pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS) {
+        if (!pyrowave_packet_has_safe_lengths(payload, (size_t) size) ||
+            pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS) {
             outcome = -14;
             break;
         }
@@ -232,7 +237,8 @@ Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
         info.fragment_path = false;
         if (pyrowave_decoder_create(&info, &decoder) != PYROWAVE_SUCCESS) { outcome = -23; break; }
 
-        if (pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS ||
+        if (!pyrowave_packet_has_safe_lengths(payload, (size_t) size) ||
+            pyrowave_decoder_push_packet(decoder, payload, (size_t) size) != PYROWAVE_SUCCESS ||
             !pyrowave_decoder_decode_is_ready(decoder, false)) {
             outcome = -24;
             break;

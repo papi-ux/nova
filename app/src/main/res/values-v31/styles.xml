@@ -95,6 +95,34 @@
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_portable_bg_window</item>
     </style>
 
+    <style name="AppTheme.Director" parent="AppBaseTheme">
+        <item name="android:colorBackground">@color/nova_director_bg_window</item>
+        <item name="android:windowBackground">@color/nova_director_bg_window</item>
+        <item name="android:textColor">@color/nova_director_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_director_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_director_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_director_structure</item>
+        <item name="android:statusBarColor">@color/nova_director_structure</item>
+        <item name="colorPrimary">@color/nova_director_accent</item>
+        <item name="colorAccent">@color/nova_director_accent</item>
+        <item name="colorControlHighlight">@color/nova_director_accent_surface</item>
+        <item name="colorSurface">@color/nova_director_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_director_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_director_badge_bg</item>
+        <item name="colorOnSurfaceVariant">@color/nova_director_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_director_structure</item>
+        <item name="colorPrimaryContainer">@color/nova_director_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_director_text_primary</item>
+        <item name="colorOutline">@color/nova_director_divider</item>
+        <item name="colorError">@color/nova_director_error</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_director</item>
+        <item name="alertDialogTheme">@style/NovaAlertDialog.Director</item>
+        <item name="android:alertDialogTheme">@style/NovaAlertDialog.Director</item>
+        <item name="android:windowSplashScreenBackground">@color/nova_director_bg_window</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_director_bg_window</item>
+    </style>
+
     <style name="AppTheme.HighContrast">
         <item name="android:colorBackground">@color/nova_hc_bg_window</item>
         <item name="android:windowBackground">@color/nova_hc_bg_window</item>

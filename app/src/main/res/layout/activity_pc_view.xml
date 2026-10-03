@@ -27,38 +27,116 @@
             android:paddingTop="16dp"
             android:paddingEnd="24dp">
 
-            <LinearLayout
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/dashboardPortraitHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:clickable="true"
+                android:focusable="false"
+                android:importantForAccessibility="no"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="@dimen/nova_radius_row"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorControlHighlight"
+                app:strokeWidth="1dp">
 
-                <TextView
-                    android:id="@+id/pcViewTitle"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-light"
-                    android:letterSpacing="0.04"
-                    android:text="Nova"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textSize="30sp" />
+                    android:minHeight="48dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="8dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="6dp">
 
-                <TextView
-                    android:id="@+id/pcViewSectionLabel"
-                    android:layout_width="wrap_content"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/dashboardRailToggle"
+                        style="@style/Widget.MaterialComponents.Button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
+                        android:minWidth="48dp"
+                        android:contentDescription="@string/nova_hosts_menu"
+                        android:nextFocusDown="@id/actionStartPolaris"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="@string/nova_hosts_menu"
+                        android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
+                        app:backgroundTint="@android:color/transparent"
+                        app:cornerRadius="@dimen/nova_radius_row"
+                        app:icon="@drawable/ic_menu"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
+                        app:iconPadding="6dp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/pcViewTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="Nova"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="24sp" />
+
+                        <TextView
+                            android:id="@+id/pcViewSectionLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/pcview_home_subtitle"
+                            android:textColor="?android:textColorSecondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.papi.nova.ui.NovaHostsNavigationScrollView
+                android:id="@id/dashboardPortraitNavigation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:focusable="false"
+                android:descendantFocusability="afterDescendants"
+                android:overScrollMode="ifContentScrolls"
+                android:fillViewport="false">
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.03"
-                    android:text="@string/pcview_home_subtitle"
-                    android:textColor="?android:textColorSecondary"
-                    android:textSize="11sp" />
-            </LinearLayout>
-
+                    android:orientation="vertical">
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/hostsNavigationActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardCornerRadius="@dimen/nova_radius_hero"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:strokeColor="?attr/colorControlHighlight"
+                app:strokeWidth="1dp">
             <LinearLayout
                 android:id="@+id/dashboardPillRail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
                 android:orientation="vertical">
 
                 <LinearLayout
@@ -74,10 +152,12 @@
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="@dimen/nova_dashboard_top_action_height"
-                        android:layout_marginEnd="@dimen/nova_dashboard_top_action_gap"
+                        android:layout_marginEnd="4dp"
                         android:contentDescription="@string/pcview_quick_start_polaris"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:ellipsize="end"
                         android:maxLines="1"
@@ -87,11 +167,16 @@
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_start_polaris"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_top_action_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
-                        app:icon="@drawable/ic_eye_open"
-                        app:iconGravity="textStart"
+                        app:icon="@drawable/ic_host_wake"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
 
@@ -104,6 +189,8 @@
                         android:contentDescription="@string/pcview_quick_profiles"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:ellipsize="end"
                         android:maxLines="1"
@@ -113,11 +200,16 @@
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_presets_short"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_top_action_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
-                        app:icon="@drawable/ic_profiles"
-                        app:iconGravity="textStart"
+                        app:icon="@drawable/ic_stream_presets"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
                 </LinearLayout>
@@ -126,7 +218,7 @@
                     android:id="@+id/dashboardPillRailUtilityRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/nova_dashboard_top_action_gap"
+                    android:layout_marginTop="2dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -136,10 +228,12 @@
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="@dimen/nova_dashboard_top_action_height"
-                        android:layout_marginEnd="@dimen/nova_dashboard_top_action_gap"
+                        android:layout_marginEnd="4dp"
                         android:contentDescription="@string/pcview_quick_theme"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:ellipsize="end"
                         android:maxLines="1"
@@ -150,11 +244,16 @@
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_theme"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_top_action_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
                         app:icon="@drawable/ic_theme_cycle"
-                        app:iconGravity="textStart"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
 
@@ -167,21 +266,28 @@
                         android:contentDescription="@string/pcview_quick_github"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:nextFocusLeft="@id/actionTheme"
                         android:nextFocusUp="@id/profilesButton"
-                        android:nextFocusDown="@id/actionNovaUpdate"
+                        android:nextFocusDown="@id/actionSettings"
                         android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_github"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_top_action_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
                         app:icon="@drawable/ic_github"
-                        app:iconGravity="textStart"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
                 </LinearLayout>
@@ -190,108 +296,115 @@
                     android:id="@+id/dashboardPillRailSystemRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/nova_dashboard_top_action_gap"
+                    android:layout_marginTop="2dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/actionSettings"
                         style="@style/Widget.MaterialComponents.Button"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
+                        android:layout_width="match_parent"
                         android:layout_height="@dimen/nova_dashboard_top_action_height"
-                        android:layout_marginEnd="@dimen/nova_dashboard_top_action_gap"
                         android:contentDescription="@string/pcview_quick_settings"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:nextFocusUp="@id/actionTheme"
-                        android:nextFocusRight="@id/actionNovaUpdate"
-                        android:nextFocusDown="@id/modeServers"
+                        android:nextFocusDown="@id/actionNovaUpdate"
                         android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
                         android:text="@string/pcview_quick_settings"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_top_action_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
                         app:icon="@drawable/ic_settings"
-                        app:iconGravity="textStart"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="@dimen/nova_dashboard_top_action_icon_gap"
                         app:iconTint="?attr/colorOnSurface" />
 
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/actionNovaUpdate"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="@dimen/nova_dashboard_top_action_height"
-                        android:clickable="true"
-                        android:contentDescription="@string/pcview_update_pill_content_current"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackground"
-                        android:nextFocusLeft="@id/actionSettings"
-                        android:nextFocusUp="@id/actionGithub"
-                        android:nextFocusDown="@id/modeLibrary"
-                        app:cardBackgroundColor="?attr/colorControlHighlight"
-                        app:cardCornerRadius="@dimen/nova_dashboard_top_action_radius"
-                        app:cardElevation="0dp"
-                        app:strokeColor="?attr/colorControlHighlight"
-                        app:strokeWidth="1dp">
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
-                            android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal">
-
-                            <View
-                                android:id="@+id/updateStatusLight"
-                                android:layout_width="8dp"
-                                android:layout_height="8dp"
-                                android:layout_marginEnd="@dimen/nova_dashboard_top_action_icon_gap"
-                                android:background="@drawable/nova_status_online" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:id="@+id/updateStatusLabel"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:ellipsize="end"
-                                    android:fontFamily="sans-serif-medium"
-                                    android:includeFontPadding="false"
-                                    android:letterSpacing="0.08"
-                                    android:text="@string/pcview_update_status_current"
-                                    android:maxLines="1"
-                                    android:textAllCaps="true"
-                                    android:textColor="?android:textColorSecondary"
-                                    android:textSize="11sp" />
-
-                                <TextView
-                                    android:id="@+id/updateVersionLabel"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:ellipsize="end"
-                                    android:fontFamily="sans-serif-medium"
-                                    android:includeFontPadding="false"
-                                    android:maxLines="1"
-                                    android:text="@string/pcview_update_version_preview"
-                                    android:textColor="?android:textColorPrimary"
-                                    android:textSize="12sp" />
-                            </LinearLayout>
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
             </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/actionNovaUpdate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:layout_marginTop="6dp"
+                android:clickable="true"
+                android:contentDescription="@string/pcview_update_pill_content_current"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:nextFocusUp="@id/actionSettings"
+                android:nextFocusDown="@id/modeServers"
+                app:cardBackgroundColor="?attr/colorControlHighlight"
+                app:cardCornerRadius="@dimen/nova_radius_hero"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorControlHighlight"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="@dimen/nova_dashboard_top_action_padding_horizontal"
+                    android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal">
+
+                    <View
+                        android:id="@+id/updateStatusLight"
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_marginEnd="@dimen/nova_dashboard_top_action_icon_gap"
+                        android:background="@drawable/nova_status_online" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/updateStatusLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:letterSpacing="0.08"
+                            android:text="@string/pcview_update_status_current"
+                            android:textAllCaps="true"
+                            android:textColor="?android:textColorSecondary"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/updateVersionLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:fontFamily="sans-serif-medium"
+                            android:includeFontPadding="false"
+                            android:text="@string/pcview_update_version_preview"
+                            android:textColor="?android:textColorPrimary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <TextView
                 android:id="@+id/topActionFocusLabel"
@@ -316,7 +429,8 @@
                 <LinearLayout
                     android:id="@+id/dashboardModeSelector"
                     android:layout_width="match_parent"
-                    android:layout_height="@dimen/nova_dashboard_pill_height"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:contentDescription="@string/pcview_dashboard_mode_selector"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
@@ -325,35 +439,30 @@
                         android:id="@+id/modeServers"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="@dimen/nova_dashboard_pill_height"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_servers"
                         android:focusable="true"
                         android:foreground="?attr/selectableItemBackground"
-                        android:nextFocusUp="@id/actionSettings"
+                        android:nextFocusUp="@id/actionNovaUpdate"
                         android:nextFocusRight="@id/modeLibrary"
                         app:cardBackgroundColor="?attr/colorSurface"
-                        app:cardCornerRadius="@dimen/nova_dashboard_pill_radius"
+                        app:cardCornerRadius="@dimen/nova_radius_hero"
                         app:cardElevation="0dp"
                         app:strokeColor="?attr/colorAccent"
                         app:strokeWidth="1dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="16dp"
                             android:paddingEnd="16dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="8dp"
-                                android:includeFontPadding="false"
-                                android:text="●"
-                                android:textColor="?attr/colorAccent"
-                                android:textSize="11sp" />
+
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -362,7 +471,7 @@
                                 android:includeFontPadding="false"
                                 android:text="@string/pcview_mode_servers"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="14sp" />
+                                android:textSize="17sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -370,7 +479,8 @@
                         android:id="@+id/modeLibrary"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="@dimen/nova_dashboard_pill_height"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:layout_marginStart="8dp"
                         android:clickable="true"
                         android:contentDescription="@string/pcview_mode_library"
@@ -379,26 +489,21 @@
                         android:nextFocusUp="@id/actionNovaUpdate"
                         android:nextFocusLeft="@id/modeServers"
                         app:cardBackgroundColor="?attr/colorSurface"
-                        app:cardCornerRadius="@dimen/nova_dashboard_pill_radius"
+                        app:cardCornerRadius="@dimen/nova_radius_hero"
                         app:cardElevation="0dp"
                         app:strokeColor="?attr/colorControlHighlight"
                         app:strokeWidth="1dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
                             android:gravity="center"
                             android:orientation="horizontal"
                             android:paddingStart="16dp"
                             android:paddingEnd="16dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginEnd="8dp"
-                                android:includeFontPadding="false"
-                                android:text="●"
-                                android:textSize="11sp" />
+
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -407,7 +512,7 @@
                                 android:includeFontPadding="false"
                                 android:text="@string/pcview_mode_library"
                                 android:textColor="?android:textColorPrimary"
-                                android:textSize="14sp" />
+                                android:textSize="17sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
@@ -440,16 +545,23 @@
                         android:contentDescription="@string/pcview_quick_add_server"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:paddingStart="16dp"
                         android:paddingEnd="18dp"
                         android:text="@string/pcview_quick_add_server"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_pill_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
                         app:icon="@drawable/ic_add"
-                        app:iconGravity="textStart"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="8dp"
                         app:iconTint="?attr/colorOnSurface" />
 
@@ -463,20 +575,30 @@
                         android:contentDescription="@string/pcview_quick_scan_pair"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         android:minWidth="0dp"
                         android:paddingStart="16dp"
                         android:paddingEnd="18dp"
                         android:text="@string/pcview_quick_scan_pair"
                         android:textAllCaps="false"
+                        android:textAlignment="gravity"
+                        android:letterSpacing="0"
+                        android:tag="hostsNavigationAction"
+                        android:gravity="start|center_vertical"
                         app:backgroundTint="?attr/colorControlHighlight"
-                        app:cornerRadius="@dimen/nova_dashboard_pill_radius"
+                        app:cornerRadius="@dimen/nova_radius_row"
                         app:elevation="0dp"
                         app:icon="@drawable/ic_qr_scan"
-                        app:iconGravity="textStart"
+                        app:iconGravity="start"
+                        app:iconSize="20dp"
                         app:iconPadding="8dp"
                         app:iconTint="?attr/colorOnSurface" />
                 </LinearLayout>
             </LinearLayout>
+
+                </LinearLayout>
+            </com.papi.nova.ui.NovaHostsNavigationScrollView>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -572,78 +694,99 @@
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp">
 
-                <LinearLayout
+                <FrameLayout
                     android:id="@+id/no_pc_found_layout"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_centerInParent="true"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
 
-                    <ImageView
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:alpha="0.3"
-                        android:src="@drawable/ic_nova_star_foreground" />
-
-                    <ProgressBar
-                        android:id="@+id/pcs_loading"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:layout_marginTop="20dp"
-                        android:indeterminate="true"
-                        android:indeterminateTint="?attr/colorPrimary" />
-
-                    <TextView
-                        android:id="@+id/pcViewEmptyTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:fontFamily="sans-serif"
-                        android:text="@string/pcview_empty_title_searching"
-                        android:textColor="?android:textColorSecondary"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/pcViewEmptyHint"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:alpha="0.6"
-                        android:fontFamily="sans-serif"
-                        android:gravity="center"
-                        android:text="@string/pcview_empty_hint_searching"
-                        android:textColor="?android:textColorSecondary"
-                        android:textSize="12sp" />
-
-                    <HorizontalScrollView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                    <androidx.core.widget.NestedScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:fillViewport="true"
+                        android:focusable="false"
                         android:scrollbars="none">
 
                         <LinearLayout
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <ImageView
+                                android:layout_width="64dp"
+                                android:layout_height="64dp"
+                                android:alpha="0.3"
+                                android:src="@drawable/ic_nova_star_foreground" />
+
+                            <ProgressBar
+                                android:id="@+id/pcs_loading"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:layout_marginTop="20dp"
+                                android:indeterminate="true"
+                                android:indeterminateTint="?attr/colorPrimary" />
 
                             <TextView
-                                android:id="@+id/emptyRefresh"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/nova_refresh" />
+                                android:id="@+id/pcViewEmptyTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:fontFamily="sans-serif"
+                                android:text="@string/pcview_empty_title_searching"
+                                android:textColor="?android:textColorSecondary"
+                                android:textSize="14sp" />
 
                             <TextView
-                                android:id="@+id/emptyAddServer"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/pcview_quick_add_server" />
+                                android:id="@+id/pcViewEmptyHint"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:alpha="0.6"
+                                android:fontFamily="sans-serif"
+                                android:gravity="center"
+                                android:text="@string/pcview_empty_hint_searching"
+                                android:textColor="?android:textColorSecondary"
+                                android:textSize="12sp" />
 
-                            <TextView
-                                android:id="@+id/emptyScanPair"
-                                style="@style/NovaFilterChip"
-                                android:text="@string/pcview_quick_scan_pair" />
+                            <!-- Not a focus stop itself: it took focus and drew the grey default
+                                 highlight, and the chips inside could not be reached (R7). -->
+                            <HorizontalScrollView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:defaultFocusHighlightEnabled="false"
+                                android:descendantFocusability="afterDescendants"
+                                android:focusable="false"
+                                android:scrollbars="none">
+
+                                <LinearLayout
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:id="@+id/emptyRefresh"
+                                        style="@style/NovaFilterChip"
+                                        android:nextFocusRight="@id/emptyAddServer"
+                                        android:text="@string/nova_refresh" />
+
+                                    <TextView
+                                        android:id="@+id/emptyAddServer"
+                                        style="@style/NovaFilterChip"
+                                        android:nextFocusLeft="@id/emptyRefresh"
+                                        android:nextFocusRight="@id/emptyScanPair"
+                                        android:text="@string/pcview_quick_add_server" />
+
+                                    <TextView
+                                        android:id="@+id/emptyScanPair"
+                                        style="@style/NovaFilterChip"
+                                        android:nextFocusLeft="@id/emptyAddServer"
+                                        android:text="@string/pcview_quick_scan_pair" />
+                                </LinearLayout>
+                            </HorizontalScrollView>
                         </LinearLayout>
-                    </HorizontalScrollView>
-                </LinearLayout>
+                    </androidx.core.widget.NestedScrollView>
+                </FrameLayout>
             </RelativeLayout>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>

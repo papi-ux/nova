@@ -191,9 +191,26 @@ data class PolarisGame(
          * a preference inherited from however the host prefers to run games. Defaults true, which is
          * both what every other entry wants and what a host too old to say anything meant.
          */
-        @SerialName("follows_host_default") val followsHostDefault: Boolean = true
+        @SerialName("follows_host_default") val followsHostDefault: Boolean = true,
+        /** Null means an older host. Explicit values retain the host's canonical spelling. */
+        @SerialName("launch_as") val launchAs: String? = null,
+        @SerialName("launch_as_available") val launchAsAvailable: Boolean? = null,
+        @SerialName("launch_as_unavailable_reason") val launchAsUnavailableReason: String = ""
     ) {
         fun allows(mode: String): Boolean = normalizeLaunchModes(allowedModes).contains(normalizeLaunchMode(mode))
+
+        val hasKnownLaunchAs: Boolean get() = launchAs in listOf(
+            "host_default", MODE_HEADLESS_STREAM, MODE_HOST_VIRTUAL_DISPLAY, MODE_DESKTOP_DISPLAY,
+            MODE_DESKTOP_TAKEOVER, MODE_WINDOWED_STREAM, MODE_GAMESCOPE_STREAM,
+        )
+        val followsEffectiveHostDefault: Boolean
+            get() = if (launchAs == null) followsHostDefault else launchAs == "host_default"
+        val fixedLaunchMode: String?
+            get() = launchAs?.takeUnless { it == "host_default" || it == MODE_DESKTOP_DISPLAY }
+        val launchAsRefusalReason: String
+            get() = if (launchAs != null && (!hasKnownLaunchAs || launchAsAvailable != true)) {
+                launchAsUnavailableReason.ifBlank { "Polaris cannot run this app's Launch As mode." }
+            } else ""
     }
 
     @Serializable

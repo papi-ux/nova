@@ -8,6 +8,7 @@
 #include "backend/deck_live_read_only_state.h"
 #include "runtime/deck_moonlight_launcher.h"
 #include "runtime/deck_steam_shortcuts.h"
+#include "runtime/deck_app_shortcuts.h"
 #include "runtime/deck_game_tools.h"
 #include "runtime/deck_game_shortcuts.h"
 #include "runtime/deck_native_session.h"
@@ -18,6 +19,7 @@
 #include "runtime/deck_display_capabilities.h"
 #include "runtime/deck_pairing_controller.h"
 #include "runtime/deck_host_discovery.h"
+#include "runtime/deck_host_wake.h"
 #include "runtime/deck_library_controller.h"
 #include "runtime/deck_library_artwork.h"
 #include "stream/deck_gamestream_session_builder.h"
@@ -260,7 +262,7 @@ public:
         armTimer_.setInterval(kArmWindowMs);
         QObject::connect(&armTimer_, &QTimer::timeout, this, [this]() {
             armedKey_.clear();
-            statusCopy_ = QStringLiteral("Launch request expired. Press A twice to open it in Moonlight.");
+            statusCopy_ = QStringLiteral("Launch review expired. Choose Play in Moonlight to review again.");
             emit stateChanged();
         });
         sessionTruthTimer_.setInterval(5000);
@@ -312,7 +314,7 @@ public:
         }
         armedKey_ = key;
         armTimer_.start();
-        statusCopy_ = QStringLiteral("Press A again to open \"%1\" in Moonlight. B cancels.").arg(gameTitle);
+        statusCopy_ = QStringLiteral("Review the Moonlight limits, then confirm to open \"%1\". B cancels.").arg(gameTitle);
         emit stateChanged();
         return state();
     }
@@ -364,7 +366,7 @@ signals:
     void stateChanged();
 
 private:
-    static constexpr int kArmWindowMs = 8000;
+    static constexpr int kArmWindowMs = 60000;
 
     [[nodiscard]] bool armed() const {
         return !armedKey_.isEmpty() && armTimer_.isActive();
@@ -814,10 +816,15 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
         QStringList launchModes;
         for (const auto& mode : game.launchPolicy.allowed) launchModes.append(toQString(mode));
         item.insert("launchPolicy", QVariantMap{{"known", game.launchPolicy.known},
-            {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes}});
+            {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes},
+            {"followsHostDefault", game.launchPolicy.followsHostDefault}, {"defaultAvailable", game.launchPolicy.defaultAvailable},
+            {"unavailableReason", toQString(game.launchPolicy.unavailableReason)}});
         item.insert("streamCapabilities", QVariantMap{{"valid", game.streamCapabilities.valid},
             {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc},
-            {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps}});
+            {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps},
+            {"pyrowaveUnavailableReason",QString::fromStdString(game.streamCapabilities.pyrowaveUnavailableReason)},
+            {"pyrowaveUnavailableMessage",QString::fromStdString(game.streamCapabilities.pyrowaveUnavailableMessage)},
+            {"manualMaximumKbps", game.streamCapabilities.manualMaximumKbps}});
         QVariantList resolutions;
         for (const auto& choice : game.displayPlanner.choices)
             resolutions.append(QVariantMap{{"width", choice.width}, {"height", choice.height},
@@ -1248,6 +1255,16 @@ int nativeLaunchCommand(
         std::cout << "nova-deck native: invalid --native-mode or unavailable --native-codec" << std::endl;
         return 2;
     }
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+    if (options.videoFormat == VIDEO_FORMAT_PYROWAVE) {
+        const auto support = nova::deck::stream::cachedPyrowaveDecodeSupport();
+        if (!support.limits.supports(options.width, options.height)) {
+            std::cout << "nova-deck native: " << (support.reason.isEmpty()
+                ? "The stream size exceeds this device's PyroWave limits." : support.reason.toStdString()) << std::endl;
+            return 2;
+        }
+    }
+#endif
     if (!identity || !snapshot || snapshot->selectedHostId.empty()) {
         std::cout << "nova-deck native: no live host selected; Moonlight identity or a reachable Polaris host is missing" << std::endl;
         return 2;
@@ -1451,38 +1468,15 @@ int nativeLaunchCommand(
  * rewrites shortcuts.vdf on exit. Exit codes: 0 registered, 5 refused.
  */
 int registerSteamShortcutCommand(const QStringList& arguments) {
-    nova::deck::runtime::DeckSteamShortcut shortcut;
-    shortcut.appName = "Nova";
     std::error_code ec;
     const bool insideFlatpak = std::filesystem::exists("/.flatpak-info", ec);
+    auto shortcut = nova::deck::runtime::novaSteamShortcut(insideFlatpak, QCoreApplication::applicationFilePath().toStdString());
     const QString exeOverride = stringArgumentAfter(arguments, QStringLiteral("--register-steam-exe"));
     if (!exeOverride.isEmpty()) {
         shortcut.exe = "\"" + exeOverride.toStdString() + "\"";
         shortcut.launchOptions = stringArgumentAfter(arguments, QStringLiteral("--register-steam-launch-options")).toStdString();
-    } else if (insideFlatpak) {
-        shortcut.exe = "\"/usr/bin/flatpak\"";
-        shortcut.launchOptions = "run com.papi_ux.Nova --standalone";
-    } else {
-        const auto self = std::filesystem::read_symlink("/proc/self/exe", ec);
-        shortcut.exe = "\"" + (ec ? std::string{"nova-deck"} : self.string()) + "\"";
-        shortcut.launchOptions = "--standalone";
     }
-    shortcut.startDir = "\"/usr/bin/\"";
-    shortcut.tags = {"Nova"};
-
-    std::vector<std::filesystem::path> files;
-    for (const auto& root : nova::deck::runtime::defaultSteamRoots()) {
-        for (auto& file : nova::deck::runtime::defaultShortcutFiles(root)) {
-            files.push_back(std::move(file));
-        }
-    }
-    const auto steamRunning = nova::deck::runtime::steamClientRunningForAccount(insideFlatpak, static_cast<unsigned>(::getuid()));
-    nova::deck::runtime::DeckShortcutWriteResult result;
-    if (!steamRunning.has_value()) {
-        result.detail = "Could not tell whether Steam is running; close Steam and try again.";
-    } else {
-        result = nova::deck::runtime::writeShortcutForAccount(files, shortcut, *steamRunning);
-    }
+    const auto result = nova::deck::runtime::registerNovaSteamShortcut(shortcut, insideFlatpak);
     std::cout << "nova-deck steam shortcut: " << (result.ok ? "ok" : "refused") << " · " << result.detail;
     if (result.appId != 0) {
         std::cout << " · appid=" << result.appId;
@@ -1528,7 +1522,13 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     const auto encodedLink = stringArgumentAfter(appArguments, QStringLiteral("--game-link"));
     const auto gameLink = nova::deck::runtime::decodeGameLink(encodedLink);
     if (appArguments.contains("--game-link") && !gameLink) { std::cerr << "Nova game link is invalid.\n"; return 5; }
-    bool standalone = gameLink.has_value() || appArguments.contains(QStringLiteral("--standalone"));
+    bool fixtureRoute = false;
+#ifdef NOVA_DECK_TESTING
+    // Fixtures require an explicit testing route and are unavailable in Release.
+    fixtureRoute = appArguments.contains("--fixture") || qEnvironmentVariableIntValue("NOVA_DECK_FRONTEND_SMOKE") == 1;
+#endif
+    const bool importedRoute = appArguments.contains("--live") || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
+    bool standalone = gameLink.has_value() || appArguments.contains(QStringLiteral("--standalone")) || (!fixtureRoute && !importedRoute);
     const bool managePcs = appArguments.contains(QStringLiteral("--manage-pcs"));
     const bool pairRequested = managePcs || appArguments.contains(QStringLiteral("--pair"));
     if (pairRequested || (standalone && !appArguments.contains("--print-live-state") &&
@@ -1545,8 +1545,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
 
     // --live reads the identity Moonlight-Qt already holds on this device and
     // asks Polaris for the library with it; nothing is launched and no session
-    // is started. The default stays the offline fixture so the smoke routes
-    // keep proving the shell without a host.
+    // is started. Ordinary launches use Nova-owned pairing; sample libraries
+    // are restricted to explicit test routes.
     const bool liveRoute = standalone || appArguments.contains(QStringLiteral("--live")) || qEnvironmentVariableIntValue("NOVA_DECK_LIVE") == 1;
     const bool printLiveState = appArguments.contains(QStringLiteral("--print-live-state"));
     const bool nativeLaunch = appArguments.contains(QStringLiteral("--native-launch"));
@@ -1703,8 +1703,11 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::sleepPreparationFinished,
         &sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::finishPreparation);
     nova::deck::runtime::DeckGameShortcuts gameShortcuts;
+    nova::deck::runtime::DeckAppShortcuts appShortcuts;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &appShortcuts, &nova::deck::runtime::DeckAppShortcuts::shutdown);
     nova::deck::runtime::DeckGameTools gameTools;
     nova::deck::runtime::DeckHostPowerController hostPower;
+    nova::deck::runtime::DeckHostWakeController hostWake;
     nova::deck::runtime::DeckHostSettingsController hostSettings;
     QObject::connect(&app, &QCoreApplication::aboutToQuit,
         &hostSettings, &nova::deck::runtime::DeckHostSettingsController::shutdown);
@@ -1714,6 +1717,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         const auto& snapshot = libraryRefresh.snapshot();
         QString name;
         for (const auto& host : snapshot.hosts) if (host.id == snapshot.selectedHostId) name = toQString(host.displayName);
+        hostWake.setTarget(standalone ? toQString(snapshot.selectedHostId) : QString{}, name);
         gameTools.setTarget(toQString(snapshot.selectedHostId), standalone ? libraryRefresh.gameToolsResolver() : nova::deck::runtime::DeckGameToolsResolver{});
         hostPower.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.hostPowerResolver() : nova::deck::runtime::DeckHostPowerResolver{});
         hostSettings.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.hostSettingsResolver() : nova::deck::runtime::DeckHostSettingsResolver{});
@@ -1722,6 +1726,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     const auto coordinateHostActions = [&] {
         const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
         const bool maintenance = updates.busy();
+        hostWake.setBlocked(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
+        appShortcuts.setBlocked(streaming || maintenance);
         updates.setBlocked(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
         hostPower.setSessionActive(streaming || maintenance || hostSettings.busy() || gameTools.busy());
         // Read-only game-plan checks must not revoke the open host-settings
@@ -1757,6 +1763,9 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     playSettings.setVideoDecodeSupport(fixtureVideoSupport
         ? nova::deck::stream::DeckVideoDecodeSupport{.h264 = {4096, 4096}, .hevc = {1920, 1200}}
         : mediaProbe.videoDecodeSupport);
+    if (!fixtureVideoSupport) playSettings.setPyrowaveProbe(nova::deck::stream::cachedPyrowaveDecodeSupport);
+    QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::pyrowaveSupportRefused,
+        &playSettings, &nova::deck::runtime::DeckPlaySettings::invalidatePyrowaveSupport);
     hostSettings.setPlaySettings(&playSettings);
 #ifdef NOVA_DECK_VULKAN_STREAM
     std::unique_ptr<nova::deck::runtime::DeckVulkanSessionView> vulkanSessionView;
@@ -1777,6 +1786,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaGameTools", &gameTools);
     gameShortcuts.setImageReader([libraryArtwork](const QString& key) { return libraryArtwork->requestImage(key, nullptr, {}); });
     engine.rootContext()->setContextProperty("novaGameShortcuts", &gameShortcuts);
+    engine.rootContext()->setContextProperty("novaAppShortcuts", &appShortcuts);
     engine.rootContext()->setContextProperty("novaGameLink", gameLink ? QVariantMap{{"host", gameLink->host}, {"game", gameLink->game}, {"destination", gameLink->destination}} : QVariantMap{});
     const auto libraryGames = standalone
         ? libraryArtwork->publish(libraryRefresh.snapshot(), libraryRefresh.targetResolver(), toLibraryGameModel(backendReadOnlyState.games))
@@ -1785,6 +1795,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaStandalone", standalone);
     engine.rootContext()->setContextProperty("novaLibraryRefresh", &libraryRefresh);
     engine.rootContext()->setContextProperty("novaHostPower", &hostPower);
+    engine.rootContext()->setContextProperty("novaHostWake", &hostWake);
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
     engine.rootContext()->setContextProperty("novaUpdates", &updates);

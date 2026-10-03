@@ -96,7 +96,7 @@ class ExternalDisplayControlPresentation(
     }
 
     fun disposeAfterFailedShow() {
-        controller.disposeAfterFailedShow()
+        if (::controller.isInitialized) controller.disposeAfterFailedShow()
     }
 
     override fun onStop() {

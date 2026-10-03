@@ -1,21 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="nova_panel_decrease_value">Decrease value</string>
+    <string name="nova_panel_increase_value">Increase value</string>
+    <string name="nova_control_size_title">Control Size</string>
+    <string name="nova_control_size_summary">Resize buttons and spacing in the modern interface. Text Size stays independent.</string>
     <!-- Shortcut strings -->
-    <string name="scut_deleted_pc">PC deleted</string>
-    <string name="scut_not_paired">PC not paired</string>
-    <string name="scut_pc_not_found">PC not found</string>
-    <string name="scut_invalid_uuid">Provided PC is not valid</string>
+    <string name="scut_deleted_pc">Host deleted</string>
+    <string name="scut_not_paired">Host not paired</string>
+    <string name="scut_pc_not_found">Host not found</string>
+    <string name="scut_invalid_uuid">Provided host is not valid</string>
     <string name="scut_invalid_app_id">Provided App is not valid</string>
 
     <string name="menu_button">Menu</string>
-    <string name="quick_menu_title">Quick Menu</string>
     <string name="configuration_mode_move_buttons">Move buttons mode</string>
     <string name="configuration_mode_resize_buttons">Resize buttons mode</string>
     <string name="configuration_mode_disable_enable_buttons">Enable/Disable buttons mode</string>
     <string name="configuration_mode_exiting">Exiting configuration mode</string>
     <string name="help_loading_title">Help Viewer</string>
     <string name="help_loading_msg">Loading help page…</string>
-    <string name="server_library_label">Server Library</string>
+    <string name="help_load_failed_title">Help Did Not Load</string>
+    <string name="help_load_failed_message">Nova could not open this help page. Check that this device is online, then try again.</string>
+    <string name="server_library_label">Host Library</string>
     <string name="server_library_search_hint">Search games…</string>
     <string name="badge_streaming">Streaming</string>
     <string name="applist_error_title">Standard app list unavailable</string>
@@ -51,14 +56,15 @@
     <string name="nova_theme_portable_chrome_label">Portable Chrome</string>
     <string name="nova_theme_oled_label">Console OLED</string>
     <string name="nova_theme_miami_label">Miami Nebula</string>
+    <string name="nova_theme_director_label">&lt; Congratulations, Director &gt;</string>
     <string name="nova_theme_high_contrast_label">High Contrast</string>
     <string name="nova_theme_material_you_label">Material You</string>
     <string name="pcview_quick_library">Open Nova Library</string>
-    <string name="pcview_home_subtitle">Open your game library or set up a server</string>
+    <string name="pcview_home_subtitle">Open your game library or set up a host</string>
     <string name="pcview_browse_label">Browse</string>
     <string name="pcview_rail_collapse">Collapse rail</string>
     <string name="pcview_rail_expand">Expand rail</string>
-    <string name="pcview_mode_servers">Servers</string>
+    <string name="pcview_mode_servers">Hosts</string>
     <string name="pcview_mode_library">Library</string>
     <string name="pcview_dashboard_mode_selector">Dashboard mode selector</string>
     <string name="pcview_dashboard_mode_status_empty">No hosts yet · add or scan to begin</string>
@@ -69,33 +75,33 @@
     <string name="pcview_destination_library_summary">Jump back into the last ready Polaris library</string>
     <string name="pcview_destination_servers_meta_empty">No hosts added yet</string>
     <string name="pcview_destination_servers_meta_format">%1$d online · %2$d total</string>
-    <string name="pcview_destination_library_meta_empty">No paired online server ready</string>
-    <string name="pcview_destination_library_meta_one">1 server ready</string>
-    <string name="pcview_destination_library_meta_many">%1$d servers ready</string>
-    <string name="pcview_tools_label">Setup &amp; Server Management</string>
+    <string name="pcview_destination_library_meta_empty">No paired online host ready</string>
+    <string name="pcview_destination_library_meta_one">1 host ready</string>
+    <string name="pcview_destination_library_meta_many">%1$d hosts ready</string>
+    <string name="pcview_tools_label">Setup &amp; Host Management</string>
     <string name="pcview_tools_hint">Add, pair, wake, or manage a host when Library is not ready.</string>
     <string name="pcview_hosts_label">Hosts</string>
     <string name="pcview_hosts_summary_format">%1$d visible · %2$d total</string>
-    <string name="pcview_quick_add_server">Add Server</string>
+    <string name="pcview_quick_add_server">Add Host</string>
     <string name="pcview_quick_scan_pair">Scan Pair</string>
     <string name="pcview_quick_polaris_sync">Wake Host</string>
     <string name="pcview_quick_start_polaris">Wake Host</string>
     <string name="pcview_quick_sleep_host">Sleep Host</string>
-    <string name="pcview_sleep_hold_hint">Hold Sleep Host to put it to sleep</string>
-    <string name="pcview_sleep_pending">Putting the host to sleep…</string>
-    <string name="pcview_sleep_cancel">Cancel</string>
-    <string name="pcview_sleep_cancelled">Left the host awake</string>
-    <string name="pcview_sleep_requested">The host is going to sleep</string>
-    <string name="pcview_sleep_failed">The host would not go to sleep</string>
-    <string name="pcview_sleep_did_not_sleep">The host took the request but is still awake</string>
+    <string name="pcview_sleep_hold_hint">Hold Sleep Host to put the host to sleep.</string>
+    <string name="pcview_sleep_pending">The host goes to sleep in a few seconds.</string>
+    <string name="pcview_sleep_keep_awake">Keep Awake</string>
+    <string name="pcview_sleep_consequence">The host sleeps until it is woken.</string>
+    <string name="pcview_sleep_requested">The host is asleep.</string>
+    <string name="pcview_sleep_failed">The host would not go to sleep.</string>
+    <string name="pcview_sleep_did_not_sleep">The host took the request but is still awake.</string>
     <string name="pcview_sleep_in_progress">Sleeping…</string>
-    <string name="pcview_sleep_hold_hint_accessibility">Choose Sleep Host from the actions menu to put the host to sleep</string>
-    <string name="pcview_sleep_cancelled_on_leave">You left Nova before the host went to sleep, so it is still awake</string>
+    <string name="pcview_sleep_hold_hint_accessibility">Choose Sleep Host from the actions menu to put the host to sleep.</string>
+    <string name="pcview_sleep_cancelled_on_leave">You left Nova before the host went to sleep, so it is still awake.</string>
     <string name="pcview_sleep_unavailable_off">Sleep is off for this host. Turn on Allow Clients To Sleep This Host in its Polaris settings.</string>
-    <string name="pcview_sleep_unavailable_watch_only">This device may only watch this host, so it cannot put it to sleep</string>
-    <string name="pcview_sleep_unavailable_host">This host cannot sleep from Nova</string>
+    <string name="pcview_sleep_unavailable_watch_only">This device may only watch this host, so it cannot put it to sleep.</string>
+    <string name="pcview_sleep_unavailable_host">This host cannot sleep from Nova.</string>
     <string name="pcview_sleep_unavailable_host_says">This host cannot sleep from Nova: %1$s</string>
-    <string name="pcview_sleep_unavailable_not_offered">This host is awake, and it is not offering sleep to this device</string>
+    <string name="pcview_sleep_unavailable_not_offered">This host is awake, and it is not offering sleep to this device.</string>
     <string name="pcview_sheet_caption_open_library">Browse this host\'s games and start one.</string>
     <string name="pcview_sheet_caption_checking_library">Ask the host again whether its library is ready.</string>
     <string name="pcview_sheet_caption_resume">Go back to the game this device left running.</string>
@@ -109,7 +115,7 @@
     <string name="pcview_sheet_caption_pair_otp">Pair with a one time code from the host\'s console.</string>
     <string name="pcview_sheet_caption_scan_qr">Scan the pairing code on the host\'s console.</string>
     <string name="pcview_sheet_caption_app_list">The plain app list for Sunshine and Apollo.</string>
-    <string name="pcview_sheet_caption_server_config">Open the host\'s console in a browser.</string>
+    <string name="pcview_sheet_caption_server_config">Open the host\'s console here in Nova.</string>
     <string name="pcview_sheet_caption_test_network">Check whether this network blocks streaming.</string>
     <string name="pcview_sheet_caption_details">Addresses, pairing and what the host reports.</string>
     <string name="pcview_sheet_caption_delete">Remove this host and its pairing.</string>
@@ -120,6 +126,10 @@
     <string name="pcview_quick_update_check">Check updates</string>
     <string name="pcview_quick_update_checking">Checking…</string>
     <string name="pcview_update_status_current">Current</string>
+    <!-- After a manual check that found nothing newer. -->
+    <string name="pcview_update_status_up_to_date">Up to date</string>
+    <string name="pcview_update_pill_latest_version">Nova %1$s is the latest</string>
+    <string name="pcview_update_pill_content_latest">Checked. Nova %1$s is the latest version.</string>
     <string name="pcview_update_status_available">Available</string>
     <string name="pcview_update_status_checking">Checking</string>
     <string name="pcview_update_status_retry">Retry</string>
@@ -132,32 +142,22 @@
     <string name="pcview_update_pill_content_checking">Checking for Nova updates.</string>
     <string name="pcview_update_pill_content_retry">Could not check Nova updates. Tap to retry.</string>
     <string name="pcview_update_pill_current_snackbar">Nova is current · latest %1$s</string>
-    <string name="pcview_update_pill_retry_snackbar">Could not check Nova updates. Tap the Update Pill to retry.</string>
     <string name="pcview_quick_settings">Settings</string>
     <string name="pcview_theme_picker_title">Choose theme</string>
-    <string name="pcview_theme_picker_hint">D-pad moves focus. Select a theme to apply.</string>
-    <string name="pcview_theme_picker_focus_format">Focused: %1$s · %2$s</string>
-    <string name="pcview_theme_picker_current_badge">Current</string>
-    <string name="pcview_theme_polaris_subtitle">Polaris blue cockpit · balanced dark streaming shell</string>
-    <string name="pcview_theme_portable_chrome_subtitle">Smoked graphite handheld chrome profile · dim silver shell · PlayStation-symbol accents</string>
-    <string name="pcview_theme_oled_subtitle">OLED black · high contrast console glow</string>
-    <string name="pcview_theme_miami_subtitle">Miami neon · flamingo pink glow · cyan/aqua night drive</string>
-    <string name="pcview_theme_high_contrast_subtitle">Maximum contrast · accessibility-first focus states</string>
-    <string name="pcview_theme_material_you_subtitle">System dynamic colors when Android supports them</string>
     <string name="pcview_filter_all">All</string>
     <string name="pcview_filter_online">Online</string>
     <string name="pcview_filter_streaming">Streaming</string>
     <string name="pcview_filter_needs_pairing">Needs Pairing</string>
-    <string name="pcview_empty_title_searching">Looking for servers</string>
+    <string name="pcview_empty_title_searching">Looking for hosts</string>
     <string name="pcview_empty_hint_searching">Add one manually, scan a pairing code, or keep discovery running.</string>
-    <string name="pcview_empty_title_no_servers">No servers yet</string>
-    <string name="pcview_empty_hint_no_servers">Add a server manually or scan a pairing code to get started.</string>
-    <string name="pcview_empty_title_no_online">No online servers</string>
-    <string name="pcview_empty_hint_no_online">Wake a server or clear the filter to see everything.</string>
+    <string name="pcview_empty_title_no_servers">No hosts yet</string>
+    <string name="pcview_empty_hint_no_servers">Add a host manually or scan a pairing code to get started.</string>
+    <string name="pcview_empty_title_no_online">No online hosts</string>
+    <string name="pcview_empty_hint_no_online">Wake a host or clear the filter to see everything.</string>
     <string name="pcview_empty_title_no_streaming">Nothing is streaming</string>
-    <string name="pcview_empty_hint_no_streaming">Start a session from a server to see it here.</string>
+    <string name="pcview_empty_hint_no_streaming">Start a session from a host to see it here.</string>
     <string name="pcview_empty_title_no_pairing">Nothing needs pairing</string>
-    <string name="pcview_empty_hint_no_pairing">All discovered servers are already paired or offline.</string>
+    <string name="pcview_empty_hint_no_pairing">All discovered hosts are already paired or offline.</string>
     <string name="pcview_card_action_open_apps">Open App List</string>
     <string name="pcview_card_action_open_library">Open Library</string>
     <string name="pcview_card_action_checking_library">Checking</string>
@@ -193,23 +193,24 @@
     <string name="pcview_card_hint_wake">Wake this host or check the network.</string>
     <string name="pcview_card_hint_offline_no_wake">This host is offline and has no wake target saved.</string>
     <string name="pcview_card_hint_refreshing">Refreshing host status.</string>
-    <string name="pcview_library_choose_server">Choose a server for Nova Library</string>
-    <string name="pcview_library_no_server">No paired online server available for Nova Library</string>
+    <string name="pcview_library_choose_server">Choose a host for Nova Library</string>
+    <string name="pcview_library_no_server">No paired host is online, so there is no library to open.</string>
     <string name="pcview_library_checking">Checking Library support…</string>
     <string name="pcview_menu_unpair_pc">Unpair</string>
     <string name="pcview_menu_send_wol">Send Wake-On-LAN request</string>
-    <string name="pcview_menu_delete_pc">Delete PC</string>
+    <string name="pcview_menu_delete_pc">Delete Host</string>
     <string name="pcview_menu_test_network">Test Network Connection</string>
     <string name="pcview_menu_details">View Details</string>
     <string name="pcview_menu_eol">NVIDIA GameStream End-of-Service</string>
-    <string name="pcview_menu_open_management_page">Go to Server Config</string>
-    <string name="pcview_error_no_management_url">Cannot open server config page, cannot find server address.</string>
+    <string name="pcview_menu_open_management_page">Host Console</string>
+    <string name="pcview_error_no_management_url">Nova does not know this host\'s address, so it cannot open its console.</string>
     <string name="nova_library_title">Library</string>
+    <string name="nova_portrait_show_menu">Menu</string>
+    <string name="nova_portrait_hide_menu">Hide menu</string>
     <string name="nova_library_server_context">From %1$s</string>
-    <string name="nova_library_server_context_fallback">From your Polaris server</string>
+    <string name="nova_library_server_context_fallback">From your Polaris host</string>
     <string name="nova_library_switch_server">Switch</string>
     <string name="nova_library_manage">Manage</string>
-    <string name="nova_library_manage_failed">Cannot open server management page.</string>
     <string name="nova_library_browse_label">Library</string>
     <string name="nova_library_collection_label">Collection</string>
     <string name="nova_library_search_hint">Search this library</string>
@@ -223,10 +224,6 @@
     <string name="nova_library_auto_quality_on">AI On</string>
     <string name="nova_library_auto_quality_off">AI Off</string>
     <string name="nova_library_mode_checking">Mode</string>
-    <string name="nova_library_active_session_title">Active Session</string>
-    <string name="nova_library_active_session_owner_format">Running on %1$s</string>
-    <string name="nova_library_active_session_viewer_count_one">%1$d viewer</string>
-    <string name="nova_library_active_session_viewer_count_many">%1$d viewers</string>
     <string name="nova_library_continue_label">Continue</string>
     <string name="nova_library_continue_empty">No recent</string>
     <string name="nova_library_continue_count">%1$d recent</string>
@@ -238,16 +235,12 @@
     <string name="nova_library_filter_steam">Steam</string>
     <string name="nova_library_filter_action">Action</string>
     <string name="nova_library_filter_cinematic">Cinematic</string>
-    <string name="nova_library_filter_sources">Sources</string>
-    <string name="nova_library_filter_hdr">HDR</string>
     <string name="nova_library_filter_more">More</string>
     <string name="nova_library_filter_desktop">Desktop</string>
     <string name="nova_library_filter_vr">VR</string>
     <string name="nova_library_filter_other_source">Other</string>
     <string name="nova_library_filter_sheet_sources">Sources</string>
-    <string name="nova_library_filter_sheet_sources_hint">Choose which launcher or store this library view should show.</string>
     <string name="nova_library_filter_sheet_more">More Filters</string>
-    <string name="nova_library_filter_sheet_more_hint">Narrow the grid by category or genre.</string>
     <string name="nova_library_filter_all_sources">All Sources</string>
     <string name="nova_library_filter_all_sources_hint">Show every library source.</string>
     <string name="nova_library_filter_source_count">%1$d games</string>
@@ -271,24 +264,27 @@
     <string name="nova_library_options_sort_name_desc_hint">Alphabetical from Z to A.</string>
     <string name="nova_library_options_sort_source">Source</string>
     <string name="nova_library_options_sort_source_hint">Group by launcher or store.</string>
-    <string name="nova_library_options_sort_hdr_first">HDR First</string>
-    <string name="nova_library_options_sort_hdr_first_hint">Prioritize HDR-ready games.</string>
     <string name="nova_library_options_layout_title">Layout</string>
     <string name="nova_library_options_layout_stage">Stage</string>
-    <string name="nova_library_options_layout_stage_hint">Artwork-first home with hero environment, icon identity, and immediate actions.</string>
-    <string name="nova_library_options_layout_grid">Grid</string>
-    <string name="nova_library_options_layout_grid_hint">Broad browsing at the former compact-grid density.</string>
+    <string name="nova_library_options_layout_stage_hint">One game up front with its art, the rest in a row beside it.</string>
+    <string name="nova_library_stage_position">%1$d of %2$d · %3$s</string>
+    <string name="nova_library_stage_running">Running</string>
+    <string name="nova_library_stage_running_now">Running now</string>
+    <string name="nova_library_stage_last_played">Last played %1$s</string>
+    <string name="nova_library_options_layout_grid">Regular</string>
+    <string name="nova_space_retry_target_missing">This Space title is no longer available. Choose a title from the library.</string>
+    <string name="nova_library_options_layout_grid_hint">Posters in a grid, several rows at a time.</string>
     <string name="nova_library_options_layout_compact">Compact</string>
-    <string name="nova_library_options_layout_compact_hint">A materially denser readable browser for fast controller sweeps.</string>
+    <string name="nova_library_options_layout_compact_hint">Smaller posters, so more fit on screen.</string>
     <string name="nova_library_options_poster_titles_title">Poster Titles</string>
     <string name="nova_library_options_poster_titles_show">Show Titles</string>
-    <string name="nova_library_options_poster_titles_show_hint">Keep the readable title bar on poster cards.</string>
+    <string name="nova_library_options_poster_titles_show_hint">Each poster carries its title.</string>
     <string name="nova_library_options_poster_titles_hide">Plain Artwork</string>
-    <string name="nova_library_options_poster_titles_hide_hint">Hide the title bar so posters show as clean artwork.</string>
+    <string name="nova_library_options_poster_titles_hide_hint">Posters show their artwork alone.</string>
     <string name="nova_library_layout_toast_format">Layout: %1$s</string>
     <string name="nova_system_menu_title">System</string>
     <string name="nova_system_menu_host_format">Host: %1$s</string>
-    <string name="nova_system_menu_host_named_format">Host: %1$s • %2$s</string>
+    <string name="nova_system_menu_host_named_format">Host: %1$s · %2$s</string>
     <string name="nova_system_menu_status_polaris_ready">Polaris ready</string>
     <string name="nova_system_menu_status_offline">Host offline</string>
     <string name="nova_system_menu_status_checking">Checking host</string>
@@ -297,69 +293,75 @@
     <string name="nova_system_menu_settings">Settings</string>
     <string name="nova_system_menu_settings_hint">Streaming, input, video, and device defaults.</string>
     <string name="nova_system_menu_polaris_sync">Polaris Sync</string>
-    <string name="nova_system_menu_polaris_sync_hint">Review Nova vs host settings before changing anything.</string>
-    <string name="nova_system_menu_manage_server">Manage Server</string>
-    <string name="nova_system_menu_manage_server_hint">Open this Polaris host\'s local management page.</string>
-    <string name="nova_system_menu_help_diagnostics">Help / diagnostics</string>
-    <string name="nova_system_menu_help_diagnostics_hint">Troubleshooting steps for network, input, and stream issues.</string>
+    <string name="nova_system_menu_polaris_sync_hint">Compare Nova\'s settings with the host\'s.</string>
+    <string name="nova_system_menu_manage_server">Host Console</string>
+    <string name="nova_system_menu_manage_server_hint">Open this host\'s console here in Nova.</string>
+    <string name="nova_system_menu_help_diagnostics">Help and Diagnostics</string>
+    <!-- One line on the Shield's System panel: the longer caption wrapped and was cut at rest. -->
+    <string name="nova_system_menu_help_diagnostics_hint">Help with network, input and stream problems.</string>
     <string name="nova_system_menu_about">About Nova</string>
     <string name="nova_system_menu_about_hint">Version and client identity.</string>
-    <string name="nova_system_menu_about_toast">%1$s</string>
-    <string name="nova_system_menu_matrix">[m] Matrix</string>
+    <!-- The About Nova page's line, pushed over System. -->
+    <string name="nova_system_menu_about_version">Version %1$s</string>
+    <string name="nova_system_menu_matrix">Matrix</string>
     <string name="nova_system_menu_matrix_hint">Join the papi-ux Matrix community.</string>
-    <string name="nova_system_menu_sponsor">♥ Sponsor</string>
+    <string name="nova_system_menu_sponsor">Sponsor</string>
+    <!-- Settings rows whose words lived in preferences.xml, untranslatable and with dashes. -->
+    <string name="title_nova_gyro_aim">Gyro Aiming</string>
+    <string name="summary_nova_gyro_aim">Tilt the device to move the camera. Good for shooters.</string>
+    <string name="title_nova_audio_haptics">Audio Haptics</string>
+    <string name="summary_nova_audio_haptics">Vibrates with the game\'s bass, so explosions and impacts can be felt.</string>
+    <string name="title_nova_polaris_max_retries">Max Reconnect Attempts</string>
+    <string name="summary_nova_polaris_max_retries">How many failed reconnects before Nova stops trying.</string>
     <string name="nova_system_menu_sponsor_hint">Support Polaris and Nova on GitHub Sponsors.</string>
     <string name="nova_controller_hint_system">System</string>
-    <string name="nova_game_detail_resume">Resume</string>
+    <!-- The same words as the library strip's button. -->
+    <string name="nova_game_detail_resume">Resume Stream</string>
     <string name="nova_game_detail_watch">Watch</string>
     <string name="nova_game_detail_end_session">End Session</string>
     <string name="nova_game_detail_tune">Tune</string>
     <string name="nova_game_detail_where_it_runs">Where It Runs</string>
     <string name="nova_play_setup_title">Play Setup</string>
-    <string name="nova_play_setup_what_will_happen">What will happen</string>
-    <string name="nova_play_setup_what_you_can_change">What you can change</string>
+    <string name="nova_play_setup_what_will_happen">What Will Happen</string>
     <string name="nova_play_setup_settings_caption">Resolution, frame rate, codec and bitrate</string>
-    <string name="nova_play_setup_fact_last_session">Last session</string>
-    <string name="nova_play_setup_fact_limited_by">Limited by</string>
-    <string name="nova_play_setup_fact_asked">Asked / granted</string>
+    <string name="nova_play_setup_fact_last_session">Last Session</string>
+    <string name="nova_play_setup_fact_limited_by">Limited By</string>
+    <string name="nova_play_setup_fact_asked">Asked / Granted</string>
     <string name="nova_play_setup_fact_profile">Profile</string>
     <string name="nova_play_setup_granted_format">Granted: %1$s</string>
     <string name="nova_play_setup_compare_where">If you changed where it runs</string>
-    <string name="nova_play_setup_fact_host_default">Host default</string>
+    <string name="nova_play_setup_fact_host_default">Host Default</string>
     <string name="nova_play_setup_mode_host_default_only">Headless Dongle rearranges physical displays, so a game cannot turn it on for one launch.</string>
     <string name="nova_play_setup_mode_host_default_only_badge">Host default only</string>
     <string name="nova_play_setup_mode_current_host_default_badge">Current host default</string>
     <string name="nova_play_setup_mode_open_host_settings">Open Polaris Settings</string>
-    <string name="nova_play_setup_mode_private_detail">Recommended. Runs the game on a private display without touching the host monitors.</string>
+    <string name="nova_play_setup_mode_private_detail">Runs the game on a private display without touching the host\'s monitors.</string>
     <string name="nova_play_setup_mode_gpu_detail">Same privacy, keeping frames on the GPU when the host supports it.</string>
     <string name="nova_play_setup_mode_gamescope_detail">Steam Deck-style session for Steam-first hosts. Gamescope must be installed.</string>
     <string name="nova_play_setup_mode_virtual_detail">Adds a display to the host desktop. Windows and icons may rearrange.</string>
     <string name="nova_play_setup_mode_dongle_detail">Moves the desktop to a dummy plug. Privacy blanks the real panel after one-time portal approval is saved; the approval session keeps it on. Off keeps it active. Configure this once as the host default.</string>
     <string name="nova_play_setup_mode_mirror_detail">Streams everything visible on the host, including notifications.</string>
     <string name="nova_play_setup_mode_takeover_detail">Moves the live Hyprland desktop to a temporary streaming display, then restores the physical monitors when streaming ends.</string>
+    <string name="nova_play_setup_band_how_it_runs">How it runs</string>
     <string name="nova_play_setup_band_private">Private: your desktop stays untouched</string>
     <string name="nova_play_setup_band_host">Host display: uses or swaps the host screen</string>
     <string name="nova_play_setup_host_default_entry_detail">Follow the host\'s Default Display, currently %1$s</string>
     <string name="nova_play_setup_host_default_entry_own_detail">Let this entry answer, currently %1$s</string>
     <string name="nova_play_setup_ai_pick">Host match</string>
-    <string name="nova_play_setup_fact_host_profile">Host profile</string>
+    <string name="nova_play_setup_fact_host_profile">Host Profile</string>
     <string name="nova_play_setup_host_overridden">This game overrides it. Every other game follows the host.</string>
     <string name="nova_play_setup_host_followed">This game follows it.</string>
     <string name="nova_play_setup_host_not_followed">This entry answers for itself, and uses %1$s.</string>
     <string name="nova_play_setup_host_safe_fallback">This host mode is not ready, so this launch uses %1$s instead.</string>
     <string name="nova_play_setup_every_game">Every Game</string>
-    <string name="nova_play_setup_pref_auto">Uses this launch request and paired-device settings, normalized only for current capabilities.</string>
+    <string name="nova_play_setup_pref_auto">Uses this launch request and your paired device settings.</string>
     <string name="nova_play_setup_pref_quality">Holds resolution and bitrate. Drops frames before it drops sharpness.</string>
     <string name="nova_play_setup_pref_stability">Plays it safe. Holds a steadier, lower target instead of chasing peaks.</string>
-    <string name="nova_play_setup_pref_high_fps">Pins your Settings frame rate. Softens the picture rather than give up the rate.</string>
+    <string name="nova_play_setup_pref_high_fps">Pins your Settings frame rate. Softens the picture to keep it.</string>
     <string name="nova_play_setup_steam_direct">Launches the game itself. Nothing else opens.</string>
     <string name="nova_play_setup_steam_big_picture">Opens Big Picture first, which takes the controller until the game starts.</string>
     <string name="nova_play_setup_every_game_caption">Host defaults and paired-device profile for every game</string>
     <string name="nova_play_setup_scope_this_game">This Game</string>
-    <string name="nova_play_setup_scope_key">Y</string>
-    <string name="nova_play_setup_scope_cd">Play Setup scope. %1$s selected.</string>
-    <string name="nova_play_setup_press_show">show its choices</string>
-    <string name="nova_play_setup_press_change">change it</string>
     <string name="nova_play_setup_host_read_title">What the host defaults to</string>
     <string name="nova_play_setup_host_intro">Every game that doesn\'t choose for itself gets this.</string>
     <string name="nova_play_setup_fact_desired">Desired</string>
@@ -368,10 +370,8 @@
     <string name="nova_play_setup_host_effective_matches">What sessions are actually getting right now.</string>
     <string name="nova_play_setup_host_default_display">Default Display</string>
     <string name="nova_play_setup_host_default_display_caption">Which display new sessions get on this host</string>
-    <string name="nova_play_setup_strip_default_display">If you changed the default display</string>
     <string name="nova_play_setup_host_profile_row">Profile</string>
-    <string name="nova_play_setup_host_profile_caption">Press to match this handheld’s profile</string>
-    <string name="nova_play_setup_strip_host_profile">If you changed the host profile</string>
+    <string name="nova_play_setup_host_profile_caption">What the host keeps for this device</string>
     <string name="nova_play_setup_host_profile_matched">Matched to this handheld</string>
     <string name="nova_play_setup_consequence_match_nova">The host takes this handheld’s profile now.</string>
     <string name="nova_play_setup_consequence_send_nova">Save this handheld’s profile on the host.</string>
@@ -384,7 +384,6 @@
     <string name="nova_play_setup_consequence_auto_off">Launch presets remain deterministic.</string>
     <string name="nova_play_setup_host_keep_in_step">Keep in Step</string>
     <string name="nova_play_setup_host_keep_in_step_caption">Re-send this handheld\'s profile when it changes</string>
-    <string name="nova_play_setup_strip_keep_in_step">If you changed Keep in Step</string>
     <string name="nova_play_setup_consequence_keep_on">Profile changes here reach the host automatically.</string>
     <string name="nova_play_setup_consequence_keep_off">The host keeps whatever was last sent.</string>
     <string name="nova_play_setup_on">On</string>
@@ -392,36 +391,61 @@
     <!-- Play Setup's rows. The strip titles are conditional sentences rather than
          nouns, because the strip explains a change not yet made. -->
     <string name="nova_play_setup_where_caption">Which display Polaris makes for this session</string>
-    <string name="nova_play_setup_strip_where">If you changed where it runs</string>
     <string name="nova_play_setup_screen_to_add">Screen To Add</string>
     <string name="nova_play_setup_screen_to_add_caption">How big a display Polaris creates for this device</string>
-    <string name="nova_play_setup_strip_screen_to_add">If you changed the screen to add</string>
     <string name="nova_play_setup_screen_to_add_device">Match this device</string>
     <string name="nova_play_setup_screen_to_add_stream">Follow the stream</string>
+    <string name="nova_play_setup_screen_to_add_host">Set on the host</string>
     <string name="nova_play_setup_screen_to_add_stream_consequence">The screen is made the size you stream at, which may not be this screen\'s shape.</string>
     <string name="nova_play_setup_screen_scale">Screen Scale</string>
     <string name="nova_play_setup_screen_scale_caption">How big things are on the display Polaris creates</string>
-    <string name="nova_play_setup_strip_screen_scale">If you changed the screen scale</string>
     <string name="nova_play_setup_screen_scale_device">Match this device</string>
-    <string name="nova_play_setup_place_legend">About this place</string>
     <string name="nova_play_setup_resolution">Resolution</string>
     <string name="nova_play_setup_resolution_caption">The display is made to match this handheld</string>
-    <string name="nova_play_setup_resolution_chosen">Chosen here \u00b7 applies at launch</string>
-    <string name="nova_play_setup_strip_resolution">If you changed the resolution</string>
     <string name="nova_play_setup_frame_rate">Frame Rate</string>
-    <string name="nova_play_setup_frame_rate_caption">Uses the current launch target</string>
-    <string name="nova_play_setup_frame_rate_chosen">Chosen here \u00b7 applies at launch</string>
-    <string name="nova_play_setup_strip_frame_rate">If you changed the frame rate</string>
+    <string name="nova_play_setup_frame_rate_caption">Auto follows the launch target</string>
     <string name="nova_play_setup_frame_rate_auto">Auto</string>
+    <!-- What a tap on the How Long To Beat estimates does, read by TalkBack. -->
+    <string name="nova_game_detail_beat_opens_browser">Open How Long To Beat in the browser</string>
+    <!-- The Frame Rate row's value at rest while Auto is chosen: Auto, then the rate it comes to. -->
+    <string name="nova_play_setup_frame_rate_auto_value">Auto · %d FPS</string>
     <string name="nova_play_setup_frame_rate_auto_consequence">Keeps the host-resolved or Settings frame rate</string>
     <string name="nova_play_setup_frame_rate_fps_format">%d FPS</string>
+    <!-- The unit an ordered Frame Rate strip names once, after its last stop. -->
+    <string name="nova_play_setup_fps_unit">FPS</string>
+    <!-- Follows "Set for this game" in a row's caption, for a choice the launch picks up. -->
+    <string name="nova_play_setup_applies_at_launch">applies at launch</string>
+    <!-- The plan card's title while an option on a page has focus. -->
+    <string name="nova_play_setup_if_you_choose">If you choose %1$s</string>
+    <!-- The plan card's warning when the bitrate setting is under what the choice needs. -->
+    <string name="nova_play_setup_limited_by_bitrate">Limited by bitrate</string>
+    <!-- The game page's status line when the host reports a limit and the bitrate setting is under what the plan needs too. %1$s is the host's reason, such as Network. -->
+    <string name="nova_play_setup_limited_by_reason_and_bitrate">Limited by %1$s and bitrate</string>
+    <!-- What Will Happen's Limited By fact when PyroWave asks for more than the bitrate setting. -->
+    <string name="nova_play_setup_limit_bitrate">Bitrate</string>
+    <!-- Leads the note of the option that suits this device. -->
+    <string name="nova_play_setup_recommended">Recommended</string>
+    <!-- Leads the note of an option that cannot be chosen, before its reason. -->
+    <string name="nova_play_setup_not_available">Not available</string>
+    <string name="nova_play_setup_resolution_matches_screen">Matches this screen</string>
+    <string name="nova_play_setup_resolution_cannot_decode">Too big for this device to decode</string>
+    <string name="nova_play_setup_resolution_pyrowave_need">PyroWave needs about %1$d Mbps at this size. Pick HEVC in Video Codec.</string>
+    <string name="nova_play_setup_resolution_footer">Sizes come from the host presets, scaled from this device.</string>
+    <string name="nova_play_setup_codec_pyrowave_caption">Experimental. Needs host support and a fast network.</string>
+    <!-- The key of a plan fact about an overlay the launch carries, such as MangoHUD. -->
+    <string name="nova_play_setup_fact_overlay">Overlay</string>
     <string name="nova_play_setup_encoder">Encoder</string>
     <string name="nova_play_setup_video_codec">Video Codec</string>
     <string name="nova_play_setup_codec_app_setting">App setting</string>
     <string name="nova_play_setup_codec_inherited">App setting · %1$s</string>
-    <string name="nova_play_setup_codec_caption">Saved for this game on this PC · applies at launch</string>
+    <string name="nova_play_setup_codec_caption">Applies at launch on this host</string>
     <string name="nova_play_setup_codec_inherit_detail">Follow the codec in Nova Settings. Other games keep their own choices.</string>
     <string name="nova_play_setup_codec_standard_detail">Use this codec preference for this game. Availability depends on both devices.</string>
+    <!-- One sentence for each codec on Play Setup's Video Codec page and in Settings. -->
+    <string name="nova_codec_detail_auto">Recommended. Nova and the host pick the best codec both can use.</string>
+    <string name="nova_codec_detail_av1">The sharpest picture for its bitrate, where both devices support it. Experimental.</string>
+    <string name="nova_codec_detail_hevc">HEVC, which most devices decode in hardware.</string>
+    <string name="nova_codec_detail_h264">H.264 works almost everywhere, at a higher bitrate for the same picture.</string>
     <string name="nova_play_setup_codec_pyrowave_detail">Experimental Vulkan codec. Requires matching host support and a fast network; never falls back to another codec.</string>
     <string name="nova_play_setup_encoder_pyrowave">PyroWave · Vulkan</string>
     <string name="nova_play_setup_encoder_pyrowave_detail">Selected by PyroWave. Your encoder choice stays saved for other codecs.</string>
@@ -429,11 +453,10 @@
     <string name="nova_play_setup_encoder_host_default_caption">Uses Polaris\' configured encoder policy</string>
     <string name="nova_play_setup_encoder_auto_caption">Polaris chooses for this launch · fallback allowed</string>
     <string name="nova_play_setup_encoder_exact_caption">Required for this launch · no silent fallback</string>
-    <string name="nova_play_setup_strip_encoder">If you changed the encoder</string>
     <string name="nova_play_setup_encoder_host_default_consequence">Keeps the encoder configured on this host</string>
     <string name="nova_play_setup_encoder_auto_consequence">Lets Polaris live-test and choose a working encoder</string>
     <string name="nova_play_setup_encoder_exact_consequence">Fails the launch if this backend cannot initialize</string>
-    <string name="nova_play_setup_face_buttons">Face buttons</string>
+    <string name="nova_play_setup_face_buttons">Face Buttons</string>
     <string name="nova_play_setup_face_buttons_app_setting">App setting</string>
     <string name="nova_play_setup_face_buttons_labels">Match labels</string>
     <string name="nova_play_setup_face_buttons_positions">Match positions</string>
@@ -444,15 +467,12 @@
     <string name="nova_play_setup_face_buttons_app_setting_consequence">Uses the Settings face button flip for this game</string>
     <string name="nova_play_setup_face_buttons_labels_consequence">Sends each button by its name; confirm may sit on the other side</string>
     <string name="nova_play_setup_face_buttons_positions_consequence">Swaps A/B and X/Y so your pad\'s positions match the game\'s</string>
-    <string name="nova_play_setup_strip_face_buttons">If you changed the face buttons</string>
-    <string name="nova_play_setup_tuning">Launch preset</string>
-    <string name="nova_play_setup_strip_tuning">If you changed the tuning</string>
+    <string name="nova_play_setup_tuning">Launch Preset</string>
     <string name="nova_play_setup_tuning_pins">Pins %1$d FPS from your Settings frame rate</string>
     <string name="nova_play_setup_tuning_pins_over_hold">Pins %1$d FPS · overrides the recovery hold (host would run %2$d)</string>
     <string name="nova_play_setup_tuning_applied">Applied by host</string>
     <string name="nova_play_setup_tuning_declined">Host declined · %1$s</string>
     <string name="nova_play_setup_tuning_declined_no_reason">Host declined this preference</string>
-    <string name="nova_play_setup_strip_steam">If you changed how Steam starts</string>
     <string name="nova_play_setup_compare_private">Its own display, made for this session. The desk keeps its own screen.</string>
     <string name="nova_play_setup_compare_virtual">A screen of its own on the host\'s desktop, beside its monitors, for games that need the desktop session.</string>
     <string name="nova_game_detail_group_state">State</string>
@@ -470,19 +490,21 @@
     <string name="nova_game_detail_virtual_caption">A dedicated display on the host, at your resolution</string>
     <string name="nova_game_detail_more_settings_caption">Resolution, bitrate and codec for this launch</string>
     <string name="nova_game_detail_profile_label">Launch preset</string>
-    <string name="nova_game_detail_profile_caption">Deterministic settings for this launch</string>
     <string name="nova_polaris_wordmark" translatable="false">✦ POLARIS</string>
     <string name="nova_controller_hint_a">A</string>
     <string name="nova_controller_hint_b">B</string>
     <string name="nova_controller_hint_x">X</string>
     <string name="nova_controller_hint_y">Y</string>
-    <string name="nova_controller_hint_lb_rb">LB/RB</string>
+    <string name="nova_controller_hint_lb_rb">L1/R1</string>
     <string name="nova_controller_hint_select">Select</string>
+    <!-- A TV remote's keys in the library's hint bar: its center key, and its Back key. -->
+    <string name="nova_controller_hint_remote_center">OK</string>
+    <string name="nova_controller_hint_remote_back">Back</string>
+    <string name="nova_controller_hint_remote_back_label">Go back</string>
     <string name="nova_controller_hint_back">Back</string>
     <string name="nova_controller_hint_options">Options</string>
     <string name="nova_controller_hint_library">Library</string>
     <string name="nova_controller_hint_layout">Layout</string>
-    <string name="nova_controller_hint_filters">Filters</string>
     <string name="nova_controller_hint_library_system">Library / System</string>
     <string name="nova_controller_hint_launch">Launch</string>
     <string name="nova_controller_hint_close">Close</string>
@@ -500,7 +522,7 @@
     <string name="nova_library_error_eyebrow">Recovery</string>
     <string name="nova_library_error_title">Couldn\'t load library</string>
     <string name="nova_library_error_hint">Check Polaris and try again.</string>
-    <string name="nova_library_error_action_manage">Manage server</string>
+    <string name="nova_library_error_action_manage">Manage Host</string>
     <string name="nova_library_card_action_details">Details</string>
     <string name="nova_library_unknown_game">Unknown Game</string>
     <string name="nova_library_meta_last_played">Played %1$s</string>
@@ -513,6 +535,7 @@
     <string name="nova_library_launch_dongle">Headless Dongle</string>
     <string name="nova_library_launch_desktop_display">Mirror Desktop</string>
     <string name="nova_library_launch_desktop_takeover">Desktop Takeover</string>
+    <!-- windowed_stream, by the name Polaris gives it, so it never shares headless_stream's. -->
     <string name="nova_library_launch_gpu_native_test">Private Stream (GPU-native)</string>
     <string name="nova_library_play">Launch Recommended</string>
     <string name="nova_library_play_mode">Launch %1$s</string>
@@ -522,7 +545,7 @@
          way is still on the wire. The press is held, not dropped. -->
     <string name="nova_game_detail_launch_checking_host">Checking the Host…</string>
     <string name="nova_game_detail_launch_retry_host_check">Retry Host Check</string>
-    <string name="nova_game_detail_launch_preflight_unavailable">Couldn’t verify Polaris launch settings. Try Play again.</string>
+    <string name="nova_game_detail_launch_preflight_unavailable">Nova could not check this launch with the host.</string>
     <string name="nova_library_preflight_review_title">Review Launch Profile</string>
     <string name="nova_library_preflight_review_message">Polaris selected a different launch profile: %1$s</string>
     <string name="nova_library_preflight_launch">Launch</string>
@@ -534,17 +557,20 @@
     <string name="nova_library_profile_preference_high_fps">Launch preset: High FPS</string>
     <string name="nova_library_profile_preference_stability">Launch preset: Stability</string>
     <string name="nova_library_profile_preference_title">Launch preset</string>
-    <string name="nova_library_reset_game_profile">Reset Game Profile</string>
-    <string name="nova_library_reset_game_profile_working">Resetting profile</string>
-    <string name="nova_library_reset_game_profile_cleared">Game profile reset</string>
+    <string name="nova_library_reset_game_profile">Clear Game Profile</string>
+    <string name="nova_library_reset_game_profile_working">Clearing profile</string>
+    <string name="nova_library_reset_game_profile_cleared">Game profile cleared</string>
     <string name="nova_library_reset_game_profile_empty">No saved game profile</string>
-    <string name="nova_library_reset_game_profile_failed">Profile reset failed</string>
+    <string name="nova_library_reset_game_profile_failed">Could not clear the profile</string>
+    <!-- The destructive half of Clear Game Profile's split, and the line under it. -->
+    <string name="nova_game_detail_clear_profile_confirm">Clear Profile</string>
+    <string name="nova_game_detail_clear_profile_consequence">Polaris forgets what it learned about this game on this device. This cannot be undone.</string>
     <string name="nova_library_pin_shortcut">Pin to Home Screen</string>
     <string name="nova_library_pin_shortcut_pending">Waiting for launcher</string>
     <string name="nova_library_pin_shortcut_pinned">Pinned to Home Screen</string>
-    <string name="nova_library_pin_shortcut_success">Shortcut request sent - your launcher may ask you to place it</string>
-    <string name="nova_library_pin_shortcut_unsupported">Your launcher doesn\'t support pinned shortcuts</string>
-    <string name="nova_library_pin_shortcut_failed">Couldn\'t create the shortcut</string>
+    <!-- Said for a few seconds in the pin button's own label, which widens to hold it. -->
+    <string name="nova_library_pin_shortcut_unsupported">This launcher cannot pin</string>
+    <string name="nova_library_pin_shortcut_failed">Could not pin it</string>
     <string name="nova_library_launch_options_title">Launch Options</string>
     <string name="nova_library_launch_recommended_format">%1$s · Recommended</string>
     <string name="nova_library_no_launch_modes">No launch modes are available for this game.</string>
@@ -561,13 +587,12 @@
     <string name="nova_desktop_steam_message">Polaris detected that this launch may appear on the host\'s physical display. Choose a safe private stream or explicitly mirror the desktop.</string>
     <string name="nova_desktop_steam_private_stream">Private Stream</string>
     <string name="nova_desktop_steam_mirror_desktop">Mirror Desktop</string>
-    <string name="nova_desktop_steam_mirror_caption">Explicitly stream the host desktop. People near the PC may see this session.</string>
+    <string name="nova_desktop_steam_mirror_caption">Explicitly stream the host desktop. People near the host may see this session.</string>
     <string name="nova_desktop_steam_force_private">Close desktop Steam and start private stream</string>
     <string name="nova_desktop_steam_force_private_caption">Nova will ask Polaris to close desktop Steam first, then reopen the game inside the private handheld stream.</string>
     <string name="nova_desktop_steam_cancel">Cancel</string>
     <string name="nova_library_launch_mode_default_format">%1$s · Default</string>
     <string name="nova_library_launch_recommended_mode_badge">Rec. %1$s</string>
-    <string name="nova_library_launch_preferred_mode_format">This app’s default is %1$s.</string>
     <string name="nova_library_launch_mode_unavailable_format">%1$s · Unavailable</string>
     <string name="nova_library_launching_mode">Launching %1$s in %2$s…</string>
     <string name="nova_steam_launch_detail_label">Steam Launch</string>
@@ -577,7 +602,7 @@
     <string name="nova_steam_launch_caption_big_picture">Compatibility mode · Steam UI may receive controller input</string>
     <string name="nova_steam_launch_options_title">Steam Launch Mode</string>
     <string name="nova_steam_launch_mode_updated">Steam launch mode updated</string>
-    <string name="nova_steam_launch_mode_failed">Could not update Steam launch mode</string>
+    <string name="nova_steam_launch_mode_failed">The host did not save this Steam launch mode. Try changing it again.</string>
     <string name="nova_library_ai_recommended_label">Optimized</string>
     <string name="nova_library_ai_baseline_label">Baseline</string>
     <string name="nova_library_ai_live_label">AI Tune</string>
@@ -595,20 +620,19 @@
     <string name="nova_polaris_sync_synced">Synced</string>
     <string name="nova_polaris_sync_syncing">Syncing</string>
     <string name="nova_polaris_sync_mode_title">Stream Display</string>
-    <string name="nova_polaris_sync_host_mode_detail">Polaris Sync host mode: %1$s</string>
+    <!-- Leads the plan's second line, before the host's own sentence about that mode. -->
+    <string name="nova_polaris_sync_host_mode_detail">The host defaults to %1$s.</string>
     <string name="nova_polaris_sync_profile_title">Launch Profile</string>
     <string name="nova_polaris_sync_controls_title">Host Controls</string>
     <string name="nova_polaris_sync_match_nova">Match Nova</string>
     <string name="nova_polaris_sync_send_nova">Push Nova</string>
     <string name="nova_polaris_sync_use_polaris">Pull Polaris</string>
     <string name="nova_polaris_sync_clear_profile">Clear Profile</string>
-    <string name="nova_polaris_sync_auto_match">Auto Match This Server</string>
+    <string name="nova_polaris_sync_auto_match">Auto Match This Host</string>
     <string name="nova_polaris_sync_ai_auto_quality">Launch preset</string>
     <string name="nova_polaris_sync_nova_profile">Nova</string>
     <string name="nova_polaris_sync_polaris_profile">Polaris</string>
     <string name="nova_polaris_sync_unset">Unset</string>
-    <string name="nova_polaris_sync_close">Close</string>
-    <string name="nova_polaris_sync_close_cd">Close Polaris Sync</string>
     <string name="nova_polaris_sync_status_saved_relaunch">Saved, applies after relaunch</string>
     <string name="nova_polaris_sync_status_selected">Selected</string>
     <string name="nova_polaris_sync_status_active_now">Active now</string>
@@ -633,28 +657,39 @@
 
     <!-- Accessibility -->
     <string name="nova_a11y_game_cover">Game cover art</string>
-    <string name="nova_a11y_server_icon">Server icon</string>
-    <string name="nova_a11y_server_status">Server connection status</string>
+    <string name="nova_a11y_server_icon">Host icon</string>
+    <string name="nova_a11y_server_status">Host connection status</string>
 
     <!-- Network test strings -->
     <string name="nettest_title_waiting">Testing Network Connection</string>
     <string name="nettest_text_waiting">Nova is testing your network connection to determine if any required ports are blocked.\n\nThis may take a few seconds…</string>
     <string name="nettest_title_done">Network Test Complete</string>
-    <string name="nettest_text_success">Your network does not appear to be blocking Nova. If you still have trouble connecting, check your PC\'s firewall settings.\n\nIf you are trying to stream over the Internet, install the Nova Internet Hosting Tool on your PC and run the included Internet Streaming Tester to check your PC\'s Internet connection.</string>
+    <string name="nettest_text_success">Your network does not appear to be blocking Nova. If you still have trouble connecting, check the firewall on the host.\n\nTo stream away from home, reach the host through a VPN such as Tailscale, or forward its ports on your router.</string>
+    <!-- View Details on a host: one labelled line each, with what is unknown left out. -->
+    <string name="nova_host_details_name">Name: %1$s</string>
+    <string name="nova_host_details_status">Status: %1$s</string>
+    <string name="nova_host_details_address">Address: %1$s</string>
+    <string name="nova_host_details_other_addresses">Other addresses: %1$s</string>
+    <string name="nova_host_details_mac">MAC address: %1$s</string>
+    <string name="nova_host_details_paired">Paired: %1$s</string>
+    <string name="nova_host_details_playing">Playing now: %1$s</string>
+    <string name="nova_host_details_https_port">HTTPS port: %1$d</string>
+    <string name="nova_host_details_id">Host ID: %1$s</string>
+    <string name="nova_host_details_yes">Yes</string>
+    <string name="nova_host_details_no">No</string>
+    <string name="nova_host_details_online">Online</string>
+    <string name="nova_host_details_offline">Offline</string>
+    <string name="nova_host_details_checking">Checking</string>
     <string name="nettest_text_inconclusive">The network test could not be performed because none of Nova\'s connection testing servers were reachable. Check your Internet connection or try again later.</string>
     <string name="nettest_text_failure">Your device\'s current network connection seems to be blocking Nova. Streaming over the Internet may not work while connected to this network.\n\nThe following network ports were blocked:\n</string>
     <string name="nettest_text_blocked">Your device\'s current network connection is blocking Nova. Streaming over the Internet may not work while connected to this network.</string>
 
     <!-- Pair messages -->
-    <string name="pairing">Pairing…</string>
-    <string name="pair_pc_confirm_title">Pair PC</string>
-    <string name="pair_pc_confirm_message">Do you really want to pair with %s? Please do not pair with any unfamiliar computers.</string>
-    <string name="pair_pc_offline">Computer is offline</string>
-    <string name="pair_pc_ingame">Computer is currently in a game. You must close the game before pairing.</string>
+    <string name="pair_pc_confirm_title">Pair Host</string>
+    <string name="pair_pc_confirm_message">Do you really want to pair with %s? Do not pair with a host you do not know.</string>
+    <string name="pair_pc_offline">Host is offline</string>
+    <string name="pair_pc_ingame">The host is in a game. Close the game before pairing.</string>
     <string name="pair_pairing_title">Pairing</string>
-    <string name="pair_pairing_msg">Please enter the following PIN on the target PC:</string>
-    <string name="pair_pairing_help">If your host provides a pairing page in its web UI, open it and enter the PIN there.</string>
-    <string name="pair_otp_pairing_msg">Pairing, please wait…</string>
     <string name="pair_otp_pairing_help">OTP pairing is only available on hosts that support it. If your host uses manual PIN entry, enter the code in the host web UI instead.</string>
     <string name="pair_incorrect_pin">Incorrect PIN or Passphrase</string>
     <string name="pair_fail">Pairing failed</string>
@@ -664,15 +699,12 @@
     <string name="pair_passphrase_length_msg">Passphrase must be at least 4 characters long</string>
 
     <!-- WOL messages -->
-    <string name="wol_pc_online">Computer is online</string>
-    <string name="wol_no_mac">Unable to wake PC because there is no stored MAC address</string>
-    <string name="wol_waking_pc">Waking PC…</string>
-    <string name="wol_waking_msg">It may take a few seconds for your PC to wake up.
-	    If it doesn\'t, make sure it\'s configured properly for Wake-On-LAN.
-    </string>
-    <string name="wol_fail">Failed to send Wake-On-LAN packets</string>
+    <string name="wol_pc_online">This host is already awake.</string>
+    <string name="wol_no_mac">Nova has no MAC address for this host yet, so it cannot wake it. Connect to it once while it is awake.</string>
+    <string name="wol_waking_pc">Waking the host…</string>
+    <string name="wol_waking_msg">Wake request sent. A host can take a few seconds to wake. If it does not, check that Wake on LAN is turned on for it.</string>
+    <string name="wol_fail">Nova could not send the wake request.</string>
     <string name="pcview_polaris_starting">Waking the host and waiting for Polaris…</string>
-    <string name="pcview_polaris_started">Polaris is ready</string>
     <string name="pcview_polaris_start_no_server">No paired Polaris host is available</string>
     <string name="pcview_polaris_start_pair_first">Pair with this host before waking it from Nova</string>
     <string name="pcview_polaris_start_timeout">The host did not answer. A wake packet only reaches a sleeping host from its own network.</string>
@@ -687,12 +719,10 @@
     <string name="unpair_error">Device was not paired</string>
 
     <!-- Errors -->
-    <string name="error_pc_offline">Computer is offline</string>
-    <string name="error_manager_not_running">The ComputerManager service is not running. Please wait a few seconds or restart the app.</string>
+    <string name="error_pc_offline">Host is offline</string>
+    <string name="error_manager_not_running">Nova is still starting its host list. Wait a few seconds, then try again.</string>
     <string name="error_unknown_host">Failed to resolve host</string>
-    <string name="error_404">GFE returned an HTTP 404 error. Make sure your PC is running a supported GPU.
-	    Using remote desktop software can also cause this error. Try rebooting your machine or reinstalling GFE.
-    </string>
+    <string name="error_404">The host returned an HTTP 404 error. Make sure it runs a supported GPU. Remote desktop software can also cause this, so try restarting the host.</string>
     <string name="title_report_problem">Report a problem</string>
     <string name="summary_report_problem">Build a redacted report of what Nova saw and choose where to send it. Nothing is sent until you pick a destination.</string>
     <string name="title_crash_report">Nova stopped unexpectedly</string>
@@ -701,14 +731,16 @@
     <string name="title_decoding_error">Video Decoder Crashed</string>
     <string name="message_decoding_error">Nova has crashed due to an incompatibility with this device\'s video decoder. Try adjusting the streaming settings if the crashes continue.</string>
     <string name="title_decoding_reset">Video Settings Reset</string>
+    <string name="title_decoding_reset_failed">Video settings could not be saved</string>
+    <string name="message_decoding_reset_failed">Nova switched to Recommended for now, but could not save your active setup. Try again to keep the safer settings for your next stream.</string>
     <string name="message_decoding_reset">Your device\'s video decoder continues to crash at your selected streaming settings. Your streaming settings have been reset to default.</string>
     <string name="error_usb_prohibited">USB access is prohibited by your device administrator. Check your Knox or MDM settings.</string>
     <string name="unable_to_pin_shortcut">Your current launcher does not allow for creating pinned shortcuts.</string>
     <string name="video_decoder_init_failed">Video decoder failed to initialize. Your device may not support the selected resolution or frame rate.</string>
     <string name="no_video_received_error">No video received from host.</string>
     <string name="no_frame_received_error">Your network connection isn\'t performing well. Reduce your video bitrate setting or try a faster connection.</string>
-    <string name="early_termination_error">Something went wrong on your host PC when starting the stream.\n\nMake sure you don\'t have any DRM-protected content open on your host PC. You can also try restarting your host PC.</string>
-    <string name="frame_conversion_error">The host PC reported a fatal video encoding error.\n\nTry disabling HDR mode, changing the streaming resolution, or changing your host PC\'s display resolution.</string>
+    <string name="early_termination_error">Something went wrong on your host when starting the stream.\n\nMake sure you don\'t have any DRM-protected content open on your host. You can also try restarting your host.</string>
+    <string name="frame_conversion_error">The host reported a fatal video encoding error.\n\nTry disabling HDR mode, changing the streaming resolution, or changing your host\'s display resolution.</string>
     <string name="check_ports_msg">Check your firewall and port forwarding rules for port(s):</string>
 
     <!-- Start application messages -->
@@ -728,21 +760,14 @@
     <string name="nova_launch_issue_dismiss">Back to Nova</string>
 
     <!-- General strings -->
-    <string name="ip_hint">IP address of host PC</string>
-    <string name="searching_pc">Searching for host PCs on your local network…\n\nMake sure your host streaming software is running.</string>
-    <string name="yes">Yes</string>
-    <string name="no">No</string>
-    <string name="lost_connection">Lost connection to PC</string>
+    <string name="ip_hint">IP address of the host</string>
+    <string name="searching_pc">Searching for hosts on your local network…\n\nMake sure your host streaming software is running.</string>
     <string name="title_details">Details</string>
-    <string name="help">Help</string>
-    <string name="delete_pc_msg">Are you sure you want to delete this PC?</string>
-    <string name="delete_pc_msg_paired">Delete this PC? Nova will also ask it to forget this device, so bringing it back means pairing again.</string>
-    <string name="delete_pc_msg_paired_running">Delete this PC? Nova will also ask it to forget this device, so bringing it back means pairing again. A game is running on it, and forgetting this device can close that game.</string>
     <string name="delete_pc_host_unreachable">%1$s could not be reached, so it still lists this device as paired.</string>
-    <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that PC.</string>
+    <string name="delete_pc_host_refused">%1$s would not forget this device. Remove it on that host.</string>
     <string name="delete_pc_host_unsupported">%1$s cannot be asked to forget a device, so it still lists this one.</string>
-    <string name="slow_connection_msg">Slow connection to PC\nReduce your bitrate</string>
-    <string name="poor_connection_msg">Poor connection to PC</string>
+    <string name="slow_connection_msg">Slow connection to host\nReduce your bitrate</string>
+    <string name="poor_connection_msg">Poor connection to host</string>
     <string name="perf_overlay_streamdetails">Video stream: %1$s %2$.2f FPS</string>
     <string name="perf_overlay_decoder">Decoder: %1$s</string>
     <string name="perf_overlay_incomingfps">Incoming frame rate from network: %1$.2f FPS</string>
@@ -762,15 +787,17 @@
     </string>
 
     <string name="email_recipient"></string>
-    <string name="email_subject">Nova - Performance Log</string>
+    <string name="email_subject">Nova Performance Log</string>
     <string name="email_chooser_title">Share performance log...</string>
     <string name="toast_no_email_clients">No compatible share apps installed.</string>
     <string name="toast_no_logs">There is no performance data stored yet.</string>
 
     <!-- AppList activity -->
-    <string name="applist_connect_msg">Connecting to PC…</string>
+    <string name="applist_connect_msg">Connecting to the host…</string>
     <string name="applist_menu_resume">Resume Stream</string>
     <string name="applist_menu_watch">Watch Stream</string>
+    <string name="applist_menu_in_use">In Use</string>
+    <string name="applist_nothing_to_watch">Nobody is streaming this game, so there is nothing to watch.</string>
     <string name="applist_menu_watch_active">Watch Active Stream</string>
     <string name="applist_menu_watch_active_name">Active Stream</string>
     <string name="applist_menu_start_vdisplay">Start with Virtual Display</string>
@@ -796,19 +823,15 @@
     <string name="applist_refresh_msg">Refreshing apps…</string>
     <string name="applist_refresh_error_title">Error</string>
     <string name="applist_refresh_error_msg">Failed to get app list</string>
-    <string name="applist_quit_app">Quitting</string>
     <string name="applist_quit_success">Successfully quit</string>
     <string name="applist_quit_fail">Failed to quit</string>
-    <string name="applist_quit_confirmation">Are you sure you want to quit the running app? All unsaved data will be lost.</string>
     <string name="applist_details_id">App ID:</string>
 
     <!-- Add computer manually activity -->
-    <string name="title_add_pc">Add PC Manually</string>
-    <string name="msg_add_pc">Connecting to the PC…</string>
-    <string name="addpc_fail">Unable to connect to the specified computer. Make sure the required ports are allowed through the firewall.</string>
-    <string name="addpc_success">Successfully added computer</string>
-    <string name="addpc_unknown_host">Unable to resolve PC address. Make sure you didn\'t make a typo in the address.</string>
-    <string name="addpc_enter_ip">You must enter an IP address</string>
+    <string name="title_add_pc">Add Host Manually</string>
+    <string name="msg_add_pc">Connecting to the host…</string>
+    <string name="addpc_fail">Unable to connect to that host. Make sure the required ports are allowed through the firewall.</string>
+    <string name="addpc_unknown_host">Unable to resolve the host\'s address. Make sure you didn\'t make a typo in the address.</string>
     <string name="addpc_wrong_sitelocal">That address doesn\'t look right. You must use your router\'s public IP address for streaming over the Internet.</string>
 
     <!-- Preferences -->
@@ -817,13 +840,13 @@
     <string name="title_resolution_list">Video resolution</string>
     <string name="summary_resolution_list">Increase to improve image clarity. Decrease for better performance on lower end devices and slower networks.</string>
     <string name="title_native_res_dialog">Native Resolution Warning</string>
-    <string name="text_native_res_dialog">Native resolution and/or FPS may not be supported by the streaming server. You will probably need to configure a matching custom display mode for the host PC manually.\n\nIf you choose to create a custom resolution in NVIDIA Control Panel to match your screen settings, please ensure you have read and understood NVIDIA\'s warning regarding possible monitor damage, PC instability, and other potential problems.\n\nWe are not responsible for any problems resulting from creating a custom resolution on your PC.\n\nIt may be that your monitor does not support a necessary display configuration. If so, you may try to set up a virtual monitor. Finally, if your device or host PC does not support streaming at a specific resolution or refresh rate, you\'re out of luck unfortunately.</string>
+    <string name="text_native_res_dialog">Native resolution and/or FPS may not be supported by the host. You will probably need to configure a matching custom display mode for the host manually.\n\nIf you choose to create a custom resolution in NVIDIA Control Panel to match your screen settings, please ensure you have read and understood NVIDIA\'s warning regarding possible monitor damage, system instability, and other potential problems.\n\nWe are not responsible for any problems resulting from creating a custom resolution on your host.\n\nIt may be that your monitor does not support a necessary display configuration. If so, you may try to set up a virtual monitor. Finally, if your device or host does not support streaming at a specific resolution or refresh rate, you\'re out of luck unfortunately.</string>
     <string name="title_fps_list">Video frame rate</string>
     <string name="summary_fps_list">Increase for a smoother video stream. Decrease for better performance on lower end devices.</string>
     <string name="title_seekbar_bitrate">Video bitrate</string>
     <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
     <string name="title_seekbar_metered_bitrate">Video bitrate on metered networks</string>
-    <string name="summary_seekbar_metered_bitrate">High bitrates consume more data, lower bitrates improve smoothness in metered networks.\nSet 0 for ¼ of the above bitrate settings.</string>
+    <string name="summary_seekbar_metered_bitrate">A lower bitrate uses less data on a metered network. At 0, Nova uses a quarter of the bitrate above.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_resolution_scale_factor">Resolution Scale Factor</string>
     <string name="summary_resolution_scale_factor">Multiplies the resolution this session renders and streams.\ne.g. 120% makes 1920x1080 into 2304x1296: more detail, more bandwidth, and everything on screen a little smaller.\nTo make a desktop Polaris creates readable instead, use Screen Scale in Play Setup.</string>
@@ -922,9 +945,9 @@
 
     <string name="category_host_settings">Host Settings</string>
     <string name="title_checkbox_enable_sops">Optimize game settings</string>
-    <string name="summary_checkbox_enable_sops">Allow GFE to modify game settings for optimal streaming</string>
-    <string name="title_checkbox_host_audio">Play audio on PC</string>
-    <string name="summary_checkbox_host_audio">Play audio from the computer and this device</string>
+    <string name="summary_checkbox_enable_sops">Let the host change a game\'s settings to suit the stream</string>
+    <string name="title_checkbox_host_audio">Play audio on host</string>
+    <string name="summary_checkbox_host_audio">Play audio from the host and this device</string>
 
     <string name="category_advanced_settings">Advanced Settings</string>
     <string name="title_unlock_fps">Unlock all possible frame rates</string>
@@ -953,7 +976,7 @@
 
     <string name="category_help">Help</string>
     <string name="title_setup_guide">Setup guide</string>
-    <string name="summary_setup_guide">View instructions on how to set up your gaming PC for streaming</string>
+    <string name="summary_setup_guide">View instructions on how to set up your host for streaming</string>
     <string name="title_troubleshooting">Troubleshooting guide</string>
     <string name="summary_troubleshooting">View tips for diagnosing and fixing common streaming issues</string>
     <string name="title_privacy_policy">Privacy policy</string>
@@ -986,7 +1009,7 @@
     <string name="audioconf_51surround">5.1 Surround Sound</string>
     <string name="audioconf_71surround">7.1 Surround Sound</string>
 
-    <string name="videoformat_auto">Automatic (Recommended)</string>
+    <string name="videoformat_auto">Automatic</string>
     <string name="videoformat_av1always">Prefer AV1 (Experimental)</string>
     <string name="videoformat_hevcalways">Prefer HEVC</string>
     <string name="videoformat_h264always">Prefer H.264</string>
@@ -1002,30 +1025,14 @@
 
 
     <string name="keyboard_service_label">Nova Physical keyboard</string>
-    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host PC. Nova will not look through your input, nor collecting your password, credit card number or any other private information.</string>
+    <string name="accessibility_description_text">Only used when physical keyboard shortcut were intercepted by system. In some systems, several keyboard shortcut are defind and used by the Android system, causing them not being able to be passed through to the host. Nova will not look through your input, nor collecting your password, credit card number or any other private information.</string>
 
 
     <!-- In Game menu -->
-    <string name="game_menu_toggle_keyboard">Show soft keyboard</string>
-    <string name="game_menu_toggle_hud">Toggle Performance Overlay</string>
-    <string name="game_menu_toggle_floating_button">Toggle Floating Button</string>
-    <string name="game_menu_select_mouse_mode">Select Mouse mode</string>
     <string name="game_menu_select_steam_mode">Select Stream mode</string>
-    <string name="game_menu_enable_zoom_mode">Enable Pan/Zoom</string>
-    <string name="game_menu_disable_zoom_mode">Disable Pan/Zoom</string>
-    <string name="game_menu_rotate_screen">Rotate Screen</string>
-    <string name="game_menu_toggle_keyboard_model">Toggle Special keys</string>s
-    <string name="game_menu_toggle_virtual_model">Toggle On-screen controller</string>
-    <string name="game_menu_toggle_virtual_keyboard_model">Toggle On-screen full keyboard</string>
-    <string name="game_menu_switch_touch_sensitivity_model">Switch touch sensitivity</string>
 
 
-    <string name="game_menu_toggle_mouse_on">Enable Controller Mouse Emulation</string>
-    <string name="game_menu_toggle_mouse_off">Disable Controller Mouse Emulation</string>
     <string name="game_menu_disconnect">Disconnect</string>
-    <string name="game_menu_cancel">Cancel</string>
-    <string name="game_menu_task_manager">Open Task Manager</string>
-    <string name="game_menu_send_keys">Send special keys</string>
     <string name="game_menu_send_keys_esc">ESC</string>
     <string name="game_menu_send_keys_f11">F11</string>
     <string name="game_menu_send_keys_insert">Insert</string>
@@ -1033,7 +1040,8 @@
     <string name="game_menu_send_keys_ctrl_v">Ctrl + V</string>
     <string name="game_menu_send_keys_ctrl_1">Ctrl + 1</string>
     <string name="game_menu_send_keys_ctrl_2">Ctrl + 2</string>
-    <string name="game_menu_send_keys_win">Win (Meta)</string>
+    <!-- The same name the Command Center's other Meta keys use. -->
+    <string name="game_menu_send_keys_win">Meta</string>
     <string name="game_menu_send_keys_win_d">Win + D</string>
     <string name="game_menu_send_keys_alt_b">ALT + B</string>
     <string name="game_menu_send_keys_win_g">Win + G (Xbox Game Bar)</string>
@@ -1041,7 +1049,7 @@
     <string name="game_menu_send_keys_shift_tab">Shift + Tab (Steam Overlay)</string>
     <string name="game_menu_send_keys_alt_enter">Alt + Enter</string>
     <string name="game_menu_send_keys_win_shift_left">Win + shift + left (Move app between Desktops)</string>
-    <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (PC Exit Streaming)</string>
+    <string name="game_menu_send_keys_ctrl_alt_shift_q">Ctrl+Alt+Shift+Q (Exit Streaming on Host)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1 (Switch Monitor)</string>
     <string name="game_menu_send_keys_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12 (Switch Monitor)</string>
     <string name="nova_mangohud_detail_label">MangoHud Overlay</string>
@@ -1056,9 +1064,9 @@
     <string name="nova_quick_menu_host_controls_unavailable_caption">host controls unavailable</string>
     <string name="nova_quick_menu_session_ending_caption">session ending</string>
     <string name="nova_quick_menu_mode_unknown">Checking stream mode</string>
-    <string name="nova_quick_menu_mode_source_auto">Auto choice</string>
-    <string name="nova_quick_menu_mode_source_explicit">Explicit choice</string>
-    <string name="nova_quick_menu_mode_role_owner">Owner</string>
+    <string name="nova_quick_menu_mode_source_auto">Mode picked automatically</string>
+    <string name="nova_quick_menu_mode_source_explicit">Mode you picked</string>
+    <string name="nova_quick_menu_mode_role_owner">Your session</string>
     <string name="nova_quick_menu_command_center_title">Command Center</string>
     <string name="nova_quick_menu_command_center_subtitle">Stream health, tuning, and session controls</string>
     <string name="nova_quick_menu_headless_subtitle">Session controls for Private Stream</string>
@@ -1073,26 +1081,27 @@
     <string name="nova_quick_menu_health_hdr_headless_downgrade">HDR requested, but Private Stream is 10-bit SDR.</string>
     <string name="nova_quick_menu_health_attention">Session needs attention.</string>
     <string name="nova_quick_menu_health_steady">Session looks steady.</string>
-    <string name="nova_quick_menu_ai_auto_quality">Launch preset</string>
+    <string name="nova_quick_menu_ai_auto_quality">Launch Preset</string>
     <string name="nova_quick_menu_stream_card">Stream</string>
     <string name="nova_quick_menu_auto_quality_caption_default">Watching stream quality</string>
     <string name="nova_quick_menu_ai_caption_default">balancing FPS, bitrate, and smoothness</string>
     <string name="nova_quick_menu_target_checking">Waiting for stream target</string>
-    <string name="nova_quick_menu_profile_preference">Launch preset</string>
+    <string name="nova_quick_menu_profile_preference">Launch Preset</string>
     <string name="nova_quick_menu_profile_preference_checking">Waiting for running game</string>
     <string name="nova_quick_menu_profile_preference_next_launch">Applies next launch for %1$s</string>
-    <string name="nova_quick_menu_profile_preference_saved">Launch preset saved for next launch</string>
+    <string name="nova_quick_menu_profile_preference_saved">Saved. Applies next launch for %1$s</string>
     <string name="nova_quick_menu_sync_status">Sync Status</string>
     <string name="nova_quick_menu_sync_caption_default">Nova and Polaris profile match</string>
     <string name="nova_quick_menu_advanced_tuning">Advanced</string>
     <string name="nova_quick_menu_advanced_caption">Manual overrides and diagnostics</string>
     <string name="nova_quick_menu_clear_game_profile">Clear Game Profile</string>
-    <string name="nova_quick_menu_clear_game_profile_caption">remove deprecated optimizer history; launch settings are unchanged</string>
-    <string name="nova_quick_menu_clear_game_profile_for_game">reset learned profile for %1$s</string>
-    <string name="nova_quick_menu_clear_game_profile_unavailable">available after Polaris reports the running game</string>
+    <string name="nova_quick_menu_clear_game_profile_caption">Clears learned history. Launch settings stay as they are.</string>
+    <string name="nova_quick_menu_clear_game_profile_for_game">Clears what Polaris learned about %1$s</string>
+    <string name="nova_quick_menu_clear_game_profile_unavailable">Available once Polaris reports the running game</string>
     <string name="nova_quick_menu_end_stream">End Session</string>
     <string name="nova_quick_menu_key_meta">Meta</string>
     <string name="nova_quick_menu_quick_keys">Quick Keys</string>
+    <string name="nova_quick_menu_quick_keys_caption">Sends the key and closes Command Center to return input to the game.</string>
     <string name="nova_quick_menu_overlays">Overlays</string>
     <string name="nova_quick_menu_controls">Controls</string>
     <string name="nova_quick_menu_session">Session</string>
@@ -1106,23 +1115,20 @@
     <string name="nova_quick_menu_hud_mode_performance">Performance</string>
     <string name="nova_quick_menu_hud_mode_debug">Debug</string>
     <string name="nova_quick_menu_menu_opacity">Menu Opacity</string>
-    <string name="nova_quick_menu_menu_opacity_caption">Adjust Nova menus, drawers, options, and session glass without dimming text or focus cues.</string>
-    <string name="nova_quick_menu_menu_opacity_preset_cd">Set menu opacity to %1$d percent</string>
+    <string name="nova_quick_menu_menu_opacity_caption">How much of the screen shows through Nova\'s menus. Over a stream this panel stays solid.</string>
     <string name="nova_quick_menu_hud_opacity">HUD Opacity</string>
-    <string name="nova_quick_menu_hud_opacity_caption">Adjust Nova HUD glass without dimming telemetry text.</string>
+    <string name="nova_quick_menu_hud_opacity_caption">How much of the game shows behind the HUD\'s numbers.</string>
     <string name="nova_quick_menu_hud_opacity_disabled_caption">Enable Nova HUD first to change glass opacity.</string>
-    <string name="nova_quick_menu_hud_opacity_preset_cd">Set HUD opacity to %1$d percent</string>
-    <string name="nova_quick_menu_hud_opacity_selected">Selected</string>
-    <string name="nova_quick_menu_hud_opacity_not_selected">Not selected</string>
-    <string name="nova_quick_menu_opacity_show_presets">Show presets</string>
-    <string name="nova_quick_menu_opacity_hide_presets">Hide presets</string>
     <string name="nova_quick_menu_perf_stats">Stats Overlay</string>
     <string name="nova_quick_menu_perf_stats_caption">Legacy Moonlight stats text. Replaces Nova HUD while it is on.</string>
     <string name="nova_quick_menu_diagnose_stream">Diagnose This Stream</string>
-    <string name="nova_quick_menu_doctor_capability_auto_fix">Auto Fix</string>
-    <string name="nova_quick_menu_doctor_capability_run_trial">Run a trial</string>
-    <string name="nova_quick_menu_doctor_capability_recheck">Recheck</string>
-    <string name="nova_quick_menu_doctor_capability_manual">Manual</string>
+    <!-- What pressing the Doctor card does, on its own line: the chip says only a state. -->
+    <string name="nova_quick_menu_doctor_capability_auto_fix">Applies one safe fix, then checks it</string>
+    <string name="nova_quick_menu_doctor_capability_run_trial">Runs a short trial</string>
+    <string name="nova_quick_menu_doctor_capability_recheck">Checks again</string>
+    <!-- A Doctor card with nothing to run: A copies its details. -->
+    <string name="nova_quick_menu_doctor_capability_manual">Copies the details</string>
+    <string name="nova_quick_menu_doctor_copied">Copied</string>
     <string name="nova_quick_menu_doctor_ai_explanation">AI explanation (informational): %1$s</string>
     <string name="nova_quick_menu_doctor_stable">Doctor verified the network is stable. Bitrate was left unchanged.</string>
     <string name="nova_quick_menu_doctor_confirmed">Doctor now has enough live evidence. Press Fix and verify to apply one safe step.</string>
@@ -1158,23 +1164,37 @@
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
     <string name="nova_conn_reconnect">Reconnect</string>
     <string name="nova_quick_menu_close">Close</string>
-    <string name="nova_quick_menu_close_command_center">Close Command Center</string>
     <string name="nova_quick_menu_post_session_report">Host safe profile</string>
     <string name="nova_quick_menu_post_session_report_caption">Observational history from earlier sessions. Launch settings are unchanged.</string>
     <string name="nova_settings_back">Back</string>
     <string name="nova_settings_legacy">Legacy</string>
     <string name="nova_settings_search_results">%1$d results</string>
     <string name="nova_settings_live_hud_preview">Live HUD preview</string>
-    <string name="nova_settings_override_badge">Override</string>
-    <string name="nova_settings_current_badge">Current</string>
-    <string name="nova_lock_overlay_locked">Host locked</string>
     <string name="nova_lock_overlay_unlock">Unlock host</string>
     <string name="nova_lock_overlay_unlocking">Unlocking…</string>
-    <string name="nova_lock_overlay_unlock_failed">Unlock request failed</string>
-    <string name="nova_pairing_auto_success">Paired automatically with this host</string>
-    <string name="nova_pairing_auto_fallback_pin">Automatic pairing failed, switching to PIN</string>
-    <string name="nova_pairing_auto_unsupported">This host doesn\'t support automatic pairing. Update Polaris or pair with OTP/PIN</string>
+    <string name="nova_lock_overlay_unlock_failed">Polaris could not unlock the host. Try again, or choose Not Now to sign in on the stream.</string>
+    <string name="nova_pairing_auto_fallback_pin">Automatic pairing did not finish, so pair with this PIN instead.</string>
+    <string name="nova_pairing_auto_unsupported">This host does not pair automatically, so pair with this PIN. A current Polaris can pair without one.</string>
     <string name="nova_launch_deterministic_host_required">Update Polaris before launching. This Nova version requires deterministic launch profiles and will not use legacy recovery or AI launch settings.</string>
+    <!-- A reset row in Settings, split in place: the half that keeps things, the half that resets, and the line under them. -->
+    <string name="nova_settings_keep">Keep</string>
+    <string name="nova_settings_reset_confirm">Reset</string>
+    <string name="nova_settings_clear_confirm">Clear</string>
+    <string name="nova_settings_reset_stream_ui_consequence">The HUD, overlays, touch controls and in-stream settings go back to their defaults.</string>
+    <string name="nova_settings_reset_osc_consequence">Every on-screen control goes back to its default size and place.</string>
+    <!-- A host that answered the stream setup and refused it (RTSP 503): the network is fine. A bare
+         503 does not say why, so this names no cause; a host that gives its reason is shown that. -->
+    <string name="nova_launch_host_refused_stream">The host answered but did not start this stream, and it did not say why. Try another display mode or video codec in Play Setup.</string>
+    <!-- Scan Pair's state page when there is no camera, or camera access was refused. -->
+    <string name="nova_scan_pair_no_camera_title">No camera to scan with</string>
+    <string name="nova_scan_pair_no_camera_message">This device has no camera for a pairing code. Add the host by its address instead.</string>
+    <string name="nova_scan_pair_camera_denied_title">Camera access is off</string>
+    <string name="nova_scan_pair_camera_denied_message">Nova needs the camera to scan a pairing code. Allow it and try again, or add the host by its address.</string>
+    <string name="nova_scan_pair_try_again">Try Again</string>
+    <!-- The exact bitrate page's number field, typed in the unit its title shows. -->
+    <string name="nova_settings_bitrate_exact_mbps">Exact value in Mbps</string>
+    <!-- A current Polaris answered the launch without settings Nova can hold it to, as it did once right after a game profile was cleared. -->
+    <string name="nova_launch_profile_not_settled">Polaris did not settle this launch\'s settings, so Nova did not start it. Try the launch again.</string>
     <string name="nova_launch_host_unreachable">Nova could not reach Polaris to set this launch up. Check that the host is awake and on the network, then try again.</string>
     <string name="nova_launch_retry">Nova could not finish setting this launch up. Go back to the library and try again.</string>
     <string name="nova_launch_envelope_topology">Polaris resolved a display topology this launch did not ask for. Change the display mode in Play Setup, then try again.</string>
@@ -1184,6 +1204,7 @@
     <string name="nova_launch_envelope_bitrate">Polaris resolved a bitrate outside what this launch allows. Change the bitrate in Play Setup, then try again.</string>
     <string name="nova_quick_menu_safe">Safe</string>
     <string name="nova_quick_menu_mouse">Mouse</string>
+    <string name="nova_quick_menu_mouse_caption">Opens the mouse mode picker in Command Center.</string>
     <string name="nova_quick_menu_controller">Touch Controls</string>
     <string name="nova_quick_menu_touch_controls_caption">On-screen overlay; physical gamepad stays active.</string>
     <string name="nova_quick_menu_players">Players</string>
@@ -1196,9 +1217,13 @@
     <string name="nova_quick_menu_players_nobody">Press a button on a controller to join.</string>
     <string name="nova_quick_menu_players_one_player">Every controller is player 1 while Automatic Gamepad Presence Detection is off in Settings.</string>
     <string name="nova_quick_menu_keyboard">Keyboard</string>
+    <string name="nova_quick_menu_keyboard_show_caption">Closes Command Center to show the on-screen keyboard.</string>
+    <string name="nova_quick_menu_keyboard_hide_caption">Closes Command Center and hides the on-screen keyboard.</string>
     <string name="nova_quick_menu_paste_clipboard">Paste</string>
     <string name="nova_quick_menu_rotate_screen">Rotate</string>
+    <string name="nova_quick_menu_rotate_screen_caption">Closes Command Center while the screen rotates.</string>
     <string name="nova_quick_menu_special_keys">More Keys</string>
+    <string name="nova_quick_menu_special_keys_caption">Opens more keys in Command Center.</string>
     <string name="nova_quick_menu_show">Show</string>
     <string name="nova_quick_menu_hide">Hide</string>
     <string name="nova_quick_menu_loading">Loading</string>
@@ -1236,6 +1261,7 @@
     <string name="nova_session_mode_headless">Private Stream</string>
     <string name="nova_session_mode_virtual_display">Host Virtual Display</string>
     <string name="nova_session_mode_host_display">Mirror Desktop</string>
+    <string name="nova_session_mode_desktop_takeover">Desktop Takeover</string>
     <string name="nova_session_mode_watch_format">Watching · %1$s</string>
     <string name="nova_mangohud_warning_big_picture">Avoid on Steam Big Picture on this host.</string>
     <string name="nova_mangohud_warning_steam">Risky on Steam and Proton on this host.</string>
@@ -1270,7 +1296,7 @@
     <string name="dialog_custom_refresh_rate">Enter refresh rate in Hz. Can be fractional.</string>
     <string name="pref_refresh_rate_exceeds_display_cap">This display supports up to %1$d Hz</string>
     <string name="title_touchscreen_mode">Touchscreen Mode</string>
-    <string name="summary_touchscreen_mode">Select between MultiTouch/SingleTouch/Trackpad/Disabled mode.\nPen/Stylus are still usable when Disabled is selected.\nForced to Track Pad(Natural) mode when useing external display.</string>
+    <string name="summary_touchscreen_mode">How touch controls the host. A pen still works when it is off, and an external display always uses the trackpad.</string>
     <string name="title_checkbox_mouse_local_cursor">Use local mouse cursor</string>
     <string name="summary_checkbox_mouse_local_cursor">Default external physical mouse cursor will be captured, this option can display Android system cursor</string>
     <string name="title_checkbox_multi_touch_gestures">Enable multi-touch gestures</string>
@@ -1288,8 +1314,8 @@
     <string name="title_virtual_trackpad_settings">Virtual Trackpad Settings</string>
     <string name="title_quit_dialog">Back Menu</string>
     <string name="summary_quit_dialog">When enabled, clicking the physical back button on the streaming interface will show related options!\nSoft keyboard, performance information, touch mode switching, send special keys</string>
-    <string name="title_floating_button">Floating Button</string>
-    <string name="summary_floating_button">Enable floating button</string>
+    <string name="title_floating_button">Touch Menu Button</string>
+    <string name="summary_floating_button">A button you can drag anywhere on the stream. A tap opens the Command Center.</string>
     <string name="dialog_custom_resolution">Set the resolution and exit the settings page to take effect!</string>
     <string name="summary_custom_resolution">Add a custom resolution, separated by x, strange resolutions may not work.\nFor example: 1920x1080\nIf it is a non-native resolution, it may not fill the notch area by default. If the aspect ratio is the same, you can manually set to stretch the screen to fill the full screen</string>
     <string name="title_custom_resolution">Custom Resolution</string>
@@ -1323,7 +1349,6 @@
     <string name="nova_update_downloading_title">Downloading Nova update</string>
     <string name="nova_update_downloading_message">Downloading Nova %1$s… %2$d%%</string>
     <string name="nova_update_verifying_message">Verifying downloaded APK…</string>
-    <string name="nova_update_installer_started">Android installer opened. Review the install prompt to finish updating Nova.</string>
     <string name="nova_update_no_apk_message">This release does not include a direct APK for this device.</string>
     <string name="nova_update_untrusted_url_message">Nova blocked this download because it was not a trusted Nova GitHub release APK.</string>
     <string name="nova_update_validation_failed_message">Nova could not safely validate the downloaded APK: %1$s</string>
@@ -1395,7 +1420,6 @@
     <string name="display_role_pending">Pending: %1$s</string>
     <string name="display_role_route_summary">Stream on %1$s · Companion on %2$s</string>
     <string name="display_role_apply">Apply</string>
-    <string name="display_role_cancel">Cancel</string>
     <string name="display_role_swap">Swap roles</string>
     <string name="display_role_next_stream">Role changes apply to the next stream. Active sessions are not moved.</string>
     <string name="display_role_resolution_refresh">%1$d × %2$d · %3$.1f Hz</string>
@@ -1426,7 +1450,7 @@
     <string name="title_touch_sensitivity_y">Screen Sensitivity Adjustment Y Axis</string>
     <string name="summary_touch_sensitivity_y">Multi-touch mode, when playing games, some games may not meet the sensitivity adjustment needs, you can use this option to modify the sensitivity of the field of view.</string>
     <string name="title_debug_info">Debug Info</string>
-    <string name="summary_debug_info">Test gamepad vibration and other stuff.</string>
+    <string name="summary_debug_info">Test controller vibration and see what Nova knows about this device.</string>
     <string name="title_touchpad_sensitivity_x">Touchpad Sensitivity X Axis</string>
     <string name="summary_touchpad_sensitivity_x">For mouse touchpad mode and virtual special button touchpad control;\nBoth share a sensitivity value, but the sensitivity performance may be different.\nDoes anyone use both together?</string>
     <string name="title_touchpad_sensitivity_y">Touchpad Sensitivity Y Axis</string>
@@ -1446,7 +1470,7 @@
     <string name="title_trackpad_swap_axis">Swap X and Y axis of the trackpad input</string>
     <string name="summary_trackpad_swap_axis">On some devices, trackpad input may be rotated in axis. Enabling this option may help.</string>
     <string name="title_checkbox_force_qwerty">Force QWERTY layout</string>
-    <string name="summary_checkbox_force_qwerty">Force use QWERTY keyboard layout.\nRequired by GFE.\nTurn off if you want to use a different keyboard layout.</string>
+    <string name="summary_checkbox_force_qwerty">Sends keys as a QWERTY keyboard. Turn it off to use another layout.</string>
     <string name="title_checkbox_back_as_meta">Back button as Meta</string>
     <string name="summary_back_as_meta">Send Meta(Win) key on physical back button press.</string>
     <string name="title_back_as_guide">Back button as Guide</string>
@@ -1468,7 +1492,7 @@
     <string name="summary_checkbox_gamepad_enable_battery_report">Report gamepad battery status when possible.\nDisable this option might help if you experience stutter with touch screen/touch pad/stylus/mouse input occasionally.</string>
     <string name="title_checkbox_enforce_display_mode">Enforce Display Mode</string>
     <string name="summary_checkbox_enforce_display_mode">Force surface to use the optimal display mode.\nRequired by some systems (such as ColorOS) to set refresh rate/resolution properly.\nDo not enable on ChromeCast 4K as it might lead to bugs.</string>
-    <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (experimental)</string>
+    <string name="title_checkbox_ultra_low_latency">Ultra Low Latency (Experimental)</string>
     <string name="summary_checkbox_ultra_low_latency">Only effective for SD8Gen2/8(s)Gen3/8Elite and MTK devices.</string>
    	<string name="title_checkbox_forceTightThresholds">Tight Vsync (Experimental)</string>
     <string name="summary_checkbox_forceTightThresholds">Tighter VSYNC thresholds for lower latency; may increase drops.</string>
@@ -1479,18 +1503,18 @@
     <string name="title_checkbox_enable_sticky_modifier_key_virtual_keyboard">Sticky modifier keys</string>
     <string name="summary_checkbox_enable_sticky_modifier_key_virtual_keyboard">Use sticky modifier keys on virtual full keyboard and custom onscreen keyboard.</string>
     <string name="virtual_keyboard_hide">Hide\nKBD</string>
-    <string name="mouse_mode_multi_touch">Multi touch</string>
-    <string name="mouse_mode_absolute_touch">Absolute touch</string>
-    <string name="mouse_mode_track_pad_natural">Track pad(Natural/Double tap to drag)</string>
-    <string name="mouse_mode_track_pad_gaming">Track pad(Gaming/Long press to drag)</string>
+    <string name="mouse_mode_multi_touch">Multi Touch</string>
+    <string name="mouse_mode_absolute_touch">Absolute Touch</string>
+    <string name="mouse_mode_track_pad_natural">Track Pad (natural, double tap to drag)</string>
+    <string name="mouse_mode_track_pad_gaming">Track Pad (gaming, long press to drag)</string>
     <string name="mouse_mode_disabled">Disabled</string>
-    <string name="mouse_mode_absolute_touch_swapped">Absolute touch (left/right click swapped)</string>
+    <string name="mouse_mode_absolute_touch_swapped">Absolute Touch (left and right click swapped)</string>
     <string name="keyboard_layout_set_1">Profile 1</string>
     <string name="keyboard_layout_set_2">Profile 2</string>
     <string name="keyboard_layout_set_3">Profile 3</string>
     <string name="keyboard_layout_set_4">Profile 4</string>
     <string name="keyboard_layout_set_5">Profile 5</string>
-    <string name="toggle_local_mouse_cursor">Toggle local mouse cursor(physical mouse needed)</string>
+    <string name="toggle_local_mouse_cursor">Toggle Local Mouse Cursor (needs a physical mouse)</string>
     <string name="debug_info_android_version">Android Version:</string>
     <string name="debug_info_api_version">API Version:</string>
     <string name="debug_info_kernel_version">Kernel Version:</string>
@@ -1501,10 +1525,8 @@
     <string name="debug_info_vibration_amplitude">Vibration Amplitude (%d)</string>
     <string name="debug_info_simple_vibration">Simple Vibration for 1 Second</string>
     <string name="debug_info_continuous_hd_vibration">Continuous HD Vibration</string>
-    <string name="debug_info_please_choose">Please Choose</string>
-    <string name="debug_info_no_gamepad_detected">No gamepad detected, please connect a gamepad, tap refresh, and try again!</string>
+    <string name="debug_info_no_gamepad_detected">No gamepad is connected. Connect one, press Refresh gamepad list, then try again.</string>
     <string name="debug_info_no_vibrator">No vibrator detected on the gamepad!</string>
-    <string name="debug_info_set_amplitude">Set Amplitude 0-255 (Effective only for HD Vibration)</string>
     <string name="debug_info_name">Name: </string>
     <string name="debug_info_sensors">Sensors: </string>
     <string name="debug_info_no_relevant_driver">None (no relevant driver or gamepad not supported)</string>
@@ -1527,20 +1549,14 @@
     <string name="pref_import_success">Import success!</string>
     <string name="pref_error_occurred">An error occurred: </string>
     <string name="pref_save_keyboard_profile">Save OSK profile</string>
-    <string name="game_menu_advanced">Advanced Menu</string>
     <string name="game_dialog_title_quit_confirm">End this Nova session?</string>
     <string name="game_dialog_message_quit_confirm">This closes the host app and the resumable stream. Use Disconnect from Command Center if you want the host to keep running.</string>
     <string name="game_dialog_action_end_session">End Session</string>
-    <string name="game_dialog_action_stay_in_game">Stay in Game</string>
-    <string name="game_menu_quit_session">Quit Session</string>
     <string name="game_menu_server_cmd">Server Commands</string>
-    <string name="game_menu_fetch_clipboard">Fetch Clipboard</string>
-    <string name="game_menu_upload_clipboard">Upload Clipboard</string>
-    <string name="game_dialog_title_server_cmd_empty">No Server Commands</string>
     <string name="game_dialog_message_server_cmd_empty">Make sure your host supports server commands and that this client has been granted the required permission.</string>
-    <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the server. Please make sure the SudoVDA driver is installed and enabled.</string>
-    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this server. Use a host that implements virtual display support, such as <a href=\"https://github.com/papi-ux/polaris\">Polaris</a>.]]></string>
-    <string name="clipboard_sync_unsupported">This server does not support clipboard sync. Install or upgrade a host that implements clipboard sync.</string>
+    <string name="vdisplay_not_ready">Virtual display driver isn\'t ready on the host. Please make sure the SudoVDA driver is installed and enabled.</string>
+    <string name="vdisplay_not_supported"><![CDATA[Virtual display isn\'t supported on this host. Use a host that implements virtual display support, such as <a href=\"https://github.com/papi-ux/polaris\">Polaris</a>.]]></string>
+    <string name="clipboard_sync_unsupported">This host does not support clipboard sync. Install or upgrade a host that implements clipboard sync.</string>
     <string name="send_clipboard_failed">Failed to send clipboard: </string>
     <string name="external_display_info">External Display connected with: %1$dx%2$d at %3$.1fHz</string>
     <string name="notification_channel_name">External Display Control</string>
@@ -1554,7 +1570,7 @@
     <string name="get_clipboard_success">Clipboard get successfully</string>
     <string name="proceed">Proceed</string>
     <string name="cancel">Cancel</string>
-    <string name="unlocking_or_starting">Server is starting or computer is unlocking, please wait…</string>
+    <string name="unlocking_or_starting">The host is starting or unlocking, please wait…</string>
     <string name="error_msg_permission_denied">Permission Denied</string>
     <string name="error_msg_timeout">Connection Timeout</string>
     <string name="permission_launch_app">Launch Apps</string>
@@ -1572,7 +1588,6 @@
     <string name="keyboard_add_keys">Add Keys</string>
     <string name="keyboard_select_keys">Select Keys to Add</string>
     <string name="keyboard_clear_all_confirm_title">Clear All Keys</string>
-    <string name="keyboard_clear_all_confirm_message">Are you sure you want to hide all on-screen controls? You can add them back later in configuration mode.</string>
     <string name="keyboard_keys_added">%d keys added successfully</string>
     <string name="keyboard_duplicates_skipped">%d duplicates were skipped</string>
     <string name="keyboard_configure_movable">You can now move the settings button.</string>
@@ -1585,19 +1600,17 @@
     <string name="title_checkbox_stretch_video" />
 
     <!-- ShortcutHelper Toast Messages -->
-    <string name="export_launcher_computer_details_incomplete">Cannot export: Computer details are incomplete.</string>
+    <string name="export_launcher_computer_details_incomplete">Cannot export: the host\'s details are incomplete.</string>
     <string name="export_launcher_app_details_incomplete">Cannot export: App details are incomplete.</string>
     <string name="failed_to_initiate_file_export">Failed to initiate file export: %s</string>
     <string name="file_export_failed_no_location_selected">File export failed: No location selected.</string>
     <string name="file_export_failed_no_content_to_write">File export failed: No content to write.</string>
-    <string name="file_exported_successfully">File exported successfully.</string>
     <string name="failed_to_open_file_for_writing">Failed to open file for writing.</string>
     <string name="error_writing_file">Error writing file: %s</string>
     <string name="unexpected_error_during_file_export">An unexpected error occurred during file export.</string>
 
     <!-- AppView Toast Messages -->
-    <string name="file_export_cancelled">File export cancelled.</string>
-    <string name="app_removed_from_pc">App removed from PC</string>
+    <string name="app_removed_from_pc">App removed from host</string>
     <string name="title_export_sunshine_launcher_file">Export Host Launcher File</string>
     <string name="message_export_sunshine_launcher_file">Launcher export is host-specific and may break after app metadata changes. Re-export after changing the app name or image.\nPolaris provides the most stable experience for this flow.</string>
 
@@ -1620,14 +1633,9 @@
     <string name="profile_manager_no_profiles_yet">No presets yet</string>
     <string name="profile_manager_profiles_description">Presets change picture quality and performance, such as resolution, frame rate, and bitrate. Spaces in Polaris keep separate sign-ins, games, and saves.</string>
     <string name="profile_manager_preset_name">Preset: %s</string>
-    <string name="profile_manager_tap_create_profile">Tap + to create your first preset</string>
+    <string name="profile_manager_tap_create_profile">No presets yet. Press + or tap it to make one.</string>
     <string name="profile_manager_choose_profile">Choose Preset</string>
-    <string name="profile_manager_deactivated_profile">Deactivated preset</string>
-    <string name="profile_manager_activated_profile">Activated preset \'%s\'</string>
-    <string name="profile_manager_delete_profile">Delete Preset</string>
-    <string name="profile_manager_confirm_profile_deleteion">Are you sure you want to delete \'%s\'?</string>
     <string name="profile_manager_delete">Delete</string>
-    <string name="profile_manager_profile_deleted">Deleted preset \'%s\'</string>
     <string name="profile_manager_failed_to_save">Could not save this preset. Try again.</string>
     <string name="profile_manager_failed_to_load">Could not load streaming presets. Reopen this screen to try again.</string>
     <string name="profile_manager_active_profile">Active Preset: %s</string>
@@ -1674,7 +1682,7 @@
     <string name="companion_deck_status_profile">Profile %1$s</string>
     <string name="nova_settings_modern">Modern</string>
     <string name="nova_server_manage">Manage</string>
-    <string name="nova_server_remove_failed">Couldn\'t remove server. Try again.</string>
+    <string name="nova_server_remove_failed">Couldn\'t remove the host. Try again.</string>
 
     <!-- Polaris artwork correction -->
     <string name="nova_artwork_title">Artwork</string>
@@ -1753,7 +1761,6 @@
     <string name="nova_artwork_library_update_policy">Checks every game and updates only missing or stale automatic artwork.</string>
     <string name="nova_artwork_library_update_preserve_custom">Manual and custom artwork is always preserved.</string>
     <string name="nova_artwork_library_update_start">Check All Games</string>
-    <string name="nova_artwork_library_update_start_hint">Provider traffic starts only after this action is pressed.</string>
     <string name="nova_artwork_library_update_running">%1$d of %2$d games checked</string>
     <string name="nova_artwork_library_update_cancel">Cancel Update</string>
     <string name="nova_artwork_library_update_cancel_hint">Stops queued games; up to two active requests may finish.</string>
@@ -1762,12 +1769,12 @@
     <string name="nova_artwork_library_update_complete">Artwork check complete.</string>
     <string name="nova_artwork_library_update_cancelled">Cancelled after %1$d of %2$d games.</string>
     <string name="nova_artwork_library_update_failed">The update stopped unexpectedly. No partial artwork generation was published.</string>
-    <string name="nova_artwork_library_update_unavailable">This Polaris server does not support library artwork updates yet. Update Polaris, then try again.</string>
+    <string name="nova_artwork_library_update_unavailable">This Polaris host does not support library artwork updates yet. Update Polaris, then try again.</string>
     <string name="nova_artwork_library_update_retry">Retry Failed Games</string>
     <string name="nova_artwork_library_update_retry_hint">Checks only the games that failed.</string>
     <string name="nova_artwork_library_update_retry_all">Try again</string>
     <string name="nova_artwork_library_update_retry_all_hint">Starts a new all-games artwork check.</string>
-    <string name="nova_stage_footer_brand">POLARIS CINEMATIC STAGE</string>
+    <string name="nova_library_footer_brand">NOVA LIBRARY</string>
     <!-- Were hardcoded English literals inside the settings search field. -->
     <string name="nova_settings_search_hint">Search Settings</string>
     <string name="nova_settings_search_clear">Clear</string>
@@ -1780,8 +1787,8 @@
     <string name="nova_library_launch_missing_session">Missing Polaris session details for launch</string>
     <string name="nova_library_resume_missing_session">Missing Polaris session details for resume</string>
     <!-- Were English literals in PcView.handleQrScanResult. -->
-    <string name="nova_qr_invalid_code">Invalid QR code, expected a Polaris pairing code</string>
-    <string name="nova_qr_missing_pairing_data">QR code is missing pairing data</string>
+    <string name="nova_qr_invalid_code">That QR code is not a Polaris pairing code.</string>
+    <string name="nova_qr_missing_pairing_data">That QR code has no pairing details in it.</string>
     <!-- Were English literals in StreamSettings. -->
     <string name="nova_settings_opening_legacy">Opening legacy settings for %1$s</string>
     <string name="nova_language_reset_restart">Language has been reset to default, please restart the app!</string>
@@ -1814,10 +1821,10 @@
     <string name="nova_space_change">Change Space</string>
     <string name="nova_space_changing">Changing Space…</string>
     <string name="nova_space_desktop">Desktop</string>
-    <string name="nova_space_desktop_caption">This computer’s usual games and desktop.</string>
+    <string name="nova_space_desktop_caption">The host’s usual games and desktop.</string>
     <string name="nova_space_current">Current Space</string>
     <string name="nova_space_bar_your_space">Your Space</string>
-    <string name="nova_space_bar_desktop">This computer</string>
+    <string name="nova_space_bar_desktop">Your Host</string>
     <string name="nova_space_bar_spaces">Spaces</string>
     <string name="nova_space_bar_unavailable">Unavailable on the host</string>
     <string name="nova_space_bar_none">None assigned</string>
@@ -1860,8 +1867,8 @@
     <string name="nova_space_retry_check">Retry Space Check</string>
     <string name="nova_space_launch_intro">Runs in %1$s, with its own sign-in and saves.</string>
     <string name="nova_space_where_it_opens">Where this game opens</string>
-    <string name="nova_space_option_desktop">Use this computer’s usual games and account.</string>
-    <string name="nova_space_option_desktop_missing">Not in this computer’s Desktop library. Use Change Space in the Library to switch to Desktop.</string>
+    <string name="nova_space_option_desktop">Use the host’s usual games and account.</string>
+    <string name="nova_space_option_desktop_missing">Not in the host’s Desktop library. Use Change Space in the Library to switch to Desktop.</string>
     <string name="nova_space_option_use">Use the sign-in and saves in %1$s.</string>
     <string name="nova_space_option_no_library">This Space has no game library yet.</string>
     <string name="nova_space_option_missing">Not in %1$s. Use Change Space in the Library to open that Space.</string>
@@ -1873,14 +1880,13 @@
     <string name="nova_space_play_blocked_unavailable">Space unavailable</string>
     <string name="nova_space_play_blocked_at_capacity">Host at capacity</string>
     <string name="nova_space_open_launcher">Open %1$s</string>
+    <string name="nova_space_launch_mode_unavailable">No launch mode is available for this Space. Check its launch settings in Polaris.</string>
     <string name="nova_space_play">Play</string>
     <string name="nova_space_profile_label_format">Space: %1$s</string>
     <string name="nova_space_in_format">In %1$s</string>
     <string name="nova_space_exit_notice">Save in your game before disconnecting. Leaving ends this Space’s game session.</string>
     <string name="nova_space_launch_issue_title">Space could not start</string>
     <string name="nova_space_launch_issue_default">Return to the library and try again. If this continues, open Spaces in Polaris and check Host Setup.</string>
-    <string name="nova_space_launch_issue_details">View Details</string>
-    <string name="nova_space_launch_issue_hide_details">Hide Details</string>
     <string name="nova_space_launch_issue_retry">Try Again</string>
     <string name="nova_space_launch_issue_back">Back to Library</string>
     <string name="nova_space_leave_title">Leave Space?</string>
@@ -1890,4 +1896,22 @@
     <string name="pcview_card_hint_spaces">Spaces available. Change Space from the library.</string>
     <string name="nova_pyrowave_profile_unavailable">This host does not offer the PyroWave profile this build of Nova can decode. Both ends have to carry the same codec revision. Nothing is wrong with your network.</string>
     <string name="nova_pyrowave_bitrate_low">PyroWave asks for about %1$d Mbps at this resolution and frame rate. Every frame is a keyframe, so a smaller budget goes on the frame rather than on the detail.</string>
+    <string name="wol_address_title">Wake-on-LAN address</string>
+    <string name="wol_address_caption">Set the LAN MAC address used to wake this host.</string>
+    <string name="wol_address_hint">AA:BB:CC:DD:EE:FF</string>
+    <string name="wol_address_description">Enter the MAC address of the host’s LAN adapter. Leave this empty to use the address reported by the host: %1$s. The host and network must support UDP wake packets.</string>
+    <string name="wol_address_unknown">not available</string>
+    <string name="wol_address_invalid">Enter a valid unicast MAC address, or leave this empty to use the host address.</string>
+    <string name="wol_address_save_failed">Could not save this address. Check that the host is still saved and try again.</string>
+    <string name="nova_pyrowave_checking">Checking PyroWave support on this device…</string>
+    <string name="nova_pyrowave_library_unavailable">PyroWave is unavailable in this build on your device. Update Nova or choose another codec.</string>
+    <string name="nova_pyrowave_decode_unavailable">PyroWave did not pass this device’s GPU capability or decode check. Choose another codec.</string>
+    <string name="nova_pyrowave_compute_unavailable">PyroWave did not pass the GPU decode path Nova uses. Choose another codec.</string>
+    <string name="nova_pyrowave_gpu_features_unavailable">This device’s graphics driver is missing features PyroWave needs: %1$s. Choose another codec, such as HEVC.</string>
+    <string name="nova_pyrowave_feature_shader_int16">16-bit shader integers</string>
+    <string name="nova_pyrowave_feature_storage_16bit">16-bit storage</string>
+    <string name="nova_pyrowave_feature_storage_8bit">8-bit storage</string>
+    <string name="nova_pyrowave_feature_timeline">timeline semaphores</string>
+    <string name="nova_pyrowave_feature_subgroup_size">subgroup size control</string>
+    <string name="nova_pyrowave_feature_full_subgroups">full compute subgroups</string>
 </resources>

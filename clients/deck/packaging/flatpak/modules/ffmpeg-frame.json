@@ -1,0 +1,39 @@
+{
+  "name": "ffmpeg-frame",
+  "only-arches": [
+    "aarch64"
+  ],
+  "buildsystem": "autotools",
+  "config-opts": [
+    "--prefix=/app",
+    "--libdir=/app/lib",
+    "--enable-shared",
+    "--disable-static",
+    "--disable-debug",
+    "--disable-doc",
+    "--disable-autodetect",
+    "--enable-pic",
+    "--enable-vaapi",
+    "--enable-v4l2-m2m",
+    "--enable-libdrm",
+    "--enable-vulkan",
+    "--enable-openssl"
+  ],
+  "post-install": [
+    "install -Dm644 COPYING.LGPLv2.1 /app/share/licenses/ffmpeg/COPYING.LGPLv2.1",
+    "install -Dm644 COPYING.LGPLv3 /app/share/licenses/ffmpeg/COPYING.LGPLv3",
+    "install -Dm644 LICENSE.md /app/share/licenses/ffmpeg/LICENSE.md"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://github.com/FFmpeg/FFmpeg.git",
+      "commit": "f46e514491172d15bd74b4abb1814cd2f05a763e",
+      "disable-submodules": true
+    },
+    {
+      "type": "patch",
+      "path": "ffmpeg-nova-v4l2.patch"
+    }
+  ]
+}

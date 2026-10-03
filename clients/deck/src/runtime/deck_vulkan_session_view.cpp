@@ -45,7 +45,7 @@ void DeckVulkanSessionView::attach(QObject* popup) {
     if (!parent || !parent->window()) return;
     popup_ = popup; originalParent_ = parent; library_ = parent->window();
     error_.clear(); ready_ = false;
-    if (!session_.setPresentationSink(&window_, &window_, window_.composedFrames())) {
+    if (!session_.setPresentationSink(&window_, &window_, window_.composedFrames(), window_.cpuUploadCompositions())) {
         error_ = QStringLiteral("The streaming display is busy. Return to the library and try again.");
         restore(true); emit changed(); return;
     }

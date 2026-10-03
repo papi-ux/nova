@@ -22,6 +22,28 @@ def command(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True, timeout=15).stdout.strip()
 
 
+def paging_navigation(wait, keys, state):
+    before = state()
+    index = before["visibleGames"].index(before["game"])
+    count = before["columns"] * max(1, before["rowsVisible"])
+    expected = before["visibleGames"][min(len(before["visibleGames"]) - 1, index + count)]
+    keys("Page_Down")
+    wait(lambda s: s.get("game") == expected and s.get("focus") == expected and s.get("selectionVisible"))
+    keys("Page_Up")
+    wait(lambda s: s.get("game") == before["visibleGames"][max(0, min(len(before["visibleGames"]) - 1, index + count) - count)])
+    selected = state()["game"]
+    keys("Return")
+    wait(lambda s: s.get("detailOpen"))
+    keys("Page_Down")
+    assert state()["game"] == selected, "shoulder paged behind details"
+    keys("Escape")
+    wait(lambda s: not s.get("detailOpen") and s.get("focus") == selected)
+    keys("Up", "Up", "Up", "Return")
+    wait(lambda s: s.get("optionsOpen"))
+    keys("Escape")
+    wait(lambda s: not s.get("optionsOpen"))
+
+
 def experience_navigation(wait, keys, state, save_capture, window):
     keys("Return")
     focus_game_play(wait, keys)
@@ -128,7 +150,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     # At large text, dense details scroll independently while Play stays fixed.
     keys("Left", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-portable_chrome")
-    keys("Down", "Down", "Down", "Return", "Escape", "Escape", "Down")
+    keys("Down", "Down", "Down", "Down", "Return", "Escape", "Escape", "Down")
     wait(lambda s: s.get("theme") == "high_contrast" and s.get("focus") == "game-42" and s.get("launchEnabled"))
     save_capture("library-high-contrast-large-960.png")
     keys("Return")
@@ -157,7 +179,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
     assert state()["overview"]["playY"] == action_y
     keys("Escape", "Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen"))
-    keys("Up", "Up", "Up", "Return", "Escape", "Escape", "Down")
+    keys("Up", "Up", "Up", "Up", "Return", "Escape", "Escape", "Down")
     wait(lambda s: s.get("theme") == "portable_chrome" and s.get("focus") == "game-42")
     # Explicit pointer activation must return the controller to that same card.
     card = state()["cards"][0]
@@ -198,19 +220,28 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
 def appearance_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
     wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-polaris")
-    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "high_contrast")):
+    for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "director", "high_contrast")):
         if index:
             keys("Down")
         keys("Return")
         wait(lambda s: s.get("theme") == theme and s.get("focus") == "appearance-theme-" + theme and s.get("focusVisible"))
         save_capture("appearance-" + theme + ".png")
-    keys("Down", "Return", "Return")
+    # Three density choices precede the draft-and-save text editor.
+    keys("Down", "Down", "Down", "Down", "Return")
+    wait(lambda s: s.get("focus") in ("text-size-settings-popup-decrease", "text-size-settings-popup-increase"))
+    keys("Right" if state()["focus"].endswith("decrease") else "Left")
+    wait(lambda s: s.get("focus") == "text-size-settings-popup-value")
+    keys("ctrl+a")
+    command("xdotool", "type", "--clearmodifiers", "130")
+    keys("Return")
+    wait(lambda s: s.get("focus") == "text-size-settings-popup-save")
+    keys("Return")
     wait(lambda s: s.get("fontScale") == 1.3 and s.get("focus") == "appearance-text-size" and s.get("focusVisible"))
     command("xdotool", "windowsize", window, "960", "600")
     wait(lambda s: s.get("focusVisible"))
     save_capture("appearance-large-text-960.png")
-    # Text size is followed by the two saved in-game visibility controls.
-    keys("Down", "Down", "Down", "Return")
+    # Text size is followed by visibility, opacity and the shortcut hint.
+    keys("Down", "Down", "Down", "Down", "Return")
     wait(lambda s: not s.get("appearanceOpen") and s.get("focus") == "library-appearance" and s.get("focusVisible"))
     keys("Escape", "Down")
     wait(lambda s: s.get("focus") == s.get("game") and s.get("launchEnabled"))
@@ -221,7 +252,7 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: s.get("appearanceOpen"))
     # Every choice remains reachable at large text. Choose Portable Chrome for
     # the restart check; switching theme must not reset the larger font.
-    keys(*(["Up"] * 3), "Return")
+    keys(*(["Up"] * 4), "Return")
     wait(lambda s: s.get("theme") == "portable_chrome" and s.get("fontScale") == 1.3)
     keys("Escape", "Escape")
 
@@ -497,8 +528,18 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, se
         command("xdotool", "mousemove", "--window", window, str(point["x"]), str(point["y"]), "click", "1")
         wait(lambda s: s.get("playSetup", {}).get("choicesOpen"))
 
+    # Actual standalone HTTP->backend->Main model->Play Setup, beyond the
+    # direct QML/worker fixture. This host hint must not disable ordinary codecs.
+    capture_words = "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."
+    host["capture"]["pyrowave_unavailable"] = {"reason": "fp16_capture", "message": capture_words}
+    wait(lambda s: s.get("streamCapabilities", {}).get("pyrowaveUnavailableReason") == "fp16_capture")
+    assert state()["streamCapabilities"]["pyrowaveUnavailableMessage"] == capture_words
     review()
     plan = state()["playSetup"]["streamPlan"]
+    assert state()["playSetup"]["playEnabled"], "capture refusal disabled ordinary H.264"
+    for codec in plan["codecs"]:
+        if codec["videoCodec"] == "pyrowave":
+            assert codec["detail"] == capture_words, "standalone lost the PC's exact PyroWave refusal"
     assert [rate["fps"] for rate in plan["rates"]] == [30, 60], "host rate became unsupported client rate"
     assert plan["videoLabel"] == "H.264 · SDR" and plan["resolutions"][-1]["recommended"], "effective format/recommendation missing"
     resolution()
@@ -522,7 +563,7 @@ def stream_plan_navigation(wait, keys, state, fixtures, save_capture, window, se
     host["capture"]["codecs"] = ["hevc"]
     wait(lambda s: s.get("streamCapabilities", {}).get("h264") is False and not s.get("busy"))
     review()
-    assert not state()["playSetup"]["playEnabled"] and "selected codec" in state()["playSetup"]["streamPlan"]["reason"]
+    assert not state()["playSetup"]["playEnabled"] and "This PC does not offer the selected video codec" in state()["playSetup"]["streamPlan"]["reason"]
     save_capture("stream-plan-codec-unavailable.png")
     close()
     host["capture"]["codecs"] = ["h264", "hevc"]
@@ -662,7 +703,20 @@ def artwork_navigation(wait, keys, state, fixtures, save_capture):
     a = fixtures["a"]
     wait(lambda s: s.get("game") == "game-42" and s.get("artwork", {}).get("heroReady"))
     save_capture("artwork-grid.png")
-    keys("Up", "Up", "Up", "Return", "Return", "Return", "Escape", "Down", "Down", "Down")
+    for target in ("library-filter-all", "library-search", "library-options"):
+        keys("Up")
+        wait(lambda s: s.get("focus") == target)
+    keys("Return")
+    wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
+    for layout in ("compact", "stage"):
+        keys("Return")
+        wait(lambda s: s.get("layout") == layout and s.get("optionsOpen")
+             and s.get("focus") == "library-layout-option")
+    keys("Escape")
+    wait(lambda s: not s.get("optionsOpen") and s.get("focus") == "library-options")
+    for target in ("library-search", "library-filter-all", "game-42"):
+        keys("Down")
+        wait(lambda s: s.get("focus") == target)
     wait(lambda s: s.get("layout") == "stage" and s.get("focus") == "game-42" and s.get("artwork", {}).get("iconReady"))
     keys("Left")
     wait(lambda s: s.get("focus") == "game-7" and s.get("artwork", {}).get("heroReady") and s["artwork"]["iconReady"])
@@ -795,7 +849,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
             wait(lambda s: s.get("focus") != previous)
         assert state()["focus"].startswith("library-filter-"), state()
         keys(*(["Left"] * 4 + ["Right"] * index))
-        expected = ["all", "recent", "source", "hdr", "more"][index]
+        expected = ["all", "recent", "source", "more"][index]
         wait(lambda s: s.get("focus") == "library-filter-"+expected)
 
     def visible(ids, **expected):
@@ -811,12 +865,13 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
         wait(lambda s: not s.get("filterChoicesOpen") and not s.get("sortChoicesOpen"))
 
     def sort(index, mode):
+        selected = state()["game"]
         filter_focus(0)
         keys("Up", "Up", "Return")
         wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
         keys("Down", "Return")
         choose(index, "sort")
-        wait(lambda s: s.get("sort") == mode)
+        wait(lambda s: s.get("sort") == mode and s.get("game") == selected)
         keys("Escape", "Down", "Down", "Down")
         wait(lambda s: s.get("focus") == s.get("game"))
 
@@ -826,6 +881,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     assert "2024" in state()["lastPlayedLabel"], "epoch seconds rendered as a 1970 date"
     save_capture("android-details-metadata.png")
     keys("Escape")
+    wait(lambda s: not s.get("detailOpen") and s.get("focus") == s.get("game"))
     filter_focus(1)
     keys("Return")
     visible([42, 106, 7, 103], filter="recent", focus="library-filter-recent")
@@ -845,7 +901,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     keys("Escape")
     wait(lambda s: s.get("filter") == "all" and s.get("query") == "")
 
-    filter_focus(4)
+    filter_focus(3)
     keys("Return")
     choose(1, "category")
     visible([7, 103, 106], filter="category", filterValue="cinematic")
@@ -859,22 +915,32 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("filter") == "all" and s.get("focus") == s.get("game"))
     sort(3, "name-desc")
     visible([106, 42, 7, 105, 104, 103], sort="name-desc")
-    sort(5, "hdr")
-    visible([103, 105, 7, 104, 42, 106], sort="hdr")
-    filter_focus(3)
+    sort(4, "source")
+    visible([7, 103, 105, 42, 106, 104], sort="source")
+    # Select the same explicit game through the observed grid geometry. A
+    # density/font change may move it to another row; it must not change identity.
+    for _ in range(len(state()["visibleGames"])):
+        snapshot = state()
+        if snapshot["game"] == "game-106":
+            break
+        current = snapshot["visibleGames"].index(snapshot["game"])
+        target = snapshot["visibleGames"].index("game-106")
+        direction = "Right" if current < target else "Up" if current % snapshot["columns"] == 0 else "Left"
+        keys(direction)
+        wait(lambda s: s.get("game") != snapshot["game"] and s.get("focus") == s.get("game"))
+    wait(lambda s: s.get("focus") == "game-106" and s.get("game") == "game-106")
     keys("Return")
-    visible([103, 105, 7], filter="hdr")
-    keys("Down")
-    wait(lambda s: s.get("focus") == s.get("game"))
-    keys("Return")
-    wait(lambda s: s.get("detailOpen"))
-    assert state()["metadata"]["hdrSupported"] is True
-    save_capture("android-hdr-details.png")
+    wait(lambda s: s.get("detailOpen") and s.get("game") == "game-106")
+    # hdr_supported remains a parsed wire field, not a per-title HDR claim.
+    selected_payload = next(game for game in fixtures["a"]["metadata"] if game["id"] == "game-106")
+    assert state()["metadata"]["hdrSupported"] == selected_payload["hdr_supported"]
+    metadata_before = {key: value for key, value in state()["metadata"].items() if key != "hdrSupported"}
+    save_capture("android-source-details.png")
     keys("Escape")
-    filter_focus(3)
+    filter_focus(0)
 
-    # Change only metadata, with unchanged IDs/titles. Automatic refresh must
-    # rebuild the filtered view and retire a removed selection's Play action.
+    # The host's HDR support bit is not evidence that a game renders in HDR.
+    # Changing only that bit must preserve the games and selected Play action.
     a = fixtures["a"]
     a["entered"].clear()
     a["release"].clear()
@@ -882,11 +948,13 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("busy") and s.get("automatic"))
     assert a["entered"].wait(3), "automatic Polaris list read never arrived"
     for game in a["metadata"]:
-        if game["app_id"] in (7, 103):
-            game["hdr_supported"] = False
+        game["hdr_supported"] = True
     a["release"].set()
-    visible([105], filter="hdr", busy=False, focus="game-105")
-    save_capture("android-hdr-refreshed.png")
+    visible([7, 103, 105, 42, 106, 104], filter="all", sort="source", busy=False, focus="game-106")
+    assert state()["game"] == "game-106" and state()["launchEnabled"]
+    assert state()["metadata"]["hdrSupported"] is True, "uniform host HDR metadata was not parsed"
+    assert {key: value for key, value in state()["metadata"].items() if key != "hdrSupported"} == metadata_before
+    save_capture("android-source-refreshed.png")
 
     # Switching to a standard host resets host-specific constraints. It has no
     # play history, and that empty state must offer a local way back to games.
@@ -902,7 +970,7 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     save_capture("android-no-recent-games.png")
     keys("Return")
     wait(lambda s: s.get("filter") == "all" and s.get("focus") == "gamestream-app-7")
-    filter_focus(4)
+    filter_focus(3)
     keys("Return")
     wait(lambda s: s.get("filterChoicesOpen") and s.get("focus") == "library-choice-back")
     keys("Escape")
@@ -913,10 +981,88 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("pickerOpen") and s.get("focus") == "b")
     keys("Up", "Return")
     wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == s.get("game"))
-    filter_focus(4)
+    filter_focus(3)
     keys("Return")
     choose(5, "genre")
-    visible([7, 106], filter="genre", filterValue="Puzzle", sort="hdr")
+    visible([7, 106], filter="genre", filterValue="Puzzle", sort="source")
+
+
+def steam_app_navigation(wait, keys, state, save_capture, window):
+    keys("Up", "Up", "Up", "Right", "Return")
+    wait(lambda s: s.get("systemOpen"))
+    for _ in range(14):
+        if state().get("focus") == "library-add-nova-steam":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-add-nova-steam")
+    keys("Return")
+    wait(lambda s: s.get("appShortcut", {}).get("opened") and s.get("focus") == "app-steam-add")
+    assert not state()["appShortcut"]["status"]["busy"] and not state()["appShortcut"]["status"]["ok"]
+    save_capture("add-nova-steam-1280.png")
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("add-nova-steam-960.png")
+    keys("Escape")
+    wait(lambda s: not s.get("appShortcut", {}).get("opened") and s.get("focus") == "library-add-nova-steam")
+    keys("Escape")
+    wait(lambda s: not s.get("systemOpen"))
+
+def handoff_limits_navigation(wait, keys, state, save_capture, window, record):
+    title = state()["title"]
+    keys("Right")
+    wait(lambda s: s.get("focus") == "handoff-primary-action")
+    keys("Return")
+    wait(lambda s: s.get("handoffReview", {}).get("opened") and s.get("focus") == "moonlight-review-continue")
+    assert not record.exists(), "review started Moonlight before confirmation"
+    limits = state()["handoffReview"]["limits"]
+    assert all(word in limits for word in ("NovaHUD", "Command Center", "Doctor", "Live Bitrate", "PyroWave")), limits
+    save_capture("moonlight-handoff-review-1280.png")
+    keys("Escape")
+    wait(lambda s: not s.get("handoffReview", {}).get("opened") and s.get("focus") == "handoff-primary-action")
+    assert not record.exists(), "Back launched Moonlight"
+    keys("Return")
+    wait(lambda s: s.get("handoffReview", {}).get("opened"))
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("moonlight-handoff-review-960.png")
+    keys("Return")
+    wait(lambda s: not s.get("handoffReview", {}).get("opened") and record.exists())
+    assert record.read_text().splitlines() == ["stream", "a", title, "--display-mode", "fullscreen"], record.read_text()
+
+
+def wake_pc_navigation(wait, keys, state, save_capture, window):
+    keys("Up", "Up", "Up", "Right", "Return")
+    wait(lambda s: s.get("systemOpen"))
+    for _ in range(12):
+        if state().get("focus") == "library-wake-pc":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-wake-pc")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and s.get("focus") == "host-wake-mac")
+    assert state()["hostWake"]["status"]["hostId"] == "a" and not state()["hostWake"]["status"]["canWake"]
+    save_capture("wake-first-open-1280.png")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("keyboardOpen"))
+    command("xdotool", "type", "--clearmodifiers", "02:11:22:33:44:55")
+    keys("Return")
+    wait(lambda s: not s.get("hostWake", {}).get("keyboardOpen") and s.get("hostWake", {}).get("dirty"))
+    assert not state()["hostWake"]["status"]["canWake"], "editor Done saved a MAC"
+    keys("Down", "Return")
+    wait(lambda s: s.get("hostWake", {}).get("status", {}).get("mac") == "02:11:22:33:44:55" and s.get("focus") == "host-wake-send")
+    save_capture("wake-saved-1280.png")
+    keys("Escape")
+    wait(lambda s: not s.get("hostWake", {}).get("opened") and s.get("focus") == "library-wake-pc")
+    keys("Return")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and s.get("focus") == "host-wake-send")
+    command("xdotool", "windowsize", window, "960", "600")
+    save_capture("wake-saved-960.png")
+    keys("Up", "Up", "Return")
+    wait(lambda s: s.get("hostWake", {}).get("keyboardOpen"))
+    keys("Escape")
+    wait(lambda s: s.get("hostWake", {}).get("opened") and not s.get("hostWake", {}).get("keyboardOpen") and s.get("focus") == "host-wake-mac")
+    keys("Escape")
+    wait(lambda s: not s.get("hostWake", {}).get("opened") and s.get("focus") == "library-wake-pc")
+    keys("Escape")
+    wait(lambda s: not s.get("systemOpen") and s.get("focus") == "library-system")
 
 
 def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
@@ -1006,7 +1152,11 @@ def host_scope_navigation(wait, keys, state, fixtures, save_capture, window, set
     activate_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     original = state()["playSetup"]["configuration"]
-    keys("Left", "Left", "Up")
+    keys("Down")
+    wait(lambda s: s.get("focus") == "play-setup-resolution")
+    keys("Up")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Up")
     wait(lambda s: s.get("focus") == "play-setup-every-game")
     keys("Return")
     settled()
@@ -1106,12 +1256,28 @@ def profile_sync_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: status(s).get("phase") == "ready" and
              status(s).get("settings", {}).get("desiredDisplay") == expected_display and
              s.get("focus") == "host-defaults-back")
-    keys("Return", "Return")
+    # Hold the automatic list refresh to reproduce opening details before Play
+    # is enabled. Its completion must preserve Back focus, so the route must
+    # explicitly choose the now-ready Play action before sending Return.
+    fixture["entered"].clear()
+    fixture["release"].clear()
+    try:
+        wait(lambda s: s.get("busy") and s.get("automatic") and fixture["entered"].is_set())
+        keys("Return")
+        wait(lambda s: s.get("detailOpen") and s.get("focus") == "game-detail-back"
+             and not s.get("launchEnabled"))
+    finally:
+        fixture["release"].set()
+    wait(lambda s: s.get("detailOpen") and not s.get("busy") and s.get("launchEnabled")
+         and s.get("focus") == "game-detail-back")
+    activate_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     # Keep an explicit game bitrate while importing the other device defaults.
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
-    keys("Left", "Up")
+    keys("Left")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Up")
     wait(lambda s: s.get("focus") == "play-setup-every-game")
     keys("Return")
     wait(lambda s: host(s).get("opened") and status(s).get("phase") == "ready")
@@ -1285,7 +1451,11 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
-    keys("Left", "Up", "Return")
+    keys("Left")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Up")
+    wait(lambda s: s.get("focus") == "play-setup-every-game")
+    keys("Return")
     wait(lambda s: status(s).get("phase") == "ready")
     time.sleep(3.2)
     assert status()["keepInStep"] == "off" and not fixture["settings_posts"]
@@ -1403,6 +1573,8 @@ def setup_parity_navigation(wait, keys, state, fixtures, save_capture, window):
     values(width=1280, height=800, fps=60, bitrateKbps=30000, faceButtonLayout="positions")
     assert not setup()["overrides"]["resolution"] and setup()["overrides"]["bitrateKbps"]
     keys("Left")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Return")
     wait(lambda s: s.get("focus") == "play-setup-plan")
     keys(*(["Down"] * 8))
     wait(lambda s: s["playSetup"]["readPlan"]["scroll"] > 0)
@@ -1410,6 +1582,8 @@ def setup_parity_navigation(wait, keys, state, fixtures, save_capture, window):
     keys("Right")
     wait(lambda s: s.get("focus") == "play-setup-resolution")
     save_capture("setup-space-large-960.png")
+    keys("Escape")
+    wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "play-setup-plan-summary")
     keys("Escape")
     wait(lambda s: not s.get("nativePreviewOpen") and s.get("detailOpen"))
     keys("Escape")
@@ -1589,7 +1763,12 @@ def main():
     parser.add_argument("--audio-settings", action="store_true")
     parser.add_argument("--appearance", action="store_true")
     parser.add_argument("--host-power", action="store_true")
+    parser.add_argument("--paging", action="store_true")
+    parser.add_argument("--wake-pc", action="store_true")
+    parser.add_argument("--steam-app", action="store_true")
+    parser.add_argument("--handoff-limits", action="store_true")
     args = parser.parse_args()
+    args.host_power = args.host_power or args.wake_pc or args.steam_app or args.handoff_limits
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
@@ -1661,6 +1840,8 @@ def main():
                 elif secure and path == "/polaris/v1/client-settings" and "catalog" in fixture:
                     status = fixture.get("catalog_status", 200)
                     body = json.dumps(fixture["catalog"])
+                elif args.handoff_limits and secure and path == "/polaris/v1/session/status":
+                    body = json.dumps({"state": "idle", "streaming_active": False})
                 elif args.host_scope and secure and path == "/polaris/v1/session/status":
                     body = json.dumps({"state": "idle" if fixture["host_idle"] else "streaming", "streaming_active": not fixture["host_idle"],
                                        "game_uuid": "" if fixture["host_idle"] else "fixture-active"})
@@ -1845,17 +2026,18 @@ def main():
             if args.stage and host_id == "a":
                 fixture["games"][-1] = (123, "Southern Sky — A Very Long Journey Beyond the Northern Constellations and Distant Stars")
             if args.filters and host_id == "a":
+                # This is host/capture support, shared by every listed title.
                 fixture["metadata"] = [
                     {"id": f"game-{app_id}", "app_id": app_id, "name": title, "source": source,
                      "platform": platform, "runtime": runtime, "category": category, "genres": genres,
-                     "hdr_supported": hdr, "last_launched": recent, "installed": True}
-                    for app_id, title, source, platform, runtime, category, genres, hdr, recent in (
-                        (7, "Moonlit Harbor", "steam", "linux", "proton", "cinematic", ["Adventure", "Puzzle"], True, 1718190000),
-                        (42, "Orbit & Beyond", "heroic", "windows", "wine", "fast_action", ["Action"], False, 1718200000),
-                        (103, "Amber Orchard", "steam", "linux", "native", "cinematic", ["Adventure"], True, 1718180000),
-                        (104, "Desktop", "manual", "linux", "native", "desktop", [], False, 0),
-                        (105, "Lunar Rally", "lutris", "windows", "wine", "fast_action", ["Racing"], True, 0),
-                        (106, "Orbit Architect", "heroic", "linux", "native", "cinematic", ["puzzle"], False, 1718200000),
+                     "hdr_supported": False, "last_launched": recent, "installed": True}
+                    for app_id, title, source, platform, runtime, category, genres, recent in (
+                        (7, "Moonlit Harbor", "steam", "linux", "proton", "cinematic", ["Adventure", "Puzzle"], 1718190000),
+                        (42, "Orbit & Beyond", "heroic", "windows", "wine", "fast_action", ["Action"], 1718200000),
+                        (103, "Amber Orchard", "steam", "linux", "native", "cinematic", ["Adventure"], 1718180000),
+                        (104, "Desktop", "manual", "linux", "native", "desktop", [], 0),
+                        (105, "Lunar Rally", "lutris", "windows", "wine", "fast_action", ["Racing"], 0),
+                        (106, "Orbit Architect", "heroic", "linux", "native", "cinematic", ["puzzle"], 1718200000),
                     )]
             fixture["release"].set()
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -1889,6 +2071,20 @@ def main():
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                    XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="xcb", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR="1",
                    QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1")
+        record = root/"moonlight-argv.txt"
+        if args.handoff_limits:
+            def ini_bytes(value):
+                return "@ByteArray(" + value.replace("\\", "\\\\").replace("\n", "\\n") + ")"
+            conf = root/"Moonlight.conf"
+            lines = ["[General]", "certificate="+ini_bytes(client), "key="+ini_bytes((root/"client.key").read_text()), "[hosts]", "size=2"]
+            for index, host in enumerate(hosts, 1):
+                for key, value in {"uuid":host["uuid"], "hostname":host["name"], "customname":"true", "manualaddress":host["address"], "manualport":host["http_port"], "srvcert":ini_bytes(host["server_certificate"])}.items():
+                    lines.append(str(index)+"\\"+key+"="+str(value))
+            conf.write_text("\n".join(lines)+"\n")
+            recorder = root/"moonlight-recorder"
+            recorder.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+str(record)+"'\n")
+            recorder.chmod(0o700)
+            env.update(NOVA_DECK_MOONLIGHT_CONF=str(conf), NOVA_DECK_MOONLIGHT_BIN=str(recorder))
         if args.spaces or args.readability:
             (root/"config/Nova").mkdir(parents=True)
             (root/"config/Nova/NovaDeck.conf").write_text("[Appearance]\ntextScale=1.3\n")
@@ -1905,9 +2101,10 @@ def main():
         # The filter route sends hundreds of keys, each acknowledged by Qt.
         # Its old 42-second lifetime could end before the final host switch;
         # retain the independent 70-second CTest deadline and per-state waits.
-        app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
+        app = subprocess.Popen([str(args.binary.resolve()), "--live" if args.handoff_limits else "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+
                                env=env, stdout=output, stderr=output)
 
         def state():
@@ -1957,9 +2154,14 @@ def main():
             window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             wait(lambda s: s.get("windowActive"))
-            keys("Right")
-            wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
-            if args.readability:
+            if not args.handoff_limits:
+                keys("Right")
+                wait(lambda s: s.get("game") == ("space.room-a.7" if args.spaces else prefix+"42"))
+            if args.handoff_limits:
+                handoff_limits_navigation(wait, keys, state, save_capture, window, record)
+            elif args.paging:
+                paging_navigation(wait, keys, state)
+            elif args.readability:
                 readability_navigation(wait, keys, state, save_capture, window)
             elif args.background_sync:
                 background_sync_navigation(wait, keys, state, fixtures, save_capture, window)
@@ -1974,6 +2176,10 @@ def main():
                 setup_parity_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.spaces:
                 spaces_navigation(wait, keys, state, fixtures, save_capture, window)
+            elif args.steam_app:
+                steam_app_navigation(wait, keys, state, save_capture, window)
+            elif args.wake_pc:
+                wake_pc_navigation(wait, keys, state, save_capture, window)
             elif args.host_power:
                 host_power_navigation(wait, keys, state, fixtures, save_capture, window)
             elif args.appearance:
@@ -2069,7 +2275,13 @@ def main():
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Right", "Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s["playSetup"]["configuration"]["bitrateKbps"] == 40000)
-                keys("Left", "Left", "Up", "Return")
+                keys("Down")
+                wait(lambda s: s.get("focus") == "play-setup-resolution")
+                keys("Up")
+                wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+                keys("Up")
+                wait(lambda s: s.get("focus") == "play-setup-every-game")
+                keys("Return")
                 def sync_status(s=None):
                     return (state() if s is None else s).get("playSetup", {}).get("hostDefaults", {}).get("status", {})
                 wait(lambda s: sync_status(s).get("phase") == "ready")
@@ -2163,7 +2375,7 @@ def main():
                 elif args.stage:
                     assert state()["layout"] == "stage" and state()["stageVisible"] and state()["selectionVisible"], "Stage did not survive restart"
                 elif args.filters:
-                    assert state()["filter"] == "genre" and state()["filterValue"] == "Puzzle" and state()["sort"] == "hdr", "filters/sort did not survive restart"
+                    assert state()["filter"] == "genre" and state()["filterValue"] == "Puzzle" and state()["sort"] == "source", "filters/sort did not survive restart"
                 else:
                     assert state()["layout"] == "compact" and state()["sort"] == "name", "library options did not survive restart"
                 assert identity.read_bytes() == before and not violations, "restart changed pairing or sent a mutation"
@@ -2188,7 +2400,7 @@ def main():
           if args.spaces else "manifest posters, hero/icon/logo presentation, stable caching, revision refresh, removal, denied assets and PC isolation"
           if args.artwork else "Play Setup choices, touch, cancellation, game/PC scope, reset, resizing and restart"
           if args.play_setup else "Stage rail, hero, review, touch, resizing, refresh, empty recovery, PC switching and persistence"
-          if args.stage else "Polaris metadata, five filters, sorting, search, refresh, PC switching and persistence"
+          if args.stage else "Polaris metadata, four filters, five truthful sorts, search, refresh, PC switching and persistence"
           if args.filters else "automatic updates, in-flight navigation, focus, pauses, reconnect and auth-stop"
           if args.automatic else "grid, details, back navigation, search, empty results, touch, options and viewport resizing"
           if args.experience else "async refresh, selected-game focus, PC switch, denied/empty lists and recovery"))

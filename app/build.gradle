@@ -17,16 +17,20 @@ def targetAbis = (project.findProperty("novaAbis") ?: "arm64-v8a,armeabi-v7a,x86
         .findAll { !it.isEmpty() }
 def fdroidBuild = project.findProperty("novaFdroid")?.toString()?.toBoolean() ?: false
 
-// A beta's version name carries the channel from its git tag, so a tester's report says
-// 1.4.13-beta.1 rather than an ambiguous "pre". Only the preRelease build type reads this.
-def novaVersionSuffix = providers.gradleProperty("novaVersionSuffix").getOrElse("-pre")
-if (!(novaVersionSuffix ==~ /^-(pre|beta\.[0-9]+|rc\.[0-9]+)$/)) {
-    throw new GradleException("novaVersionSuffix must be -pre, -beta.N or -rc.N")
+// Generic Beta builds say "beta" in the app, while a tagged build carries its exact channel
+// number. Keep accepting the old -pre build flag without displaying that retired label.
+// Only the preRelease build type reads this; its side-by-side package id remains .pre.
+def novaVersionSuffix = providers.gradleProperty("novaVersionSuffix").getOrElse("-beta")
+if (novaVersionSuffix == "-pre") {
+    novaVersionSuffix = "-beta"
+}
+if (!(novaVersionSuffix ==~ /^-(beta(?:\.[0-9]+)?|rc\.[0-9]+)$/)) {
+    throw new GradleException("novaVersionSuffix must be -beta, -beta.N or -rc.N (-pre is a legacy alias)")
 }
 
 // Bumped once per release, and the only version number here that is maintained by hand. Stable
 // reads it directly; the prerelease channel scales it, just below.
-def novaVersionCode = 54
+def novaVersionCode = 55
 
 // Successive betas of one version have to be distinguishable, and the sequence has to keep rising
 // across versions as well, because com.papi.nova.pre is a single application id: 1.4.14-beta.1 must
@@ -35,7 +39,7 @@ def novaVersionCode = 54
 // base + 3 and Android refuses the newer beta as a downgrade. Scaling the base gives every version
 // its own block of a hundred codes instead:
 //
-//   -pre      base * 100          an untagged build, below every tagged beta of the same version
+//   -beta     base * 100          an untagged build, below every tagged beta of the same version
 //   -beta.N   base * 100 + N      N is 1..49
 //   -rc.N     base * 100 + 50 + N an rc always outranks every beta of its own version
 //
@@ -166,7 +170,7 @@ android {
         minSdk 21
         targetSdk 36
 
-        versionName "1.4.13"
+        versionName "1.4.14"
         // Stable's code stays a hand-maintained pin, bumped once per release. The prerelease
         // channel derives from it; see novaPreReleaseVersionCode above.
         versionCode = novaVersionCode
@@ -427,6 +431,7 @@ androidComponents {
 
 dependencies {
     implementation platform('androidx.compose:compose-bom:2025.11.01')
+    testImplementation platform('androidx.compose:compose-bom:2025.11.01')
     androidTestImplementation platform('androidx.compose:compose-bom:2025.11.01')
 
     implementation 'org.bouncycastle:bcprov-jdk18on:1.85'
@@ -453,6 +458,10 @@ dependencies {
     implementation 'androidx.compose.foundation:foundation'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.ui:ui-tooling-preview'
+    // BackHandler and the OnBackPressedDispatcher owner for Compose; the panel back chain runs on it.
+    // Held at 1.8.2, the line appcompat already brings: activity 1.9 and later declare
+    // ComponentActivity.onNewIntent with a non-null Intent, which Game.onNewIntent(Intent?) does not override.
+    implementation 'androidx.activity:activity-compose:1.8.2'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 
     // Lifecycle and ViewModel
@@ -466,6 +475,8 @@ dependencies {
     testImplementation 'androidx.lifecycle:lifecycle-runtime-testing:2.8.7'
     testImplementation 'org.robolectric:robolectric:4.16.1'
     testImplementation 'org.mockito:mockito-core:5.23.0'
+    // Robolectric Compose tests for the panel foundation; ui-test-manifest (debug) supplies the activity.
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
 
     androidTestImplementation 'androidx.test.ext:junit:1.3.0'
     androidTestImplementation 'androidx.test:rules:1.7.0'

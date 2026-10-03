@@ -12,6 +12,7 @@
 #include <QTest>
 #include <QDir>
 #include <QSettings>
+#include <QJSValue>
 #include <iostream>
 using namespace nova::deck::runtime;
 namespace {
@@ -60,6 +61,65 @@ int main(int argc, char** argv) {
     engine.rootContext()->setContextProperty("windowMode", &windowController);
     bool warnings = false;
     QObject::connect(&engine, &QQmlEngine::warnings, [&](const QList<QQmlError>& es) { warnings = true; for (const auto& e : es) std::cerr << e.toString().toStdString() << '\n'; });
+    // These modes instantiate the real consumer, with an isolated store and no host transport.
+    if (app.arguments().contains("--parity-library-portrait") || app.arguments().contains("--parity-library-hdr")) {
+        const bool retiredHdr = app.arguments().contains("--parity-library-hdr");
+        QSettings saved;
+        saved.setValue("Library/layoutMode", "stage");
+        saved.setValue("Library/filterPrimary", retiredHdr ? "hdr" : "all");
+        saved.setValue("Library/sortMode", retiredHdr ? "hdr" : "library");
+        saved.setValue("Library/filterHost", "host"); saved.sync();
+        QQmlComponent libraryScene(&engine);
+        libraryScene.setData("import QtQuick\nimport QtQuick.Controls\nimport \"" + QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n" + R"(
+            ApplicationWindow {
+                width:400; height:800; visible:true
+                LibraryBrowser {
+                    id:library; objectName:"parity-library"; anchors.fill:parent
+                    settingsProvider:settings
+                    host:({id:"host",displayName:"A long living room computer name"})
+                    refreshState:({busy:false,automatic:false,failed:false,destinationPlayable:true,destinationName:"Desktop"})
+                    games:[{id:"one",title:"First game",hdrSupported:true},{id:"two",title:"Second game",hdrSupported:false}]
+                }
+                function state() { return library.state() }
+                function details() { library.openDetails(0) }
+            }
+        )", QUrl());
+        auto scene = std::unique_ptr<QObject>(libraryScene.create());
+        if (!scene) std::cerr << libraryScene.errorString().toStdString();
+        check(bool(scene), "actual LibraryBrowser parity scene failed");
+        auto* surface = qobject_cast<QQuickWindow*>(scene.get()); check(surface, "library window missing"); settle();
+        const auto snapshot = [&] {
+            QVariant answer; check(QMetaObject::invokeMethod(scene.get(), "state", Q_RETURN_ARG(QVariant, answer)), "library state unavailable");
+            return answer.canConvert<QJSValue>() ? answer.value<QJSValue>().toVariant().toMap() : answer.toMap();
+        };
+        const auto actual = snapshot();
+        if (retiredHdr) {
+            check(actual.value("filter") == "all" && actual.value("sort") == "library", "host-capability HDR preferences were not retired");
+            check(actual.value("visibleGames").toList().size() == 2, "HDR migration hid a game or changed its identity");
+            check(!find(surface->contentItem(), "library-filter-hdr"), "host HDR capability still offered as a per-game filter");
+            check(QMetaObject::invokeMethod(scene.get(), "details"), "cannot inspect actual game details"); settle();
+            std::function<bool(QQuickItem*)> hasHdrClaim = [&](QQuickItem* item) {
+                if (item->isVisible() && item->property("text").toString().contains("HDR supported by this game")) return true;
+                for (auto* child : item->childItems()) if (hasHdrClaim(child)) return true;
+                return false;
+            };
+            check(snapshot().value("metadata").toMap().value("hdrSupported").toBool(), "retirement erased the actual host capability metadata");
+            check(!hasHdrClaim(surface->contentItem()), "game details still describe host HDR support as a game capability");
+        } else {
+            check(!actual.value("stageVisible").toBool() && actual.value("layout") == "stage", "portrait Stage did not use Regular without rewriting the saved layout");
+            for (const auto* name : {"library-host-button", "library-options", "library-system", "library-settings", "library-filter-all", "library-filter-more"}) {
+                auto* control = find(surface->contentItem(), name); check(control, name);
+                const auto bounds = control->mapRectToScene(control->boundingRect());
+                check(bounds.left() >= 0 && bounds.right() <= surface->width() && bounds.top() >= 0 && bounds.bottom() <= surface->height(), "portrait library action escaped its actual window");
+            }
+            surface->resize(1280,800); settle();
+            check(snapshot().value("stageVisible").toBool() && snapshot().value("layout") == "stage", "landscape did not restore saved Stage");
+        }
+        check(reads == 0 && writes == 0 && settings.load("host","game") == override, "library navigation touched host or game settings");
+        check(!warnings, "library parity emitted QML warnings");
+        std::cout << (retiredHdr ? "Library HDR preference retirement passed\n" : "Library portrait and saved Stage restoration passed\n");
+        return 0;
+    }
     QQmlComponent component(&engine);
     component.setData("import QtQuick\nimport QtQuick.Controls\nimport QtCore\nimport \"" + QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n" + R"(
         ApplicationWindow {
@@ -82,6 +142,7 @@ int main(int argc, char** argv) {
                 function setAutomatic(value) { updateState=Object.assign({},updateState,{automatic:value}); return true }
                 function finishUpdate() { updateFinishes++ }
             }
+            readonly property bool hubOpened:hub.opened
             readonly property string themeId:NovaTheme.themeId
             readonly property real fontScale:NovaTheme.fontScale
             Settings { id:prefs; category:"Library"; property string layoutMode:"grid" }
@@ -123,6 +184,29 @@ int main(int argc, char** argv) {
     QMetaObject::invokeMethod(root.get(), "resetTheme"); settle();
     click("open-settings"); focused("settings-category-all");
     check(reads == 0 && writes == 0, "opening hub touched host");
+    if (app.arguments().contains("--parity-settings-search")) {
+        query("audio channels"); key(Qt::Key_Down); focused("settings-row-channels");
+        key(Qt::Key_Return); key(Qt::Key_Down); controllerBack();
+        focused("settings-row-channels");
+        check(settings.audioSettings()["channels"] == 2 && !item("settings-search")->property("text").toString().isEmpty(), "value-page Back saved a draft or cleared root search");
+        controllerBack();
+        check(root->property("hubOpened").toBool(), "Back from a matching row closed Settings instead of clearing root search");
+        check(item("settings-search")->property("text").toString().isEmpty(), "Back from a matching row did not clear root search");
+        within("settings-back");
+        check(reads == 0 && writes == 0 && settings.load("host","game") == override, "search Back crossed host/game scope");
+        controllerBack(); focused("open-settings");
+        std::cout << "Settings value-page Back, root search Back and exit passed\n"; return 0;
+    }
+    if (app.arguments().contains("--parity-settings-portrait")) {
+        window->resize(400,800); settle(); query("rumble"); key(Qt::Key_Down); focused("settings-row-rumble");
+        within("settings-row-rumble"); within("settings-search"); within("settings-back");
+        check(item("settings-search")->height() >= 48, "portrait search shrank its touch owner below 48px");
+        check(item("settings-row-rumble")->width() >= window->width() * 0.65, "portrait setting remained squeezed beside category rail/reset");
+        capture("settings-portrait-400");
+        check(reads == 0 && writes == 0 && settings.load("host","game") == override, "portrait review crossed host/game scope");
+        check(!warnings, "portrait Settings emitted QML warnings");
+        std::cout << "Settings portrait action geometry passed\n"; return 0;
+    }
     capture("settings-all-1280");
     // No updater backend leaves the Nova category empty. Directions and OK must
     // still reach a visible exit without a pointer or an invisible Clear action.
@@ -237,7 +321,7 @@ int main(int argc, char** argv) {
     check(find(window->contentItem(), "settings-choice-back") && settings.defaultFaceButtonLayout() == "labels", "failed write dismissed picker or changed value");
     key(Qt::Key_Escape); root->setProperty("provider", QVariant::fromValue(static_cast<QObject*>(&settings))); settle();
     query(""); click("settings-category-appearance"); click("settings-row-theme"); click("settings-choice-1");
-    click("settings-row-text"); click("settings-choice-2"); window->resize(960, 600); settle();
+    click("settings-row-text"); item("text-size-settings-popup-value")->setProperty("text", "130"); click("text-size-settings-popup-save"); window->resize(960, 600); settle();
     focused("settings-row-text"); within("settings-row-text"); within("settings-back");
     capture("settings-appearance-960-large");
     query("mouse"); click("settings-row-mouse");

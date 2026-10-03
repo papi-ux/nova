@@ -1,6 +1,9 @@
 #include "runtime/deck_play_settings.h"
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QThread>
+#include <atomic>
 #include <QFile>
 #include <QSettings>
 #include <QTemporaryDir>
@@ -153,6 +156,81 @@ int main(int argc, char** argv) {
     require(settings.streamPlan(forcedHevc, {{"h264", false}, {"hevc", true}}, {}).value("playable").toBool(), "HEVC-only PC rejected");
     require(!DeckPlaySettings{}.streamPlan(defaults, bothCodecs, {}).value("playable").toBool(), "unprobed decoder allowed playback");
     {
+        DeckPlaySettings noDecoder(file);
+        noDecoder.setVideoDecodeSupport({});
+        const auto missing = noDecoder.streamPlan(defaults, bothCodecs, {}).value("reason").toString();
+        require(missing.contains("H.264") && missing.contains("VA-API") && missing.contains("driver"),
+            "missing local H.264 decoder did not name VA-API and a driver next step");
+        auto hevc = defaults; hevc["videoCodec"] = "hevc";
+        const auto missingHevc = noDecoder.streamPlan(hevc, bothCodecs, {}).value("reason").toString();
+        require(missingHevc.contains("HEVC") && missingHevc.contains("VA-API"), "missing local HEVC decoder blamed the PC");
+        const auto frameEnvironment = qgetenv("NOVA_DECK_FRAME_V4L2");
+        qputenv("NOVA_DECK_FRAME_V4L2", "1");
+        require(noDecoder.streamPlan(hevc, bothCodecs, {}).value("reason").toString().contains("HEVC hardware decoder"),
+            "Frame decoder refusal did not identify its hardware path");
+        if (frameEnvironment.isNull()) qunsetenv("NOVA_DECK_FRAME_V4L2"); else qputenv("NOVA_DECK_FRAME_V4L2", frameEnvironment);
+        noDecoder.setVideoDecodeSupport({{1920, 1080}, {1920, 1080}});
+        const auto hostMissing = noDecoder.streamPlan(hevc, {{"h264", true}, {"hevc", false}}, {}).value("reason").toString();
+        require(!hostMissing.contains("driver") && hostMissing.contains("PC"), "host codec refusal was mislabeled as a local driver failure");
+    }
+    {
+#ifdef NOVA_DECK_BUILD_PYROWAVE
+        {
+            DeckPlaySettings lazy(directory.filePath("lazy-pyrowave.ini"));
+            lazy.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+            std::atomic<int> calls{0};
+            lazy.setPyrowaveProbe([&] {
+                ++calls;
+                QThread::msleep(60);
+                return nova::deck::stream::DeckPyrowaveProbeResult{{4096, 4096}, {}};
+            });
+            QVariantMap config = defaults;
+            const QVariantMap host{{"h264", true}, {"hevc", true}, {"pyrowave", true}, {"maxFps", 60}};
+            for (const auto* codec : {"h264", "hevc", "auto"}) {
+                config["videoCodec"] = codec;
+                require(lazy.streamPlan(config, host, {}).value("playable").toBool(), "ordinary codec lost support");
+            }
+            require(calls == 0, "ordinary codec triggered the PyroWave probe");
+            config["videoCodec"] = "pyrowave";
+            require(!lazy.streamPlan(config, host, {}).value("playable").toBool(), "unchecked PyroWave was playable");
+            QElapsedTimer wait; wait.start();
+            while (lazy.videoSupportRevision() == 0 && wait.elapsed() < 2000) {
+                QCoreApplication::processEvents(); QThread::msleep(1);
+            }
+            require(lazy.videoSupportRevision() == 1, "async probe did not notify the Play Setup binding");
+            require(lazy.streamPlan(config, host, {}).value("playable").toBool(), "successful lazy probe did not enable Play");
+            lazy.streamPlan(config, host, {});
+            require(calls == 1, "review repeated the cached PyroWave probe");
+        }
+        {
+            DeckPlaySettings failed(directory.filePath("failed-pyrowave.ini"));
+            failed.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+            const QString reason = "PyroWave device check timed out. Restart Nova to check again.";
+            failed.setPyrowaveProbe([reason] { return nova::deck::stream::DeckPyrowaveProbeResult{{}, reason}; });
+            auto config = defaults; config["videoCodec"] = "pyrowave";
+            const QVariantMap host{{"h264", true}, {"hevc", true}, {"pyrowave", true}, {"maxFps", 60}};
+            failed.streamPlan(config, host, {});
+            QElapsedTimer wait; wait.start();
+            while (failed.videoSupportRevision() == 0 && wait.elapsed() < 2000) {
+                QCoreApplication::processEvents(); QThread::msleep(1);
+            }
+            const auto plan = failed.streamPlan(config, host, {});
+            require(!plan.value("playable").toBool() && plan.value("reason") == reason,
+                "failed probe lost its named refusal or enabled Play");
+            bool unavailable = false;
+            for (const auto& row : plan.value("codecs").toList()) {
+                const auto codec = row.toMap();
+                if (codec.value("videoCodec") == "pyrowave")
+                    unavailable = codec.value("label").toString().endsWith(" · Unavailable");
+            }
+            require(unavailable, "failed probe did not label PyroWave unavailable");
+            for (const auto* codec : {"h264", "hevc"}) {
+                config["videoCodec"] = codec;
+                require(failed.streamPlan(config, host, {}).value("playable").toBool(),
+                    "PyroWave refusal disabled an ordinary codec");
+            }
+        }
+#endif
         DeckPlaySettings pyroSettings(directory.filePath("pyrowave.ini"));
         pyroSettings.setVideoDecodeSupport({.h264 = {4096, 4096}, .pyrowave = {1920, 1200}});
         auto pyro = defaults; pyro["videoCodec"] = "pyrowave";
@@ -179,6 +257,12 @@ int main(int argc, char** argv) {
         DeckPlaySettings noGpu;
         require(noGpu.streamPlan(pyro, host, {}).value("reason").toString().contains("Vulkan"), "GPU refusal did not explain the missing decoder");
         require(pyroSettings.streamPlan(pyro, {}, {}).value("reason").toString().contains("PC"), "host refusal did not explain missing support");
+        const QString captureWords = "PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route.";
+        const QVariantMap captureRefused{{"h264",true},{"pyrowave",false},{"pyrowaveUnavailableReason","fp16_capture"},{"pyrowaveUnavailableMessage",captureWords}};
+        require(pyroSettings.streamPlan(pyro,captureRefused,{}).value("reason")==captureWords,"host refusal message was rewritten");
+        auto contradictory = captureRefused; contradictory["pyrowave"]=true;
+        require(pyroSettings.streamPlan(pyro,contradictory,{}).value("playable").toBool(),"stale refusal overrode advertised PyroWave support");
+        require(pyroSettings.streamPlan(pyro,captureRefused,{},{},true).value("reason").toString().contains("Spaces"),"host refusal overrode the Space restriction");
 #else
         require(!pyroSettings.streamPlan(pyro, host, {}).value("playable").toBool(), "disabled build selected PyroWave");
         require(pyroPlan.value("reason").toString().contains("build"), "disabled build did not explain the missing codec");
@@ -222,7 +306,7 @@ int main(int argc, char** argv) {
         require(global.defaultsFromHost("", 40000)->value("width") == 1920 && global.defaultsFromHost("1280x720x60", 0)->value("bitrateKbps") == 30000,
             "partial host profile removed unspecified local defaults");
         require(!global.defaultsFromHost("1920x1080x59.94", 30000) && !global.defaultsFromHost("8192x4320x60", 30000) &&
-            !global.defaultsFromHost("1280x800x60", 300001) && !global.defaultsFromHost("", 0), "unsupported host profile partly imported");
+            !global.defaultsFromHost("1280x800x60", 500001) && !global.defaultsFromHost("", 0), "unsupported host profile partly imported");
         auto extra = *imported; extra["hostId"] = "one";
         require(!global.saveStreamDefaults(extra) && global.streamDefaults() == *imported, "malformed defaults changed preference");
         require(global.resetStreamDefaults() && global.streamDefaults() == initial, "device defaults reset failed");
@@ -367,7 +451,7 @@ int main(int argc, char** argv) {
     auto values = chosen;
     values["height"] = 801;
     require(!DeckPlayConfiguration::fromMap(values), "unsupported resolution combination accepted");
-    values = chosen; values["bitrateKbps"] = 300001;
+    values = chosen; values["bitrateKbps"] = 500001;
     require(!DeckPlayConfiguration::fromMap(values), "unsupported bitrate accepted");
     values = chosen; values["hostId"] = "other-host";
     require(!DeckPlayConfiguration::fromMap(values), "transport/identity field accepted in settings");

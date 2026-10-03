@@ -7,11 +7,9 @@
     <string name="pcview_menu_send_wol">Wake-On-LANリクエストを送信する</string>
     <string name="pcview_menu_delete_pc">コンピュータをリストから削除する</string>
     <!-- Pair messages -->
-    <string name="pairing">ペアリング中</string>
     <string name="pair_pc_offline">コンピュータはオフラインです</string>
     <string name="pair_pc_ingame">現在このコンピュータはゲームを実行中のため、ペアリングする前にゲームを閉じる必要があります</string>
     <string name="pair_pairing_title">ペアリング</string>
-    <string name="pair_pairing_msg">ペアリングしたいコンピュータのPINコードを入力してください:</string>
     <string name="pair_incorrect_pin">PINコードが間違っています</string>
     <string name="pair_fail">ペアリングに失敗しました</string>
     <!-- WOL messages -->
@@ -47,9 +45,6 @@
     <string name="searching_pc">ローカルネットワーク上のホストPCを検索中…
 \n
 \nホストPCでSunshineが実行中であるか、GeForce ExperienceのSHIELD設定でGameStreamが有効になっていることを確認してください。</string>
-    <string name="yes">はい</string>
-    <string name="no">いいえ</string>
-    <string name="lost_connection">コンピュータとの接続が失われました</string>
     <!-- AppList activity -->
     <string name="applist_menu_resume">セッションを続ける</string>
     <string name="applist_menu_quit">セッションを終了する</string>
@@ -59,17 +54,13 @@
     <string name="applist_refresh_msg">ゲームリストを更新中</string>
     <string name="applist_refresh_error_title">エラー</string>
     <string name="applist_refresh_error_msg">ゲームリストの取得に失敗しました</string>
-    <string name="applist_quit_app">終了中</string>
     <string name="applist_quit_success">ゲームを終了しました</string>
     <string name="applist_quit_fail">ゲームが終了できませんでした</string>
-    <string name="applist_quit_confirmation">本当にゲームを終了しますか?  保存されていないデータは破棄されます</string>
     <!-- Add computer manually activity -->
     <string name="title_add_pc">手動でコンピュータを追加する</string>
     <string name="msg_add_pc">コンピュータに接続中</string>
     <string name="addpc_fail">指定されたコンピュータに接続できませんでした。ファイアーウォールの設定を確認してください</string>
-    <string name="addpc_success">コンピュータの追加に成功しました</string>
     <string name="addpc_unknown_host">コンピュータのアドレスが解決できません。コンピュータのアドレスを確認してください</string>
-    <string name="addpc_enter_ip">IPアドレスを入力してください</string>
     <!-- Preferences -->
     <string name="category_basic_settings">基本的な設定</string>
     <string name="title_resolution_list">解像度とフレームレート</string>
@@ -147,7 +138,6 @@
 \n</string>
     <string name="title_decoding_error">ビデオデコーダーがクラッシュしました</string>
     <string name="title_decoding_reset">ビデオ設定リセット</string>
-    <string name="pair_pairing_help">ホーストのコンピューターが Sunshine を使用している場合、Sunshineにピンを入れてください。</string>
     <string name="pair_already_in_progress">ペアリング中です</string>
     <string name="video_decoder_init_failed">ビデオデコーダーの初期化に失敗しました。デバイスが選択された解像度またはフレームレートをサポートしていない可能性があります。</string>
     <string name="no_frame_received_error">ネットワーク接続が不安定です。 ビデオのビットレート設定を下げるか、より高速な接続をお試しください。</string>
@@ -169,7 +159,6 @@
     <string name="frame_conversion_error">ホストPCが致命的なビデオエンコーディングエラーを報告しました。
 \n
 \nHDRモードを無効にするか、ストリーミング解像度を変更するか、ホストPCのディスプレイ解像度を変更してください。</string>
-    <string name="help">ヘルプ</string>
     <string name="title_details">詳細</string>
     <string name="poor_connection_msg">PCとの接続不良</string>
     <string name="perf_overlay_decoder">デコーダー: %1$s</string>

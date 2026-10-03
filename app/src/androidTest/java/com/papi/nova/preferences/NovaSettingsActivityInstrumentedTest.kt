@@ -1,0 +1,369 @@
+package com.papi.nova.preferences
+
+import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.preference.PreferenceManager
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.papi.nova.R
+import com.papi.nova.ui.NovaFontScalePreferences
+import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.panel.NovaPageBackTag
+import java.io.File
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** Actual Settings Activity on an owned emulator, without paired hosts or a streaming fixture. */
+@RunWith(AndroidJUnit4::class)
+class NovaSettingsActivityInstrumentedTest {
+    @get:Rule val compose = createEmptyComposeRule()
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val fontPercent get() = InstrumentationRegistry.getArguments().getString("fontPercent", "80").toInt()
+    private val portrait get() = InstrumentationRegistry.getArguments().getString("orientation", "portrait") == "portrait"
+    private val categories get() = NovaSettingDefinitions.load(context).categories
+
+    private fun settle() {
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(350)
+        compose.waitForIdle()
+    }
+
+    private fun key(code: Int) { instrumentation.sendKeyDownUpSync(code); settle() }
+    private fun category(key: String) = compose.onNodeWithTag("nova-settings-category-$key")
+    private fun requestFocus(node: SemanticsNodeInteraction) {
+        node.performSemanticsAction(SemanticsActions.RequestFocus) { assertTrue(it()) }
+        settle()
+        node.assertIsFocused()
+    }
+
+    private fun withSettings(block: (ActivityScenario<StreamSettings>) -> Unit) {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val saved = preferences.all
+        val oldTheme = NovaThemeManager.getTheme(context)
+        // The same purple Polaris theme as the player's screenshot, with real Activity scaling.
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_POLARIS)
+        preferences.edit().putString("nova_control_size", "standard")
+            .putBoolean(NovaSettingsFeatureFlags.COMPOSE_SETTINGS_KEY, true)
+            .putInt(NovaFontScalePreferences.KEY_SCALE_PERCENT, fontPercent).commit()
+        try {
+            ActivityScenario.launch(StreamSettings::class.java).use { scenario ->
+                settle()
+                scenario.onActivity { activity ->
+                    assertEquals("Requested orientation belongs to the actual Activity", portrait,
+                        activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT)
+                    assertEquals("The actual Activity applies Nova text size",
+                        NovaFontScalePreferences.resolveFontScale(NovaFontScalePreferences.readSystemFontScale(activity), fontPercent),
+                        activity.resources.configuration.fontScale, .001f)
+                }
+                // Leave Android touch mode through real input before requesting a controller target.
+                key(KeyEvent.KEYCODE_DPAD_DOWN)
+                block(scenario)
+            }
+        } finally {
+            NovaThemeManager.setTheme(context, oldTheme)
+            val edit = preferences.edit().clear()
+            saved.forEach { (key, value) -> when (value) {
+                is String -> edit.putString(key, value)
+                is Boolean -> edit.putBoolean(key, value)
+                is Int -> edit.putInt(key, value)
+                is Long -> edit.putLong(key, value)
+                is Float -> edit.putFloat(key, value)
+                is Set<*> -> { @Suppress("UNCHECKED_CAST") edit.putStringSet(key, value as Set<String>) }
+            } }
+            edit.commit()
+        }
+    }
+
+    @Test fun menuHideAndBackRetainTheActualSettingsPaneAndControllerFocus() = withSettings { scenario ->
+        if (portrait) {
+            val toggle = compose.onNodeWithTag("nova-portrait-menu-toggle")
+            toggle.assertIsDisplayed().assertTextEquals("Menu")
+            compose.onNodeWithTag("nova-portrait-settings-navigation").assertDoesNotExist()
+            shot("settings-opening")
+            requestFocus(toggle)
+            instrumentation.sendKeySync(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_A))
+            settle()
+            toggle.assertTextEquals("Menu") // Opening belongs to release, not press.
+            instrumentation.sendKeySync(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_A))
+            settle()
+            toggle.assertTextEquals("Hide menu").assertIsFocused()
+            shot("settings-expanded-default")
+            val selected = categories.first { it.key == "category_input" }
+            category(selected.key).performScrollTo()
+            requestFocus(category(selected.key))
+            key(KeyEvent.KEYCODE_BUTTON_A)
+            category(selected.key).assertIsSelected()
+            shot("settings-navigation")
+            requestFocus(toggle)
+            key(KeyEvent.KEYCODE_BUTTON_A)
+            toggle.assertTextEquals("Menu").assertIsFocused()
+            compose.onNodeWithTag("nova-portrait-settings-navigation").assertDoesNotExist()
+            key(KeyEvent.KEYCODE_BUTTON_A)
+            category(selected.key).assertIsSelected()
+            key(KeyEvent.KEYCODE_BUTTON_B)
+            toggle.assertTextEquals("Menu").assertIsFocused()
+            compose.onNodeWithTag("nova-portrait-settings-navigation").assertDoesNotExist()
+            scenario.onActivity { assertFalse("B hides navigation before leaving Settings", it.isFinishing) }
+            shot("settings-navigation-hidden")
+        } else {
+            compose.onNodeWithTag("nova-portrait-menu-toggle").assertDoesNotExist()
+            compose.onNodeWithTag("nova-portrait-settings-navigation").assertDoesNotExist()
+            val owner = categories.first().key
+            requestFocus(category(owner))
+            shot("settings-opening")
+            key(KeyEvent.KEYCODE_DPAD_RIGHT)
+            compose.onNode(isFocused() and hasTestTagPrefix("nova-settings-row-")).assertIsDisplayed()
+            key(KeyEvent.KEYCODE_BUTTON_B)
+            category(owner).assertIsFocused()
+            scenario.onActivity { assertFalse("B returns to the owning landscape category", it.isFinishing) }
+            shot("settings-navigation")
+        }
+    }
+
+    @Test fun boundedNavigationKeepsCategoriesAndStreamShortcutsReachable() = withSettings { scenario ->
+        if (portrait) {
+            requestFocus(compose.onNodeWithTag("nova-portrait-menu-toggle"))
+            key(KeyEvent.KEYCODE_BUTTON_A)
+            shot("settings-expanded-top")
+            val navigation = compose.onNodeWithTag("nova-portrait-settings-navigation").fetchSemanticsNode().boundsInRoot
+            scenario.onActivity { activity ->
+                val cap = activity.resources.configuration.screenHeightDp * .35f * activity.resources.displayMetrics.density
+                assertTrue("Expanded navigation keeps the 35% height cap", navigation.height <= cap + 1f)
+            }
+            val search = compose.onNodeWithContentDescription("Search Settings").fetchSemanticsNode().boundsInRoot
+            val legacy = compose.onNodeWithText("Legacy").fetchSemanticsNode().boundsInRoot
+            assertTrue("Search and Legacy share the actual native navigation row", legacy.center.y in search.top..search.bottom)
+            for (item in categories) {
+                category(item.key).performScrollTo().assertIsDisplayed()
+                requestFocus(category(item.key))
+                key(KeyEvent.KEYCODE_BUTTON_A)
+                category(item.key).assertIsFocused().assertIsSelected()
+            }
+            // Down from the final category retains the established boundary into its selected pane.
+            requestFocus(category(categories.last().key))
+            key(KeyEvent.KEYCODE_DPAD_DOWN)
+            category(categories.last().key).assertIsSelected()
+            compose.onNode(isFocused() and hasTestTagPrefix("nova-settings-row-")).assertIsDisplayed()
+            shot("settings-selected-pane-reached")
+            // No direct focus request: Up from the first pane row discovers the first shortcut,
+            // Down visits every shortcut, and the final Down returns to the selected pane.
+            key(KeyEvent.KEYCODE_DPAD_UP)
+            val quickKeys = listOf("nova_stream_preset", PreferenceConfiguration.RESOLUTION_PREF_STRING,
+                PreferenceConfiguration.FPS_PREF_STRING, PreferenceConfiguration.BITRATE_PREF_STRING,
+                "video_format", "frame_pacing")
+            quickKeys.forEachIndexed { index, setting ->
+                if (index > 0) key(KeyEvent.KEYCODE_DPAD_DOWN)
+                compose.onNodeWithTag("nova-settings-quick-$setting").assertIsFocused().assertIsDisplayed()
+            }
+            shot("settings-controller-last-shortcut")
+            key(KeyEvent.KEYCODE_DPAD_DOWN)
+            compose.onNode(isFocused() and hasTestTagPrefix("nova-settings-row-")).assertIsDisplayed()
+            category(categories.last().key).assertIsSelected()
+            // Shortcuts remain reachable by scrolling; activation must enter their exact setting.
+            val firstQuick = compose.onNodeWithTag("nova-settings-quick-nova_stream_preset")
+            firstQuick.performScrollTo().assertIsDisplayed()
+            requestFocus(firstQuick)
+            shot("settings-shortcuts-reached")
+            key(KeyEvent.KEYCODE_BUTTON_A)
+            compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Quality")).assertIsDisplayed()
+            compose.onNodeWithTag(NovaPageBackTag).assertIsDisplayed()
+            shot("settings-quality-choice")
+            key(KeyEvent.KEYCODE_BUTTON_B)
+            compose.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused().assertIsDisplayed()
+            scenario.onActivity { assertFalse(it.isFinishing) }
+        } else {
+            requestFocus(category(categories.first().key))
+            categories.forEachIndexed { index, item ->
+                if (index > 0) key(KeyEvent.KEYCODE_DPAD_DOWN)
+                category(item.key).assertIsFocused().assertIsSelected().assertIsDisplayed()
+            }
+            // A short landscape window intentionally gives the pane space instead of repeating shortcuts.
+            var short = false
+            scenario.onActivity { short = it.resources.configuration.screenHeightDp < 560 }
+            if (short) compose.onNodeWithTag("nova-settings-quick-nova_stream_preset").assertDoesNotExist()
+            shot("settings-last-category")
+            key(KeyEvent.KEYCODE_DPAD_RIGHT)
+            compose.onNode(isFocused() and hasTestTagPrefix("nova-settings-row-")).assertIsDisplayed()
+        }
+    }
+
+    @Test fun searchClearAndLegacyUseTheActualActivityCallbacks() = withSettings { scenario ->
+        if (portrait) {
+            requestFocus(compose.onNodeWithTag("nova-portrait-menu-toggle"))
+            key(KeyEvent.KEYCODE_BUTTON_A)
+        }
+        val search = compose.onNodeWithContentDescription("Search Settings")
+        search.assertIsDisplayed()
+        requestFocus(search)
+        key(KeyEvent.KEYCODE_BUTTON_A)
+        search.assert(hasSetTextAction()).performTextInput("bitrate")
+        settle()
+        compose.onNodeWithText("Clear").assertIsDisplayed()
+        // B closes the open editor before the query or menu; Right then exits the field to Clear.
+        key(KeyEvent.KEYCODE_BUTTON_B)
+        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("bitrate")))
+        key(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithText("Clear").assertIsFocused()
+        shot("settings-search")
+        key(KeyEvent.KEYCODE_BUTTON_A)
+        compose.onNodeWithText("Clear").assertDoesNotExist()
+        search.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        val legacy = compose.onNodeWithText("Legacy")
+        if (portrait) legacy.performScrollTo()
+        requestFocus(legacy)
+        key(KeyEvent.KEYCODE_BUTTON_A)
+        scenario.onActivity { activity ->
+            assertTrue("Legacy action changes the actual Settings root", activity.findViewById<View>(R.id.modernSettingsButton).isShown)
+            assertFalse(NovaSettingsFeatureFlags.isComposeSettingsEnabled(activity))
+            activity.findViewById<View>(R.id.modernSettingsButton).performClick()
+        }
+        settle()
+        scenario.onActivity { assertTrue(NovaSettingsFeatureFlags.isComposeSettingsEnabled(it)) }
+        if (portrait) compose.onNodeWithTag("nova-portrait-menu-toggle").assertIsDisplayed()
+        else category(categories.first().key).assertExists()
+        shot("settings-legacy-return")
+    }
+
+    @Test fun touchSearchUsesTheNativeKeyboardAndBackRestoresTheCategoryWithoutSaving() = withSettings { scenario ->
+        if (portrait) {
+            tap(scenario, compose.onNodeWithTag("nova-portrait-menu-toggle"))
+            compose.onNodeWithTag("nova-portrait-menu-toggle").assertTextEquals("Hide menu")
+        }
+        val definitions = NovaSettingDefinitions.load(context)
+        val originalCategory = definitions.categories.first()
+        val originalCategoryTag = "nova-settings-category-${originalCategory.key}"
+        val owner = compose.onNodeWithTag(originalCategoryTag)
+        if (portrait) owner.performScrollTo()
+        tap(scenario, owner)
+        owner.assertIsSelected()
+        compose.onNodeWithTag("nova-settings-row-nova_stream_preset").assertExists()
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        // Compare user settings, including hidden Custom/Auto metadata; capability-cache work is
+        // unrelated to search and may finish asynchronously after this actual Activity starts.
+        val settingKeys = definitions.settings.map { it.key }.toSet() + NovaSettingsMigration.STREAM_KEYS +
+            setOf(NovaSettingsMigration.TIER, NovaSettingsMigration.AUTO,
+                NovaSettingsMigration.CUSTOM_AUTO, NovaSettingsMigration.CUSTOM_EXISTS)
+        fun savedSettings() = preferences.all.filterKeys { it in settingKeys }
+            .mapValues { (_, value) -> if (value is Set<*>) value.toSet() else value }
+        val saved = savedSettings()
+        val search = compose.onNodeWithContentDescription(context.getString(R.string.nova_settings_search_hint))
+        fun assertQueryCharacters(expected: String): SemanticsNodeInteraction {
+            val value = search.fetchSemanticsNode().config[SemanticsProperties.EditableText]
+            fun characters(text: String) = "length=${text.length}, codePoints=" +
+                text.codePoints().toArray().joinToString { "U+" + it.toString(16).uppercase().padStart(4, '0') }
+            val diagnostic = "Native query characters: expected ${characters(expected)}; " +
+                "actual ${characters(value.text)}; spans=${value.spanStyles}; paragraphs=${value.paragraphStyles}"
+            // A native IME's composing underline changes AnnotatedString equality, not the query.
+            // Require every exact character, while leaving touch/editability/IME/Back checks intact.
+            println(diagnostic)
+            assertEquals(diagnostic, expected, value.text)
+            return search
+        }
+        if (portrait) search.performScrollTo()
+        // No semantics SetText or RequestFocus: this must traverse the real touch gesture and
+        // create an editable Android input connection before requesting the visible native IME.
+        tap(scenario, search)
+        search.assertIsFocused().assert(hasSetTextAction())
+        waitForIme(scenario, visible = true)
+        shot("settings-search-touch-ime")
+        instrumentation.sendStringSync("rum")
+        settle()
+        assertQueryCharacters("rum")
+            .assert(hasSetTextAction())
+        instrumentation.sendStringSync("ble")
+        settle()
+        assertQueryCharacters("rumble")
+            .assert(hasSetTextAction())
+        waitForIme(scenario, visible = true)
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle,
+            context.getString(R.string.nova_settings_search_title))).assertExists()
+        compose.onNodeWithTag("nova-settings-row-nova_stream_preset").assertDoesNotExist()
+        // B first closes the real keyboard/editor, retaining the query and its matching pane.
+        key(KeyEvent.KEYCODE_BUTTON_B)
+        waitForIme(scenario, visible = false)
+        assertQueryCharacters("rumble")
+            .assert(hasSetTextAction().not())
+        compose.onNodeWithTag("nova-settings-row-checkbox_enable_rumble").assertIsDisplayed()
+        shot("settings-search-rumble-matches")
+        scenario.onActivity { assertFalse("Closing search input must retain Settings", it.isFinishing) }
+        // The next B clears root search rather than leaving Settings or changing a setting.
+        key(KeyEvent.KEYCODE_BUTTON_B)
+        assertQueryCharacters("")
+        compose.onNodeWithTag(originalCategoryTag).assertIsSelected()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, originalCategory.title))
+            .assertIsDisplayed()
+        compose.onNodeWithTag("nova-settings-row-checkbox_enable_rumble").assertDoesNotExist()
+        assertEquals("Touch, query, results and Back do not save any user setting", saved, savedSettings())
+        scenario.onActivity { assertFalse("Clearing search must retain the actual Settings Activity", it.isFinishing) }
+        shot("settings-search-back-restored")
+    }
+
+    private fun tap(scenario: ActivityScenario<StreamSettings>, node: SemanticsNodeInteraction) {
+        val bounds = node.assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val origin = IntArray(2)
+        scenario.onActivity { activity ->
+            val root = activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
+            assertTrue("Touch coordinates belong to the actual Settings ComposeView", root is ComposeView)
+            root.getLocationOnScreen(origin)
+        }
+        val down = SystemClock.uptimeMillis()
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            if (action == MotionEvent.ACTION_UP) SystemClock.sleep(100)
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
+                origin[0] + bounds.center.x, origin[1] + bounds.center.y, 0)
+            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            try {
+                assertTrue("Real Settings touchscreen event reaches the Activity",
+                    instrumentation.uiAutomation.injectInputEvent(event, true))
+            } finally { event.recycle() }
+        }
+        settle()
+    }
+
+    private fun waitForIme(scenario: ActivityScenario<StreamSettings>, visible: Boolean) {
+        // Runner prerequisite: an enabled native IME, with show_ime_with_hard_keyboard=1 on an
+        // owned emulator if needed. Missing keyboard visibility is a failure, never a skip.
+        compose.waitUntil(timeoutMillis = 8_000) {
+            var matches = false
+            scenario.onActivity { activity ->
+                matches = ViewCompat.getRootWindowInsets(activity.window.decorView)?.let {
+                    it.isVisible(WindowInsetsCompat.Type.ime()) == visible
+                } ?: false
+            }
+            matches
+        }
+        settle()
+    }
+
+    private fun hasTestTagPrefix(prefix: String) = SemanticsMatcher("test tag beginning $prefix") {
+        it.config.getOrElse(SemanticsProperties.TestTag) { "" }.startsWith(prefix)
+    }
+
+    private fun shot(name: String) {
+        val suffix = InstrumentationRegistry.getArguments().getString("shotSuffix", "native")
+        val directory = File(context.filesDir, "native-smoke/settings-activity").apply { mkdirs() }
+        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot()) { "Native screenshot unavailable" }
+        File(directory, "$name-$suffix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+    }
+}

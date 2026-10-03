@@ -76,6 +76,26 @@ int main() {
         require(deckDrmFrameLayoutSupported(*frame), "valid shared allocation refused");
         ++checked;
     }
+    // PyroWave exports exactly three separately addressed R8 4:2:0 layers.
+    // A two-layer YUV420P export above remains malformed and refused.
+    frame->width = 127; frame->height = 73;
+    context.sw_format = AV_PIX_FMT_YUV420P;
+    drm = {}; drm.nb_objects = drm.nb_layers = 3;
+    for (int p = 0; p < 3; ++p) {
+        const int rows = p ? 37 : 73, columns = p ? 64 : 127;
+        drm.layers[p].format = DRM_FORMAT_R8; drm.layers[p].nb_planes = 1;
+        drm.layers[p].planes[0] = {p, 0, columns};
+        drm.objects[p].fd = 0; drm.objects[p].size = rows * columns;
+        drm.objects[p].format_modifier = DRM_FORMAT_MOD_LINEAR;
+    }
+    const auto planar = drm;
+    require(deckDrmFrameLayoutSupported(*frame), "three-plane PyroWave layout refused");
+    for (int p = 0; p < 3; ++p) {
+        --drm.objects[p].size;
+        require(!deckDrmFrameLayoutSupported(*frame), "short PyroWave plane accepted"); drm = planar;
+        drm.layers[p].format = DRM_FORMAT_GR88;
+        require(!deckDrmFrameLayoutSupported(*frame), "interleaved PyroWave chroma accepted"); drm = planar;
+    }
     frame->height = 0; require(!deckDrmFrameLayoutSupported(*frame), "zero height accepted");
     frame->height = 73; frame->width = 8193; require(!deckDrmFrameLayoutSupported(*frame), "oversized frame accepted");
     frame->width = 128; av_buffer_unref(&frame->hw_frames_ctx);

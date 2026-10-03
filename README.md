@@ -22,7 +22,7 @@ too.
 [**Explore Nova**](https://papi-ux.com/nova/) ·
 [**Install ARM64**](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) ·
 [Join the Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) ·
-[All releases](https://github.com/papi-ux/nova/releases/latest) ·
+[All releases](https://github.com/papi-ux/nova/releases) ·
 [Quick start](https://papi-ux.com/docs/nova/quickstart/)
 
 </div>
@@ -34,68 +34,61 @@ too.
 > desktops, laptops and handhelds, including Steam Deck. Linux codec, HDR and
 > frame-rate availability depends on the hardware, drivers, display and host.
 
-![Nova Polaris Aurora Library on a Retroid Pocket 6, Big Walk in focus, the chip naming where it opens](docs/screenshots/nova-library-aurora-v1.4.12.webp)
+![Nova Android 1.4.14-beta.1 game page on a Retroid Pocket 6, showing Control Ultimate Edition and the reviewed launch plan](docs/screenshots/nova-android-game-detail-v1.4.14-beta.1.webp)
+
+*Android 1.4.14-beta.1 candidate; screenshot provenance is linked below.*
 
 ## Built for the whole player loop
 
 Nova is matched to Polaris while retaining the standard Moonlight-compatible
 path:
 
-- **Play Setup says what will launch.** Resolution, frame rate, and encoder are
-  independent per-game choices, host-wide modes remain visibly host-wide, and
-  Auto, Quality, High FPS, and Stability show the resolved host plan before play.
-- **Doctor stays evidence-first.** Command Center refreshes current host evidence,
-  separates network, host, and client findings, and presents Auto Fix only for a
-  reversible same-stream action the paired host can verify or roll back.
-- **Secondary tools stay secondary.** Launch, Play Setup, and Reset lead the game
-  menu; Pin to Home Screen and Artwork Studio are compact state-aware actions.
-  Pinned shortcuts use the selected game's artwork.
-- **Stale host state fails closed.** Nova binds optimization to the exact app and
-  display topology and refuses an older or malformed deterministic launch
-  contract instead of guessing.
-- **Spaces with the launcher you use.** Change Space says whether a Space opens
-  Steam, Heroic, or Lutris, and a game without artwork gets a poster with its
-  name.
-- **Watch works at any size.** Watch takes the running stream's own mode, and
-  shows only when there is a stream.
+- **Review before play.** Play Setup shows resolution, frame rate, codec and
+  where the game runs. Host-wide choices stay visibly host-wide.
+- **Tiers fit the device.** Saver, Recommended, Max and Custom choose a client
+  target, separately from Polaris's Auto, Quality, High FPS and Stability presets.
+- **Make it yours.** Stage, Regular and Compact layouts support touch and
+  controllers. Text and control size are independent; new installs start at
+  80% text and existing choices stay intact.
+  `< Congratulations, Director >` adds crimson, warm white and black
+  ([appearance capture](docs/screenshots/nova-android-director-appearance-v1.4.14-beta.1.webp)).
+- **Doctor uses current evidence.** Command Center separates client, network and
+  host findings; Auto Fix requires a reversible, verifiable same-stream action.
+- **Secondary tools stay secondary.** Pin to Home Screen and Artwork Studio use
+  matching compact buttons beside the main game actions.
+- **Host state stays bound to the game.** Stale launch contracts fail closed.
+  Spaces name their launcher; Watch follows the running stream's own mode.
 
 Read the [changelog](CHANGELOG.md) for the release-by-release change and
 validation record.
 
 ## A compatible client, with more context
 
-| Normal compatible client | Nova with Polaris |
-|---|---|
-| Pairs, browses apps, launches, and streams | Adds a host-backed Library with art, sources, and launch health |
-| Starts the host's configured app path | Shows Private Stream and other available display choices before launch |
-| Treats a running session as a generic state | Distinguishes active, resumable, watchable, and owner-aware sessions |
-| Offers basic disconnect or quit actions | Separates safe disconnect from ending the host session |
-| Shows client-side stream statistics | Adds server-backed runtime truth, Doctor, tuning provenance, and NovaHUD |
-
-Standard Moonlight-compatible hosts remain useful; Polaris supplies the richer
-metadata and controls.
+Standard Moonlight-compatible hosts support pairing, app browsing, Wake-on-LAN,
+launch, input and streaming. Polaris adds library artwork and sources, launch
+health, session ownership, Spaces, Watch, per-session choices, Polaris Sync,
+Doctor and tuning provenance. Compatible host metadata enables these surfaces;
+Nova keeps the standard path when it is absent.
 
 ## Browse, decide, control
 
 ### Browse
 
-![Nova Polaris Aurora Game Detail for Big Walk, showing hours played against a completion estimate, the resolved launch line, and the play actions](docs/screenshots/nova-game-detail-bigwalk-aurora-v1.4.12.webp)
+The game page above keeps Launch, Play Setup and Clear Game Profile together;
+Pin to Home Screen and Artwork Studio use matching compact buttons.
 
-Stage view puts the selected title into its landscape artwork while keeping the
-row controller-readable. Control Ultimate Edition leads the Aurora showcase;
-the [website gallery](https://papi-ux.com/nova/#themes) compares the same screen
-in Portable Chrome, Console OLED, Miami Nebula, High Contrast, and Material You.
+Stage puts the selected title into its landscape artwork while keeping the row
+controller-readable. Regular and Compact keep recent games in the main grid.
+The [website gallery](https://papi-ux.com/nova/#themes) also shows Portable Chrome,
+Console OLED, Miami Nebula, High Contrast and Material You.
 
 ### Decide
 
-Play Setup describes what will happen for this title: where it runs, the client
-resolution, frame rate, encoder policy, tuning policy, and Steam launch behavior.
-Resolution and FPS stay independent, a named encoder is strict while encoder Auto
-may fall back, a host-only mode links back to Polaris instead of posing as a
-per-game choice, and a session-scoped choice does not silently rewrite the host
-default.
+Play Setup names the display, resolution, frame rate, codec and launch policy.
+Resolution and FPS stay independent. A named encoder is strict; Auto may fall back.
+Per-session choices do not silently rewrite host defaults.
 
-![Nova Polaris Aurora Play Setup for Big Walk, naming the display Polaris makes for the session, the resolution, the frame rate, and the encoder policy](docs/screenshots/nova-play-setup-bigwalk-aurora-v1.4.12.webp)
+![Nova Android 1.4.14-beta.1 Play Setup for Control Ultimate Edition, reviewing Private Stream, resolution, frame rate and codec without launching](docs/screenshots/nova-android-play-setup-v1.4.14-beta.1.webp)
 
 ### <img src="docs/screenshots/pulse-ready.svg" width="14" height="14" alt=""> Control
 
@@ -105,22 +98,22 @@ a controller-first drawer.
 
 ![Nova Polaris Aurora Command Center over a live private stream, showing the resolved encoder, Live Tuning, and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.4.9.webp)
 
-Every capture above and across [papi-ux.com](https://papi-ux.com/nova/) comes from the tagged public release; the [pixel-level provenance manifest](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json) ships with the site.
-
-## Host compatibility
-
-With a standard Moonlight-compatible host, Nova supports the familiar pairing,
-Wake-on-LAN, app browsing, launch, input, and streaming path.
-
-With Polaris, Nova additionally understands the host Library, display-mode
-catalog, session owner, watch and resume behavior, per-session launch choices,
-Polaris Sync, server-backed stream health, Doctor actions, and tuning state.
-Those enhanced surfaces require compatible Polaris metadata; Nova falls back to
-the standard path when it is not present.
+The new game-page and Play Setup captures come from the **1.4.14-beta.1
+candidate**, with exact source and image hashes in the
+[screenshot manifest](docs/screenshots/beta1-readme-provenance.json). The Command
+Center image remains a **1.4.9 reference**. Earlier website images retain their
+[original provenance manifest](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json);
+a screenshot is not evidence that a beta has been published.
 
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
 ## Install and start a first stream
+
+Choose [Android](#android) or [Nova Linux](#nova-linux-alpha). Stable downloads
+use **Latest**; published betas appear separately under
+[Releases](https://github.com/papi-ux/nova/releases).
+
+### Android
 
 <div align="center">
 
@@ -135,28 +128,46 @@ the standard path when it is not present.
 </div>
 
 1. Install the public APK that matches the Android device.
-2. Open **Servers**, discover or add the host, and pair.
+2. Open **Hosts**, discover or add the host, and pair.
 3. Open the Library, review a title, and launch.
 4. During play, open Command Center with Guide/Mode + Start/Menu. Guide/Mode + Y
    shows or cycles NovaHUD.
 
 | Architecture | Direct download | Typical devices |
 |---|---|---|
-| ARM64 | [Nova-Android-arm64-v8a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) | Most current handhelds, phones, Shield, and ARM64 Android TV |
-| ARMv7 | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) | 32-bit ARM Android TV devices |
+| ARM64 | [Nova-Android-arm64-v8a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) | Most current handhelds, phones and devices with ARM64 Android app support |
+| ARMv7 | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) | 32-bit ARM Android devices, including Shield models with a 32-bit app ABI |
 | x86_64 | [Nova-Android-x86_64.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk) | Android x86_64 devices and emulators |
+
+Choose by the **Android app ABI**, not the processor name: a 64-bit CPU can
+run a 32-bit Android build. Beta APKs use `Nova-Beta-Android-<ABI>.apk` and install
+as Nova Beta beside stable, with separate app data.
 
 Guides: [Quick start](https://papi-ux.com/docs/nova/quickstart/) ·
 [Updates and beta releases](docs/updates.md).
 
 ### Nova Linux (Alpha)
 
-Get `Nova-Linux-x86_64-alpha.flatpak` and its checksum from
-[Releases](https://github.com/papi-ux/nova/releases).
-See the [Linux install guide](clients/deck/packaging/flatpak/README.md) and
-[compatibility roadmap](docs/linux-client-roadmap.md).
-Steam is optional; the [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/)
-covers Game Mode.
+Download `Nova-Linux-x86_64-alpha.flatpak` and its checksum from the chosen
+[release](https://github.com/papi-ux/nova/releases), then install on Linux:
+
+```bash
+flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
+flatpak run com.papi_ux.Nova --standalone
+```
+
+The standard 1.4.14 bundle includes experimental SDR PyroWave. Selecting it runs
+a device check; Auto, H.264 and HEVC skip that check. Players using an older
+separate PyroWave bundle should follow the
+[migration guide](clients/deck/docs/pyrowave.md#packaging-and-compatibility).
+Advice is a starting target, not a promise of sustainable network performance.
+
+See the [Linux client guide](clients/deck/README.md),
+[installation and Steam Input guide](clients/deck/packaging/flatpak/README.md), and
+[compatibility roadmap](docs/linux-client-roadmap.md). Steam is optional; the
+[Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) covers Game Mode.
+[Steam Frame](clients/deck/docs/steam-frame.md) has a separate experimental ARM64
+development route; the x86_64 download does not run on Frame.
 
 ## Compatibility and platform boundaries
 

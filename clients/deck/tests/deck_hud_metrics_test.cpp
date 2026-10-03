@@ -32,5 +32,39 @@ int main() {
     s.compositionAvailable = true; metrics.sample(s);
     for (int i = 1; i <= 80; ++i) { s.atMs = i * 1000; s.composed += 60; view = metrics.sample(s); }
     require(view.value("history").toList().size() == 60, "sparkline memory grew without bound");
+    metrics.reset(); s = {};
+    s.media = nova::deck::polaris::DeckClientMediaSample{1000, {10,8,2,1,1000}};
+    s.atMs = 0; require(!metrics.sample(s).value("mediaLossFresh").toBool(), "first sample fabricated measured media loss");
+    s.atMs = 1000; s.media = nova::deck::polaris::DeckClientMediaSample{2000, {20,16,4,1,2000}};
+    view = metrics.sample(s);
+    require(view.value("mediaLossFresh").toBool() && view.value("mediaLoss") == "20.0%", "valid sequence counters did not expose fresh measured media loss");
+    s.atMs += 1000; s.media->atMs += 1000;
+    require(!metrics.sample(s).value("mediaLossFresh").toBool(), "no incoming frames fabricated healthy zero loss");
+    s.atMs += 1000; s.media = nova::deck::polaris::DeckClientMediaSample{4000, {5,5,0,2,4000}};
+    require(!metrics.sample(s).value("mediaLossFresh").toBool(), "decoder reset bridged a loss baseline");
+    s.atMs += 1000; s.media = nova::deck::polaris::DeckClientMediaSample{5000, {15,15,0,2,5000}};
+    require(metrics.sample(s).value("mediaLoss") == "0.0%", "positive fresh frame delta lost measured zero loss");
+    s.atMs += 1000; s.media = nova::deck::polaris::DeckClientMediaSample{6000, {25,20,7,2,6000}};
+    require(!metrics.sample(s).value("mediaLossFresh").toBool(), "malformed expected/received/lost relationship was published");
+    s.atMs += 4000; s.media = nova::deck::polaris::DeckClientMediaSample{10000, {40,30,10,2,6000}};
+    require(!metrics.sample(s).value("mediaLossFresh").toBool(), "stale video counters became fresh loss");
+    s.atMs += 1000; s.media.reset();
+    require(!metrics.sample(s).value("mediaLossFresh").toBool(), "absent media counters became healthy");
+    metrics.reset(); s = {};
+    s.decoderBackend = "V4L2"; s.frameTransferPath = "CPU upload";
+    s.compositionAvailable = s.cpuUploadsAvailable = true;
+    metrics.sample(s);
+    s.atMs = 1000; s.incoming = 90; s.decoded = 89; s.submitted = 88;
+    s.composed = s.cpuUploadCompositions = 87;
+    view = metrics.sample(s);
+    require(view.value("decoderBackend") == "V4L2" && view.value("frameTransferPath") == "CPU upload",
+        "hardware decode and frame transfer were conflated");
+    require(view.value("decoded") == "89.0" && view.value("submitted") == "88.0" &&
+        view.value("cpuUploadCompositions") == "87.0", "decoder/handoff/upload-composition counts were conflated");
+    s.atMs += 1000; s.decoderBackend = "VA-API"; s.frameTransferPath = "DMA-BUF";
+    s.cpuUploadsAvailable = false;
+    view = metrics.sample(s);
+    require(!view.value("fresh").toBool() && view.value("cpuUploadCompositions") == "--",
+        "a backend change or unavailable upload counter bridged the old readings");
     std::cout << "HUD metrics passed: provenance, cadence, gaps, resets, unavailable values and bounded history\n";
 }

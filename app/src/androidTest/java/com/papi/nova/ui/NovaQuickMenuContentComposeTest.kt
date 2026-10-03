@@ -1,58 +1,101 @@
 package com.papi.nova.ui
 
-import android.content.Context
-import android.content.Intent
-import android.view.ViewGroup
-import androidx.compose.ui.platform.ComposeView
-import androidx.test.core.app.ActivityScenario
-import androidx.test.core.app.ApplicationProvider
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaPageStackHost
+import com.papi.nova.ui.panel.NovaPanelState
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.concurrent.atomic.AtomicReference
 
+/** The Command Center's root page composes in a page stack, and its rows push its own pages. */
 @RunWith(AndroidJUnit4::class)
 class NovaQuickMenuContentComposeTest {
-    @Test
-    fun quickMenuContentComposesInViewInteropHost() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val state = NovaQuickMenuUiState.preview(context).copy(advancedExpanded = true)
-        val composeViewRef = AtomicReference<ComposeView>()
-        val intent = Intent(context, NovaLibraryActivity::class.java).apply {
-            putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
-            putExtra(NovaLibraryActivity.EXTRA_SERVER_NAME, "Test Server")
-            putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 47984)
-            putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 47989)
-        }
+    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+    private val panel = NovaPanelState()
+    private val sent = mutableListOf<String>()
 
-        ActivityScenario.launch<NovaLibraryActivity>(intent).use { scenario ->
-            scenario.onActivity { activity ->
-                val composeView = ComposeView(activity)
-                activity.setContentView(
-                    composeView,
-                    ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
+    private val callbacks = NovaQuickMenuCallbacks(
+        onSessionAction = { id ->
+            when (id) {
+                NovaQuickMenuActionId.MORE_KEYS -> panel.push(
+                    CommandCenterPage.Keys(
+                        "More Keys",
+                        listOf(
+                            CommandCenterSection(
+                                null,
+                                listOf(NovaMenuItem.Action(key = "esc", label = "Esc", onClick = { sent += "Esc" })),
+                            ),
+                        ),
+                    ),
                 )
-                composeViewRef.set(composeView)
-                composeView.setContent {
-                    NovaComposeTheme {
-                        NovaQuickMenuContent(
-                            state = state,
-                            callbacks = NovaQuickMenuCallbacks()
-                        )
+                NovaQuickMenuActionId.MORE_CONTROLS -> panel.push(
+                    CommandCenterPage.MoreControls(
+                        "More Controls",
+                        listOf(
+                            CommandCenterSection(
+                                "Host",
+                                listOf(NovaMenuItem.Action(key = "fetch", label = "Fetch clipboard", onClick = {})),
+                            ),
+                        ),
+                    ),
+                )
+                else -> Unit
+            }
+        },
+    )
+
+    private fun showRoot(expanded: Boolean = true) {
+        val state = MutableStateFlow(NovaQuickMenuUiState.preview(rule.activity).copy(advancedExpanded = expanded))
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.setContent {
+            NovaComposeTheme {
+                NovaPageStackHost(state = panel) { page ->
+                    when (page) {
+                        is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks)
+                        is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                        else -> Unit
                     }
                 }
             }
-
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-            scenario.onActivity {
-                assertTrue(composeViewRef.get().isAttachedToWindow)
-            }
         }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun quickMenuContentComposesInAPageStack() {
+        showRoot()
+        rule.onNodeWithText("End Session").assertExists()
+        rule.onNodeWithText("Close").assertExists()
+    }
+
+    @Test
+    fun moreKeysPushesTheKeyListOverTheRoot() {
+        showRoot(expanded = false)
+        rule.onNodeWithText("More Keys").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(2, panel.depth)
+        assertTrue(panel.top is CommandCenterPage.Keys)
+        rule.onNodeWithText("Esc").assertIsFocused()
+    }
+
+    @Test
+    fun moreControlsPushesTheLegacyExtrasOverTheRoot() {
+        showRoot(expanded = false)
+        rule.onNodeWithText("More Controls").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(2, panel.depth)
+        assertTrue(panel.top is CommandCenterPage.MoreControls)
+        rule.onNodeWithText("Fetch clipboard").assertExists()
     }
 }

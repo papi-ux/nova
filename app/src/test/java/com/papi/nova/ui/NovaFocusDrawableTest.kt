@@ -36,22 +36,24 @@ class NovaFocusDrawableTest {
     @Test
     fun serverRowsUseFocusableOutlineBackground() {
         val doc = parseXml("src/main/res/layout/pc_grid_item.xml")
+        val adapter = readSource("src/main/java/com/papi/nova/grid/PcGridAdapter.kt")
 
-        assertTrue(
-            "server row root should carry the D-pad focus outline",
-            doc.documentElement.getAttribute("android:background") == "@drawable/nova_card_focus_frame"
+        // The row still carries the D-pad focus outline, in the one focus look (spec section 2): the
+        // 3dp ring from NovaViewBridge, drawn inside the card's corner rather than as an 18dp frame
+        // around it, in the same colours the Compose components use.
+        assertFalse(
+            "the row's old focus frame, a filled 18dp ring around the card, is gone",
+            doc.documentElement.hasAttribute("android:background") ||
+                File("src/main/res/drawable/nova_card_focus_frame.xml").exists()
         )
-
-        val frame = parseXml("src/main/res/drawable/nova_card_focus_frame.xml")
         assertTrue(
-            "server row focus frame should use the row-specific filled ring",
-            hasFocusedDrawable(frame, "@drawable/nova_server_row_focus_ring")
+            "server row root should carry the D-pad focus ring as its foreground, inside its padding, on the card",
+            adapter.contains("(parentView as? FrameLayout)?.foreground = NovaViewBridge.focusRing(context)")
         )
-
-        val rowRing = parseXml("src/main/res/drawable/nova_server_row_focus_ring.xml")
         assertTrue(
-            "server row focus ring should use a slimmer themed accent stroke",
-            hasStroke(rowRing, "2dp", "?attr/colorAccent")
+            "the card takes the row corner the Compose rows use",
+            adapter.contains("val corner = context.resources.getDimension(R.dimen.nova_radius_row)") &&
+                adapter.contains("background.cornerRadius = corner")
         )
     }
 
@@ -66,21 +68,17 @@ class NovaFocusDrawableTest {
             "AppView search height should keep the established portrait height",
             hasDimen(dimens, "nova_search_height", "48dp")
         )
-        assertTrue(
-            "shared card radius should remain available for XML View surfaces",
-            hasDimen(dimens, "nova_card_corner_radius", "14dp")
-        )
-        assertTrue(
-            "large shared card radius should remain available for XML View surfaces",
-            hasDimen(dimens, "nova_card_corner_radius_lg", "16dp")
+        assertFalse(
+            "the 14dp and 16dp card radii went with the cards that drew them: View cards take the row radius (spec section 2)",
+            File("src/main/res/values/dimens.xml").readText().contains("nova_card_corner_radius")
         )
         assertTrue(
             "landscape game cover height resource should remain available for XML View surfaces",
             hasDimen(landDimens, "nova_game_card_cover_height", "180dp")
         )
         assertTrue(
-            "server card ripple should continue to follow the shared card radius",
-            hasCorners(ripple, "@dimen/nova_card_corner_radius")
+            "the server card ripple follows the row radius the card itself takes",
+            hasCorners(ripple, "@dimen/nova_radius_row")
         )
         assertTrue(
             "legacy XML focusable cards should use the active theme accent instead of a static global accent",
@@ -214,8 +212,8 @@ class NovaFocusDrawableTest {
             val doc = parseXml(layout)
 
             assertTrue(
-                "$layout host power action should look like a host that is awake, never like bidirectional sync",
-                hasViewAttribute(doc, "actionStartPolaris", "app:icon", "@drawable/ic_eye_open")
+                "$layout host wake action uses the power symbol, never bidirectional sync",
+                hasViewAttribute(doc, "actionStartPolaris", "app:icon", "@drawable/ic_host_wake")
             )
             assertTrue(
                 "$layout Polaris startup action should keep the Start Polaris label",
@@ -245,8 +243,10 @@ class NovaFocusDrawableTest {
     @Test
     fun dashboardThemePickerListsMiamiBetweenOledAndHighContrast() {
         val source = readSource("src/main/java/com/papi/nova/PcView.kt")
-        val picker = source.substringAfter("private fun showThemePicker(")
-            .substringBefore("private fun applyThemeSelection")
+        // The picker's order is R.array.nova_theme_values (NovaThemeResourcesTest pins it by value);
+        // each theme's caption on the Choice page is given in the same order.
+        val picker = source.substringAfter("internal fun novaThemePickerCaption(")
+            .substringBefore("internal fun novaOtpPairPage(")
 
         assertTrue(picker.contains("NovaThemeManager.THEME_PORTABLE_CHROME"))
         assertTrue(picker.contains("NovaThemeManager.THEME_OLED"))
@@ -276,9 +276,12 @@ class NovaFocusDrawableTest {
             "server row primary action should use the shared chip background",
             hasViewAttribute(row, "primary_action_text", "android:background", "@drawable/nova_chip_default")
         )
+        // The smoke test of 2026-09-29: a ready primary rested in a solid accent fill, as loud as
+        // focus, and nothing changed when its card took focus. It now rests as a tile with its
+        // label in the accent and fills while its card holds focus, the one look every primary has.
         assertTrue(
             "Open Library should read as actionable without needing a second focus ring",
-            chip.contains("state_activated") &&
+            !chip.contains("state_activated") &&
                 adapter.contains("private fun setPrimaryActionReady") &&
                 adapter.contains("setPrimaryActionReady(primaryAction, true)")
         )
@@ -289,26 +292,28 @@ class NovaFocusDrawableTest {
         // its own, because the card is what holds focus.
         val ready = adapter.substringAfter("private fun setPrimaryActionReady").substringBefore("private fun formatAddressSuffix")
         assertTrue(
-            "a ready primary action is filled with the theme manager's accent, and its ink is the accent's own",
-            ready.contains("setColor(NovaThemeManager.getAccentColor(context))") &&
-                ready.contains("if (ready) NovaThemeManager.getOnAccentColor(context) else NovaThemeManager.getTextMutedColor(context),")
+            "a ready primary action rests as a tile and fills with the accent while its card holds focus",
+            ready.contains("primaryAction.background = NovaViewBridge.primaryButton(context)") &&
+                ready.contains("primaryAction.setTextColor(NovaViewBridge.primaryButtonText(context))")
         )
         assertTrue(
             "cards are recycled: one that is not ready goes back to the shared outline",
             ready.contains("primaryAction.setBackgroundResource(R.drawable.nova_chip_default)")
         )
         assertTrue(
-            "the two pills are one pair: the fill takes the corner the shared chip has",
-            adapter.contains("private const val NOVA_HOST_CARD_PILL_RADIUS_DP = 12f") &&
-                chip.split("<corners ").size == chip.split("<corners android:radius=\"12dp\" />").size
+            "the two pills are one pair: the primary takes the corner the shared chip has, the button corner",
+            readSource("src/main/java/com/papi/nova/ui/panel/NovaViewBridge.kt")
+                .contains("fun primaryButton(context: Context, radius: Dp = NovaRadius.hero): Drawable") &&
+                chip.split("<corners ").size == chip.split("<corners android:radius=\"@dimen/nova_radius_hero\" />").size
         )
         assertTrue(
             "server rows should keep the row/card as the single focus owner",
             genericAdapter.contains("open fun onItemFocusChanged(") &&
                 genericAdapter.contains("onItemFocusChanged(holder.itemView, hasFocus)") &&
                 adapter.contains("override fun onItemFocusChanged(") &&
-                adapter.contains("primaryAction?.isSelected = false") &&
-                !adapter.contains("primaryAction?.isSelected = hasFocus")
+                // Selected, not focused: the card keeps focus and its primary shows what A presses.
+                adapter.contains("primaryAction?.isSelected = hasFocus && primaryAction?.isActivated == true") &&
+                !hasViewAttribute(row, "primary_action_text", "android:focusable", "true")
         )
         assertTrue(
             "Manage should retain a 48dp focus/touch target around the visual chip",

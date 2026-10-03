@@ -16,7 +16,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.papi.nova.GameMenu
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.binding.input.GameInputDevice
@@ -27,6 +26,11 @@ import com.papi.nova.ui.NovaCompanionCommandActionId
 import com.papi.nova.ui.NovaCompanionCommandDeckState
 import com.papi.nova.ui.NovaCompanionCommandDeckView
 import com.papi.nova.ui.NovaHudUiState
+import com.papi.nova.ui.NovaQuickMenu
+import com.papi.nova.ui.panel.NovaSplitConfirmRegistry
+import com.papi.nova.ui.panel.NovaSplitConfirmState
+import com.papi.nova.ui.panel.NovaSurfaces
+import java.util.WeakHashMap
 
 private const val SOFT_KEYBOARD_SHOW_MAX_ATTEMPTS = 3
 private const val SOFT_KEYBOARD_SHOW_RETRY_MILLIS = 100L
@@ -69,7 +73,20 @@ class ExternalDisplayControlController(
     private var dimScreenRunnable = Runnable {}
     private var originalBrightness = -1f
 
-    private var gameMenu: GameMenu? = null
+    /**
+     * The Command Center on this display: the same panel as over the stream, in a window on the
+     * companion display. Closing it hands focus back to the deck rather than to the stream.
+     */
+    private val companionSurfaces: NovaSurfaces by lazy {
+        NovaSurfaces.forCompanion(host) {
+            handleUserActivity()
+            restoreCommandDeckFocus()
+        }.also { surfaces -> synchronized(surfacesByHost) { surfacesByHost[host] = surfaces } }
+    }
+    private var quickMenu: NovaQuickMenu? = null
+
+    /** The deck's End Session split, hoisted so the deck's own Back can disarm it first. */
+    private val endSessionSplit = NovaSplitConfirmState()
 
     fun onCreate() {
         prefConfig = PreferenceConfiguration.readPreferences(context)
@@ -157,9 +174,10 @@ class ExternalDisplayControlController(
     }
 
     private fun disposeTransientState() {
-        menuOpenAtDisposal = menuOpenAtDisposal || gameMenu?.isMenuOpen() == true
+        menuOpenAtDisposal = menuOpenAtDisposal || quickMenu?.isMenuOpen() == true
         transientStateDisposed = true
-        gameMenu?.hideMenu()
+        quickMenu?.hideMenu()
+        endSessionSplit.disarm(restoreFocus = false)
         handler.removeCallbacksAndMessages(null)
         restoreBrightnessIfNeeded()
     }
@@ -189,7 +207,7 @@ class ExternalDisplayControlController(
             if (
                 CompanionScreenDimmingPolicy.shouldDimNow(
                     keyboardVisible = isAnyKeyboardVisible,
-                    quickMenuOpen = gameMenu?.isMenuOpen() == true,
+                    quickMenuOpen = quickMenu?.isMenuOpen() == true,
                 )
             ) {
                 val layout = controllerWindow.attributes
@@ -298,7 +316,10 @@ class ExternalDisplayControlController(
     }
 
     fun handleCompanionBack() {
-        if (isNovaKeyboardVisible) {
+        if (endSessionSplit.armed) {
+            // B takes back the armed End Session first, with focus back on its tile.
+            endSessionSplit.disarm()
+        } else if (isNovaKeyboardVisible) {
             toggleFullKeyboard()
         } else if (!game.handleQuickMenuBackFromDisplay(display.displayId)) {
             game.hideCompanionControlsForSession()
@@ -312,17 +333,10 @@ class ExternalDisplayControlController(
     }
 
     private fun initializeComponents() {
-        gameMenu = GameMenu(
-            game,
-            host.companionDialogContext,
-            host.companionDialogWindowType,
-            host::companionDialogWindowToken,
-        ).also {
-            it.setOnMenuDismissedListener {
-                handleUserActivity()
-                restoreCommandDeckFocus()
-            }
-        }
+        quickMenu = NovaQuickMenu(game, companionSurfaces)
+        // The companion window may be a plain Activity or a Presentation; either way a touch
+        // outside an armed split cancels it.
+        NovaSplitConfirmRegistry.install(controllerWindow)
     }
 
     fun onGenericMotionEvent(event: MotionEvent): Boolean {
@@ -393,7 +407,12 @@ class ExternalDisplayControlController(
 
         host.setControllerContentView(rootLayout)
 
-        commandDeckView = NovaCompanionCommandDeckView(context, ::onCommandDeckAction)
+        commandDeckView = NovaCompanionCommandDeckView(
+            context,
+            endSessionSplit = endSessionSplit,
+            composeOwner = game,
+            onAction = ::onCommandDeckAction,
+        )
         rootLayout.addView(
             commandDeckView,
             FrameLayout.LayoutParams(
@@ -424,8 +443,9 @@ class ExternalDisplayControlController(
             NovaCompanionCommandActionId.ZOOM_PAN -> toggleZoomMode(true)
             NovaCompanionCommandActionId.DISCONNECT -> game.disconnect()
             NovaCompanionCommandActionId.END_SESSION -> {
+                // The tile's split already asked: it was armed, then pressed after its guard.
                 restoreCommandDeckFocus()
-                game.quit()
+                game.endSession()
             }
         }
         handler.post(::renderCommandDeck)
@@ -542,7 +562,8 @@ class ExternalDisplayControlController(
 
     private fun showQuickKeys() {
         game.recordQuickMenuInteraction(display.displayId)
-        gameMenu?.showSpecialKeysMenuFromCommandDeck()
+        handleUserActivity()
+        quickMenu?.showKeys()
     }
 
     fun isCompanionDisplayAvailable(): Boolean {
@@ -551,7 +572,7 @@ class ExternalDisplayControlController(
 
     fun shouldMigrateOpenMenuToStream(streamAvailable: Boolean): Boolean {
         return DualScreenQuickMenuPolicy.shouldMigrateCompanionMenu(
-            menuWasOpen = menuOpenAtDisposal || gameMenu?.isMenuOpen() == true,
+            menuWasOpen = menuOpenAtDisposal || quickMenu?.isMenuOpen() == true,
             dismissalRequestedByNova = dismissalRequestedByNova,
             streamAvailable = streamAvailable,
         )
@@ -562,20 +583,20 @@ class ExternalDisplayControlController(
 
         return try {
             handleUserActivity()
-            gameMenu?.showMenu(device)
-            gameMenu?.isMenuOpen() == true
+            quickMenu?.showMenu(device)
+            quickMenu?.isMenuOpen() == true
         } catch (e: RuntimeException) {
             LimeLog.warning(
                 "Nova: Android companion quick menu unavailable display_id=${display.displayId} " +
                     "exception=${e.javaClass.simpleName}"
             )
-            runCatching { gameMenu?.hideMenu() }
+            runCatching { quickMenu?.hideMenu() }
             false
         }
     }
 
     fun hideGameMenu() {
-        runCatching { gameMenu?.hideMenu() }
+        runCatching { quickMenu?.hideMenu() }
             .onFailure { error ->
                 LimeLog.warning(
                     "Nova: Android companion quick menu dismiss failed display_id=${display.displayId} " +
@@ -585,7 +606,7 @@ class ExternalDisplayControlController(
     }
 
     fun isGameMenuOpen(): Boolean {
-        return gameMenu?.isMenuOpen() == true
+        return quickMenu?.isMenuOpen() == true
     }
 
 
@@ -599,5 +620,16 @@ class ExternalDisplayControlController(
 
     fun toggleGameMenu() {
         showGameMenu()
+    }
+
+    companion object {
+        private val surfacesByHost = WeakHashMap<ExternalDisplayControlHost, NovaSurfaces>()
+
+        /**
+         * The panel surfaces of [host]'s display, once its Command Center exists, so a confirm
+         * with no button of its own (Disconnect in a Space) shows where the player is looking.
+         */
+        fun surfacesFor(host: ExternalDisplayControlHost): NovaSurfaces? =
+            synchronized(surfacesByHost) { surfacesByHost[host] }
     }
 }

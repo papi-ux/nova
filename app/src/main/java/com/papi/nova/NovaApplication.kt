@@ -35,6 +35,9 @@ class NovaApplication : Application() {
                     .build()
             )
         }
+        com.papi.nova.preferences.NovaSettingsMigration.apply(this)
+        com.papi.nova.preferences.NovaTierRuntime.initialize(this)
+
         // Hide System Bars starts on for a device with built-in game controls; this
         // writes that default once and never replaces a choice already made.
         NovaSystemBars.seedDefault(this)
