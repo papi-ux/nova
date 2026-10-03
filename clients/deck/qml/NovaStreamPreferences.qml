@@ -7,9 +7,17 @@ QtObject {
     property bool commandCenterButton: true
     property bool shortcutHint: true
     property int menuOpacityPercent: 64
+    function savedBoolean(key, fallback) {
+        const value = preferences.value(key, fallback)
+        if (typeof value === "boolean") return value
+        // Native INI reloads return strings: Boolean("false") is true.
+        if (value === "true") return true
+        if (value === "false") return false
+        return fallback
+    }
     Component.onCompleted: {
-        commandCenterButton = preferences.value("commandCenterButton", true)
-        shortcutHint = preferences.value("shortcutHint", true)
+        commandCenterButton = savedBoolean("commandCenterButton", true)
+        shortcutHint = savedBoolean("shortcutHint", true)
         const savedOpacity = preferences.value("menuOpacityPercent", 64)
         // Unix QSettings reloads INI numbers as strings. Accept only integer
         // decimal text here; malformed, fractional and out-of-range saves use64.
