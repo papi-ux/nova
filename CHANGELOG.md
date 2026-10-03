@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Command Center explains GPU encoding and CPU capture copies together, so a system-memory capture path does not read as software encoding. Doctor warnings keep their own health verdict.
+
 ## 1.4.14 - 2026-10-01
 
 A Library that fits your screen, stream choices that fit your device, and bitrate controls that explain what the stream needs.
