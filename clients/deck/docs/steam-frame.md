@@ -1,9 +1,25 @@
-# Private native Steam Frame qualification
+# Experimental native Steam Frame route
 
-Tracking: [Nova #231](https://gitea.centaur-frog.ts.net/papi-ux/nova/issues/231).
-The acceptance target is the virtual 1920×1080 SDR screen at nominal 90 fps.
-Per-eye panel specifications do not determine a GameStream request.
-This work is separate from beta.1 acceptance and public publication.
+Beta.1 includes an experimental development route for native 2D streaming on
+Steam Frame. It does not establish a public ARM download or completed Frame
+hardware qualification. The acceptance target is the virtual 1920×1080 SDR
+screen at nominal 90 fps. Per-eye panel specifications do not determine a
+GameStream request. XR and HDR remain outside this route.
+
+## Qualification checkpoint — 2026-10-03
+
+The earlier private development build (`316ef90c5`) produced real H.264, HEVC
+and PyroWave pictures. These results do not qualify a newly integrated build.
+The uninterrupted 15-minute H.264 1080p/90 run averaged 89.29 decoded/submitted
+fps and 85.46 application compositions per second, with 1,224 additional
+delivery drops and 38 decoder refusals. It failed the 90 fps floor.
+
+The HEVC run was interrupted after 591 seconds. Reconnects later used a 60 Hz
+host display; they cannot form an uninterrupted 1080p/90 soak. The PyroWave
+90 fps soak remains pending. The owner reported poor clarity and washed
+colors during the earlier PyroWave run. Stream color, clarity, synchronized
+audio and the remaining device checks stay open; source and package gates
+do not complete them.
 
 ## Decoder and presentation boundaries
 
