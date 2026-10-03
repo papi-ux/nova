@@ -30,7 +30,7 @@ struct DeckVideoDecodeSupport {
 DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device);
 // Reuse an already-open VAAPI device while also qualifying absent SDR codecs
 // through the explicitly enabled Frame V4L2 path. Startup and launch share this.
-DeckVideoDecodeSupport detectVideoDecodeSupport(AVBufferRef* device);
+DeckVideoDecodeSupport probeLocalVideoDecodeSupport(AVBufferRef* device);
 DeckVideoDecodeSupport detectVideoDecodeSupport();
 
 // Auto prefers HEVC only when both endpoints support this stream size.

@@ -1113,7 +1113,7 @@ DeckLinuxMediaProbe DeckLinuxMediaProbe::detect() {
     av_log_set_level(priorLogLevel);
     // Play Setup reads this startup result. Use the same qualified SDR backend
     // discovery as launch, while retaining the existing VAAPI runtime evidence.
-    const auto videoDecodeSupport = detectVideoDecodeSupport(hardwareDevice);
+    const auto videoDecodeSupport = probeLocalVideoDecodeSupport(hardwareDevice);
     if (hardwareDevice != nullptr) {
         av_buffer_unref(&hardwareDevice);
     }

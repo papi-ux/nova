@@ -110,7 +110,7 @@ DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
     return probeVaapiDecodeSupport(device);
 }
 
-DeckVideoDecodeSupport detectVideoDecodeSupport(AVBufferRef* device) {
+DeckVideoDecodeSupport probeLocalVideoDecodeSupport(AVBufferRef* device) {
     auto support = probeVideoDecodeSupport(device);
     if (!support.h264.supports(1920, 1080) || !support.hevc.supports(1920, 1080)) {
         const auto qualified = qualifyDeckV4l2Decoder();
@@ -125,7 +125,7 @@ DeckVideoDecodeSupport detectVideoDecodeSupport(AVBufferRef* device) {
 DeckVideoDecodeSupport detectVideoDecodeSupport() {
     AVBufferRef* device = nullptr;
     av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
-    const auto support = detectVideoDecodeSupport(device);
+    const auto support = probeLocalVideoDecodeSupport(device);
     av_buffer_unref(&device);
     return support;
 }
