@@ -22,26 +22,26 @@ import org.robolectric.annotation.Config
 class NovaHostConsoleLinkTest {
     @Test
     fun thePinPagesPairingAddressIsAPairingWithItsPinAndPassphrase() {
-        val link = "art://10.0.0.232:47989?pin=1234&passphrase=abcd&name=pc%20papi"
-        assertEquals(NovaHostConsoleLink.Pair(link, "10.0.0.232", 47989, "1234", "abcd"), NovaHostConsoleLink.of(link, HOST))
+        val link = "art://192.0.2.10:47989?pin=1234&passphrase=abcd&name=test%20pc"
+        assertEquals(NovaHostConsoleLink.Pair(link, "192.0.2.10", 47989, "1234", "abcd"), NovaHostConsoleLink.of(link, HOST))
         // A host with no port of its own pairs on the default, as a scanned code does.
         assertEquals(
-            NovaHostConsoleLink.Pair("art://pc-papi.lan?pin=1234&passphrase=abcd", "pc-papi.lan", 47989, "1234", "abcd"),
-            NovaHostConsoleLink.of("art://pc-papi.lan?pin=1234&passphrase=abcd", HOST),
+            NovaHostConsoleLink.Pair("art://test-pc.lan?pin=1234&passphrase=abcd", "test-pc.lan", 47989, "1234", "abcd"),
+            NovaHostConsoleLink.of("art://test-pc.lan?pin=1234&passphrase=abcd", HOST),
         )
     }
 
     @Test
     fun anAddressWithoutAPinOrAPassphraseIsForAnotherApp() {
-        assertEquals(NovaHostConsoleLink.Elsewhere, NovaHostConsoleLink.of("art://10.0.0.232:47989?name=pc-papi", HOST))
-        assertEquals(NovaHostConsoleLink.Elsewhere, NovaHostConsoleLink.of("art://10.0.0.232:47989?pin=1234", HOST))
+        assertEquals(NovaHostConsoleLink.Elsewhere, NovaHostConsoleLink.of("art://192.0.2.10:47989?name=test-pc", HOST))
+        assertEquals(NovaHostConsoleLink.Elsewhere, NovaHostConsoleLink.of("art://192.0.2.10:47989?pin=1234", HOST))
     }
 
     @Test
     fun theAppsPagesLaunchLinkForThisHostIsALaunch() {
-        val link = "art://launch?host_uuid=${HOST.lowercase()}&host_name=pc-papi&app_uuid=$CONTROL&app_name=Control"
+        val link = "art://launch?host_uuid=${HOST.lowercase()}&host_name=test-pc&app_uuid=$CONTROL&app_name=Control"
         assertEquals(
-            NovaHostConsoleLink.Launch(HOST.lowercase(), "pc-papi", CONTROL, null, "Control"),
+            NovaHostConsoleLink.Launch(HOST.lowercase(), "test-pc", CONTROL, null, "Control"),
             NovaHostConsoleLink.of(link, HOST),
         )
         assertEquals(
@@ -64,7 +64,7 @@ class NovaHostConsoleLinkTest {
     fun anyOtherArtLinkIsForAnotherAppAndOtherAddressesAreNotLinks() {
         assertEquals(NovaHostConsoleLink.Elsewhere, NovaHostConsoleLink.of("art://settings?open=apps", HOST))
         assertEquals(NovaHostConsoleLink.Elsewhere, NovaHostConsoleLink.of("ART://", HOST))
-        assertNull(NovaHostConsoleLink.of("https://10.0.0.232:47990/#/apps", HOST))
+        assertNull(NovaHostConsoleLink.of("https://192.0.2.10:47990/#/apps", HOST))
         assertNull(NovaHostConsoleLink.of(null, HOST))
     }
 
@@ -73,10 +73,10 @@ class NovaHostConsoleLinkTest {
     @Test
     fun aLaunchGoesToTheShortcutTrampolineWithTheLinksHostAndApp() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val intent = NovaHostConsoleLink.Launch(HOST, "pc-papi", CONTROL, null, "Control").intent(context)
+        val intent = NovaHostConsoleLink.Launch(HOST, "test-pc", CONTROL, null, "Control").intent(context)
         assertEquals(ComponentName(context, ShortcutTrampoline::class.java), intent.component)
         assertEquals(HOST, intent.getStringExtra(AppView.UUID_EXTRA))
-        assertEquals("pc-papi", intent.getStringExtra(AppView.NAME_EXTRA))
+        assertEquals("test-pc", intent.getStringExtra(AppView.NAME_EXTRA))
         assertEquals(CONTROL, intent.getStringExtra(Game.EXTRA_APP_UUID))
         assertEquals("Control", intent.getStringExtra(Game.EXTRA_APP_NAME))
         assertNull(intent.getStringExtra(Game.EXTRA_APP_ID))

@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  */
 internal object NovaVisualFixtures {
     const val LongHost = "living-room-gaming-pc.papi.miami"
-    const val HostAddress = "10.0.0.232"
+    const val HostAddress = "192.0.2.10"
     const val LongGame = "Control Ultimate Edition: The Foundation and AWE Expansions"
     const val LongGameTwo = "The Legend of Heroes: Trails through Daybreak II Deluxe Edition"
     const val ShortGame = "Animal Well"

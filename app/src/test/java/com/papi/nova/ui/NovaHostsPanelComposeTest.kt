@@ -80,7 +80,7 @@ class NovaHostsPanelComposeTest {
     private fun string(id: Int) = rule.activity.getString(id)
 
     private fun host() = ComputerDetails().apply {
-        name = "pc-papi"
+        name = "test-pc"
         state = ComputerDetails.State.ONLINE
         pairState = PairingManager.PairState.PAIRED
         libraryState = ComputerDetails.LibraryState.AVAILABLE

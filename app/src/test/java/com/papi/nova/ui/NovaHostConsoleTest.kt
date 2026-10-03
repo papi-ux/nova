@@ -31,7 +31,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class NovaHostConsoleTest {
-    private val console = "https://10.0.0.232:47990"
+    private val console = "https://192.0.2.10:47990"
     private val paired = certificate(PAIRED)
     private val other = certificate(OTHER)
     private val page = NovaHostConsolePage(title = "Host Console", url = console, pinnedCertificate = paired.encoded)
@@ -51,9 +51,9 @@ class NovaHostConsoleTest {
     fun onlyTheConsolesOwnAddressIsTheConsole() {
         assertTrue(NovaHostConsoleTrust.isConsole(console, "$console/"))
         assertTrue("a path and a tab in its hash", NovaHostConsoleTrust.isConsole(console, "$console/#/config#av"))
-        assertFalse("another port is another server", NovaHostConsoleTrust.isConsole(console, "https://10.0.0.232:47984/"))
+        assertFalse("another port is another server", NovaHostConsoleTrust.isConsole(console, "https://192.0.2.10:47984/"))
         assertFalse("another host", NovaHostConsoleTrust.isConsole(console, "https://10.0.0.233:47990/"))
-        assertFalse("never plain http", NovaHostConsoleTrust.isConsole(console, "http://10.0.0.232:47990/"))
+        assertFalse("never plain http", NovaHostConsoleTrust.isConsole(console, "http://192.0.2.10:47990/"))
         assertFalse(NovaHostConsoleTrust.isConsole(console, "https://github.com/papi-ux/polaris"))
         assertFalse(NovaHostConsoleTrust.isConsole(console, null))
         assertTrue("443 is https's own port", NovaHostConsoleTrust.isConsole("https://host.lan", "https://host.lan:443/"))
@@ -93,7 +93,7 @@ class NovaHostConsoleTest {
     @Test
     fun thePinIsNotTrustedAwayFromTheConsole() {
         val handler = mock(SslErrorHandler::class.java)
-        client.onReceivedSslError(view, handler, SslError(SslError.SSL_UNTRUSTED, SslCertificate(paired), "https://10.0.0.232:47984/"))
+        client.onReceivedSslError(view, handler, SslError(SslError.SSL_UNTRUSTED, SslCertificate(paired), "https://192.0.2.10:47984/"))
         verify(handler).cancel()
         verify(handler, never()).proceed()
         assertTrue("a part of the page elsewhere failing leaves the console", states.isEmpty())
@@ -106,7 +106,7 @@ class NovaHostConsoleTest {
         }
         assertFalse(client.shouldOverrideUrlLoading(view, request("$console/#/apps")))
         assertTrue(client.shouldOverrideUrlLoading(view, request("https://github.com/papi-ux/polaris")))
-        assertTrue(client.shouldOverrideUrlLoading(view, request("http://10.0.0.232:47990/")))
+        assertTrue(client.shouldOverrideUrlLoading(view, request("http://192.0.2.10:47990/")))
     }
 
     @Test

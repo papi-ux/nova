@@ -68,7 +68,7 @@ class NovaLibraryStageEndRefusalActivityTest {
             .putExtra(NovaLibraryActivity.EXTRA_HOST, "127.0.0.1")
             .putExtra(NovaLibraryActivity.EXTRA_HTTPS_PORT, 9)
             .putExtra(NovaLibraryActivity.EXTRA_HTTP_PORT, 9)
-            .putExtra(NovaLibraryActivity.EXTRA_SERVER_NAME, "pc-papi")
+            .putExtra(NovaLibraryActivity.EXTRA_SERVER_NAME, "test-pc")
         val controller = Robolectric.buildActivity(NovaLibraryActivity::class.java, intent).create()
         val activity = controller.get()
         try {

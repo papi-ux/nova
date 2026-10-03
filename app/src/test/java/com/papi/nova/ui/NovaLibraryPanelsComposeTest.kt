@@ -123,7 +123,7 @@ class NovaLibraryPanelsComposeTest {
             when (page) {
                 is LibraryPage.Options -> NovaLibraryOptionsPage(ui = optionsUi(), actions = optionsActions)
                 is LibraryPage.System -> NovaLibrarySystemPage(
-                    ui = NovaLibrarySystemUi(hostLabel = "Host: 10.0.0.232", status = "Polaris ready", ready = true, mode = "Headless"),
+                    ui = NovaLibrarySystemUi(hostLabel = "Host: 192.0.2.10", status = "Polaris ready", ready = true, mode = "Headless"),
                     actions = systemActions,
                 )
                 else -> NovaRow(title = "Page ${page.key}", onClick = {}, modifier = Modifier.novaInitialFocus())

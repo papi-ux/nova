@@ -74,7 +74,7 @@ class NovaLibraryStripMeasuredFitTest {
             density = density,
             available = 795.dp,
             largeText = fontScale >= 1.5f,
-            hostLabel = "pc-papi.lan",
+            hostLabel = "test-pc.lan",
             hostStatus = "Polaris ready",
             environment = NovaEnvironmentStrings(caption = "Your Space", name = "papi - steam", status = "Playing"),
             continueCard = NovaTopBarContinue(

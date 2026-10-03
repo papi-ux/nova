@@ -72,9 +72,9 @@ class PcViewHostConsoleLinkTest {
     private fun host(pairState: PairState) = ComputerObject(
         ComputerDetails().apply {
             uuid = HOST
-            name = "pc-papi"
+            name = "test-pc"
             state = ComputerDetails.State.ONLINE
-            activeAddress = ComputerDetails.AddressTuple("10.0.0.232", 47989)
+            activeAddress = ComputerDetails.AddressTuple("192.0.2.10", 47989)
             this.pairState = pairState
         },
     )
@@ -92,7 +92,7 @@ class PcViewHostConsoleLinkTest {
         val hosts = open()
         val page = hosts.hostConsolePageFor(host(PairState.NOT_PAIRED)) as NovaHostConsolePage
         assertEquals("the console names the host by its own id", HOST, page.hostUuid)
-        val link = "art://10.0.0.232:47989?pin=1234&passphrase=abcd&name=pc-papi"
+        val link = "art://192.0.2.10:47989?pin=1234&passphrase=abcd&name=test-pc"
         hosts.novaSurfaces.panel.open(page)
         assertTrue(hosts.novaSurfaces.panel.isOpen)
 
@@ -104,8 +104,8 @@ class PcViewHostConsoleLinkTest {
         // pairing waits for it with the code's PIN and passphrase.
         val deadline = System.nanoTime() + 2_000_000_000L
         while (asked.isEmpty() && System.nanoTime() < deadline) Thread.sleep(10)
-        assertEquals(listOf(ComputerDetails.AddressTuple("10.0.0.232", 47989)), asked.map { it.manualAddress })
-        assertEquals(ComputerDetails.AddressTuple("10.0.0.232", 47989), field(hosts, "pendingPairingAddress"))
+        assertEquals(listOf(ComputerDetails.AddressTuple("192.0.2.10", 47989)), asked.map { it.manualAddress })
+        assertEquals(ComputerDetails.AddressTuple("192.0.2.10", 47989), field(hosts, "pendingPairingAddress"))
         assertEquals("1234", field<String>(hosts, "pendingPairingPin"))
         assertEquals("abcd", field<String>(hosts, "pendingPairingPassphrase"))
     }
@@ -117,7 +117,7 @@ class PcViewHostConsoleLinkTest {
             details.serverCert = PcViewHostConsoleLinkTestCertificates.certificate()
         }
         val page = hosts.hostConsolePageFor(paired) as NovaHostConsolePage
-        val said = page.onLink!!(NovaHostConsoleLink.of("art://10.0.0.232:47989?pin=1234&passphrase=abcd", page.hostUuid)!!)
+        val said = page.onLink!!(NovaHostConsoleLink.of("art://192.0.2.10:47989?pin=1234&passphrase=abcd", page.hostUuid)!!)
         assertEquals(context.getString(R.string.nova_host_console_link_paired), said)
         Thread.sleep(100)
         assertEquals("no host is looked for", emptyList<ComputerDetails>(), asked.toList())
@@ -128,7 +128,7 @@ class PcViewHostConsoleLinkTest {
     fun aLaunchLinkTakesTheLaunchEveryArtLaunchLinkTakes() {
         val hosts = open()
         val page = hosts.hostConsolePageFor(host(PairState.PAIRED)) as NovaHostConsolePage
-        val link = "art://launch?host_uuid=$HOST&host_name=pc-papi&app_uuid=$CONTROL&app_name=Control"
+        val link = "art://launch?host_uuid=$HOST&host_name=test-pc&app_uuid=$CONTROL&app_name=Control"
         hosts.novaSurfaces.panel.open(page)
         assertTrue(hosts.novaSurfaces.panel.isOpen)
 

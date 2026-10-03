@@ -52,7 +52,7 @@ class NovaHostMenuTest {
     }
 
     private fun host(edit: ComputerDetails.() -> Unit = {}) = ComputerDetails().apply {
-        name = "pc-papi"
+        name = "test-pc"
         state = ComputerDetails.State.ONLINE
         pairState = PairingManager.PairState.PAIRED
         libraryState = ComputerDetails.LibraryState.AVAILABLE
@@ -213,7 +213,7 @@ class NovaHostMenuTest {
     @Test
     fun theHeaderNamesTheHostAndReadsItsStateInItsTone() {
         val header = novaHostMenuHeader(context, host { state = ComputerDetails.State.OFFLINE; macAddress = "00:11:22:33:44:55" })
-        assertEquals("pc-papi", header.title)
+        assertEquals("test-pc", header.title)
         assertEquals(context.getString(R.string.pcview_card_status_offline), header.status)
         assertEquals(NovaTone.Neutral, header.tone)
         assertEquals(context.getString(R.string.pcview_card_hint_wake), header.hint)

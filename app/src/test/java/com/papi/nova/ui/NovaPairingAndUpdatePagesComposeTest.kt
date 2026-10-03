@@ -67,9 +67,9 @@ class NovaPairingAndUpdatePagesComposeTest {
     @Test
     fun aPairingLinkAsksWithCancelFocusedAndPairsOnlyFromPair() {
         val paired = mutableListOf<String>()
-        val page = novaPairLinkConfirmPage(rule.activity, "Living room (10.0.0.232)") { paired += "pair" }
+        val page = novaPairLinkConfirmPage(rule.activity, "Living room (192.0.2.10)") { paired += "pair" }
         assertEquals(string(R.string.pair_pc_confirm_title), page.title)
-        assertEquals(string(R.string.pair_pc_confirm_message, "Living room (10.0.0.232)"), page.message.text)
+        assertEquals(string(R.string.pair_pc_confirm_message, "Living room (192.0.2.10)"), page.message.text)
         assertFalse("pairing is not destructive", page.destructive)
 
         val state = NovaPanelState()
@@ -90,7 +90,7 @@ class NovaPairingAndUpdatePagesComposeTest {
         val paired = mutableListOf<String>()
         val state = NovaPanelState()
         var closes = 0
-        state.open(novaPairLinkConfirmPage(rule.activity, "pc-papi") { paired += "pair" })
+        state.open(novaPairLinkConfirmPage(rule.activity, "test-pc") { paired += "pair" })
         val keys = rule.setPanelContent { NovaPageStackHost(state = state, onCloseRequest = { closes++ }) { } }
 
         keys.press(NovaTestKeys.CENTER)

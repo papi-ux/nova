@@ -106,7 +106,7 @@ class NovaHostsResultsInPlaceTest {
     @Test
     fun pairingOnItsWayIsThePairingPageAndItsCloseHidesIt() {
         var hidden = 0
-        val message = context.getString(R.string.hosts_qr_connecting, "10.0.0.232")
+        val message = context.getString(R.string.hosts_qr_connecting, "192.0.2.10")
         val page = novaPairingProgressPage(context, "pairing", message) { hidden++ }
         assertEquals(context.getString(R.string.pair_pairing_title), page.title)
         assertEquals(message, page.message.value)

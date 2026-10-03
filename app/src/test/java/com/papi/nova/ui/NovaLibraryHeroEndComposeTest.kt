@@ -55,7 +55,7 @@ class NovaLibraryHeroEndComposeTest {
     private val hero = NovaLibraryHeroState(
         game = null,
         title = "Control Ultimate Edition",
-        subtitle = "Running on pc-papi",
+        subtitle = "Running on test-pc",
         caption = "Resume this stream, or end it if the host game is stale.",
         eyebrow = "Resume your stream",
         actionLabel = "Resume Stream",

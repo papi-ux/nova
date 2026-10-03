@@ -21,19 +21,19 @@ class NovaHostDetailsTextTest {
     @Test
     fun labelledLinesWithWhatIsUnknownLeftOut() {
         val details = ComputerDetails().apply {
-            name = "pc-papi"
+            name = "test-pc"
             uuid = "abc-123"
             state = ComputerDetails.State.ONLINE
-            activeAddress = ComputerDetails.AddressTuple("10.0.0.232", 47989)
-            localAddress = ComputerDetails.AddressTuple("10.0.0.232", 47989)
+            activeAddress = ComputerDetails.AddressTuple("192.0.2.10", 47989)
+            localAddress = ComputerDetails.AddressTuple("192.0.2.10", 47989)
             pairState = PairingManager.PairState.PAIRED
             httpsPort = 47984
         }
         assertEquals(
             listOf(
-                "Name: pc-papi",
+                "Name: test-pc",
                 "Status: Online",
-                "Address: 10.0.0.232:47989",
+                "Address: 192.0.2.10:47989",
                 "Paired: Yes",
                 "HTTPS port: 47984",
                 "Host ID: abc-123",
