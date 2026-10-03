@@ -101,7 +101,9 @@ ApplicationWindow {
     void call(const char* method, const QVariant& value) { require(QMetaObject::invokeMethod(root.get(), method, Q_ARG(QVariant, value)), method); settle(); }
     QObject* popup(const char* name) { auto* value = root->findChild<QObject*>(name); require(value, name); return value; }
     QQuickItem* item(const QString& name) { auto* value = visual(window->contentItem(), name); require(value, qPrintable(name)); return value; }
-    QRectF bounds(QQuickItem* value) { return value->mapRectToScene(value->boundingRect()); }
+    // TextField inherits TextInput: boundingRect describes rendered text.
+    // Interactive targets and clipping use the actual item's width/height.
+    QRectF bounds(QQuickItem* value) { return value->mapRectToScene(QRectF(0, 0, value->width(), value->height())); }
     void contained(QQuickItem* value) {
         const auto rect = bounds(value);
         if (rect.width() < 47.99 || rect.height() < 47.99) {

@@ -79,7 +79,6 @@ Popup {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 48
                     Layout.minimumHeight: 48
-                    Layout.preferredHeight: Math.max(48, implicitHeight)
                     horizontalAlignment: Text.AlignHCenter
                     color: NovaTheme.text
                     selectedTextColor: NovaTheme.focusText
