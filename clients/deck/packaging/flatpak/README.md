@@ -22,6 +22,25 @@ Release workflows derive Nova's reported version from the exact tag, including
 the numbered beta or rc suffix. Native prerelease builds can set
 `-DNOVA_DECK_VERSION_SUFFIX=-beta.1`; an omitted suffix keeps the numeric version.
 
+## Download and install
+
+Choose a published release at [Nova Releases](https://github.com/papi-ux/nova/releases).
+Download `Nova-Linux-x86_64-alpha.flatpak` and the matching checksum from that
+same release. Latest is stable; a beta is listed separately as a prerelease.
+From the download directory on Linux (Desktop Mode on Steam Deck):
+
+```bash
+sha256sum -c Nova-Linux-x86_64-alpha.flatpak.sha256
+flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
+flatpak run com.papi_ux.Nova --standalone
+```
+
+For an older separate PyroWave bundle, read the
+[migration steps](../../docs/pyrowave.md#packaging-and-compatibility) first.
+For Game Mode, see [Steam registration and pointer input](#steam-registration-and-pointer-input).
+
+## Build from source
+
 Build a bundle from a checkout with its submodules initialised (moonlight-common-c is in-tree):
 
     flatpak install --user flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
@@ -32,6 +51,8 @@ Install and run it from a Linux desktop (Desktop Mode on Steam Deck):
 
     flatpak install --user build/Nova-Linux-x86_64-alpha.flatpak
     flatpak run com.papi_ux.Nova --standalone
+
+## Permissions and media backends
 
 Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
 
@@ -64,6 +85,8 @@ The KDE runtime supplies Vulkan, shaderc and FFmpeg; libplacebo is built from th
 commit pinned in `modules/libplacebo.json`. Its Jinja/MarkupSafe shader-generation
 sources are checksum-pinned build dependencies and are not installed in the app.
 No additional device or filesystem permission is required for this presenter.
+
+## Steam registration and pointer input
 
 Optionally register Nova with Steam on a Linux device, with Steam closed
 (use Desktop Mode on Steam Deck):

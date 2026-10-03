@@ -17,6 +17,16 @@ historical implementation note below as an open assignment. The
 LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
 Alpha client; a successful build does not validate every Linux configuration.
 
+## Find your next step
+
+- [Install the Flatpak and configure Steam Input](packaging/flatpak/README.md).
+- [Current interface](#what-changes-in-1414), [window controls](#linux-window-controls),
+  [PC discovery](#local-pc-search), and [frame rates and bitrate](#linux-frame-rates-and-bitrate).
+- [PyroWave and older-bundle migration](docs/pyrowave.md).
+- [Experimental Steam Frame development](docs/steam-frame.md).
+- [Build and smoke routes](#runnable-smoke-paths) and
+  [dependency notes](#fedora-or-steamos-dependency-notes) for contributors.
+
 ## What changes in 1.4.14
 
 The Library, Hosts, Settings and Play Setup now fit landscape handhelds and
@@ -31,6 +41,12 @@ start at 80 percent and existing saved sizes stay intact. Opened text and opacit
 editors keep a draft until Save. The six Linux themes now include
 `< Congratulations, Director >`, with crimson surfaces, warm white text and
 black controls. Command Center has its own background-opacity setting.
+
+![Nova Linux 1.4.14-beta.1 candidate Appearance settings in the Director theme, with independent text, control size and library layout](../../docs/screenshots/nova-linux-director-appearance-v1.4.14-beta.1.webp)
+
+*Production Release binary, captured at 1280×800 in an isolated software-rendered
+window. [Source and image provenance](../../docs/screenshots/beta1-readme-provenance.json).
+This UI capture does not qualify hardware streaming or frame rate.*
 
 First launch opens pairing. Settings search, held controller repeat, left-stick
 navigation, shoulder paging and Back use the same native interface. System
@@ -118,6 +134,9 @@ frame rate used for that stream and leaves the saved preference intact. Launch
 rechecks the display and host; resume and reconnect preserve the reviewed values.
 Tests cover 240 FPS transport configuration, recovery, bounded frame delivery,
 225.5 Mbps custom entry and host plans, plus existing scope/authorization guards.
+
+<details>
+<summary>Historical Android v1.4.11 parity checkpoint and implementation record</summary>
 
 ## Historical Android v1.4.11 parity checkpoint
 
@@ -393,6 +412,8 @@ checks use isolated loopback hosts, not the player's running host.
 Support-report export, richer explanations, persistent receipt recovery, Sync and
 real-host/physical acceptance remain open. The full
 [parity inventory](../../docs/deck-release-parity.md) remains open.
+
+</details>
 
 ## Current preview smoke scope
 

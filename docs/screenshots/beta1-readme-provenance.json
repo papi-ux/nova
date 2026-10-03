@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "release_status": "private 1.4.14-beta.1 candidate; publication not implied",
+  "captured_on": "2026-10-03",
+  "limitations": [
+    "UI-only captures; no stream was launched for this capture set",
+    "No performance, HDR, sustained frame rate or physical streaming acceptance is established",
+    "Older README images retain the versions in their filenames and original provenance"
+  ],
+  "captures": [
+    {
+      "file": "nova-android-game-detail-v1.4.14-beta.1.webp",
+      "platform": "android",
+      "view": "game-detail",
+      "reported_version": "1.4.14-beta.1",
+      "width": 1920,
+      "height": 1080,
+      "captured_png_sha256": "ed90abeb92a577e45f9db6dca2d0491003c6871d45673e6e17c4cd47bb0b8b2f",
+      "webp_sha256": "5628380dadc4cd51daed2491b3236a4c69ba4809be73a0a2ba55c31f906599b6",
+      "webp_bytes": 105290,
+      "encoding": "WebP quality 85; no crop, resize or content edit",
+      "source_commit": "c9a30fec2e2f65e49bc23febe428722b6cf40b28",
+      "version_code": 5501,
+      "device": "Retroid Pocket 6",
+      "app_id": "com.papi.nova.pre",
+      "apk_sha256": "97a60693b4223c6a7dca6a0e174e3c57eef9391881091997b73de08647eb1f65",
+      "capture_method": "ADB screencap from the installed signed candidate after normal UI navigation"
+    },
+    {
+      "file": "nova-android-play-setup-v1.4.14-beta.1.webp",
+      "platform": "android",
+      "view": "play-setup",
+      "reported_version": "1.4.14-beta.1",
+      "width": 1920,
+      "height": 1080,
+      "captured_png_sha256": "91b2bead10346b6a09277a181b30868d39c8f0d127d53490c16f46f19257f95e",
+      "webp_sha256": "01bad1b220e211a2aac5caade189f3d7b9d7dbcc463b329a75d5ea34fd0d0aa8",
+      "webp_bytes": 56850,
+      "encoding": "WebP quality 85; no crop, resize or content edit",
+      "source_commit": "c9a30fec2e2f65e49bc23febe428722b6cf40b28",
+      "version_code": 5501,
+      "device": "Retroid Pocket 6",
+      "app_id": "com.papi.nova.pre",
+      "apk_sha256": "97a60693b4223c6a7dca6a0e174e3c57eef9391881091997b73de08647eb1f65",
+      "capture_method": "ADB screencap from the installed signed candidate after normal UI navigation"
+    },
+    {
+      "file": "nova-android-director-appearance-v1.4.14-beta.1.webp",
+      "platform": "android",
+      "view": "director-appearance",
+      "reported_version": "1.4.14-beta.1",
+      "width": 1920,
+      "height": 1080,
+      "captured_png_sha256": "201cd8d8754a6b0bd561b17338f06996eb2dfb52ea4f09870ddf394eef89fc10",
+      "webp_sha256": "81ac5a340bda1908fb85d3ad2d26ebc35075005c2038595c2be88ac176714f2e",
+      "webp_bytes": 41262,
+      "encoding": "lossless WebP; decoded pixels equal captured PNG",
+      "source_commit": "c9a30fec2e2f65e49bc23febe428722b6cf40b28",
+      "version_code": 5501,
+      "device": "Retroid Pocket 6",
+      "app_id": "com.papi.nova.pre",
+      "apk_sha256": "97a60693b4223c6a7dca6a0e174e3c57eef9391881091997b73de08647eb1f65",
+      "capture_method": "ADB screencap from the installed signed candidate after normal UI navigation"
+    },
+    {
+      "file": "nova-linux-director-appearance-v1.4.14-beta.1.webp",
+      "platform": "linux",
+      "view": "director-appearance",
+      "reported_version": "1.4.14-beta.1",
+      "width": 1280,
+      "height": 800,
+      "captured_png_sha256": "2c3c95e9c5f8b3e69fbd648025d3558c8ff7549aed59f9b054e1722c1eebf81d",
+      "webp_sha256": "d15d5a8e9f91e902bbb21b8d61b2e1fd4aeab62167ff4ac915aa68bef0f54e0b",
+      "webp_bytes": 17058,
+      "encoding": "lossless WebP; decoded pixels equal captured PNG",
+      "source_commit": "f7cd411dc30b9a9879b0788802c14ddd8dd45feb",
+      "binary_sha256": "ffde9cedc3f6e085293e594f7b102df81a2d136206a1a8d1bf306d98e6795be6",
+      "capture_method": "X11 window capture of the production Release binary under Xvfb software rendering",
+      "configuration": "Isolated device appearance store: Director, 80 percent text, Standard controls; original pairing store unchanged"
+    }
+  ]
+}
