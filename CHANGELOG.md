@@ -69,6 +69,7 @@ The Linux interface gets the same attention as the Android one: a quieter Librar
 - Save a PC's MAC address and use Wake PC from its System menu. Nova confirms that it sent the packet; the PC's connection state tells you whether it woke.
 - System offers a reviewed Add Nova to Steam action. The first Moonlight handoff explains its limits before launching, and Back cancels it.
 - Compatible Polaris hosts receive fresh measured video-loss evidence. Decoder refusals and control retries stay separate; missing measurements stay unavailable.
+- PipeWire audio recovery no longer occasionally hangs during disconnect when the audio service disappears. Stereo, 5.1 and 7.1 keep the same recovery and shutdown deadlines.
 - End Session distinguishes the PC accepting the request from verified game shutdown. A failed update check keeps Retry available and uses the production feed address; a bundle without a configured signed channel still gives installation guidance.
 
 **Steam Frame: experimental groundwork**

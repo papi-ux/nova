@@ -38,7 +38,14 @@ public:
         discardedFrames_ = 0;
         static std::once_flag initialization;
         std::call_once(initialization, [] { pw_init(nullptr, nullptr); });
-        loop_ = pw_thread_loop_new("nova-audio", nullptr);
+        // A failed recovery connection can otherwise stop the loop before its
+        // thread has entered polling: stop's direct invoke races the first
+        // blocking iteration and its join can sleep forever. PipeWire signals
+        // startup with the loop lock held; wait for that handshake before an
+        // immediately failing connect can reach close().
+        const spa_dict_item loopItems[] = {{"thread-loop.start-signal", "true"}};
+        const spa_dict loopProperties = SPA_DICT_INIT_ARRAY(loopItems);
+        loop_ = pw_thread_loop_new("nova-audio", &loopProperties);
         if (loop_ == nullptr) {
             return false;
         }
@@ -55,11 +62,19 @@ public:
                 PW_KEY_NODE_DONT_RECONNECT, "false", "node.dont-move", "false",
                 PW_KEY_NODE_LATENCY, "240/48000", nullptr),
             &events, this);
-        if (stream_ == nullptr || pw_thread_loop_start(loop_) < 0) {
+        if (stream_ == nullptr) {
+            close();
+            return false;
+        }
+        pw_thread_loop_lock(loop_);
+        if (pw_thread_loop_start(loop_) < 0) {
+            pw_thread_loop_unlock(loop_);
             close();
             return false;
         }
         loopStarted_ = true;
+        pw_thread_loop_wait(loop_);
+        pw_thread_loop_unlock(loop_);
         spa_audio_info_raw info{};
         info.format = SPA_AUDIO_FORMAT_F32;
         info.rate = format.sampleRate;
