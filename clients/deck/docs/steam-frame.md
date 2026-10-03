@@ -9,7 +9,9 @@ This work is separate from beta.1 acceptance and public publication.
 
 The ordinary package keeps its existing device permissions and VA-API path.
 The Frame development launcher enables `NOVA_DECK_FRAME_V4L2=1` for that
-process. Discovery then checks an accessible `qcom-iris` mem2mem device and
+process. Discovery then checks an accessible Qualcomm iris mem2mem device,
+using its kernel `QUERYCAP` driver/card identity (Frame reports `iris_driver`
+and `iris_decoder`, rather than the node's sysfs name), and
 runs a bounded child using the exact bundled `h264_v4l2m2m` and
 `hevc_v4l2m2m` decoders. Each codec remains unavailable until its embedded
 1080p gray fixture produces a reference-owned linear NV12 frame with actual
@@ -75,6 +77,36 @@ then run `frame-development-launcher.sh`. Its `--device=all` permission is
 temporary because Flatpak lacks a video-only permission. It uses separate
 configuration, data and cache directories for standalone pairing and settings.
 It never changes the shared manifest or persistent Flatpak overrides.
+The launcher exports the private XDG homes **inside** the sandbox before
+executing Nova: Flatpak initializes these reserved variables after `--env`.
+Verify the running process uses `/var/config/frame-dev`, `/var/data/frame-dev`
+and `/var/cache/frame-dev` before changing development settings.
+
+On Frame, launch this script through its own Steam non-Steam entry, named
+`Nova Frame Development`. Keep it separate from an existing Nova shortcut,
+and select a gamepad Steam Input layout for the development entry. Launching
+the window directly through SSH leaves it outside a Steam game context and
+does not establish the Frame controllers' non-VR gamepad behavior. Check that
+Gamescope's `GAMESCOPE_FOCUSED_APP` matches the development shortcut's app ID
+and then verify the actual sticks/buttons, Back and Command Center on Frame.
+Remove only that development entry from Steam when rolling back.
+
+Set this entry's Steam **Game Resolution** to **1920×1080**, applying it to
+the internal display, and select fullscreen in Nova's private window settings.
+Steam's default application display can be 1280×720 even when its dashboard
+display is 1920×1080. Inspect the running Nova process's `DISPLAY`, then check
+that display with `xrandr` and the actual stream window with `xwininfo`.
+Both must render at 1920×1080 before counting a target-resolution stream;
+increasing the received video resolution alone leaves a low-resolution render
+surface enlarged by the compositor.
+
+For an installation completely separate from both regular user and system
+Flatpaks, export `FLATPAK_USER_DIR="$HOME/.local/share/nova-frame-dev-flatpak"`
+before every development install, info, run and uninstall command. Use a
+small host wrapper that sets this variable and executes the launcher. Record
+the existing system and ordinary user refs separately; the private installation
+must not replace them or change their current branches. Install the recorded
+KDE ARM64 Platform commit into this private installation before the app bundle.
 
 If a previous Nova branch exists, immediately restore it as the current branch
 with `flatpak make-current --user com.papi_ux.Nova <previous-branch>` and verify
@@ -102,7 +134,7 @@ machine, runtime loader closure, named codec availability, source/dependency
 pins, licenses and architecture-specific updater requests. Retain the x86_64
 regression result separately.
 
-After connectivity returns, record standalone pairing, library browsing,
+On the headset, record standalone pairing, library browsing,
 first image, audio, Steam Input navigation, Back, Command Center, gamepad
 forwarding and clean stop. Bring each codec up at 60 fps before a separate
 15-minute 1080p/90 soak. Record requested, decoded, handoff-submitted and
@@ -114,6 +146,13 @@ With the owner wearing Frame, confirm legible UI, smooth motion, colors,
 synchronized audio, controllers, headset removal, suspend/resume and network
 interruption recovery. Completion requires H.264, HEVC and PyroWave all
 passing; a build, capability probe or headless test does not satisfy it.
+
+Check the actual stream trace against Play Setup before judging clarity or
+starting a soak. The existing device default is 1280×800 at 60 fps and 20 Mbps;
+select 1920×1080 explicitly for this qualification. PyroWave needs more
+bandwidth for fine detail: select its recommended starting bitrate for the
+chosen resolution/rate and verify the received stream. Preserve the ordinary
+device defaults and the PC's configured limits.
 
 Moonlight XR v0.4 is a bounded later assessment of OpenXR screens, positioning,
 input and depth-generated 3D. Its Quest/Pico testing is not Frame acceptance.
