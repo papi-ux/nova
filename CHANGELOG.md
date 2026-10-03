@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-Command Center explains GPU encoding and CPU capture copies together, so a system-memory capture path does not read as software encoding. Doctor warnings keep their own health verdict.
-
 ## 1.4.14 - 2026-10-01
 
 A Library that fits your screen, stream choices that fit your device, and bitrate controls that explain what the stream needs.
@@ -28,10 +26,12 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 - PyroWave offers calibrated advice before launch, with handheld and room viewing targets. Advice and Use recommended stay at or below 300 Mbps. A manual request can reach 500 Mbps when the host advertises that limit; older hosts keep their 300 Mbps limit.
 - Command Center can change bitrate during a stream. PyroWave uses ten-percent steps; H.264 and HEVC use 5 Mbps steps. Host-provided bitrate units keep the request and video rate clear.
 - A manual live change turns Live Tuning off for that stream only. With a compatible host, Doctor can offer a reversible PyroWave quality increase on a clean network, or a lower bitrate for sustained measured media loss. Verify checks the result; Undo restores the previous bitrate and Live Tuning state.
+- Command Center explains GPU encoding and CPU capture copies together, so a system-memory capture path does not read as software encoding. Doctor warnings keep their own health verdict.
 - NovaHUD keeps its corner position, compact readout and changing sparkline colors. Menu opacity applies to Command Center again.
 
 **Compatibility and Nova Beta**
 
+- Known limitation: a Heroic game launched in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games.
 - PyroWave is hidden with a reason on Android devices missing its Vulkan features. Shield controller motion during stream startup and malformed decoder packets are handled safely.
 - Host-specific Launch As restrictions keep their own reason. Spaces use their worker's allowed mode without borrowing the desktop's choices; an unavailable Space remains unavailable.
 - Keep in Step starts on for new pairings. Nova Beta identifies new pairings as Beta instead of Pre; existing host-stored pairing names change only after pairing again.
@@ -40,7 +40,7 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 **Nova Linux (Alpha)**
 
 - Appearance adds `< Congratulations, Director >`, Compact/Standard/Large controls, and 80–130 percent text in one-percent steps. New installs start at 80 percent; saved text sizes stay intact. Text and menu-opacity previews apply after Save.
-- Hosts, Settings, Library and Play Setup adapt to portrait windows. Stage uses Regular in portrait while retaining your landscape choice. Back clears a Settings search before leaving.
+- Nova Linux is designed for landscape on Steam Deck and desktops. Hosts, Settings, Library and Play Setup adapt to narrow resized windows; Stage uses Regular when the window is taller than it is wide, while retaining your landscape choice. Back clears a Settings search before leaving.
 - Command Center has its own background-opacity control, separate from NovaHUD, and stacks its session actions in narrow windows. HUD text stays readable over video and its debug groups wrap.
 - End Session distinguishes the PC accepting an end request from verified game shutdown.
 - The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device only when you choose that codec. The separate PyroWave bundle is retired. Install the standard bundle over the 1.4.13 PyroWave bundle to keep your pairing and settings; keep app data and do not uninstall with `--delete-data`.
