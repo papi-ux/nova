@@ -39,10 +39,17 @@ pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
     opus
 )
 # KDE's ARM SDK nests Qt dependency configs in its multiarch CMake directory.
-# Keep an existing application prefix first, and make those siblings discoverable.
+# Qt restricts nested dependency searches. Give its first-level Gui/Qml
+# dependencies explicit defaults while preserving caller-provided paths.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$"
         AND EXISTS "/usr/lib/aarch64-linux-gnu/cmake/Qt6/Qt6Config.cmake")
     list(APPEND CMAKE_PREFIX_PATH "/usr/lib/aarch64-linux-gnu/cmake")
+    foreach(component IN ITEMS Gui Qml)
+        if(NOT Qt6${component}_DIR)
+            set(Qt6${component}_DIR "/usr/lib/aarch64-linux-gnu/cmake/Qt6${component}"
+                CACHE PATH "ARM SDK Qt ${component} config" FORCE)
+        endif()
+    endforeach()
 endif()
 find_package(Qt6 6.10 REQUIRED COMPONENTS Quick Network DBus WaylandClient GuiPrivate)
 pkg_check_modules(NOVA_DECK_POINTER REQUIRED IMPORTED_TARGET wayland-client xcb xcb-xinput)
