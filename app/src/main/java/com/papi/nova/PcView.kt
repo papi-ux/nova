@@ -1253,6 +1253,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         // whether the library was already opened, so it does not throw the player into it (the
         // RP6) or at an offline host (the Shield), and focus comes back to Theme.
         returnFocusToTheme = true
+        // Close the picker window before Android preserves/replaces the Home window. Waiting for
+        // ON_DESTROY leaves the exiting dialog as the input target on some handhelds.
+        novaSurfaces.dispose()
         recreate()
         NovaThemeManager.applyFadeTransition(this)
     }

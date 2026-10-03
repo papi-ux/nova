@@ -5,6 +5,7 @@ import android.app.GameManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import android.os.Looper
 import android.view.View
 import androidx.preference.PreferenceManager
@@ -114,6 +115,20 @@ class PcViewThemeWindowLifecycleTest {
         assertEquals(NovaThemeManager.THEME_OLED, NovaThemeManager.getTheme(context))
         assertTrue(ThemeRecreateShadow.windowsShowingAtRecreate.isEmpty())
         assertFalse(ShadowDialog.getLatestDialog().isShowing)
+    }
+
+    @Test fun changedThemeKeepsTheLibraryVisitAndThemeFocusInSavedState() {
+        val (surfaces, picker) = openPicker()
+        val activity = controller!!.get()
+        PcView::class.java.getDeclaredField("autoNavigated").apply { isAccessible = true }
+            .setBoolean(activity, true)
+        choose(surfaces, picker, NovaThemeManager.THEME_DIRECTOR)
+        val saved = Bundle()
+        controller!!.saveInstanceState(saved)
+        assertTrue("the recreation remains the same visit after Library was opened",
+            saved.getBoolean("nova.pcview.autoNavigated"))
+        assertTrue("the recreated Home returns focus to its Theme action",
+            saved.getBoolean("nova.pcview.focusTheme"))
     }
 
     @Implements(PcView::class)

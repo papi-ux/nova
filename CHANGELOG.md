@@ -26,6 +26,7 @@ Smaller text does not have to mean smaller buttons. Nova now lets you choose the
 - Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen. Settings can hide its supporting menu when the rows need more room.
 - Settings, pickers, sheets and Command Center use consistent focus and Back behavior. The Mouse Mode picker takes D-pad focus, and End Session confirmation opens with a focused action.
 - Android and Linux add `< Congratulations, Director >`: crimson surfaces, warm white text and black controls. It is a separate theme, so your current choice stays intact.
+- Home theme changes close their picker before reopening Home, preventing a focused-window hang on affected Android handhelds.
 
 **Play Setup knows the device**
 
