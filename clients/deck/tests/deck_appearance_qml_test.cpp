@@ -104,6 +104,8 @@ ApplicationWindow {
     QRectF bounds(QQuickItem* value) { return value->mapRectToScene(value->boundingRect()); }
     void contained(QQuickItem* value) {
         const auto rect = bounds(value);
+        if (rect.width() < 47.99 || rect.height() < 47.99)
+            std::cerr << value->objectName().toStdString() << " target=" << rect.width() << "x" << rect.height() << '\n';
         require(rect.width() >= 47.99 && rect.height() >= 47.99, "appearance control lost its 48px target");
         require(QRectF(0, 0, window->width(), window->height()).adjusted(-1, -1, 1, 1).contains(rect), "appearance control escaped the viewport");
         for (auto* ancestor = value->parentItem(); ancestor; ancestor = ancestor->parentItem())
