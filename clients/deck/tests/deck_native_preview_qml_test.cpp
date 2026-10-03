@@ -1187,13 +1187,16 @@ int main(int argc, char** argv) {
     require(appearance && QMetaObject::invokeMethod(appearance, "open"), "cannot open stream appearance");
     settle();
     auto* buttonToggle = root->findChild<QQuickItem*>("appearance-command-center-button");
+    auto* menuOpacity = root->findChild<QQuickItem*>("appearance-menu-opacity");
     auto* hintToggle = root->findChild<QQuickItem*>("appearance-shortcut-hint");
     auto* hint = root->findChild<QQuickItem*>("native-controller-hint");
     auto* shortcut = root->findChild<QQuickItem*>("native-controller-shortcut");
-    require(buttonToggle && hintToggle && hint && shortcut, "missing stream overlay preferences");
+    require(buttonToggle && menuOpacity && hintToggle && hint && shortcut, "missing stream overlay preferences");
     buttonToggle->forceActiveFocus(); settle();
     screenshot("stream-appearance-large-960.png");
     key(*window, Qt::Key_Return);
+    key(*window, Qt::Key_Down);
+    focused(*window, menuOpacity, "button toggle lost D-pad path to menu opacity");
     key(*window, Qt::Key_Down);
     focused(*window, hintToggle, "button toggle lost D-pad path to shortcut toggle");
     key(*window, Qt::Key_Escape);
@@ -1204,6 +1207,8 @@ int main(int argc, char** argv) {
     require(session.controlsVisible(), "hidden touch button blocked menu access");
     QMetaObject::invokeMethod(appearance, "open"); settle();
     hintToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    key(*window, Qt::Key_Up);
+    focused(*window, menuOpacity, "shortcut toggle lost D-pad return path to menu opacity");
     key(*window, Qt::Key_Up);
     focused(*window, buttonToggle, "shortcut toggle lost D-pad return path");
     key(*window, Qt::Key_Escape);
