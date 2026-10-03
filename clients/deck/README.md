@@ -17,10 +17,44 @@ historical implementation note below as an open assignment. The
 LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
 Alpha client; a successful build does not validate every Linux configuration.
 
+## What changes in 1.4.14
+
+The Library, Hosts, Settings and Play Setup now fit landscape handhelds and
+resized desktop windows more comfortably. Stage keeps the selected game's art
+up front; Regular and Compact keep recent games in the grid without the old
+Continue row. Stage uses Regular in a taller window and remembers the landscape
+choice. This is a window adaptation, not a requirement to use Linux in portrait.
+
+**System → Appearance** separates Compact, Standard and Large controls from
+text size. Text supports 80–130 percent in one-percent steps; new installations
+start at 80 percent and existing saved sizes stay intact. Opened text and opacity
+editors keep a draft until Save. The six Linux themes now include
+`< Congratulations, Director >`, with crimson surfaces, warm white text and
+black controls. Command Center has its own background-opacity setting.
+
+First launch opens pairing. Settings search, held controller repeat, left-stick
+navigation, shoulder paging and Back use the same native interface. System
+offers **Add Nova to Steam** and **Wake PC** after you save that PC's MAC address.
+A sent wake packet is not proof that a PC is awake. Decoder and launch failures
+name a cause and a next step; End Session distinguishes an accepted request from
+verified game shutdown.
+
+The standard x86_64 bundle includes experimental PyroWave with a device check
+that runs only when the codec is selected. H.264, HEVC and Auto skip that check.
+The [PyroWave guide](docs/pyrowave.md) covers migration from the retired separate
+bundle, SDR limits, calibrated advice and live controls.
+
+The [Steam Frame development guide](docs/steam-frame.md) covers the experimental
+ARM64 route. Real streams have produced pictures with H.264, HEVC and PyroWave;
+sustained 1080p/90 performance and color/clarity checks remain incomplete. This
+is not a public ARM64 download, HDR qualification or immersive XR support.
+
 Current implementation includes:
 
 - Standalone PIN/Trusted Pair and explicit local PC discovery.
-- VA-API video, Opus/PipeWire audio, controllers, keyboard and direct/relative mouse input.
+- VA-API video and experimental PyroWave, Opus/PipeWire audio, controllers,
+  keyboard and direct/relative mouse input. The Frame development route adds
+  hardware V4L2 decoding separately.
 - Desktop fullscreen/window controls, display-aware rates through 240 fps and
   host-validated bitrate settings.
 - Native themes, accessible text sizing and controller/mouse/touch UI navigation.
@@ -70,10 +104,14 @@ whole-number rates follow the current Polaris profile contract, 15–240 fps.
 
 The old 100 Mbps numeric-parser limit and 150 Mbps host-plan request limit are
 removed. Decimal custom bitrates now reach storage, defaults, Sync, host planning,
-launch and recovery without those client-side ceilings. Polaris currently accepts
-1–300 Mbps for profiles and live bitrate changes; this remains an explicit host
-constraint. Neither a requested rate nor the capability check proves measured
-240 FPS playback or a sustained network bitrate.
+launch and recovery without those client-side ceilings. Storage and the request contract allow up to 500 Mbps, but review and launch use
+the PC's advertised manual limit; without that capability the limit is 300 Mbps.
+The Play Setup picker has preset choices through 300 Mbps and retains a saved
+custom value when the PC allows it. Live Bitrate can reach the advertised limit
+with its slider and 10 Mbps buttons. Automatic advice and Use recommended stay
+at or below 300 Mbps. These controls do not guarantee measured 240 FPS playback
+or a sustained network bitrate; the [PyroWave guide](docs/pyrowave.md#bitrate-advice-and-limits)
+explains request and encoder units.
 
 Preferences survive a move to a slower display. Play Setup explains any lower
 frame rate used for that stream and leaves the saved preference intact. Launch
@@ -81,7 +119,11 @@ rechecks the display and host; resume and reconnect preserve the reviewed values
 Tests cover 240 FPS transport configuration, recovery, bounded frame delivery,
 225.5 Mbps custom entry and host plans, plus existing scope/authorization guards.
 
-## Local Android v1.4.11 parity work
+## Historical Android v1.4.11 parity checkpoint
+
+This section retains the earlier implementation and test record. Use the
+1.4.14 summary above for current appearance and release behavior. The five-theme
+and discrete text-size descriptions below refer to that earlier checkpoint.
 
 The standalone library now shares theme colors and focus controls across pairing,
 PC management, browsing, Play Setup, audio, rumble and the streaming overlay.
