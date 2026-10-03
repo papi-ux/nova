@@ -110,11 +110,8 @@ DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device) {
     return probeVaapiDecodeSupport(device);
 }
 
-DeckVideoDecodeSupport detectVideoDecodeSupport() {
-    AVBufferRef* device = nullptr;
-    av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
+DeckVideoDecodeSupport detectVideoDecodeSupport(AVBufferRef* device) {
     auto support = probeVideoDecodeSupport(device);
-    av_buffer_unref(&device);
     if (!support.h264.supports(1920, 1080) || !support.hevc.supports(1920, 1080)) {
         const auto qualified = qualifyDeckV4l2Decoder();
         // Keep every existing VAAPI capability. V4L2 fills absent SDR codecs;
@@ -122,6 +119,14 @@ DeckVideoDecodeSupport detectVideoDecodeSupport() {
         if (support.h264.maxWidth == 0) support.h264 = qualified.h264;
         if (support.hevc.maxWidth == 0) support.hevc = qualified.hevc;
     }
+    return support;
+}
+
+DeckVideoDecodeSupport detectVideoDecodeSupport() {
+    AVBufferRef* device = nullptr;
+    av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
+    const auto support = detectVideoDecodeSupport(device);
+    av_buffer_unref(&device);
     return support;
 }
 } // namespace nova::deck::stream

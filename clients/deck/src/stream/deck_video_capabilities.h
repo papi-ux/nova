@@ -28,6 +28,9 @@ struct DeckVideoDecodeSupport {
 // through the isolated cached probe; generic startup never initializes it.
 // Missing profiles, decode entrypoints, surface formats or size limits remain unsupported.
 DeckVideoDecodeSupport probeVideoDecodeSupport(AVBufferRef* device);
+// Reuse an already-open VAAPI device while also qualifying absent SDR codecs
+// through the explicitly enabled Frame V4L2 path. Startup and launch share this.
+DeckVideoDecodeSupport detectVideoDecodeSupport(AVBufferRef* device);
 DeckVideoDecodeSupport detectVideoDecodeSupport();
 
 // Auto prefers HEVC only when both endpoints support this stream size.

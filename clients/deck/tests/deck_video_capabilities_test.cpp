@@ -16,6 +16,21 @@ namespace { void require(bool ok, const char* message) { if (!ok) { std::cerr <<
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    if (app.arguments().contains(QStringLiteral("--require-frame-v4l2"))) {
+        const auto detected = DeckLinuxMediaProbe::detect().videoDecodeSupport;
+        const auto launchSupport = detectVideoDecodeSupport();
+        require(qgetenv("NOVA_DECK_FRAME_V4L2") == "1", "Frame integration check requires its explicit development opt-in");
+        require(detected.h264.supports(1920, 1080) && detected.hevc.supports(1920, 1080) &&
+            detected.h264.backend == DeckDecoderBackend::V4l2 && detected.hevc.backend == DeckDecoderBackend::V4l2,
+            "Startup media probe did not expose qualified Frame H.264/HEVC to Play Setup");
+        require(launchSupport.h264.supports(1920, 1080) && launchSupport.hevc.supports(1920, 1080) &&
+            launchSupport.h264.backend == DeckDecoderBackend::V4l2 && launchSupport.hevc.backend == DeckDecoderBackend::V4l2,
+            "Frame startup and launch decoder capabilities disagree");
+        require(!detected.main10.supports(1920, 1080), "Frame V4L2 qualification implied Main10 support");
+        require(detected.pyrowave.maxWidth == 0, "Frame startup initialized PyroWave eagerly");
+        std::cout << "Actual Frame startup and launch expose qualified H.264/HEVC V4L2; Main10/PyroWave remain independent\n";
+        return 0;
+    }
     const DeckVideoDecodeSupport support{.h264 = {4096, 4096}, .hevc = {1920, 1200}, .main10 = {4096, 4096}};
     require(selectSdrVideoFormat("auto", true, true, support, 1920, 1200) == VIDEO_FORMAT_H265, "Auto did not prefer supported HEVC");
     require(selectSdrVideoFormat("auto", true, true, support, 1921, 1200) == VIDEO_FORMAT_H264, "Auto ignored decoder size limits");
@@ -86,6 +101,7 @@ int main(int argc, char** argv) {
     avcodec_free_context(&decoder);
     const auto detected = DeckLinuxMediaProbe::detect().videoDecodeSupport;
     const auto launchSupport = detectVideoDecodeSupport();
+
     require(detected.pyrowave.maxWidth == 0 && launchSupport.pyrowave.maxWidth == 0 &&
         probeVideoDecodeSupport(nullptr).pyrowave.maxWidth == 0,
         "general video discovery eagerly probed PyroWave");
