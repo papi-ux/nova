@@ -161,6 +161,8 @@ int main(int argc, char** argv) {
         std::cout << "Actual prelaunch footer geometry and controller Back passed\n"; return 0;
     }
     screenshot("play-setup-defaults.png");
+    auto* planSummary = root->findChild<QQuickItem*>("play-setup-plan-summary");
+    require(planSummary, "missing production plan disclosure");
     // The legacy Space launcher can have the same game ID in two places.
     // Destination identity and readiness must independently invalidate review.
     auto* setup = root->findChild<QObject*>("play-setup");
@@ -359,6 +361,8 @@ int main(int argc, char** argv) {
     preview->setProperty("streamCapabilities", QVariantMap{{"h264", true}, {"maxFps", 30}});
     settle();
     key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "adjusted resolution did not reach the plan disclosure");
+    key(*window, Qt::Key_Up);
     focused(*window, primary, "supported adjusted plan did not restore Play navigation");
     key(*window, Qt::Key_Return);
     require(session.starts == 3 && session.selectedConfiguration.value("fps") == 30,
@@ -385,6 +389,9 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     require(rate->property("value") == "90 fps", "90 FPS choice was not applied to review");
     key(*window, Qt::Key_Up);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "rate did not return to resolution");
+    key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "resolution did not reach the plan disclosure");
     key(*window, Qt::Key_Up);
     focused(*window, primary, "fast-display settings did not return to Play");
     screenshot("display-90-play-setup.png");
@@ -416,7 +423,11 @@ int main(int argc, char** argv) {
     focused(*window, rate, "withdrawn rate left focus on an obsolete popup choice");
     require(!root->findChild<QObject*>("play-setup-picker")->property("opened").toBool(), "withdrawn rate left the picker open");
     key(*window, Qt::Key_Up);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "withdrawn rate did not return to resolution");
     key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "withdrawn rate did not reach the plan disclosure");
+    key(*window, Qt::Key_Up);
+    focused(*window, primary, "withdrawn rate did not return to Play");
     key(*window, Qt::Key_Return);
     require(session.starts == 5 && session.selectedConfiguration.value("fps") == 60, "fallback Play ignored displayed effective rate");
     // Reopen a complete active preview for pointer disconnect and a stale

@@ -865,12 +865,13 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
         wait(lambda s: not s.get("filterChoicesOpen") and not s.get("sortChoicesOpen"))
 
     def sort(index, mode):
+        selected = state()["game"]
         filter_focus(0)
         keys("Up", "Up", "Return")
         wait(lambda s: s.get("optionsOpen") and s.get("focus") == "library-layout-option")
         keys("Down", "Return")
         choose(index, "sort")
-        wait(lambda s: s.get("sort") == mode)
+        wait(lambda s: s.get("sort") == mode and s.get("game") == selected)
         keys("Escape", "Down", "Down", "Down")
         wait(lambda s: s.get("focus") == s.get("game"))
 
@@ -916,11 +917,24 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     visible([106, 42, 7, 105, 104, 103], sort="name-desc")
     sort(4, "source")
     visible([7, 103, 105, 42, 106, 104], sort="source")
-    keys("Down")
-    wait(lambda s: s.get("focus") == s.get("game"))
+    # Select the same explicit game through the observed grid geometry. A
+    # density/font change may move it to another row; it must not change identity.
+    for _ in range(len(state()["visibleGames"])):
+        snapshot = state()
+        if snapshot["game"] == "game-106":
+            break
+        current = snapshot["visibleGames"].index(snapshot["game"])
+        target = snapshot["visibleGames"].index("game-106")
+        direction = "Right" if current < target else "Up" if current % snapshot["columns"] == 0 else "Left"
+        keys(direction)
+        wait(lambda s: s.get("game") != snapshot["game"] and s.get("focus") == s.get("game"))
+    wait(lambda s: s.get("focus") == "game-106" and s.get("game") == "game-106")
     keys("Return")
-    wait(lambda s: s.get("detailOpen"))
-    assert state()["game"] == "game-106" and state()["metadata"]["hdrSupported"] is False
+    wait(lambda s: s.get("detailOpen") and s.get("game") == "game-106")
+    # hdr_supported remains a parsed wire field, not a per-title HDR claim.
+    selected_payload = next(game for game in fixtures["a"]["metadata"] if game["id"] == "game-106")
+    assert state()["metadata"]["hdrSupported"] == selected_payload["hdr_supported"]
+    metadata_before = {key: value for key, value in state()["metadata"].items() if key != "hdrSupported"}
     save_capture("android-source-details.png")
     keys("Escape")
     filter_focus(0)
@@ -934,13 +948,12 @@ def filter_navigation(wait, keys, state, fixtures, save_capture):
     wait(lambda s: s.get("busy") and s.get("automatic"))
     assert a["entered"].wait(3), "automatic Polaris list read never arrived"
     for game in a["metadata"]:
-        if game["app_id"] in (7, 103):
-            game["hdr_supported"] = False
-        elif game["app_id"] == 106:
-            game["hdr_supported"] = True
+        game["hdr_supported"] = True
     a["release"].set()
     visible([7, 103, 105, 42, 106, 104], filter="all", sort="source", busy=False, focus="game-106")
-    assert state()["launchEnabled"] and state()["metadata"]["hdrSupported"] is True
+    assert state()["game"] == "game-106" and state()["launchEnabled"]
+    assert state()["metadata"]["hdrSupported"] is True, "uniform host HDR metadata was not parsed"
+    assert {key: value for key, value in state()["metadata"].items() if key != "hdrSupported"} == metadata_before
     save_capture("android-source-refreshed.png")
 
     # Switching to a standard host resets host-specific constraints. It has no
@@ -1139,7 +1152,11 @@ def host_scope_navigation(wait, keys, state, fixtures, save_capture, window, set
     activate_game_review(wait, keys)
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     original = state()["playSetup"]["configuration"]
-    keys("Left", "Left", "Up")
+    keys("Down")
+    wait(lambda s: s.get("focus") == "play-setup-resolution")
+    keys("Up")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Up")
     wait(lambda s: s.get("focus") == "play-setup-every-game")
     keys("Return")
     settled()
@@ -1258,7 +1275,9 @@ def profile_sync_navigation(wait, keys, state, fixtures, save_capture, window):
     # Keep an explicit game bitrate while importing the other device defaults.
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
-    keys("Left", "Up")
+    keys("Left")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Up")
     wait(lambda s: s.get("focus") == "play-setup-every-game")
     keys("Return")
     wait(lambda s: host(s).get("opened") and status(s).get("phase") == "ready")
@@ -1432,7 +1451,11 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("nativePreviewOpen") and s.get("focus") == "native-preview-action")
     keys("Down", "Down", "Down", "Return", "Down", "Down", "Return")
     wait(lambda s: s["playSetup"]["configuration"]["bitrateKbps"] == 40000 and not s["playSetup"]["choicesOpen"])
-    keys("Left", "Up", "Return")
+    keys("Left")
+    wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+    keys("Up")
+    wait(lambda s: s.get("focus") == "play-setup-every-game")
+    keys("Return")
     wait(lambda s: status(s).get("phase") == "ready")
     time.sleep(3.2)
     assert status()["keepInStep"] == "off" and not fixture["settings_posts"]
@@ -2003,17 +2026,18 @@ def main():
             if args.stage and host_id == "a":
                 fixture["games"][-1] = (123, "Southern Sky — A Very Long Journey Beyond the Northern Constellations and Distant Stars")
             if args.filters and host_id == "a":
+                # This is host/capture support, shared by every listed title.
                 fixture["metadata"] = [
                     {"id": f"game-{app_id}", "app_id": app_id, "name": title, "source": source,
                      "platform": platform, "runtime": runtime, "category": category, "genres": genres,
-                     "hdr_supported": hdr, "last_launched": recent, "installed": True}
-                    for app_id, title, source, platform, runtime, category, genres, hdr, recent in (
-                        (7, "Moonlit Harbor", "steam", "linux", "proton", "cinematic", ["Adventure", "Puzzle"], True, 1718190000),
-                        (42, "Orbit & Beyond", "heroic", "windows", "wine", "fast_action", ["Action"], False, 1718200000),
-                        (103, "Amber Orchard", "steam", "linux", "native", "cinematic", ["Adventure"], True, 1718180000),
-                        (104, "Desktop", "manual", "linux", "native", "desktop", [], False, 0),
-                        (105, "Lunar Rally", "lutris", "windows", "wine", "fast_action", ["Racing"], True, 0),
-                        (106, "Orbit Architect", "heroic", "linux", "native", "cinematic", ["puzzle"], False, 1718200000),
+                     "hdr_supported": False, "last_launched": recent, "installed": True}
+                    for app_id, title, source, platform, runtime, category, genres, recent in (
+                        (7, "Moonlit Harbor", "steam", "linux", "proton", "cinematic", ["Adventure", "Puzzle"], 1718190000),
+                        (42, "Orbit & Beyond", "heroic", "windows", "wine", "fast_action", ["Action"], 1718200000),
+                        (103, "Amber Orchard", "steam", "linux", "native", "cinematic", ["Adventure"], 1718180000),
+                        (104, "Desktop", "manual", "linux", "native", "desktop", [], 0),
+                        (105, "Lunar Rally", "lutris", "windows", "wine", "fast_action", ["Racing"], 0),
+                        (106, "Orbit Architect", "heroic", "linux", "native", "cinematic", ["puzzle"], 1718200000),
                     )]
             fixture["release"].set()
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -2251,7 +2275,13 @@ def main():
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Right", "Return", "Return")
                 wait(lambda s: s.get("nativePreviewOpen") and s["playSetup"]["configuration"]["bitrateKbps"] == 40000)
-                keys("Left", "Left", "Up", "Return")
+                keys("Down")
+                wait(lambda s: s.get("focus") == "play-setup-resolution")
+                keys("Up")
+                wait(lambda s: s.get("focus") == "play-setup-plan-summary")
+                keys("Up")
+                wait(lambda s: s.get("focus") == "play-setup-every-game")
+                keys("Return")
                 def sync_status(s=None):
                     return (state() if s is None else s).get("playSetup", {}).get("hostDefaults", {}).get("status", {})
                 wait(lambda s: sync_status(s).get("phase") == "ready")
