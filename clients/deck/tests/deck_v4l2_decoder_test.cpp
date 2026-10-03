@@ -11,6 +11,7 @@ extern "C" {
 #include <cassert>
 #include <string_view>
 #include <algorithm>
+#include <linux/videodev2.h>
 
 using namespace nova::deck::stream;
 namespace {
@@ -49,6 +50,15 @@ void softwareFixture(const char* path, AVCodecID codec, int profile) {
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     qunsetenv("NOVA_DECK_FRAME_V4L2");
+    const auto decoderCaps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M_MPLANE;
+    assert(deckV4l2DecoderDeviceIdentitySupported("qcom-iris", "", decoderCaps));
+    // Actual Frame QUERYCAP identity differs from its qcom-iris sysfs name.
+    assert(deckV4l2DecoderDeviceIdentitySupported("iris_driver", "iris_decoder", decoderCaps));
+    assert(!deckV4l2DecoderDeviceIdentitySupported("iris_driver", "iris_encoder", decoderCaps));
+    assert(!deckV4l2DecoderDeviceIdentitySupported("iris_driver", "", decoderCaps));
+    assert(!deckV4l2DecoderDeviceIdentitySupported("other_driver", "iris_decoder", decoderCaps));
+    assert(!deckV4l2DecoderDeviceIdentitySupported("qcom-iris", "", V4L2_CAP_STREAMING));
+    assert(!deckV4l2DecoderDeviceIdentitySupported("iris_driver", "iris_decoder", V4L2_CAP_VIDEO_M2M_MPLANE));
     softwareFixture(":/nova-v4l2/frame-1080p.h264", AV_CODEC_ID_H264, AV_PROFILE_H264_HIGH);
     softwareFixture(":/nova-v4l2/frame-1080p.hevc", AV_CODEC_ID_HEVC, AV_PROFILE_HEVC_MAIN);
     auto* frame = av_frame_alloc();

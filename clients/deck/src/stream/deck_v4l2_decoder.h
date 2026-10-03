@@ -1,6 +1,8 @@
 #pragma once
 #include "stream/deck_video_capabilities.h"
 #include <string>
+#include <string_view>
+#include <cstdint>
 #include <QString>
 
 struct AVFrame;
@@ -11,6 +13,8 @@ namespace nova::deck::stream {
 // compressed capture formats, DRM descriptors and borrowed pointers are refused.
 bool deckV4l2Nv12LayoutSupported(const AVFrame& frame);
 const char* deckV4l2DecoderName(int videoFormat);
+bool deckV4l2DecoderDeviceIdentitySupported(std::string_view driver, std::string_view card,
+    std::uint32_t capabilities);
 std::string deckV4l2Device();
 AVCodecContext* openDeckV4l2Decoder(int videoFormat, int width, int height,
     const std::string& device, std::string& error);

@@ -50,9 +50,11 @@ bool irisDevice(const std::string& path) {
     v4l2_capability caps{};
     const bool queried = ioctl(fd, VIDIOC_QUERYCAP, &caps) == 0;
     const auto capabilities = caps.capabilities & V4L2_CAP_DEVICE_CAPS ? caps.device_caps : caps.capabilities;
-    const bool iris = queried && std::string_view(reinterpret_cast<const char*>(caps.driver),
-        strnlen(reinterpret_cast<const char*>(caps.driver), sizeof(caps.driver))) == "qcom-iris" &&
-        (capabilities & V4L2_CAP_STREAMING) && (capabilities & V4L2_CAP_VIDEO_M2M_MPLANE);
+    const bool iris = queried && deckV4l2DecoderDeviceIdentitySupported(
+        std::string_view(reinterpret_cast<const char*>(caps.driver),
+            strnlen(reinterpret_cast<const char*>(caps.driver), sizeof(caps.driver))),
+        std::string_view(reinterpret_cast<const char*>(caps.card),
+            strnlen(reinterpret_cast<const char*>(caps.card), sizeof(caps.card))), capabilities);
     const auto hasFormat = [&](v4l2_buf_type type, uint32_t first, uint32_t second) {
         for (uint32_t index = 0; index < 256; ++index) {
             v4l2_fmtdesc format{};
@@ -71,6 +73,13 @@ bool irisDevice(const std::string& path) {
     close(fd);
     return decoder;
 }
+}
+
+bool deckV4l2DecoderDeviceIdentitySupported(std::string_view driver, std::string_view card,
+    std::uint32_t capabilities) {
+    const bool decoder = driver == "qcom-iris" || (driver == "iris_driver" && card == "iris_decoder");
+    return decoder && (capabilities & V4L2_CAP_STREAMING) &&
+        (capabilities & V4L2_CAP_VIDEO_M2M_MPLANE);
 }
 
 bool deckV4l2Nv12LayoutSupported(const AVFrame& frame) {

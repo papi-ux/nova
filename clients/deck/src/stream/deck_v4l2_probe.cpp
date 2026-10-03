@@ -1,4 +1,5 @@
 #include "stream/deck_v4l2_decoder.h"
+#include <cstdio>
 #include <Limelight.h>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -20,7 +21,10 @@ struct FreePacket { void operator()(AVPacket* packet) const { av_packet_free(&pa
 bool decode(int format, const std::string& device, const char* resource) {
     std::string error;
     std::unique_ptr<AVCodecContext, FreeContext> context(openDeckV4l2Decoder(format, 1920, 1080, device, error));
-    if (!context) return false;
+    if (!context) {
+        std::fprintf(stderr, "%s: %s\n", deckV4l2DecoderName(format), error.c_str());
+        return false;
+    }
     QFile fixture(QString::fromUtf8(resource));
     if (!fixture.open(QIODevice::ReadOnly)) return false;
     auto bytes = fixture.readAll();
@@ -58,17 +62,29 @@ bool decode(int format, const std::string& device, const char* resource) {
         }
         const int received = avcodec_receive_frame(context.get(), frame.get());
         if (received == 0) {
-            if (!deckV4l2Nv12LayoutSupported(*frame) || frame->width != 1920 || frame->height != 1080) return false;
+            if (!deckV4l2Nv12LayoutSupported(*frame) || frame->width != 1920 || frame->height != 1080) {
+                std::fprintf(stderr, "%s: capture layout/color refused (format=%d size=%dx%d pitch=%d,%d)\n",
+                    deckV4l2DecoderName(format), frame->format, frame->width, frame->height,
+                    frame->linesize[0], frame->linesize[1]);
+                return false;
+            }
             // A successful open or an empty dequeue is insufficient. Read the
             // real gray fixture at its validated plane pitches after DQBUF.
             const auto y = frame->data[0][540 * frame->linesize[0] + 960];
             const auto u = frame->data[1][270 * frame->linesize[1] + 960];
             const auto v = frame->data[1][270 * frame->linesize[1] + 961];
-            return y >= 100 && y <= 160 && u >= 120 && u <= 136 && v >= 120 && v <= 136;
+            const bool gray = y >= 100 && y <= 160 && u >= 120 && u <= 136 && v >= 120 && v <= 136;
+            if (!gray) std::fprintf(stderr, "%s: decoded gray pixels refused (%u,%u,%u)\n",
+                deckV4l2DecoderName(format), unsigned(y), unsigned(u), unsigned(v));
+            return gray;
         }
-        if (received != AVERROR(EAGAIN)) return false;
+        if (received != AVERROR(EAGAIN)) {
+            std::fprintf(stderr, "%s: capture receive failed (%d)\n", deckV4l2DecoderName(format), received);
+            return false;
+        }
         QThread::msleep(2);
     }
+    std::fprintf(stderr, "%s: no decoded frame before qualification deadline\n", deckV4l2DecoderName(format));
     return false;
 }
 }
