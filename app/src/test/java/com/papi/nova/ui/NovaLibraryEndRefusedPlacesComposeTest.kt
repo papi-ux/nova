@@ -67,7 +67,7 @@ class NovaLibraryEndRefusedPlacesComposeTest {
         rule.setPanelContent {
             Box(Modifier.padding(horizontal = 9.dp)) {
                 NovaLibraryLandscapeShowcaseStripContent(
-                    hostLabel = "pc-papi",
+                    hostLabel = "test-pc",
                     polarisReady = true,
                     onOpenOptions = {},
                     onOpenSystemMenu = {},

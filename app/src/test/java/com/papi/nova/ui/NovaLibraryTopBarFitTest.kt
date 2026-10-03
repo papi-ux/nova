@@ -14,7 +14,7 @@ class NovaLibraryTopBarFitTest {
 
     /** Text widths in dp at font scale 0.85, from the screenshot. */
     private object Retroid {
-        const val HOST_NAME = 49f // "pc-papi.lan"
+        const val HOST_NAME = 49f // "test-pc.lan"
         const val HOST_STATUS = 53f // "Polaris ready"
         const val CAPTION = 45f // "Your Space"
         const val SPACE_NAME = 65f // "papi - steam"
@@ -309,8 +309,8 @@ class NovaLibraryTopBarFitTest {
     fun aHostNameTooLongForItsPlaceDropsItsDomainAndAnAddressStaysWhole() {
         // The strip ended "living-room-gaming-pc.papi..." in an ellipsis; the name alone is whole.
         assertEquals("living-room-gaming-pc", novaShortHostLabel("living-room-gaming-pc.papi.miami"))
-        assertEquals("pc-papi", novaShortHostLabel("pc-papi.lan"))
-        assertEquals("10.0.0.232", novaShortHostLabel("10.0.0.232"))
+        assertEquals("test-pc", novaShortHostLabel("test-pc.lan"))
+        assertEquals("192.0.2.10", novaShortHostLabel("192.0.2.10"))
         assertEquals("fe80::1", novaShortHostLabel("fe80::1"))
         assertEquals("Living Room", novaShortHostLabel("Living Room"))
     }

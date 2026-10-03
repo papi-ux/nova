@@ -73,7 +73,7 @@ class NovaHostConsolePageComposeTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
-    private val console = "https://10.0.0.232:47990"
+    private val console = "https://192.0.2.10:47990"
     private val paired = certificate(PAIRED)
     private val other = certificate(OTHER)
     private lateinit var panel: NovaPanelState
@@ -287,9 +287,9 @@ class NovaHostConsolePageComposeTest {
         keys.press(NovaTestKeys.CENTER)
         val web = webView()!!
         shown(web)
-        val link = "art://10.0.0.232:47989?pin=1234&passphrase=abcd&name=pc-papi"
+        val link = "art://192.0.2.10:47989?pin=1234&passphrase=abcd&name=test-pc"
         onUi { assertTrue("it never loads in the console", web.webViewClient.shouldOverrideUrlLoading(web, request(link))) }
-        assertEquals(listOf(NovaHostConsoleLink.Pair(link, "10.0.0.232", 47989, "1234", "abcd")), followed)
+        assertEquals(listOf(NovaHostConsoleLink.Pair(link, "192.0.2.10", 47989, "1234", "abcd")), followed)
         rule.onNodeWithTag(NOVA_HOST_CONSOLE_QUESTION_TAG).assertDoesNotExist()
         assertEquals("nothing but the link was asked for", console, shadowOf(web).lastLoadedUrl)
     }
@@ -302,9 +302,9 @@ class NovaHostConsolePageComposeTest {
         show(page(paired.encoded) { followed += it; null })
         val web = webView()!!
         shown(web)
-        val link = "art://launch?host_uuid=$HOST&host_name=pc-papi&app_uuid=$CONTROL&app_name=Control"
+        val link = "art://launch?host_uuid=$HOST&host_name=test-pc&app_uuid=$CONTROL&app_name=Control"
         onUi { assertTrue(web.webViewClient.shouldOverrideUrlLoading(web, request(link))) }
-        assertEquals(listOf(NovaHostConsoleLink.Launch(HOST, "pc-papi", CONTROL, null, "Control")), followed)
+        assertEquals(listOf(NovaHostConsoleLink.Launch(HOST, "test-pc", CONTROL, null, "Control")), followed)
         rule.onNodeWithTag(NOVA_HOST_CONSOLE_QUESTION_TAG).assertDoesNotExist()
     }
 
@@ -321,7 +321,7 @@ class NovaHostConsolePageComposeTest {
             "art://launch?host_uuid=$OTHER_HOST&app_uuid=$CONTROL&app_name=Control",
             "art://launch?host_uuid=$HOST&app_name=Control",
             "art://settings?open=apps",
-            "art://10.0.0.232:47989?name=pc-papi",
+            "art://192.0.2.10:47989?name=test-pc",
         )) {
             onUi { assertTrue(link, web.webViewClient.shouldOverrideUrlLoading(web, request(link))) }
             rule.onNodeWithText(elsewhere).assertIsDisplayed()
@@ -343,7 +343,7 @@ class NovaHostConsolePageComposeTest {
         val keys = show(page(paired.encoded) { line })
         val web = webView()!!
         shown(web)
-        onUi { web.webViewClient.shouldOverrideUrlLoading(web, request("art://10.0.0.232:47989?pin=1234&passphrase=abcd")) }
+        onUi { web.webViewClient.shouldOverrideUrlLoading(web, request("art://192.0.2.10:47989?pin=1234&passphrase=abcd")) }
         rule.onNodeWithText(line).assertIsDisplayed()
         keys.back()
         rule.onNodeWithText(line).assertDoesNotExist()

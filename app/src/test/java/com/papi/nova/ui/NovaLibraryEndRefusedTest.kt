@@ -177,12 +177,12 @@ class NovaLibraryEndRefusedTest {
     fun aHostThatSaidNothingGetsNovasPlainWordsNeverARawError() {
         val http503 = quit(owned = true) { throw HostHttpResponseException(503, "Service Unavailable") }
         assertEquals(context.getString(R.string.nova_library_end_failed), http503.reason)
-        val unreachable = quit(owned = true) { throw IOException("Failed to connect to /10.0.0.232:47984") }
+        val unreachable = quit(owned = true) { throw IOException("Failed to connect to /192.0.2.10:47984") }
         assertEquals("Nova could not reach the host to end the session.", unreachable.reason)
         for (reason in listOf(http503.reason, unreachable.reason)) {
             assertFalse(reason, reason.contains("Error code"))
             assertFalse(reason, reason.contains("Host returned error"))
-            assertFalse(reason, reason.contains("10.0.0.232"))
+            assertFalse(reason, reason.contains("192.0.2.10"))
         }
     }
 
@@ -212,7 +212,7 @@ class NovaLibraryEndRefusedTest {
         NovaLibraryHeroState(
             game = null,
             title = "Control Ultimate Edition",
-            subtitle = "Running on pc-papi",
+            subtitle = "Running on test-pc",
             caption = "",
             eyebrow = "Resume your stream",
             actionLabel = "Resume Stream",

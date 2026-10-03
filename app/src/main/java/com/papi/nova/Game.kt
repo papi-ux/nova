@@ -5742,7 +5742,7 @@ this@Game.runOnUiThread({ Toast.makeText(this@Game, e!!.message, Toast.LENGTH_LO
 override fun stageFailed(stage:String, portFlags:Int, errorCode:Int):Boolean {
 // A 503 is the host answering and refusing, so the network reached it. "Failed to start RTSP
 // handshake (error 503)" and a list of firewall ports sent someone to fix a network that worked;
-// Mirror Desktop with PyroWave on pc-papi was refused because KDE's HDR desktop could not be read.
+// Mirror Desktop with PyroWave can be refused when a KDE HDR desktop cannot be read.
 val hostAnswered = errorCode == RTSP_SERVICE_UNAVAILABLE
  // Perform a connection test if the failure could be due to a blocked port
         // This does network I/O, so don't do it on the main thread. Not for a host that answered:
