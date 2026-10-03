@@ -908,8 +908,8 @@ FocusScope {
                 FocusScope {
                     id: emptyState
                     objectName: "game-empty-state"
-                    readonly property bool destinationUnavailable: refreshState.spaces && refreshState.spaces.supported
-                        && !refreshState.destinationId && !refreshState.failed
+                    readonly property bool destinationUnavailable: Boolean(refreshState.spaces && refreshState.spaces.supported
+                        && !refreshState.destinationId && !refreshState.failed)
                     anchors.fill: parent
                     visible: !visibleGames.length
                     Keys.onLeftPressed: hostButton.forceActiveFocus()
