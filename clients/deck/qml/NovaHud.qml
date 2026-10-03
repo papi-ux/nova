@@ -33,13 +33,21 @@ Item {
         color: NovaTheme.alpha(NovaTheme.panel, NovaHudPreferences.panelOpacity / 100)
         border.color: NovaTheme.alpha(NovaTheme.divider, NovaHudPreferences.panelOpacity / 100)
     }
-    component Fact: Text {
+    // A subtle glyph outline stays readable over video at zero panel opacity.
+    // It changes no status tone, metric value or event target.
+    component HudLabel: Text {
+        property real textSize: 13
+        font.pixelSize: Math.max(11 * hud.unit, textSize * hud.scale)
+        style: Text.Outline
+        styleColor: "#000000"
+    }
+    component Fact: HudLabel {
         property string label: ""
         property string reading: "--"
         text: label + " " + reading
         textFormat: Text.PlainText
         color: NovaTheme.text
-        font.pixelSize: 13 * hud.scale
+        textSize: 13
         font.family: "monospace"
         wrapMode: Text.Wrap
     }
@@ -52,14 +60,14 @@ Item {
             Layout.fillWidth: true
             spacing: 8 * hud.scale
             Rectangle { objectName: "hud-health-indicator"; width: 3 * hud.scale; height: 24 * hud.scale; radius: 2; color: hud.tone(hud.readings.healthTone) }
-            Text {
+            HudLabel {
                 objectName: "hud-fps"
                 text: hud.value("fps")
-                color: NovaTheme.text; font.pixelSize: 24 * hud.scale; font.bold: true
+                color: NovaTheme.text; textSize: 24; font.bold: true
             }
             Column {
-                Text { text: "COMP FPS"; color: NovaTheme.secondary; font.pixelSize: 9 * hud.scale; font.bold: true }
-                Text { visible: hud.mode !== "slim"; text: hud.readings.target || ""; color: NovaTheme.secondary; font.pixelSize: 10 * hud.scale }
+                HudLabel { text: "COMP FPS"; color: NovaTheme.secondary; textSize: 9; font.bold: true }
+                HudLabel { visible: hud.mode !== "slim"; text: hud.readings.target || ""; color: NovaTheme.secondary; textSize: 10 }
             }
             Canvas {
                 id: sparkline
@@ -88,41 +96,41 @@ Item {
                 visible: hud.mode === "debug"
                 Layout.maximumWidth: 145 * hud.scale
                 spacing: 3 * hud.scale
-                Text {
+                HudLabel {
                     objectName: "hud-tuning"
                     Layout.fillWidth: true
                     text: hud.readings.tuningLabel || "Tuning: Unknown"
                     textFormat: Text.PlainText
                     color: hud.tone(hud.readings.tuningTone)
-                    font.pixelSize: 11 * hud.scale; font.bold: true
+                    textSize: 11; font.bold: true
                     wrapMode: Text.Wrap
                 }
-                Text {
+                HudLabel {
                     objectName: "hud-applied-limit"
                     Layout.fillWidth: true
                     text: hud.value("appliedBitrate") + " applied / " + hud.value("qualityLimit") + " limit"
                     textFormat: Text.PlainText
                     color: NovaTheme.secondary
-                    font.pixelSize: 9 * hud.scale
+                    textSize: 9
                     wrapMode: Text.Wrap
                 }
-                Text {
+                HudLabel {
                     objectName: "hud-requested-bitrate"
                     Layout.fillWidth: true
                     text: hud.value("requestedBitrate") + " PC target"
-                    color: NovaTheme.secondary; font.pixelSize: 9 * hud.scale
+                    color: NovaTheme.secondary; textSize: 9
                     wrapMode: Text.Wrap
                 }
             }
         }
-        Text {
+        HudLabel {
             objectName: "hud-health-label"
             visible: hud.mode === "debug" || hud.mode === "performance"
             Layout.fillWidth: true
             text: hud.readings.healthLabel || "Host readings unavailable"
             textFormat: Text.PlainText
             color: hud.tone(hud.readings.healthTone)
-            font.pixelSize: 12 * hud.scale
+            textSize: 12
             wrapMode: Text.WordWrap
         }
         RowLayout {
@@ -133,10 +141,13 @@ Item {
             Fact { label: "RES"; reading: hud.value("resolution"); Layout.fillWidth: true }
             Fact { label: "CODEC"; reading: hud.value("codec"); Layout.fillWidth: true }
         }
-        RowLayout {
+        Flow {
+            id: layerFlow
             visible: hud.mode === "debug"
             Layout.fillWidth: true
             spacing: 12 * hud.scale
+            readonly property int columns: Math.max(1, Math.min(3,
+                Math.floor((width + spacing) / (100 * hud.unit * Math.max(1, NovaTheme.fontScale) + spacing))))
             Repeater {
                 model: [
                     { title: "HOST", tone: hud.readings.hostTone, facts: [["HOST", hud.value("host")], ["RES", hud.value("resolution")], ["CODEC", hud.value("codec")], ["BIT", hud.value("appliedBitrate")]] },
@@ -145,26 +156,27 @@ Item {
                 ]
                 ColumnLayout {
                     required property var modelData
-                    Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop
+                    objectName: "hud-layer-" + modelData.title
+                    width: Math.max(0, (layerFlow.width - (layerFlow.columns - 1) * layerFlow.spacing) / layerFlow.columns)
                     spacing: 5 * hud.scale
-                    Text { text: modelData.title; color: hud.tone(modelData.tone); font.pixelSize: 12 * hud.scale; font.bold: true }
+                    HudLabel { text: modelData.title; color: hud.tone(modelData.tone); textSize: 12; font.bold: true }
                     Repeater {
                         model: modelData.facts
                         Fact {
                             required property var modelData
                             Layout.fillWidth: true
                             label: modelData[0]; reading: modelData[1]
-                            font.pixelSize: 11 * hud.scale
+                            textSize: 11
                         }
                     }
                 }
             }
         }
-        Text {
+        HudLabel {
             visible: hud.mode === "debug" || hud.mode === "performance"
             Layout.fillWidth: true
             text: hud.readings.truth || "Waiting for stream readings"
-            color: NovaTheme.secondary; font.pixelSize: 10 * hud.scale
+            color: NovaTheme.secondary; textSize: 10
             wrapMode: Text.WordWrap
         }
     }

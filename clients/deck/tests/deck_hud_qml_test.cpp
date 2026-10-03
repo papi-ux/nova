@@ -1,4 +1,5 @@
 #include <QDir>
+#include <QImage>
 #include <QGuiApplication>
 #include <QElapsedTimer>
 #include <QKeyEvent>
@@ -34,8 +35,9 @@ ApplicationWindow {
     width: 1280; height: 800; visible: true
     property int gameTaps: 0
     property int holds: 0
+    property bool brightBackdrop: false
     property var sample: ({fps:"59.8", incoming:"60.0", decoded:"60.0", target:"/ 60 target", host:"2.1ms", rtt:"18ms", jitter:"2ms", bitrate:"19.6M", resolution:"1280×800", codec:"PyroWave", history:[59,60,59,55,60,60,59.8], truth:"Composed FPS · video payload bitrate", healthLabel:"Display override", healthTone:"warning", hostTone:"warning", netTone:"stable", clientTone:"stable", tuningLabel:"Tuning: Applying", tuningTone:"info", appliedBitrate:"20.0M", requestedBitrate:"25.0M", videoWork:"1.50ms", refused:"2", qualityLimit:"25.0M"})
-    Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position:0; color:"#213D50" } GradientStop { position:1; color:"#081720" } } }
+    Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position:0; color:root.brightBackdrop ? "white" : "#213D50" } GradientStop { position:1; color:root.brightBackdrop ? "white" : "#081720" } } }
     Label { anchors.centerIn: parent; text:"NovaHUD · synthetic stream preview"; color:"#8096A0"; font.pixelSize:22 }
     MouseArea { anchors.fill: parent; onClicked: root.gameTaps++ }
     NovaHud { id: overlay; readings: root.sample; visible: NovaHudPreferences.enabled; onCommandCenterRequested: root.holds++ }
@@ -127,6 +129,32 @@ ApplicationWindow {
     root->setProperty("sample", QVariantMap{}); settle();
     require(item("hud-fps")->property("text") == "--", "unavailable telemetry kept stale FPS");
     capture("hud-unavailable-960.png");
+    // An actual bright video-shaped backing must leave the zero-opacity glyph readable.
+    root->setProperty("brightBackdrop", true); settle();
+    require(item("hud-fps")->property("style").toInt() == 1, "HUD glyphs lack their contrast outline");
+    const auto picture = window->grabWindow(); require(!picture.isNull(), "HUD glyph capture failed");
+    const QRectF logicalGlyph = item("hud-fps")->mapRectToScene(item("hud-fps")->boundingRect());
+    const double captureScaleX = double(picture.width()) / window->width(), captureScaleY = double(picture.height()) / window->height();
+    const QRect glyph = QRectF(logicalGlyph.x() * captureScaleX, logicalGlyph.y() * captureScaleY,
+        logicalGlyph.width() * captureScaleX, logicalGlyph.height() * captureScaleY).toAlignedRect().intersected(picture.rect());
+    require(!glyph.isEmpty(), "HUD glyph escaped actual capture");
+    int outlinePixels = 0;
+    for (int y = glyph.top(); y <= glyph.bottom(); ++y) for (int x = glyph.left(); x <= glyph.right(); ++x) {
+        const auto color = picture.pixelColor(x, y);
+        if (color.red() < 40 && color.green() < 40 && color.blue() < 40) ++outlinePixels;
+    }
+    require(outlinePixels > 0, "unboxed HUD rendered no dark glyph outline on the actual bright backing");
+    window->resize(360, 640); settle(150); bounds();
+    const auto groupBounds = [&](const char* name) { auto* group = item(name); return group->mapRectToScene(group->boundingRect()); };
+    const auto host = groupBounds("hud-layer-HOST"), net = groupBounds("hud-layer-NET"), client = groupBounds("hud-layer-CLIENT");
+    require(client.top() > host.top(), "narrow Debug HUD did not wrap its actual layer groups");
+    require(!host.intersects(net) && !host.intersects(client) && !net.intersects(client), "wrapped HUD layer groups overlap");
+    for (const auto& group : {host, net, client}) require(group.left() >= hud->x() && group.right() <= hud->x() + hud->width(),
+        "wrapped HUD layer group escaped its panel");
+    capture("hud-debug-bright-portrait-360.png");
+    window->resize(960, 600); root->setProperty("brightBackdrop", false); settle(); bounds();
+    require(root->property("holds").toInt() == 1 && root->property("gameTaps").toInt() == 1,
+        "HUD presentation reflow changed its hold/tap contract");
     // Destroying/recreating the engine reads persisted preferences, not the old singleton.
     root.reset(); component.reset(); engine.reset();
     QSettings saved;

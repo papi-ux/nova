@@ -7,7 +7,7 @@ ApplicationWindow {
     width: 1280
     height: 800
     visible: true
-    title: "Nova — Saved PCs"
+    title: "Nova — Hosts"
     color: NovaTheme.window
     readonly property var model: novaPairing.state
     readonly property bool busy: model.busy
@@ -15,6 +15,7 @@ ApplicationWindow {
     property bool closeAfterCancel: false
     property var selected: null
     property bool confirming: false
+    readonly property bool narrow: width < 720 * NovaTheme.fontScale
 
     function selectedHost() { return hosts.currentIndex >= 0 ? novaPairing.savedHosts[hosts.currentIndex] : null }
     function focusList() { if (hosts.count) hosts.forceActiveFocus(); else add.forceActiveFocus() }
@@ -68,7 +69,7 @@ ApplicationWindow {
 
     component Action: NovaButton {
         id: action
-        Layout.preferredHeight: 58
+        Layout.preferredHeight: Math.max(58 * NovaTheme.controlScale, implicitHeight)
         Layout.fillWidth: true
         font.pixelSize: 20 * NovaTheme.fontScale
         font.bold: true
@@ -93,10 +94,10 @@ ApplicationWindow {
         height: Math.min(implicitHeight, root.height - 64)
         spacing: 20
         enabled: !pairLoader.active
-        Label { text: "Saved PCs"; font.pixelSize: 36 * NovaTheme.fontScale; font.bold: true; color: NovaTheme.text }
+        Label { text: "Hosts"; font.pixelSize: 36 * NovaTheme.fontScale; font.bold: true; color: NovaTheme.text }
         Label {
             Layout.fillWidth: true
-            text: "Add a PC, manage its pairing, or return to your games."
+            text: "Choose a host in Library to play. Select a saved host here to manage its pairing, or add another PC."
             font.pixelSize: 21 * NovaTheme.fontScale; color: NovaTheme.secondary; wrapMode: Text.WordWrap
         }
         ListView {
@@ -125,7 +126,7 @@ ApplicationWindow {
                 }
                 MouseArea { anchors.fill: parent; onClicked: { hosts.currentIndex = index; root.choose() } }
             }
-            Label { anchors.centerIn: parent; visible: hosts.count === 0; text: "No saved PCs yet"; color: NovaTheme.secondary; font.pixelSize: 22 * NovaTheme.fontScale }
+            Label { anchors.centerIn: parent; visible: hosts.count === 0; text: "No saved hosts yet"; color: NovaTheme.secondary; font.pixelSize: 22 * NovaTheme.fontScale }
             Keys.onUpPressed: { if (currentIndex > 0) --currentIndex }
             Keys.onDownPressed: { if (currentIndex < count - 1) ++currentIndex; else add.forceActiveFocus() }
             Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) root.choose() }
@@ -149,23 +150,30 @@ ApplicationWindow {
                     text: "Unpair asks this PC to remove Nova's access. Forget only removes the saved PC here; the host may still trust this device. You can add the PC again afterward."
                     color: NovaTheme.secondary; font.pixelSize: 19 * NovaTheme.fontScale; wrapMode: Text.WordWrap
                 }
-                RowLayout {
-                    spacing: 12
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: root.narrow ? 1 : 3
+                    columnSpacing: 12; rowSpacing: 8
                     Action {
                         id: unpair; objectName: "saved-pcs-unpair"; text: "Unpair from PC"
                         onClicked: novaPairing.removeHost(root.selected.id, false)
                         Keys.onRightPressed: forget.forceActiveFocus()
+                        Keys.onDownPressed: forget.forceActiveFocus()
+                        Keys.onUpPressed: keep.forceActiveFocus()
                     }
                     Action {
                         id: forget; objectName: "saved-pcs-forget"; text: "Forget on This Device"
                         onClicked: novaPairing.removeHost(root.selected.id, true)
                         Keys.onLeftPressed: unpair.forceActiveFocus()
                         Keys.onRightPressed: keep.forceActiveFocus()
+                        Keys.onUpPressed: unpair.forceActiveFocus()
+                        Keys.onDownPressed: keep.forceActiveFocus()
                     }
                     Action {
                         id: keep; objectName: "saved-pcs-keep"; text: "Keep PC"
                         onClicked: { root.confirming = false; root.focusList() }
                         Keys.onLeftPressed: forget.forceActiveFocus()
+                        Keys.onUpPressed: forget.forceActiveFocus()
                     }
                 }
             }
@@ -178,21 +186,24 @@ ApplicationWindow {
             text: root.model.copy; font.pixelSize: 20 * NovaTheme.fontScale; wrapMode: Text.WordWrap
             color: root.model.phase === "failed" ? NovaTheme.danger : NovaTheme.secondary
         }
-        RowLayout {
-            spacing: 20
+        GridLayout {
+            Layout.fillWidth: true
+            columns: root.narrow ? 1 : 2
+            columnSpacing: 20; rowSpacing: 8
             visible: !root.confirming && !root.busy
             Action {
                 id: add; objectName: "saved-pcs-add"; text: "Add PC"
                 onClicked: { novaPairing.reset(); pairLoader.active = true }
                 Keys.onUpPressed: root.focusList()
                 Keys.onRightPressed: library.forceActiveFocus()
+                Keys.onDownPressed: library.forceActiveFocus()
             }
             Action {
                 id: library; objectName: "saved-pcs-library"
                 text: hosts.count ? "Back to Library" : "Close"
                 onClicked: root.finish()
                 Keys.onLeftPressed: add.forceActiveFocus()
-                Keys.onUpPressed: root.focusList()
+                Keys.onUpPressed: root.narrow ? add.forceActiveFocus() : root.focusList()
             }
         }
         Action {

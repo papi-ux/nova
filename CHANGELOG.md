@@ -37,6 +37,10 @@ A Library that fits your screen, stream choices that fit your device, and bitrat
 
 **Nova Linux (Alpha)**
 
+- Appearance adds `< Congratulations, Director >`, Compact/Standard/Large controls, and 80–130 percent text in one-percent steps. New installs start at 80 percent; saved text sizes stay intact. Text and menu-opacity previews apply after Save.
+- Hosts, Settings, Library and Play Setup adapt to portrait windows. Stage uses Regular in portrait while retaining your landscape choice. Back clears a Settings search before leaving.
+- Command Center has its own background-opacity control, separate from NovaHUD, and stacks its session actions in narrow windows. HUD text stays readable over video and its debug groups wrap.
+- End Session distinguishes the PC accepting an end request from verified game shutdown.
 - The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device only when you choose that codec. The separate PyroWave bundle is retired. Install the standard bundle over the 1.4.13 PyroWave bundle to keep your pairing and settings; keep app data and do not uninstall with `--delete-data`.
 - This PyroWave route supports SDR 8-bit 4:2:0. HDR, 4:4:4 and Spaces remain unsupported, and Auto does not choose PyroWave. Sustained stream quality still depends on the device and network.
 - Play Setup can apply the host's recommended rate when you choose PyroWave, with calibrated local advice if the host has none. A low-rate warning explains when the setting is below that advice. Live controls offer 10 Mbps steps, Use recommended and the measured received rate.

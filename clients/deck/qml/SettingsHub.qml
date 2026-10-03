@@ -18,6 +18,8 @@ Popup {
     property string selectedKey: "stream"
     property string error: ""
     readonly property real unit: Math.max(0.85, Math.min(1.15, width / 1280))
+    readonly property bool narrow: width < 720 * NovaTheme.fontScale
+    property bool navigationExpanded: false
     readonly property var categories: [
         {id: "all", title: "All Settings"}, {id: "stream", title: "Video & Stream"},
         {id: "audio", title: "Audio"}, {id: "controls", title: "Controls"},
@@ -37,10 +39,12 @@ Popup {
         {key: "deadzone", category: "controls", title: "Stick Deadzone", words: "controller analog sensitivity drift radial anti dead zone", scope: "This device · All controllers · Next new stream", detail: "Adjust small stick movements near the center. Reconnect and wake keep the current choice.", reset: 5},
         {key: "mouse", category: "controls", title: "Mouse Mode", words: "relative aiming capture direct pointer mouse keyboard", scope: "This device · Resume to capture the mouse", detail: "Relative Aiming keeps moving at screen edges. Direct Pointer follows the video for desktop apps. Ctrl + Alt + Shift + M releases capture and opens Command Center.", reset: "direct"},
         {key: "theme", category: "appearance", title: "Theme", words: "colors oled high contrast polaris portable chrome miami", scope: "This device · Applies immediately", detail: "Use the same Nova theme across your library and in-game menus.", reset: "polaris"},
-        {key: "text", category: "appearance", title: "Text Size", words: "font scale accessibility large", scope: "This device · Applies immediately", detail: "Increase text size while keeping controls reachable.", reset: 1},
+        {key: "text", category: "appearance", title: "Text Size", words: "font scale accessibility large", scope: "This device · Applies immediately", detail: "Adjust text independently of button size. Changes apply after Save.", reset: 0.8},
+        {key: "controlsSize", category: "appearance", title: "Control Size", words: "density compact standard large buttons spacing", scope: "This device · Applies immediately", detail: "Resize buttons and spacing independently of Text Size.", reset: "standard"},
         {key: "layout", category: "appearance", title: "Library Layout", words: "grid compact stage posters", scope: "This device · Applies immediately", detail: "Choose a poster grid, compact grid or cinematic Stage view.", reset: "grid"},
         {key: "command", category: "ingame", title: "Command Center Button", words: "hide touch overlay shortcut menu view", scope: "This device · Applies immediately", detail: "The controller shortcut still opens Command Center. Without a controller, the touch button stays available.", reset: true},
         {key: "hint", category: "ingame", title: "Controller Shortcut Hint", words: "hide press view menu steam deck symbols", scope: "This device · Applies immediately", detail: "Show the controller shortcut reminder during play.", reset: true},
+        {key: "menuOpacity", category: "ingame", title: "Menu Background Opacity", words: "menu command center transparent transparency panel", scope: "This device · Applies immediately", detail: "Adjust the background behind in-game menus. NovaHUD opacity stays independent.", reset: 64},
         {key: "hud", category: "ingame", title: "NovaHUD", words: "overlay statistics performance fps", scope: "This device · Applies immediately", detail: "Show stream readings during play. Unavailable measurements remain blank.", reset: false},
         {key: "hudMode", category: "ingame", title: "HUD Layout", words: "slim minimal performance debug statistics", scope: "This device · Applies immediately", detail: "Choose how much stream detail to show.", reset: "minimal"},
         {key: "opacity", category: "ingame", title: "HUD Background Opacity", words: "transparent transparency panel", scope: "This device · Applies immediately", detail: "Adjust the background behind stream readings.", reset: 64},
@@ -64,8 +68,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape
     enter: Transition { }
     exit: Transition { }
-    onOpened: { error = ""; focusCategory() }
-    onClosed: { choices.close(); keyboard.close(); hostSheet.close(); scaleSheet.close(); deadzoneSheet.close(); updateSheet.close() }
+    onOpened: { error = ""; navigationExpanded = false; focusCategory() }
+    onClosed: { choices.close(); keyboard.close(); hostSheet.close(); scaleSheet.close(); deadzoneSheet.close(); updateSheet.close(); textSheet.close(); menuOpacitySheet.close() }
     background: Rectangle { color: NovaTheme.window }
 
     function value(key) {
@@ -86,6 +90,8 @@ Popup {
         case "deadzone": return settingsProvider.stickDeadzonePercent
         case "theme": return NovaTheme.themeId
         case "text": return NovaTheme.fontScale
+        case "controlsSize": return NovaTheme.controlSize
+        case "menuOpacity": return NovaStreamPreferences.menuOpacityPercent
         case "layout": return libraryPreferences ? libraryPreferences.layoutMode : "grid"
         case "command": return NovaStreamPreferences.commandCenterButton
         case "hint": return NovaStreamPreferences.shortcutHint
@@ -106,8 +112,8 @@ Popup {
         case "face": return [{id: "labels", title: "Match labels"}, {id: "positions", title: "Match positions"}]
         case "mouse": return [{id: "direct", title: "Direct Pointer"}, {id: "relative", title: "Relative Aiming", available: !!desktopInput && desktopInput.mouseState.available}]
         case "theme": return NovaTheme.choices
-        case "text": return [1, 1.15, 1.3].map(v => ({id: v, title: Math.round(v * 100) + "%"}))
-        case "layout": return [{id: "grid", title: "Grid"}, {id: "compact", title: "Compact"}, {id: "stage", title: "Stage"}]
+        case "controlsSize": return NovaTheme.controlSizes
+        case "layout": return [{id: "grid", title: "Regular"}, {id: "compact", title: "Compact"}, {id: "stage", title: "Stage"}]
         case "hudMode": return NovaHudPreferences.modes
         case "opacity": return [0, 25, 64, 90, 100].map(v => ({id: v, title: v + "%"}))
         case "position": return [{id: "0,0", title: "Top left"}, {id: "1,0", title: "Top right"}, {id: "1,1", title: "Bottom right"}, {id: "0,1", title: "Bottom left"}]
@@ -120,7 +126,8 @@ Popup {
         if (key === "deadzone") return deadzoneSheet.format(v)
         if (typeof v === "boolean") return v ? "On" : "Off"
         if (key === "position") return "Custom position"
-        if (key === "opacity") return v + "%"
+        if (key === "opacity" || key === "menuOpacity") return v + "%"
+        if (key === "text") return Math.round(v * 100) + "%"
         return String(v)
     }
     function save(key, next) {
@@ -137,6 +144,8 @@ Popup {
         case "mouse": ok = settingsProvider.setMouseMode(next); break
         case "theme": NovaTheme.setTheme(next); break
         case "text": NovaTheme.setFontScale(next); break
+        case "controlsSize": NovaTheme.setControlSize(next); break
+        case "menuOpacity": NovaStreamPreferences.setMenuOpacity(next); break
         case "layout": if (libraryPreferences) libraryPreferences.layoutMode = next; else ok = false; break
         case "command": NovaStreamPreferences.setCommandCenterButton(next); break
         case "hint": NovaStreamPreferences.setShortcutHint(next); break
@@ -158,10 +167,13 @@ Popup {
         } else if (definition.key === "updates") updateSheet.open()
         else if (definition.key === "scale") scaleSheet.open()
         else if (definition.key === "deadzone") deadzoneSheet.open()
+        else if (definition.key === "text") textSheet.open()
+        else if (definition.key === "menuOpacity") menuOpacitySheet.open()
         else if (typeof value(definition.key) === "boolean") save(definition.key, !value(definition.key))
         else { choices.definition = definition; choices.open() }
     }
     function focusCategory() {
+        if (narrow && !navigationExpanded) { menu.forceActiveFocus(); return }
         const i = Math.max(0, categories.findIndex(item => item.id === category))
         categoryButtons.itemAt(i).forceActiveFocus()
     }
@@ -173,6 +185,7 @@ Popup {
     }
     function selectCategory(id) {
         category = id; search.clear(); rows.contentY = 0; error = ""
+        if (narrow) { navigationExpanded = false; Qt.callLater(() => focusRow(0)) }
     }
     function focusRow(index) {
         if (!shown.length) {
@@ -189,13 +202,16 @@ Popup {
         if (opened) focusRow(shown.findIndex(item => item.key === selectedKey))
     }
     function back() {
-        if (updateSheet.opened) updateSheet.close()
+        if (textSheet.opened) textSheet.close()
+        else if (menuOpacitySheet.opened) menuOpacitySheet.close()
+        else if (updateSheet.opened) updateSheet.close()
         else if (scaleSheet.opened) scaleSheet.close()
         else if (deadzoneSheet.opened) deadzoneSheet.close()
         else if (keyboard.opened) keyboard.close()
         else if (choices.opened) choices.close()
         else if (hostSheet.opened) hostSheet.back()
-        else if (search.activeFocus && search.text.length) search.clear()
+        else if (search.text.trim().length) { search.clear(); search.forceActiveFocus() }
+        else if (narrow && navigationExpanded) { navigationExpanded = false; menu.forceActiveFocus() }
         else close()
     }
     function state() {
@@ -204,7 +220,7 @@ Popup {
         for (const item of definitions) values[item.key] = value(item.key)
         return {opened: opened, width: width, height: height, category: category, query: search.text, keys: shown.map(item => item.key),
             values: values, error: error,
-            host: hostSheet.state(), choicesOpen: choices.opened || scaleSheet.opened || deadzoneSheet.opened, keyboardOpen: keyboard.opened,
+            host: hostSheet.state(), choicesOpen: choices.opened || scaleSheet.opened || deadzoneSheet.opened || textSheet.opened || menuOpacitySheet.opened, keyboardOpen: keyboard.opened,
             search: center(search), back: center(done), scroll: rows.contentY}
     }
     HostDefaults {
@@ -218,6 +234,8 @@ Popup {
         onClosed: Qt.callLater(hub.restoreRow)
     }
     EndpointKeyboard { id: keyboard; parent: Overlay.overlay; titleEntry: true }
+    TextSizeSettings { id: textSheet; unit: hub.unit; onClosed: Qt.callLater(hub.restoreRow) }
+    MenuOpacitySettings { id: menuOpacitySheet; unit: hub.unit; onClosed: Qt.callLater(hub.restoreRow) }
     VideoScaleSettings {
         id: scaleSheet; settingsProvider: hub.settingsProvider; unit: hub.unit
         onClosed: Qt.callLater(hub.restoreRow)
@@ -282,17 +300,30 @@ Popup {
     }
     contentItem: ColumnLayout {
         spacing: 16 * hub.unit
-        RowLayout {
-            Layout.fillWidth: true; spacing: 20 * hub.unit
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 2
-                Copy { text: "Settings"; font.pixelSize: 32 * hub.unit * NovaTheme.fontScale; font.bold: true }
-                Copy { text: "Make Nova yours"; color: NovaTheme.secondary }
+        GridLayout {
+            columns: hub.narrow ? 1 : 3
+            Layout.fillWidth: true; columnSpacing: 12 * hub.unit; rowSpacing: 8 * hub.unit
+            RowLayout {
+                Layout.fillWidth: true
+                NovaButton {
+                    id: menu; objectName: "settings-menu"; unit: hub.unit
+                    visible: hub.narrow; text: hub.navigationExpanded ? "Hide Menu" : "Menu"
+                    Accessible.checkable: true; Accessible.checked: hub.navigationExpanded
+                    onClicked: { hub.navigationExpanded = !hub.navigationExpanded; if (hub.navigationExpanded) Qt.callLater(hub.focusCategory) }
+                    Keys.onDownPressed: hub.navigationExpanded ? hub.focusCategory() : hub.focusRow(0)
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 2
+                    Copy { text: "Settings"; font.pixelSize: 32 * hub.unit * NovaTheme.fontScale; font.bold: true }
+                    Copy { text: "Make Nova yours"; color: NovaTheme.secondary; visible: !hub.narrow }
+                }
             }
             TextField {
                 id: search; objectName: "settings-search"
-                Layout.preferredWidth: Math.min(440 * hub.unit, hub.width * 0.43)
-                Layout.preferredHeight: 54 * hub.unit
+                Layout.preferredWidth: hub.narrow ? -1 : Math.min(440 * hub.unit, hub.width * 0.43)
+                Layout.fillWidth: hub.narrow
+                Layout.minimumHeight: 48
+                Layout.preferredHeight: Math.max(48, 54 * hub.unit)
                 color: NovaTheme.text; font.pixelSize: 18 * hub.unit * NovaTheme.fontScale
                 placeholderText: "Search settings"; placeholderTextColor: NovaTheme.secondary
                 maximumLength: 120; selectByMouse: true
@@ -315,12 +346,17 @@ Popup {
                 Keys.onDownPressed: hub.focusRow(0)
             }
         }
-        RowLayout {
+        GridLayout {
+            columns: hub.narrow ? 1 : 2
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0
-            spacing: 20 * hub.unit
+            columnSpacing: 20 * hub.unit; rowSpacing: 8 * hub.unit
             NovaScrollColumn {
-                Layout.preferredWidth: 215 * hub.unit * Math.min(NovaTheme.fontScale, 1.15)
-                Layout.fillHeight: true; Layout.minimumHeight: 0; spacing: 8 * hub.unit
+                visible: !hub.narrow || hub.navigationExpanded
+                Layout.preferredWidth: hub.narrow ? -1 : 215 * hub.unit * Math.min(NovaTheme.fontScale, 1.15)
+                Layout.fillWidth: hub.narrow
+                Layout.fillHeight: !hub.narrow
+                Layout.preferredHeight: hub.narrow ? Math.min(contentHeight, hub.height * 0.25) : -1
+                Layout.minimumHeight: 0; spacing: 8 * hub.unit
                 Repeater {
                     id: categoryButtons; model: hub.categories
                     NovaButton {
@@ -357,17 +393,19 @@ Popup {
                     }
                     Repeater {
                         id: rowItems; model: hub.shown
-                        RowLayout {
+                        GridLayout {
+                            columns: hub.narrow ? 1 : 2
                             id: settingRow
                             required property var modelData
                             required property int index
-                            Layout.fillWidth: true; spacing: 8 * hub.unit
-                            Layout.preferredHeight: rowCopy.implicitHeight + 24 * hub.unit
+                            Layout.fillWidth: true; columnSpacing: 8 * hub.unit; rowSpacing: 4 * hub.unit
+                            Layout.preferredHeight: rowCopy.implicitHeight + 24 * hub.unit + (hub.narrow && reset.visible ? reset.implicitHeight + rowSpacing : 0)
                             Layout.minimumHeight: Layout.preferredHeight
                             function focusAction() { action.forceActiveFocus() }
                             NovaButton {
                                 id: action; objectName: "settings-row-" + settingRow.modelData.key
-                                unit: hub.unit; Layout.fillWidth: true; Layout.fillHeight: true
+                                unit: hub.unit; Layout.fillWidth: true
+                                Layout.preferredHeight: rowCopy.implicitHeight + 24 * hub.unit
                                 text: settingRow.modelData.title + ": " + hub.label(settingRow.modelData.key)
                                 Accessible.description: settingRow.modelData.scope + ". " + settingRow.modelData.detail
                                 Accessible.checkable: typeof hub.value(settingRow.modelData.key) === "boolean"
@@ -391,6 +429,7 @@ Popup {
                             NovaButton {
                                 id: reset; objectName: "settings-reset-" + settingRow.modelData.key
                                 unit: hub.unit; Layout.preferredWidth: Math.max(100, 110 * hub.unit * NovaTheme.fontScale)
+                                Layout.alignment: Qt.AlignRight
                                 text: "Reset"; visible: settingRow.modelData.reset !== undefined
                                 Accessible.name: "Reset " + settingRow.modelData.title
                                 Accessible.description: "Reset only this setting on this device."
@@ -407,7 +446,7 @@ Popup {
         Copy { visible: hub.error.length > 0; text: hub.error; color: NovaTheme.warning }
         RowLayout {
             Layout.fillWidth: true; spacing: 16 * hub.unit
-            Copy { text: "A  Select     B  Back"; color: NovaTheme.secondary }
+            Copy { text: "A  Select     B  Back"; color: NovaTheme.secondary; visible: !hub.narrow }
             NovaButton {
                 id: done; objectName: "settings-back"; unit: hub.unit; text: "Back to Library"
                 onClicked: hub.close()

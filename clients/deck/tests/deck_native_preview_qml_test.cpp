@@ -31,7 +31,9 @@
 
 namespace {
 void require(bool ok, const char* message) {
-    if (!ok) { std::cerr << message << '\n'; std::exit(1); }
+    // Failed assertions may leave Qt rendering threads active. Terminate the
+    // isolated fixture directly; success still exercises normal object teardown.
+    if (!ok) { std::cerr << message << '\n'; std::_Exit(1); }
 }
 void settle() {
     for (int tick = 0; tick < 10; ++tick) {
@@ -128,7 +130,39 @@ int main(int argc, char** argv) {
     };
     focused(*window, primary, "review must focus Play");
     require(primary->property("text") == "Play" && session.starts == 0, "review launched automatically");
+    if (app.arguments().contains("--parity-prelaunch-footer")) {
+        auto* back = root->findChild<QQuickItem*>("play-setup-back"); require(back, "prelaunch Back missing");
+        for (const QSize viewport : {QSize(400,800), QSize(800,1280), QSize(1280,800)}) {
+            window->resize(viewport); settle();
+            const auto playBounds = primary->mapRectToScene(primary->boundingRect());
+            const auto backBounds = back->mapRectToScene(back->boundingRect());
+            for (const auto bounds : {playBounds,backBounds})
+                require(bounds.left() >= 0 && bounds.right() <= window->width() && bounds.top() >= 0 && bounds.bottom() <= window->height(), "prelaunch footer escaped the actual viewport");
+            require(!playBounds.intersects(backBounds), "actual portrait Play and Back targets overlap");
+            primary->forceActiveFocus(); settle(); key(*window, Qt::Key_Left);
+            focused(*window, back, "prelaunch Left did not reach actual Back");
+            key(*window, Qt::Key_Right); focused(*window, primary, "prelaunch Right did not return to actual Play");
+        }
+        auto* summary = root->findChild<QQuickItem*>("play-setup-plan-summary");
+        auto* plan = root->findChild<QQuickItem*>("play-setup-plan");
+        require(summary && summary->isVisible() && plan && !plan->isVisible(), "prelaunch did not keep a compact plan with an explicit detail action");
+        const auto originalChoice = settings.load("fixture-host", "fixture-game");
+        summary->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
+        focused(*window, plan, "plan disclosure did not focus its actual reading pane");
+        require(plan->isVisible(), "plan disclosure omitted its actual facts");
+        require(QMetaObject::invokeMethod(preview, "leave"), "cannot route controller Back from the plan"); settle();
+        require(preview->property("opened").toBool() && !plan->isVisible(), "plan Back dismissed Play Setup instead of collapsing its details");
+        focused(*window, summary, "plan Back did not restore the disclosure target");
+        require(settings.load("fixture-host", "fixture-game") == originalChoice && session.starts == 0, "plan disclosure changed saved choices or launched");
+        primary->forceActiveFocus(); settle();
+        require(session.starts == 0, "footer traversal launched a session");
+        key(*window, Qt::Key_Left); key(*window, Qt::Key_Return);
+        require(!preview->property("opened").toBool() && session.starts == 0, "prelaunch Back did not close without launching");
+        std::cout << "Actual prelaunch footer geometry and controller Back passed\n"; return 0;
+    }
     screenshot("play-setup-defaults.png");
+    auto* planSummary = root->findChild<QQuickItem*>("play-setup-plan-summary");
+    require(planSummary, "missing production plan disclosure");
     // The legacy Space launcher can have the same game ID in two places.
     // Destination identity and readiness must independently invalidate review.
     auto* setup = root->findChild<QObject*>("play-setup");
@@ -327,6 +361,8 @@ int main(int argc, char** argv) {
     preview->setProperty("streamCapabilities", QVariantMap{{"h264", true}, {"maxFps", 30}});
     settle();
     key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "adjusted resolution did not reach the plan disclosure");
+    key(*window, Qt::Key_Up);
     focused(*window, primary, "supported adjusted plan did not restore Play navigation");
     key(*window, Qt::Key_Return);
     require(session.starts == 3 && session.selectedConfiguration.value("fps") == 30,
@@ -353,6 +389,9 @@ int main(int argc, char** argv) {
     key(*window, Qt::Key_Return);
     require(rate->property("value") == "90 fps", "90 FPS choice was not applied to review");
     key(*window, Qt::Key_Up);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "rate did not return to resolution");
+    key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "resolution did not reach the plan disclosure");
     key(*window, Qt::Key_Up);
     focused(*window, primary, "fast-display settings did not return to Play");
     screenshot("display-90-play-setup.png");
@@ -384,7 +423,11 @@ int main(int argc, char** argv) {
     focused(*window, rate, "withdrawn rate left focus on an obsolete popup choice");
     require(!root->findChild<QObject*>("play-setup-picker")->property("opened").toBool(), "withdrawn rate left the picker open");
     key(*window, Qt::Key_Up);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "withdrawn rate did not return to resolution");
     key(*window, Qt::Key_Up);
+    focused(*window, planSummary, "withdrawn rate did not reach the plan disclosure");
+    key(*window, Qt::Key_Up);
+    focused(*window, primary, "withdrawn rate did not return to Play");
     key(*window, Qt::Key_Return);
     require(session.starts == 5 && session.selectedConfiguration.value("fps") == 60, "fallback Play ignored displayed effective rate");
     // Reopen a complete active preview for pointer disconnect and a stale
@@ -1144,13 +1187,16 @@ int main(int argc, char** argv) {
     require(appearance && QMetaObject::invokeMethod(appearance, "open"), "cannot open stream appearance");
     settle();
     auto* buttonToggle = root->findChild<QQuickItem*>("appearance-command-center-button");
+    auto* menuOpacity = root->findChild<QQuickItem*>("appearance-menu-opacity");
     auto* hintToggle = root->findChild<QQuickItem*>("appearance-shortcut-hint");
     auto* hint = root->findChild<QQuickItem*>("native-controller-hint");
     auto* shortcut = root->findChild<QQuickItem*>("native-controller-shortcut");
-    require(buttonToggle && hintToggle && hint && shortcut, "missing stream overlay preferences");
+    require(buttonToggle && menuOpacity && hintToggle && hint && shortcut, "missing stream overlay preferences");
     buttonToggle->forceActiveFocus(); settle();
     screenshot("stream-appearance-large-960.png");
     key(*window, Qt::Key_Return);
+    key(*window, Qt::Key_Down);
+    focused(*window, menuOpacity, "button toggle lost D-pad path to menu opacity");
     key(*window, Qt::Key_Down);
     focused(*window, hintToggle, "button toggle lost D-pad path to shortcut toggle");
     key(*window, Qt::Key_Escape);
@@ -1161,6 +1207,8 @@ int main(int argc, char** argv) {
     require(session.controlsVisible(), "hidden touch button blocked menu access");
     QMetaObject::invokeMethod(appearance, "open"); settle();
     hintToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    key(*window, Qt::Key_Up);
+    focused(*window, menuOpacity, "shortcut toggle lost D-pad return path to menu opacity");
     key(*window, Qt::Key_Up);
     focused(*window, buttonToggle, "shortcut toggle lost D-pad return path");
     key(*window, Qt::Key_Escape);
