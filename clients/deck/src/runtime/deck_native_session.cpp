@@ -1,4 +1,5 @@
 #include "runtime/deck_native_session.h"
+#include "runtime/deck_frame_qualification_trace.h"
 #include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_native_failure_message.h"
 #include "runtime/deck_support_report.h"
@@ -205,15 +206,17 @@ void DeckNativeSessionController::setSurface(DeckQtQuickRhiVaapiItem* surface) {
 }
 
 bool DeckNativeSessionController::setPresentationSink(QObject* lifetime, DeckQtQuickRhiPresentationSink* sink,
-        std::shared_ptr<const std::atomic<std::uint64_t>> composed) {
+        std::shared_ptr<const std::atomic<std::uint64_t>> composed,
+        std::shared_ptr<const std::atomic<std::uint64_t>> cpuUploads) {
     if (bool(lifetime) != bool(sink)) return false;
-    if (busy() && lifetime && (presentationOwner_ != lifetime || presentationSink_ != sink || presentationFrames_ != composed)) return false;
-    if (presentationOwner_ == lifetime && presentationSink_ == sink && presentationFrames_ == composed) return true;
+    if (busy() && lifetime && (presentationOwner_ != lifetime || presentationSink_ != sink || presentationFrames_ != composed || presentationCpuUploads_ != cpuUploads)) return false;
+    if (presentationOwner_ == lifetime && presentationSink_ == sink && presentationFrames_ == composed && presentationCpuUploads_ == cpuUploads) return true;
     if (presentationOwner_ && presentationSink_) presentationSink_->presentVaapiSurface({});
     hudMetrics_.reset();
     presentationOwner_ = lifetime;
     presentationSink_ = sink;
     presentationFrames_ = std::move(composed);
+    presentationCpuUploads_ = std::move(cpuUploads);
     return true;
 }
 
@@ -657,7 +660,16 @@ void DeckNativeSessionController::poll() {
             hudReceivedMs_ = inputClock_.elapsed();
             hudSample->compositionAvailable = presentationOwner_ && bool(presentationFrames_);
             hudSample->composed = hudSample->compositionAvailable ? presentationFrames_->load() : 0;
+            hudSample->cpuUploadCompositions = presentationOwner_ && presentationCpuUploads_ ? presentationCpuUploads_->load() : 0;
+            hudSample->cpuUploadsAvailable = presentationOwner_ && bool(presentationCpuUploads_);
+            hudSample->deliveryAvailable = bool(frameDelivery_);
+            if (frameDelivery_) {
+                const auto delivery = frameDelivery_->stats();
+                hudSample->deliveryDrops = delivery.dropped;
+                hudSample->deliveryQueueDepth = delivery.queued;
+            }
             nextHud = hudMetrics_.sample(*hudSample);
+            appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
         }
@@ -981,6 +993,12 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
                 }
                 sample.incoming = renderer.incomingFrames; sample.bytes = renderer.videoBytes;
                 sample.decoded = std::max(0, renderer.decodedHardwareFrames);
+                sample.submitted = std::max(0, renderer.presentedHardwareFrames);
+                sample.decoderBackend = renderer.decoderBackend == DeckDecoderBackend::V4l2 ? "V4L2" :
+                    renderer.decoderBackend == DeckDecoderBackend::Vaapi ? "VA-API" :
+                    renderer.decoderBackend == DeckDecoderBackend::Pyrowave ? "PyroWave Vulkan" : "Unavailable";
+                sample.frameTransferPath = renderer.decoderBackend == DeckDecoderBackend::Unavailable ? "Unavailable" :
+                    renderer.transferPath == DeckFrameTransferPath::CpuUpload ? "CPU upload" : "DMA-BUF";
                 sample.videoWorkMicros = renderer.videoWorkMicros;
                 sample.videoWorkSamples = renderer.videoWorkSamples;
                 sample.refused = renderer.refusedFrames;

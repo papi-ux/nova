@@ -164,6 +164,11 @@ int main(int argc, char** argv) {
         auto hevc = defaults; hevc["videoCodec"] = "hevc";
         const auto missingHevc = noDecoder.streamPlan(hevc, bothCodecs, {}).value("reason").toString();
         require(missingHevc.contains("HEVC") && missingHevc.contains("VA-API"), "missing local HEVC decoder blamed the PC");
+        const auto frameEnvironment = qgetenv("NOVA_DECK_FRAME_V4L2");
+        qputenv("NOVA_DECK_FRAME_V4L2", "1");
+        require(noDecoder.streamPlan(hevc, bothCodecs, {}).value("reason").toString().contains("HEVC hardware decoder"),
+            "Frame decoder refusal did not identify its hardware path");
+        if (frameEnvironment.isNull()) qunsetenv("NOVA_DECK_FRAME_V4L2"); else qputenv("NOVA_DECK_FRAME_V4L2", frameEnvironment);
         noDecoder.setVideoDecodeSupport({{1920, 1080}, {1920, 1080}});
         const auto hostMissing = noDecoder.streamPlan(hevc, {{"h264", true}, {"hevc", false}}, {}).value("reason").toString();
         require(!hostMissing.contains("driver") && hostMissing.contains("PC"), "host codec refusal was mislabeled as a local driver failure");

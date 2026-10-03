@@ -18,6 +18,7 @@ struct DeckWindowPresentationState {
     bool toneMapped = false;
     QSize pixelSize;
     quint64 submittedFrames = 0; // Submissions, not physical presentation counts.
+    quint64 cpuUploadCompositions = 0; // Distinct CPU-upload video frames composed, not panel flips.
     quint64 overlayRenders = 0; // Qt draws, independent of video compositions.
     quint64 deferredFrames = 0; // Retry attempts, not dropped/decoded frame counts.
     size_t pendingSourceFrames = 0;
@@ -35,6 +36,7 @@ public:
     bool submitFrame(const AVFrame& frame);
     bool presentVaapiSurface(const DeckQrhiVaapiPresentationDescriptor& descriptor) override;
     std::shared_ptr<const std::atomic<std::uint64_t>> composedFrames() const;
+    std::shared_ptr<const std::atomic<std::uint64_t>> cpuUploadCompositions() const;
     // Enable before showing. Qt Quick Vulkan must be selected before any scene.
     QQuickWindow* enableQuickOverlay();
     QQuickWindow* quickOverlayWindow() const;
