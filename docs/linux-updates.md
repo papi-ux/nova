@@ -24,6 +24,19 @@ feed exists. Starting with 1.4.14, both channels include PyroWave with a lazy
 device check; the separate codec channel is retired. Regular downloaded bundles and native
 builds show installation guidance instead of claiming that a feed is configured.
 
+## Architecture and candidate scope
+
+The regular release bundle is `Nova-Linux-x86_64-alpha.flatpak`. The experimental
+[Steam Frame route](../clients/deck/docs/steam-frame.md) builds an ARM64
+development package with its own qualification record. ARM-aware updater tests
+do not establish an available ARM64 public feed, installer or supported release.
+Do not install an x86_64 bundle as a Frame update.
+
+For the 1.4.14 candidate, the app uses the production feed address and retains
+Retry after a failed check. An ordinary private or downloaded bundle can still
+show installation guidance because no signed channel was configured for it.
+Preparing source or a private rehearsal does not publish a feed.
+
 ## First publication
 
 The implementation and workflow do not make the feed live by themselves. Before

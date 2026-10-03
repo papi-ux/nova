@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <cmath>
+#include <string_view>
 #ifdef Q_OS_UNIX
 #include <unistd.h>
 #endif
@@ -49,8 +50,16 @@ QJsonObject deckSupportReport(const QVariantMap& hud) {
     for (const auto& pair : {std::pair{"appliedBitrate", "encoder_applied_mbps"}, {"requestedBitrate", "requested_mbps"}, {"qualityLimit", "quality_ceiling_mbps"}})
         host[pair.second] = hostFresh ? number(hud.value(pair.first), "M", 300) : QJsonValue(QJsonValue::Null);
     host["processing_ms"] = clientFresh ? number(hud.value("host"), "ms") : QJsonValue(QJsonValue::Null);
-    for (const auto& pair : {std::pair{"incoming", "incoming_fps"}, {"decoded", "decoded_fps"}, {"fps", "composed_fps"}})
+    for (const auto& pair : {std::pair{"incoming", "incoming_fps"}, {"decoded", "decoded_fps"}, {"fps", "composed_fps"},
+            {"submitted", "submitted_fps"}, {"cpuUploadCompositions", "cpu_upload_composed_fps"}})
         client[pair.second] = clientFresh ? number(hud.value(pair.first), "", 1000) : QJsonValue(QJsonValue::Null);
+    client["requested_fps"] = number(hud.value("requestedFps"), "", 240);
+    client["decoder_backend"] = choice(hud.value("decoderBackend"), {"VA-API", "V4L2", "PyroWave Vulkan"});
+    client["frame_transfer_path"] = choice(hud.value("frameTransferPath"), {"DMA-BUF", "CPU upload"});
+    for (const auto& pair : {std::pair{"deliveryDrops", "delivery_dropped_frames"}, {"deliveryQueueDepth", "delivery_queue_depth"}}) {
+        const auto value = clientFresh ? number(hud.value(pair.first), "", pair.first == std::string_view("deliveryQueueDepth") ? 2 : 1000000000) : QJsonValue(QJsonValue::Null);
+        client[pair.second] = !value.isNull() && std::floor(value.toDouble()) == value.toDouble() ? value : QJsonValue(QJsonValue::Null);
+    }
     client["codec"] = choice(hud.value("codec"), {"H.264", "HEVC", "HEVC10", "AV1", "AV1 Main10", "PyroWave"});
     client["decoder_callback_ms"] = clientFresh ? number(hud.value("videoWork"), "ms") : QJsonValue(QJsonValue::Null);
     const auto refused = clientFresh ? number(hud.value("refused"), "") : QJsonValue(QJsonValue::Null);

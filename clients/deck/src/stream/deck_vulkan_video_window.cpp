@@ -54,6 +54,7 @@ struct DeckVulkanVideoWindow::Impl {
     std::unique_ptr<DeckVulkanQuickOverlay> overlay;
     std::shared_ptr<AVFrame> frame;
     std::shared_ptr<std::atomic<std::uint64_t>> composed = std::make_shared<std::atomic<std::uint64_t>>(0);
+    std::shared_ptr<std::atomic<std::uint64_t>> cpuUploadCompositions = std::make_shared<std::atomic<std::uint64_t>>(0);
     std::shared_ptr<std::atomic<bool>> cancelled = std::make_shared<std::atomic<bool>>(false);
     uint64_t frameSerial = 0, revision = 0, epoch = 0;
     DeckWindowOutput output = DeckWindowOutput::Sdr;
@@ -174,6 +175,7 @@ DeckVulkanVideoWindow::~DeckVulkanVideoWindow() {
 
 DeckWindowPresentationState DeckVulkanVideoWindow::presentationState() const { return d->state; }
 std::shared_ptr<const std::atomic<std::uint64_t>> DeckVulkanVideoWindow::composedFrames() const { return d->composed; }
+std::shared_ptr<const std::atomic<std::uint64_t>> DeckVulkanVideoWindow::cpuUploadCompositions() const { return d->cpuUploadCompositions; }
 QQuickWindow* DeckVulkanVideoWindow::enableQuickOverlay() {
     Q_ASSERT(!d->busy && !isVisible());
     if (!d->overlay) {
@@ -188,6 +190,7 @@ bool DeckVulkanVideoWindow::presentVaapiSurface(const DeckQrhiVaapiPresentationD
     if (!descriptor.frameLease) { clearFrame(); return false; }
     const auto& lease = descriptor.frameLease;
     if (!descriptor.hardwareBacked || !lease->valid() || !lease->frame() || descriptor.surfaceId != lease->surfaceId()
+            || descriptor.decoderBackend != lease->backend() || descriptor.transferPath != lease->transferPath()
             || descriptor.width != lease->frame()->width || descriptor.height != lease->frame()->height) {
         clearFrame();
         return false;
@@ -453,6 +456,10 @@ bool DeckVulkanVideoWindow::Impl::render(DeckVulkanVideoWindow* window, const Jo
         if (videoRendered && !*job.cancelled && gpu.composedSerial != job.serial) {
             gpu.composedSerial = job.serial;
             composed->fetch_add(1);
+            if (job.frame->format == AV_PIX_FMT_NV12 && !job.frame->hw_frames_ctx) {
+                cpuUploadCompositions->fetch_add(1);
+                ++gpu.state.cpuUploadCompositions;
+            }
         }
         gpu.state.hdrActive = videoRendered && actual == DeckColorOutput::Hdr10Pq;
         gpu.state.toneMapped = videoRendered && hdrSource && actual == DeckColorOutput::Srgb;

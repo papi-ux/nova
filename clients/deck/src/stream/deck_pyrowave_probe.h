@@ -30,5 +30,7 @@ private:
     QString key_;
     std::optional<DeckPyrowaveProbeResult> result_;
 };
+QString pyrowaveProbeEnvironmentKey(const QString& program,
+    const QStringList& additionalLibraryDirectories = {});
 DeckPyrowaveProbeResult cachedPyrowaveDecodeSupport();
 } // namespace nova::deck::stream

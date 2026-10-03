@@ -10,6 +10,56 @@ from tools import run_nova_pyrowave_ci as gate
 MODULE = Path(__file__).resolve().parents[1] / 'clients/deck/packaging/flatpak/modules/pyrowave.json'
 
 class NovaPyroWaveCiTest(unittest.TestCase):
+    def compile_commands(self):
+        commands = [{'file': '/source/tests/' + target + '.cpp',
+                     'arguments': ['c++', '-O3', '-DNDEBUG', '-UNDEBUG', '-o',
+                                   'CMakeFiles/' + target + '.dir/test.cpp.o']}
+                    for target in sorted(gate.ASSERTION_TARGETS)]
+        for target, source in [('nova-deck', 'main.cpp'), ('nova_deck_core', 'deck_stream_core.cpp')]:
+            commands.append({'file': '/source/src/' + source,
+                             'arguments': ['c++', '-O3', '-DNDEBUG', '-o',
+                                           'CMakeFiles/' + target + '.dir/' + source + '.o']})
+        return commands
+
+    def audit(self, commands):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'compile_commands.json').write_text(json.dumps(commands))
+            return gate.audit_flags(root)
+
+    def generated_fixture_command(self):
+        return {'file': '/build/.qt/rcc/qrc_nova_v4l2_test_fixtures.cpp',
+                'arguments': ['c++', '-O3', '-DNDEBUG', '-UNDEBUG', '-o',
+                              'CMakeFiles/nova_deck_v4l2_decoder_test.dir/.qt/rcc/fixture.cpp.o']}
+
+    def test_generated_fixture_keeps_executable_assertion_flags(self):
+        result = self.audit(self.compile_commands() + [self.generated_fixture_command()])
+        self.assertIn('nova_deck_v4l2_decoder_test', result['assertion_targets'])
+        self.assertEqual(result['production_DNDEBUG'], ['nova-deck', 'nova_deck_core'])
+
+    def test_generated_fixture_cannot_replace_actual_test_compilation(self):
+        commands = [c for c in self.compile_commands()
+                    if c['file'] != '/source/tests/nova_deck_v4l2_decoder_test.cpp']
+        with self.assertRaises(ValueError): self.audit(commands + [self.generated_fixture_command()])
+
+    def test_production_or_unknown_target_cannot_inherit_test_flags(self):
+        for output in ['CMakeFiles/nova_deck_core.dir/generated.cpp.o',
+                       'CMakeFiles/unknown_target.dir/tests/fake.cpp.o']:
+            with self.subTest(output=output):
+                generated = self.generated_fixture_command()
+                generated['arguments'][-1] = output
+                with self.assertRaises(ValueError): self.audit(self.compile_commands() + [generated])
+
+    def test_generated_test_translation_unit_keeps_release_override(self):
+        generated = self.generated_fixture_command()
+        generated['arguments'].remove('-UNDEBUG')
+        with self.assertRaises(ValueError): self.audit(self.compile_commands() + [generated])
+
+    def test_test_override_preceding_release_define_is_rejected(self):
+        commands = self.compile_commands()
+        commands[0]['arguments'][2:4] = ['-UNDEBUG', '-DNDEBUG']
+        with self.assertRaises(ValueError): self.audit(commands)
+
     def inventory(self):
         tests = [{'name': n, 'properties': []} for n in sorted(gate.MANDATORY_TESTS)]
         tests.append({'name': 'hardware_fixture', 'properties': [{'name': 'SKIP_RETURN_CODE', 'value': 77}]})

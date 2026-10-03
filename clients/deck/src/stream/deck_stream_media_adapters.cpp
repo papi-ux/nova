@@ -1,4 +1,5 @@
 #include "stream/deck_stream_media_adapters.h"
+#include "stream/deck_v4l2_decoder.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -1110,7 +1111,9 @@ DeckLinuxMediaProbe DeckLinuxMediaProbe::detect() {
     av_log_set_level(AV_LOG_QUIET);
     const int hardwareDeviceResult = av_hwdevice_ctx_create(&hardwareDevice, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
     av_log_set_level(priorLogLevel);
-    const auto videoDecodeSupport = probeVideoDecodeSupport(hardwareDevice);
+    // Play Setup reads this startup result. Use the same qualified SDR backend
+    // discovery as launch, while retaining the existing VAAPI runtime evidence.
+    const auto videoDecodeSupport = probeLocalVideoDecodeSupport(hardwareDevice);
     if (hardwareDevice != nullptr) {
         av_buffer_unref(&hardwareDevice);
     }
@@ -1147,6 +1150,16 @@ std::shared_ptr<DeckQrhiVaapiFrameLease> DeckQrhiVaapiFrameLease::cloneHardwareF
     return std::shared_ptr<DeckQrhiVaapiFrameLease>(new DeckQrhiVaapiFrameLease(clonedFrame));
 }
 
+std::shared_ptr<DeckQrhiVaapiFrameLease> DeckQrhiVaapiFrameLease::retainV4l2Frame(const AVFrame& frame) {
+    if (!deckV4l2Nv12LayoutSupported(frame)) return {};
+    auto* cloned = av_frame_clone(&frame);
+    if (!cloned) return {};
+    auto lease = std::shared_ptr<DeckQrhiVaapiFrameLease>(new DeckQrhiVaapiFrameLease(cloned));
+    lease->backend_ = DeckDecoderBackend::V4l2;
+    lease->transferPath_ = DeckFrameTransferPath::CpuUpload;
+    return lease;
+}
+
 #ifdef NOVA_DECK_BUILD_PYROWAVE
 std::shared_ptr<DeckQrhiVaapiFrameLease> DeckQrhiVaapiFrameLease::retainPyrowaveFrame(const nova::pyrowave::GpuImage& image) {
     if (!image.owner || image.width <= 0 || image.height <= 0) return {};
@@ -1169,18 +1182,33 @@ std::shared_ptr<DeckQrhiVaapiFrameLease> DeckQrhiVaapiFrameLease::retainPyrowave
             delete static_cast<std::shared_ptr<void>*>(opaque);
         }, owner, AV_BUFFER_FLAG_READONLY);
     if (!frame->buf[0]) { delete owner; delete drm; av_frame_free(&frame); return {}; }
+    // Descriptor-only DRM context for libplacebo's typed three-plane mapping.
+    // FFmpeg owns this metadata; the PyroWave owner retains the actual fds/GPU.
+    AVBufferRef* device = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_DRM);
+    if (!device) { av_frame_free(&frame); return {}; }
+    auto* deviceContext = reinterpret_cast<AVHWDeviceContext*>(device->data);
+    static_cast<AVDRMDeviceContext*>(deviceContext->hwctx)->fd = -1;
+    frame->hw_frames_ctx = av_hwframe_ctx_alloc(device);
+    av_buffer_unref(&device);
+    if (!frame->hw_frames_ctx) { av_frame_free(&frame); return {}; }
+    auto* context = reinterpret_cast<AVHWFramesContext*>(frame->hw_frames_ctx->data);
+    context->format = AV_PIX_FMT_DRM_PRIME; context->sw_format = AV_PIX_FMT_YUV420P;
+    context->width = image.width; context->height = image.height;
     frame->data[0] = frame->buf[0]->data;
     frame->format = AV_PIX_FMT_DRM_PRIME; frame->width = image.width; frame->height = image.height;
     frame->color_primaries = AVCOL_PRI_BT709; frame->color_trc = AVCOL_TRC_BT709;
     frame->colorspace = AVCOL_SPC_BT709; frame->color_range = AVCOL_RANGE_JPEG;
-    return std::shared_ptr<DeckQrhiVaapiFrameLease>(new DeckQrhiVaapiFrameLease(frame));
+    auto lease = std::shared_ptr<DeckQrhiVaapiFrameLease>(new DeckQrhiVaapiFrameLease(frame));
+    lease->backend_ = DeckDecoderBackend::Pyrowave;
+    return lease;
 }
 #endif
 
 bool DeckQrhiVaapiFrameLease::valid() const {
     return frame_ != nullptr && ((frame_->format == AV_PIX_FMT_VAAPI &&
         (frame_->data[3] != nullptr || frame_->hw_frames_ctx != nullptr)) ||
-        (frame_->format == AV_PIX_FMT_DRM_PRIME && frame_->buf[0] != nullptr && frame_->data[0] != nullptr));
+        (frame_->format == AV_PIX_FMT_DRM_PRIME && frame_->buf[0] != nullptr && frame_->data[0] != nullptr) ||
+        (backend_ == DeckDecoderBackend::V4l2 && deckV4l2Nv12LayoutSupported(*frame_)));
 }
 
 std::uintptr_t DeckQrhiVaapiFrameLease::surfaceId() const {
@@ -1576,6 +1604,7 @@ DeckQtQuickRhiVaapiItem::~DeckQtQuickRhiVaapiItem() = default;
 bool DeckQtQuickRhiVaapiItem::presentVaapiSurface(const DeckQrhiVaapiPresentationDescriptor& descriptor) {
     if (!descriptor.hardwareBacked || descriptor.surfaceId == 0 || descriptor.width <= 0 || descriptor.height <= 0 ||
         descriptor.frameLease == nullptr || !descriptor.frameLease->valid() ||
+        descriptor.frameLease->transferPath() != DeckFrameTransferPath::DmaBuf ||
         !descriptor.frameLease->colorInfo().legacySdrCompatible()) {
         pendingDescriptor_ = {};
         hasPendingDescriptor_ = true;
@@ -1673,7 +1702,14 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.hostLatencyTenths = lifecycle_.hostLatencySamples = 0;
     lifecycle_.lastFrameWasHardwareBacked = false;
     lifecycle_.lastRuntimeError.clear();
+    lifecycle_.cpuUploadSubmissions = 0;
+    lifecycle_.decoderBackend = DeckDecoderBackend::Unavailable;
+    lifecycle_.transferPath = DeckFrameTransferPath::DmaBuf;
     resetDecoder();
+    if (width <= 0 || height <= 0 || width > 8192 || height > 8192 || redrawRate <= 0 || redrawRate > 240) {
+        lifecycle_.lastRuntimeError = "Invalid video dimensions or refresh rate";
+        return DR_NEED_IDR;
+    }
 
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     if (videoFormat == VIDEO_FORMAT_PYROWAVE) {
@@ -1686,6 +1722,7 @@ int DeckVaapiFfmpegRenderer::setup(
         lifecycle_.ownsHardwareDevice = lifecycle_.ownsCodecContext = true;
         lifecycle_.runtimeVaapiDeviceAvailable = false;
         lifecycle_.runtimeStatus = "PyroWave Vulkan decoder; GPU DMA-BUF presentation";
+        decoderBackend_ = lifecycle_.decoderBackend = DeckDecoderBackend::Pyrowave;
         ready_ = true;
         return DR_OK;
     }
@@ -1701,49 +1738,42 @@ int DeckVaapiFfmpegRenderer::setup(
     }
 
     int result = av_hwdevice_ctx_create(&hardwareDevice_, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0);
-    if (result < 0) {
-        lifecycle_.lastRuntimeError = "av_hwdevice_ctx_create(VAAPI) failed: " + ffmpegErrorString(result);
-        lifecycle_.runtimeStatus = lifecycle_.lastRuntimeError;
-        resetDecoder();
-        return DR_NEED_IDR;
-    }
-    if (!probeVideoDecodeSupport(hardwareDevice_).supports(videoFormat, width, height)) {
-        lifecycle_.lastRuntimeError = "The VA-API device cannot decode this codec and stream size";
-        resetDecoder();
-        return DR_NEED_IDR;
-    }
-    lifecycle_.ownsHardwareDevice = true;
-    lifecycle_.runtimeVaapiDeviceAvailable = true;
-    lifecycle_.runtimeStatus = "vaapi runtime device opened and owned";
-
-    const AVCodec* codec = avcodec_find_decoder(static_cast<AVCodecID>(spec->codecId));
-    if (codec == nullptr) {
-        lifecycle_.lastRuntimeError = "FFmpeg decoder unavailable for " + std::string(spec->name);
-        resetDecoder();
-        return DR_NEED_IDR;
-    }
-
-    codecContext_ = avcodec_alloc_context3(codec);
-    if (codecContext_ == nullptr) {
-        lifecycle_.lastRuntimeError = "avcodec_alloc_context3() failed";
-        resetDecoder();
-        return DR_NEED_IDR;
-    }
-    codecContext_->width = width;
-    codecContext_->height = height;
-    codecContext_->get_format = vaapiHardwareFormatCallback;
-    codecContext_->hw_device_ctx = av_buffer_ref(hardwareDevice_);
-    if (codecContext_->hw_device_ctx == nullptr) {
-        lifecycle_.lastRuntimeError = "av_buffer_ref(VAAPI device) failed";
-        resetDecoder();
-        return DR_NEED_IDR;
-    }
-
-    result = avcodec_open2(codecContext_, codec, nullptr);
-    if (result < 0) {
-        lifecycle_.lastRuntimeError = "avcodec_open2(VA-API) failed: " + ffmpegErrorString(result);
-        resetDecoder();
-        return DR_NEED_IDR;
+    lifecycle_.runtimeVaapiDeviceAvailable = result == 0;
+    lifecycle_.runtimeStatus = result == 0 ? "vaapi runtime device opened" :
+        "av_hwdevice_ctx_create(VAAPI) failed: " + ffmpegErrorString(result);
+    const bool useVaapi = result == 0 && probeVideoDecodeSupport(hardwareDevice_).supports(videoFormat, width, height);
+    if (!useVaapi) {
+        av_buffer_unref(&hardwareDevice_);
+        const auto qualified = qualifyDeckV4l2Decoder();
+        const auto limits = videoFormat == VIDEO_FORMAT_H264 ? qualified.h264 :
+            videoFormat == VIDEO_FORMAT_H265 ? qualified.hevc : DeckDecodeLimits{};
+        if (!limits.supports(width, height)) {
+            lifecycle_.lastRuntimeError = result < 0 ? lifecycle_.runtimeStatus + "; no qualified V4L2 decoder for this codec and stream size" :
+                "No qualified hardware decoder for this codec and stream size";
+            resetDecoder();
+            return DR_NEED_IDR;
+        }
+        codecContext_ = openDeckV4l2Decoder(videoFormat, width, height, qualified.device, lifecycle_.lastRuntimeError);
+        if (!codecContext_) { resetDecoder(); return DR_NEED_IDR; }
+        decoderBackend_ = lifecycle_.decoderBackend = DeckDecoderBackend::V4l2;
+        lifecycle_.transferPath = DeckFrameTransferPath::CpuUpload;
+        lifecycle_.runtimeStatus = "qcom-iris V4L2 hardware decode; linear NV12 CPU-to-GPU upload";
+    } else {
+        lifecycle_.ownsHardwareDevice = true;
+        lifecycle_.runtimeVaapiDeviceAvailable = true;
+        lifecycle_.runtimeStatus = "vaapi runtime device opened and owned";
+        decoderBackend_ = lifecycle_.decoderBackend = DeckDecoderBackend::Vaapi;
+        const AVCodec* codec = avcodec_find_decoder(static_cast<AVCodecID>(spec->codecId));
+        if (!codec) { lifecycle_.lastRuntimeError = "FFmpeg VAAPI decoder unavailable"; resetDecoder(); return DR_NEED_IDR; }
+        codecContext_ = avcodec_alloc_context3(codec);
+        if (!codecContext_) { lifecycle_.lastRuntimeError = "Could not allocate the VAAPI decoder"; resetDecoder(); return DR_NEED_IDR; }
+        codecContext_->width = width; codecContext_->height = height;
+        codecContext_->get_format = vaapiHardwareFormatCallback;
+        codecContext_->hw_device_ctx = av_buffer_ref(hardwareDevice_);
+        if (!codecContext_->hw_device_ctx || avcodec_open2(codecContext_, codec, nullptr) < 0) {
+            lifecycle_.lastRuntimeError = "Could not open the VAAPI decoder";
+            resetDecoder(); return DR_NEED_IDR;
+        }
     }
 
     decodedFrame_ = av_frame_alloc();
@@ -1772,6 +1802,36 @@ void DeckVaapiFfmpegRenderer::cleanup() {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.cleanupCalls;
     resetDecoder();
+}
+
+int DeckVaapiFfmpegRenderer::drainV4l2Frames() {
+    // Every receive polls. Bound the number of handoffs as well as the capture
+    // pool; pressure must never turn this callback into an unbounded drain.
+    for (int i = 0; i < 12; ++i) {
+        const int result = avcodec_receive_frame(codecContext_, decodedFrame_);
+        if (result < 0) return result;
+        if (!deckV4l2Nv12LayoutSupported(*decodedFrame_) || decodedFrame_->width != lifecycle_.width ||
+            decodedFrame_->height != lifecycle_.height) {
+            av_frame_unref(decodedFrame_);
+            lifecycle_.lastRuntimeError = "V4L2 returned an unsupported layout, color or changed stream size";
+            return AVERROR(EINVAL);
+        }
+        auto lease = DeckQrhiVaapiFrameLease::retainV4l2Frame(*decodedFrame_);
+        if (!lease) { av_frame_unref(decodedFrame_); return AVERROR(ENOMEM); }
+        ++lifecycle_.decodedHardwareFrames;
+        lifecycle_.lastFrameWasHardwareBacked = true;
+        DeckQrhiVaapiPresentationDescriptor descriptor{
+            .width = decodedFrame_->width, .height = decodedFrame_->height, .redrawRate = lifecycle_.redrawRate,
+            .surfaceId = lease->surfaceId(), .hardwareBacked = true, .frameLease = std::move(lease),
+            .source = "ffmpeg-v4l2-linear-nv12", .decoderBackend = DeckDecoderBackend::V4l2,
+            .transferPath = DeckFrameTransferPath::CpuUpload};
+        if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest()) {
+            ++lifecycle_.presentedHardwareFrames;
+            ++lifecycle_.cpuUploadSubmissions;
+        }
+        av_frame_unref(decodedFrame_);
+    }
+    return AVERROR(EAGAIN);
 }
 
 int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
@@ -1830,7 +1890,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         const DeckQrhiVaapiPresentationDescriptor descriptor{
             .width = image.width, .height = image.height, .redrawRate = lifecycle_.redrawRate,
             .surfaceId = lease->surfaceId(), .hardwareBacked = true,
-            .frameLease = std::move(lease), .source = "pyrowave-vulkan-dmabuf-sdr"};
+            .frameLease = std::move(lease), .source = "pyrowave-vulkan-dmabuf-sdr",
+            .decoderBackend = DeckDecoderBackend::Pyrowave};
         if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest())
             ++lifecycle_.presentedHardwareFrames;
         observation.accepted = true;
@@ -1852,10 +1913,35 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
     }
     std::copy(bytes.begin(), bytes.end(), packet->data);
 
+    if (decoderBackend_ == DeckDecoderBackend::V4l2) {
+        const int drained = drainV4l2Frames();
+        if (drained != AVERROR(EAGAIN)) {
+            av_packet_free(&packet);
+            if (lifecycle_.lastRuntimeError.empty()) lifecycle_.lastRuntimeError = "V4L2 capture is unavailable";
+            return DR_NEED_IDR;
+        }
+    }
     result = avcodec_send_packet(codecContext_, packet);
+    if (result == AVERROR(EAGAIN) && decoderBackend_ == DeckDecoderBackend::V4l2) {
+        const int drained = drainV4l2Frames();
+        if (drained == AVERROR(EAGAIN)) result = avcodec_send_packet(codecContext_, packet);
+        else result = drained;
+    }
     av_packet_free(&packet);
     if (result < 0) {
         lifecycle_.lastRuntimeError = "avcodec_send_packet() failed: " + ffmpegErrorString(result);
+        return DR_NEED_IDR;
+    }
+
+    if (decoderBackend_ == DeckDecoderBackend::V4l2) {
+        result = drainV4l2Frames();
+        if (result == AVERROR(EAGAIN)) {
+            // Stateful hardware output may arrive after the next input packet.
+            observation.accepted = true;
+            lifecycle_.lastRuntimeError.clear();
+            return DR_OK;
+        }
+        if (lifecycle_.lastRuntimeError.empty()) lifecycle_.lastRuntimeError = "V4L2 capture failed: " + ffmpegErrorString(result);
         return DR_NEED_IDR;
     }
 
@@ -1880,6 +1966,7 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
                 .hardwareBacked = frameLease != nullptr && frameLease->valid(),
                 .frameLease = frameLease,
                 .source = "ffmpeg-vaapi-" + std::string(spec->name),
+                .decoderBackend = decoderBackend_, .transferPath = lifecycle_.transferPath,
             };
             if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest()) {
                 ++lifecycle_.presentedHardwareFrames;
@@ -1890,6 +1977,8 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
             return DR_OK;
         }
         av_frame_unref(decodedFrame_);
+        lifecycle_.lastRuntimeError = "The hardware decoder returned an unsupported capture layout";
+        return DR_NEED_IDR;
     }
 
     if (result == AVERROR(EAGAIN)) {
@@ -1917,6 +2006,7 @@ const DeckQrhiVaapiPresentationHandoff& DeckVaapiFfmpegRenderer::presentationHan
 
 void DeckVaapiFfmpegRenderer::resetDecoder() {
     ready_ = false;
+    decoderBackend_ = DeckDecoderBackend::Unavailable;
     previewFramePump_.clearPending();
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     pyrowave_.reset();

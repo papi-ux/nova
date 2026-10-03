@@ -38,6 +38,19 @@ pkg_check_modules(NOVA_DECK_LINUX_AUDIO REQUIRED IMPORTED_TARGET
     libpulse
     opus
 )
+# KDE's ARM SDK nests Qt dependency configs in its multiarch CMake directory.
+# Qt restricts nested dependency searches. Give Quick's Gui/Qml/OpenGL
+# dependencies explicit defaults while preserving caller-provided paths.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$"
+        AND EXISTS "/usr/lib/aarch64-linux-gnu/cmake/Qt6/Qt6Config.cmake")
+    list(APPEND CMAKE_PREFIX_PATH "/usr/lib/aarch64-linux-gnu/cmake")
+    foreach(component IN ITEMS Gui Qml OpenGL)
+        if(NOT Qt6${component}_DIR)
+            set(Qt6${component}_DIR "/usr/lib/aarch64-linux-gnu/cmake/Qt6${component}"
+                CACHE PATH "ARM SDK Qt ${component} config" FORCE)
+        endif()
+    endforeach()
+endif()
 find_package(Qt6 6.10 REQUIRED COMPONENTS Quick Network DBus WaylandClient GuiPrivate)
 pkg_check_modules(NOVA_DECK_POINTER REQUIRED IMPORTED_TARGET wayland-client xcb xcb-xinput)
 pkg_get_variable(NOVA_DECK_WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
@@ -73,6 +86,7 @@ add_library(nova_deck_core STATIC
     src/stream/deck_gamestream_session_builder.cpp
     src/stream/deck_stream_media_adapters.cpp
     src/stream/deck_video_color.cpp
+    src/stream/deck_v4l2_decoder.cpp
     src/stream/deck_video_capabilities.cpp
     src/stream/deck_pyrowave_probe.cpp
     src/stream/deck_audio_output.cpp
@@ -108,6 +122,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_play_settings.cpp
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
+    src/runtime/deck_frame_qualification_trace.cpp
     src/runtime/deck_host_power.cpp
     src/runtime/deck_host_wake.cpp
     src/runtime/deck_host_settings.cpp
@@ -207,6 +222,13 @@ target_compile_definitions(nova_deck_core
         NOVA_DECK_FIXTURE_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures\"
 )
 
+add_executable(nova-deck-v4l2-probe src/stream/deck_v4l2_probe.cpp)
+target_link_libraries(nova-deck-v4l2-probe PRIVATE nova_deck_core)
+qt_add_resources(nova-deck-v4l2-probe nova_v4l2_fixtures
+    PREFIX "/nova-v4l2" BASE "${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    FILES fixtures/frame-1080p.h264 fixtures/frame-1080p.hevc)
+install(TARGETS nova-deck-v4l2-probe RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 include(CTest)
 if(NOVA_DECK_BUILD_PYROWAVE)
     add_subdirectory(pyrowave)
@@ -234,6 +256,10 @@ if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
         src/stream/deck_placebo_libav.c)
     set_target_properties(nova_deck_hdr_render PROPERTIES AUTOMOC ON)
     target_link_libraries(nova_deck_hdr_render PUBLIC nova_deck_core PkgConfig::NOVA_DECK_PLACEBO)
+    if(TARGET nova_deck_pyrowave_presenter_test)
+        target_link_libraries(nova_deck_pyrowave_presenter_test PRIVATE nova_deck_hdr_render)
+        target_compile_definitions(nova_deck_pyrowave_presenter_test PRIVATE NOVA_DECK_TEST_VULKAN_PRESENTATION=1)
+    endif()
 endif()
 if(BUILD_TESTING)
     include(cmake/NovaTestAssertions.cmake)
@@ -263,6 +289,14 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_video_color_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_video_color_test COMMAND nova_deck_video_color_test)
     set_tests_properties(nova_deck_video_color_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+    add_executable(nova_deck_v4l2_decoder_test tests/deck_v4l2_decoder_test.cpp)
+    target_link_libraries(nova_deck_v4l2_decoder_test PRIVATE nova_deck_core)
+    nova_deck_enable_test_assertions(nova_deck_v4l2_decoder_test)
+    qt_add_resources(nova_deck_v4l2_decoder_test nova_v4l2_test_fixtures
+        PREFIX "/nova-v4l2" BASE "${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+        FILES fixtures/frame-1080p.h264 fixtures/frame-1080p.hevc)
+    add_test(NAME nova_deck_v4l2_decoder_test COMMAND nova_deck_v4l2_decoder_test)
+    set_tests_properties(nova_deck_v4l2_decoder_test PROPERTIES TIMEOUT 20)
     add_executable(nova_deck_video_capabilities_test tests/deck_video_capabilities_test.cpp)
     target_link_libraries(nova_deck_video_capabilities_test PRIVATE nova_deck_core)
     target_compile_definitions(nova_deck_video_capabilities_test PRIVATE
@@ -273,6 +307,13 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_vaapi_capabilities_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_vaapi_capabilities_test COMMAND nova_deck_vaapi_capabilities_test)
     set_tests_properties(nova_deck_vaapi_capabilities_test PROPERTIES TIMEOUT 20)
+    if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
+        add_executable(nova_deck_v4l2_upload_test tests/deck_v4l2_upload_test.cpp)
+        target_link_libraries(nova_deck_v4l2_upload_test PRIVATE nova_deck_hdr_render)
+        nova_deck_enable_test_assertions(nova_deck_v4l2_upload_test)
+        add_test(NAME nova_deck_v4l2_upload_test COMMAND nova_deck_v4l2_upload_test)
+        set_tests_properties(nova_deck_v4l2_upload_test PROPERTIES TIMEOUT 30)
+    endif()
     if(NOVA_DECK_BUILD_HDR_VALIDATION)
         add_executable(nova_deck_video_scale_test tests/deck_video_scale_test.cpp)
         target_link_libraries(nova_deck_video_scale_test PRIVATE nova_deck_hdr_render)
@@ -361,6 +402,10 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_hud_host_test COMMAND nova_deck_hud_host_test)
     set_tests_properties(nova_deck_hud_host_test PROPERTIES TIMEOUT 15)
     add_executable(nova_deck_hud_metrics_test tests/deck_hud_metrics_test.cpp)
+    add_executable(nova_deck_frame_qualification_trace_test tests/deck_frame_qualification_trace_test.cpp)
+    target_link_libraries(nova_deck_frame_qualification_trace_test PRIVATE nova_deck_core)
+    nova_deck_enable_test_assertions(nova_deck_frame_qualification_trace_test)
+    add_test(NAME nova_deck_frame_qualification_trace_test COMMAND nova_deck_frame_qualification_trace_test)
     target_link_libraries(nova_deck_hud_metrics_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_hud_metrics_test COMMAND nova_deck_hud_metrics_test)
     add_executable(nova_deck_client_media_test tests/deck_client_media_test.cpp)
@@ -782,6 +827,12 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         )
 
         install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE.txt"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/LICENSE.txt"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/moonlight-common-c)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/enet/LICENSE"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/enet)
         if(BUILD_TESTING)
         install(FILES fixtures/sample_polaris_game.json fixtures/sample_polaris_library.json
             DESTINATION ${CMAKE_INSTALL_DATADIR}/nova-deck/fixtures)

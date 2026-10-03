@@ -53,7 +53,8 @@ public:
     // The QObject bounds the borrowed sink lifetime. Replacing a live target is
     // refused; detachment is always allowed and cancels delivery to that target.
     bool setPresentationSink(QObject* lifetime, stream::DeckQtQuickRhiPresentationSink* sink,
-        std::shared_ptr<const std::atomic<std::uint64_t>> composed = {});
+        std::shared_ptr<const std::atomic<std::uint64_t>> composed = {},
+        std::shared_ptr<const std::atomic<std::uint64_t>> cpuUploads = {});
     // GUI-thread binding; the reader itself must be safe on the session worker.
     bool setDisplayRateLimitReader(std::function<int()> reader);
     void updateController(stream::DeckControllerState state, bool connected);
@@ -146,6 +147,7 @@ private:
     QPointer<QObject> presentationOwner_;
     stream::DeckQtQuickRhiPresentationSink* presentationSink_ = nullptr;
     std::shared_ptr<const std::atomic<std::uint64_t>> presentationFrames_;
+    std::shared_ptr<const std::atomic<std::uint64_t>> presentationCpuUploads_;
     std::unique_ptr<DeckFrameDelivery> frameDelivery_;
     std::function<int()> displayRateLimit_ = [] { return 60; };
 };

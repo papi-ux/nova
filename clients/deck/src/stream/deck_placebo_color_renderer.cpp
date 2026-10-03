@@ -1,5 +1,6 @@
 #include "stream/deck_placebo_color_renderer.h"
 #include "stream/deck_video_color.h"
+#include "stream/deck_v4l2_decoder.h"
 #define PL_LIBAV_IMPLEMENTATION 0
 #include <libplacebo/utils/libav.h>
 #include <algorithm>
@@ -23,7 +24,9 @@ bool deckDrmFrameLayoutSupported(const AVFrame& frame) {
     const auto format = reinterpret_cast<const AVHWFramesContext*>(frame.hw_frames_ctx->data)->sw_format;
     // Bit depth alone does not identify the plane count, chroma order or bit
     // packing. A planar 4:2:0 context with two DRM layers would assert downstream.
-    if (format != AV_PIX_FMT_NV12 && format != AV_PIX_FMT_P010LE) return false;
+    if (format != AV_PIX_FMT_NV12 && format != AV_PIX_FMT_P010LE && format != AV_PIX_FMT_YUV420P) return false;
+    const bool planar = format == AV_PIX_FMT_YUV420P;
+    const int planes = planar ? 3 : 2;
     const int depth = format == AV_PIX_FMT_P010LE ? 10 : 8;
     // FFmpeg's buffer may own a mapping context rather than the descriptor
     // itself, so its size is not the descriptor's size.
@@ -31,17 +34,17 @@ bool deckDrmFrameLayoutSupported(const AVFrame& frame) {
     const auto& drm = *reinterpret_cast<const AVDRMFrameDescriptor*>(frame.data[0]);
     // libplacebo's helper asserts on combined/missing layers. Reject these
     // valid-but-unsupported exports before entering that helper.
-    if (drm.nb_objects < 1 || drm.nb_objects > 4 || drm.nb_layers != 2) return false;
+    if (drm.nb_objects < 1 || drm.nb_objects > 4 || drm.nb_layers != planes) return false;
     const uint32_t formats[]{depth == 10 ? DRM_FORMAT_R16 : DRM_FORMAT_R8,
-                            depth == 10 ? DRM_FORMAT_GR1616 : DRM_FORMAT_GR88};
-    for (int i = 0; i < 2; ++i) {
+        planar ? DRM_FORMAT_R8 : depth == 10 ? DRM_FORMAT_GR1616 : DRM_FORMAT_GR88, DRM_FORMAT_R8};
+    for (int i = 0; i < planes; ++i) {
         const auto& layer = drm.layers[i];
         if (layer.nb_planes != 1 || layer.format != formats[i]) return false;
         const auto& plane = layer.planes[0];
         if (plane.object_index < 0 || plane.object_index >= drm.nb_objects || plane.offset < 0 || plane.pitch <= 0) return false;
         const auto& object = drm.objects[plane.object_index];
         const size_t rows = i == 0 ? frame.height : (frame.height + 1) / 2;
-        const size_t rowBytes = (depth == 10 ? 2 : 1) * (i == 0 ? frame.width : ((frame.width + 1) / 2) * 2);
+        const size_t rowBytes = (depth == 10 ? 2 : 1) * (i == 0 ? frame.width : ((frame.width + 1) / 2) * (planar ? 1 : 2));
         if (object.fd < 0 || static_cast<size_t>(plane.pitch) < rowBytes || static_cast<size_t>(plane.offset) >= object.size) return false;
         const auto remaining = object.size - static_cast<size_t>(plane.offset);
         if (rowBytes > remaining || rows - 1 > (remaining - rowBytes) / static_cast<size_t>(plane.pitch)) return false;
@@ -160,6 +163,8 @@ bool DeckPlaceboColorRenderer::renderFrame(const AVFrame& frame, pl_frame destin
         return fail("Color rendering requires an RGBA 2D target");
     if (scale && !target->params.blit_dst) return fail("Presentation surface cannot clear letterbox bars");
     if (output != DeckColorOutput::Srgb && output != DeckColorOutput::Hdr10Pq) return fail("Unsupported output encoding");
+    if (frame.format == AV_PIX_FMT_NV12 && !deckV4l2Nv12LayoutSupported(frame))
+        return fail("Invalid linear NV12 allocation or color metadata");
     const auto color = DeckVideoColorInfo::fromFrame(frame);
     if (!color.yuv420 || (color.bitDepth != 8 && color.bitDepth != 10)) return fail("Unsupported source bit depth");
     if (color.hdrSignaled() && !color.hdr10()) return fail("HDR requires explicit 10-bit BT.2020 NCL, PQ and range metadata");
@@ -170,7 +175,7 @@ bool DeckPlaceboColorRenderer::renderFrame(const AVFrame& frame, pl_frame destin
         for (int i = 0; i < 3; ++i)
             if (format->component_depth[i] < 10) return fail("HDR10 output requires at least 10-bit target precision");
     }
-    // Imported VAAPI memory must not return to the decoder's surface pool
+    // Imported VAAPI memory and V4L2 upload sources must not return to the decoder's surface pool
     // while GPU reads are pending. Poll without blocking the render thread;
     // refuse additional work at the bounded limit. Teardown drains the GPU.
     retireFrames();

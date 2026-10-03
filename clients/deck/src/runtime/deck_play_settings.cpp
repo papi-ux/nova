@@ -517,9 +517,11 @@ QVariantMap DeckPlaySettings::streamPlan(const QVariantMap& values, const QVaria
             return "This PC does not offer the selected video codec. Choose another codec or enable it in Polaris.";
         const auto local = h264 ? videoSupport_.h264 : hevc ? videoSupport_.hevc : stream::DeckDecodeLimits{};
         const auto label = h264 ? QString("H.264") : hevc ? QString("HEVC") : QString("H.264 or HEVC");
+        const auto backend = local.backend == stream::DeckDecoderBackend::V4l2 || qgetenv("NOVA_DECK_FRAME_V4L2") == "1"
+            ? QString("hardware") : QString("VA-API");
         if ((h264 || hevc) && local.maxWidth > 0 && local.maxHeight > 0)
-            return QString("This stream size exceeds this device's %1 VA-API decoder limits. Choose a smaller size or another codec.").arg(label);
-        return QString("No compatible local %1 VA-API decoder is available. Check this Linux device's video driver and Flatpak graphics runtime, then reopen Nova; or choose another supported codec.").arg(label);
+            return QString("This stream size exceeds this device's %1 %2 decoder limits. Choose a smaller size or another codec.").arg(label, backend);
+        return QString("No compatible local %1 %2 decoder is available. Check this Linux device's video driver and Flatpak graphics runtime, then reopen Nova; or choose another supported codec.").arg(label, backend);
     };
     QString reason;
     if (!requested || !limits.valid) reason = "Stream capabilities could not be verified. Refresh this PC and try again.";

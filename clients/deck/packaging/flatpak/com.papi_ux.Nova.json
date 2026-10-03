@@ -31,6 +31,7 @@
     "/share/nova-deck/cmake"
   ],
   "modules": [
+    "modules/ffmpeg-frame.json",
     "modules/libplacebo.json",
     "modules/pyrowave.json",
     {
@@ -44,7 +45,8 @@
         "-DNOVA_DECK_BUILD_PYROWAVE=ON"
       ],
       "post-install": [
-        "test -x /app/bin/nova-deck-pyrowave-probe"
+        "test -x /app/bin/nova-deck-pyrowave-probe",
+        "test -x /app/bin/nova-deck-v4l2-probe"
       ],
       "sources": [
         {

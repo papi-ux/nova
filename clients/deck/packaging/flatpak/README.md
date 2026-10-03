@@ -2,6 +2,16 @@
 
 `com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This Alpha targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Steam is optional. Codec, HDR and frame-rate availability depends on the device, drivers, display and host; device acceptance remains tracked in the Linux roadmap and Deck parity checklist.
 
+The 1.4.14 candidate adds landscape/desktop Library and Settings polish, six
+Linux themes including `< Congratulations, Director >`, separate control sizes,
+80–130 percent text, and Command Center background opacity. See the
+[client guide](../../README.md#what-changes-in-1414) for the interface changes.
+
+The [Steam Frame development guide](../../docs/steam-frame.md) describes a
+separate experimental ARM64 build and launcher. The x86_64 release filename is
+not an ARM64 download. Frame codec startup and source tests do not establish
+sustained 1080p/90 playback, color/clarity, HDR or immersive XR acceptance.
+
 Signed channel builds support **Settings → Nova → Nova Updates**, including
 optional automatic installation while idle. Ordinary bundles built with the
 commands below do not configure an update feed. See the
