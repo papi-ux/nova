@@ -46,7 +46,10 @@ the exact cap and checks the combined header/payload length.
 Patch 0010 frees parsed replies on all three Session-error paths and maps `EMSGSIZE` to the Windows
 socket error. Android carries both in its normal native patch bootstrap. Native Linux prepares a
 build-owned copy with these two patches for every codec setting, verifying exact reverse
-applicability when the source already carries them. The original submodule remains unchanged.
+applicability with Git when the source already carries them. Repository discovery stops above
+this generated copy, so Git applies relative paths to its files rather than a parent checkout.
+No patch program is required for the hardening step.
+The original submodule remains unchanged.
 The optional Linux PyroWave patch is applied afterward to its existing separate build copy.
 
 `tools/test_moonlight_rtsp.py` compiles the actual selected core with ASan/UBSan when run standalone.

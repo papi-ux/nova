@@ -289,7 +289,7 @@ nova_deck_prepare_rtsp("{self.source.as_posix()}" "{destination.as_posix()}")
         before = self.git(self.source, "status", "--porcelain").stdout
         self.prepare(destination)
         source = (destination / "src/RtspConnection.c").read_bytes()
-        self.assertIn(b"MAX_RTSP_RESPONSE_SIZE", source)
+        self.assertTrue(b"MAX_RTSP_RESPONSE_SIZE" in source, "RTSP bound is absent from the generated source")
         self.assertEqual(self.git(self.source, "status", "--porcelain").stdout, before)
         self.bootstrap()
         # Force the timestamp collision that a fast reconfigure can encounter.
