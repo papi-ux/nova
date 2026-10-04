@@ -50,11 +50,13 @@ internal fun NovaPageScope.NovaSteamControls(page: NovaSteamPage) {
                     message = receipt?.message?.takeIf { it.isNotBlank() }
                         ?: if (receipt?.accepted == true) "Command accepted. Checking Steam…" else "Couldn't confirm the command. Refresh before retrying."
                     if (receipt?.accepted == true) {
+                        val expectedState = if (action == "quit") "stopped" else "running"
                         repeat(10) {
                             delay(500)
                             read()
-                            if (state?.available == true && (action != "quit" || state?.state == "stopped")) return@launch
+                            if (state?.available == true && state?.state == expectedState) return@launch
                         }
+                        state = null
                         message = "The command was accepted, but its outcome could not be confirmed. Refresh before retrying."
                     } else if (receipt?.message.isNullOrBlank()) {
                         message = "Couldn't confirm the command. Refresh before retrying."
