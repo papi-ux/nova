@@ -9,6 +9,8 @@
 #include <QQuickItem>
 #include <QTemporaryDir>
 #include <QElapsedTimer>
+#include <QPointer>
+#include <QSignalSpy>
 #include <QTest>
 #include <QDir>
 #include <QSettings>
@@ -16,8 +18,35 @@
 #include <iostream>
 using namespace nova::deck::runtime;
 namespace {
-void check(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::abort(); } }
-void settle() { QTest::qWait(100); }
+QElapsedTimer progressTime;
+unsigned settleCalls = 0;
+qint64 renderWaitMs = 0;
+QPointer<QQuickWindow> renderedWindow;
+const char* currentPhase = "setup";
+void checkpoint(const char* phase) {
+    currentPhase = phase;
+    std::cerr << "settings-hub phase=" << phase << " elapsed_ms=" << progressTime.elapsed()
+              << " settle_calls=" << settleCalls << " fixed_wait_ms=0 render_wait_ms=" << renderWaitMs << std::endl;
+}
+void check(bool ok, const char* message) {
+    if (!ok) {
+        checkpoint(currentPhase);
+        std::cerr << message << std::endl;
+        std::abort();
+    }
+}
+void settle() {
+    ++settleCalls;
+    check(renderedWindow, "UI frame has no window");
+    // A requested frame drains queued QML work and layout before inspecting the
+    // result. Waiting a fixed 100 ms added 31.7 seconds without proving readiness.
+    QSignalSpy frame(renderedWindow, &QQuickWindow::frameSwapped);
+    QElapsedTimer timer; timer.start();
+    renderedWindow->update();
+    const bool ready = !frame.isEmpty() || frame.wait(6000);
+    renderWaitMs += timer.elapsed();
+    check(ready, "UI frame timed out");
+}
 void wait(const std::function<bool()>& done) { QElapsedTimer t; t.start(); while (!done() && t.elapsed() < 6000) QTest::qWait(20); check(done(), "UI timed out"); settle(); }
 QQuickItem* find(QQuickItem* p, const QString& name) {
     if (p->objectName() == name && p->isVisible()) return p;
@@ -26,6 +55,8 @@ QQuickItem* find(QQuickItem* p, const QString& name) {
 }
 }
 int main(int argc, char** argv) {
+    progressTime.start();
+    checkpoint("setup");
     QTemporaryDir config; qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("SettingsHub");
@@ -87,7 +118,7 @@ int main(int argc, char** argv) {
         auto scene = std::unique_ptr<QObject>(libraryScene.create());
         if (!scene) std::cerr << libraryScene.errorString().toStdString();
         check(bool(scene), "actual LibraryBrowser parity scene failed");
-        auto* surface = qobject_cast<QQuickWindow*>(scene.get()); check(surface, "library window missing"); settle();
+        auto* surface = qobject_cast<QQuickWindow*>(scene.get()); check(surface, "library window missing"); renderedWindow = surface; settle();
         const auto snapshot = [&] {
             QVariant answer; check(QMetaObject::invokeMethod(scene.get(), "state", Q_RETURN_ARG(QVariant, answer)), "library state unavailable");
             return answer.canConvert<QJSValue>() ? answer.value<QJSValue>().toVariant().toMap() : answer.toMap();
@@ -158,6 +189,7 @@ int main(int argc, char** argv) {
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
     auto* window = qobject_cast<QQuickWindow*>(root.get()); check(window, "no window");
+    renderedWindow = window;
     windowController.watchWindow(window);
     const auto item = [&](const char* name) { auto* p = find(window->contentItem(), name); check(p, name); return p; };
     const auto click = [&](const char* name) { item(name)->forceActiveFocus(); settle(); QTest::keyClick(window, Qt::Key_Return); settle(); };
@@ -208,6 +240,7 @@ int main(int argc, char** argv) {
         std::cout << "Settings portrait action geometry passed\n"; return 0;
     }
     capture("settings-all-1280");
+    checkpoint("category-navigation");
     // No updater backend leaves the Nova category empty. Directions and OK must
     // still reach a visible exit without a pointer or an invisible Clear action.
     root->setProperty("updatesAvailable", false); settle();
@@ -239,6 +272,7 @@ int main(int argc, char** argv) {
     focused("settings-category-all"); key(Qt::Key_Return);
 
     key(Qt::Key_Down); focused("settings-category-stream"); key(Qt::Key_Return); key(Qt::Key_Right); focused("settings-row-stream");
+    checkpoint("stream-preferences");
     key(Qt::Key_Down); focused("settings-row-window"); click("settings-row-window");
     click("settings-choice-1");
     check(windowController.fullscreen() && window->visibility() == QWindow::FullScreen, "Settings did not enter fullscreen");
@@ -262,6 +296,7 @@ int main(int argc, char** argv) {
     focused("settings-row-pacing"); click("settings-reset-pacing");
     check(settings.framePacingMode()=="latency" && settings.load("host","game")==override && reads==0 && writes==0, "pacing reset crossed scope");
     // Global search ignores the selected category; whitespace and multiple words work.
+    checkpoint("audio-search-controls");
     query("  audio   channels  "); key(Qt::Key_Down); focused("settings-row-channels");
     click("settings-row-channels"); key(Qt::Key_Down); key(Qt::Key_Return);
     check(settings.audioSettings()["channels"] == 6, "audio choice did not save"); focused("settings-row-channels");
@@ -307,6 +342,7 @@ int main(int argc, char** argv) {
     check(settings.defaultFaceButtonLayout() == "positions", "face choice failed");
     click("settings-reset-face"); check(settings.defaultFaceButtonLayout() == "labels" && settings.load("host", "game") == override, "face reset erased game override");
     // Persistence failure stays visible and must not appear to apply.
+    checkpoint("persistence-failure");
     root->setProperty("provider", QVariant::fromValue(static_cast<QObject*>(&failedSettings))); settle();
     query("deadzone"); click("settings-row-deadzone"); click("deadzone-minus"); click("deadzone-save");
     check(item("deadzone-error")->isVisible() && failedSettings.stickDeadzonePercent()==5,"failed deadzone save appeared applied");
@@ -321,6 +357,7 @@ int main(int argc, char** argv) {
     check(find(window->contentItem(), "settings-choice-back") && settings.defaultFaceButtonLayout() == "labels", "failed write dismissed picker or changed value");
     key(Qt::Key_Escape); root->setProperty("provider", QVariant::fromValue(static_cast<QObject*>(&settings))); settle();
     query(""); click("settings-category-appearance"); click("settings-row-theme"); click("settings-choice-1");
+    checkpoint("large-text-touch");
     click("settings-row-text"); item("text-size-settings-popup-value")->setProperty("text", "130"); click("text-size-settings-popup-save"); window->resize(960, 600); settle();
     focused("settings-row-text"); within("settings-row-text"); within("settings-back");
     capture("settings-appearance-960-large");
@@ -367,6 +404,7 @@ int main(int argc, char** argv) {
     check(persisted.value("Appearance/themeId") == "polaris" && persisted.value("Appearance/textScale").toDouble() == 1.3
           && persisted.value("Library/layoutMode") == "stage", "theme reset crossed scope or preferences did not persist");
     click("settings-category-ingame"); click("settings-row-hud"); click("settings-row-hudMode"); click("settings-choice-2");
+    checkpoint("hud-preferences");
     click("settings-reset-hud");
     QMetaObject::invokeMethod(root.get(), "syncPreferences"); persisted.sync();
     wait([&] { persisted.sync(); return persisted.value("NovaHUD/mode") == "performance"; });
@@ -384,6 +422,7 @@ int main(int argc, char** argv) {
     }
     check(reads == 0 && writes == 0, "device preferences touched host");
     // The same guarded host editor is reached without selecting a game.
+    checkpoint("host-routing");
     query("polaris sync"); click("settings-row-sync"); wait([&] { return reads > 0 && !host.busy(); });
     check(writes == 0, "review wrote host settings"); controllerBack(); focused("settings-row-sync");
     query("stream defaults"); click("settings-row-stream"); wait([&] { return host.state()["canEditDefaults"].toBool() && !host.busy(); });
@@ -399,6 +438,7 @@ int main(int argc, char** argv) {
     query("text size"); controllerBack(); check(item("settings-search")->property("text").toString().isEmpty(), "Back did not clear query");
     controllerBack(); focused("open-settings");
     QMetaObject::invokeMethod(root.get(), "openUpdates"); settle();
+    checkpoint("updates");
     check(find(window->contentItem(), "update-status"), "update shortcut did not open its screen");
     focused("update-back"); click("update-check");
     check(root->property("updateChecks").toInt() == 1, "check action was not routed");
@@ -432,5 +472,6 @@ int main(int argc, char** argv) {
     DeckPlaySettings restarted(config.filePath("play.ini"));
     check(restarted.audioSettings()["playHostAudio"].toBool() && restarted.rumbleEnabled(), "device settings not persisted");
     check(!warnings, "Settings hub emitted QML warnings");
+    checkpoint("complete");
     std::cout << "Settings search, controller/touch, per-setting reset, scopes, failure, persistence, host routing and large text passed.\n";
 }
