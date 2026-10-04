@@ -9,6 +9,8 @@
 #include <QQuickItem>
 #include <QTemporaryDir>
 #include <QElapsedTimer>
+#include <QPointer>
+#include <QSignalSpy>
 #include <QTest>
 #include <QDir>
 #include <QSettings>
@@ -18,11 +20,13 @@ using namespace nova::deck::runtime;
 namespace {
 QElapsedTimer progressTime;
 unsigned settleCalls = 0;
+qint64 renderWaitMs = 0;
+QPointer<QQuickWindow> renderedWindow;
 const char* currentPhase = "setup";
 void checkpoint(const char* phase) {
     currentPhase = phase;
     std::cerr << "settings-hub phase=" << phase << " elapsed_ms=" << progressTime.elapsed()
-              << " settle_calls=" << settleCalls << " fixed_wait_ms=" << settleCalls * 100 << std::endl;
+              << " settle_calls=" << settleCalls << " fixed_wait_ms=0 render_wait_ms=" << renderWaitMs << std::endl;
 }
 void check(bool ok, const char* message) {
     if (!ok) {
@@ -31,7 +35,18 @@ void check(bool ok, const char* message) {
         std::abort();
     }
 }
-void settle() { ++settleCalls; QTest::qWait(100); }
+void settle() {
+    ++settleCalls;
+    check(renderedWindow, "UI frame has no window");
+    // A requested frame drains queued QML work and layout before inspecting the
+    // result. Waiting a fixed 100 ms added 31.7 seconds without proving readiness.
+    QSignalSpy frame(renderedWindow, &QQuickWindow::frameSwapped);
+    QElapsedTimer timer; timer.start();
+    renderedWindow->update();
+    const bool ready = !frame.isEmpty() || frame.wait(6000);
+    renderWaitMs += timer.elapsed();
+    check(ready, "UI frame timed out");
+}
 void wait(const std::function<bool()>& done) { QElapsedTimer t; t.start(); while (!done() && t.elapsed() < 6000) QTest::qWait(20); check(done(), "UI timed out"); settle(); }
 QQuickItem* find(QQuickItem* p, const QString& name) {
     if (p->objectName() == name && p->isVisible()) return p;
@@ -103,7 +118,7 @@ int main(int argc, char** argv) {
         auto scene = std::unique_ptr<QObject>(libraryScene.create());
         if (!scene) std::cerr << libraryScene.errorString().toStdString();
         check(bool(scene), "actual LibraryBrowser parity scene failed");
-        auto* surface = qobject_cast<QQuickWindow*>(scene.get()); check(surface, "library window missing"); settle();
+        auto* surface = qobject_cast<QQuickWindow*>(scene.get()); check(surface, "library window missing"); renderedWindow = surface; settle();
         const auto snapshot = [&] {
             QVariant answer; check(QMetaObject::invokeMethod(scene.get(), "state", Q_RETURN_ARG(QVariant, answer)), "library state unavailable");
             return answer.canConvert<QJSValue>() ? answer.value<QJSValue>().toVariant().toMap() : answer.toMap();
@@ -174,6 +189,7 @@ int main(int argc, char** argv) {
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create()); if (!root) std::cerr << component.errorString().toStdString(); check(bool(root), "QML failed");
     auto* window = qobject_cast<QQuickWindow*>(root.get()); check(window, "no window");
+    renderedWindow = window;
     windowController.watchWindow(window);
     const auto item = [&](const char* name) { auto* p = find(window->contentItem(), name); check(p, name); return p; };
     const auto click = [&](const char* name) { item(name)->forceActiveFocus(); settle(); QTest::keyClick(window, Qt::Key_Return); settle(); };
