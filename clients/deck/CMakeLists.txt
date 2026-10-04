@@ -159,6 +159,10 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
     "Path to the checked-out moonlight-common-c source tree used by the Deck stream skeleton"
 )
 option(NOVA_DECK_BUILD_PYROWAVE "Build the pinned PyroWave codec" OFF)
+include(cmake/NovaHardenRtsp.cmake)
+set(NOVA_DECK_RTSP_MOONLIGHT_DIR "${CMAKE_CURRENT_BINARY_DIR}/moonlight-rtsp-source")
+nova_deck_prepare_rtsp("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}" "${NOVA_DECK_RTSP_MOONLIGHT_DIR}")
+set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR "${NOVA_DECK_RTSP_MOONLIGHT_DIR}")
 if(NOVA_DECK_BUILD_PYROWAVE)
     # Keep the Android submodule unchanged. Only this optional native build
     # consumes the private, version-negotiated GameStream extension.
@@ -340,6 +344,17 @@ if(BUILD_TESTING)
 
     endif()
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_executable(nova_deck_rtsp_harness ../../tools/moonlight_rtsp_harness.c)
+    target_compile_definitions(nova_deck_rtsp_harness PRIVATE
+        NOVA_RTSP_SOURCE="${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/RtspConnection.c" HAS_SOCKLEN_T NDEBUG)
+    target_include_directories(nova_deck_rtsp_harness PRIVATE
+        "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/enet/include"
+        "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/reedsolomon")
+    target_link_libraries(nova_deck_rtsp_harness PRIVATE moonlight-common-c)
+    add_test(NAME nova_deck_rtsp_hardening_test COMMAND ${CMAKE_COMMAND} -E env
+        "NOVA_RTSP_HARNESS=$<TARGET_FILE:nova_deck_rtsp_harness>"
+        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/test_moonlight_rtsp.py)
+    set_tests_properties(nova_deck_rtsp_hardening_test PROPERTIES TIMEOUT 45)
     if(NOVA_DECK_BUILD_HDR_VALIDATION)
         add_test(NAME nova_deck_vulkan_import_contract_test
             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_vulkan_import_contract_test.py

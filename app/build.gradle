@@ -131,6 +131,16 @@ ${missingPaths.collect { "  - ${moonlightCommonCPath}/${it}" }.join("\n")}
         // already built a PyroWave renderer: a failure with no good error to give. Cheaper to find
         // out here, where the fix is one command.
         if (moonlightNegotiationSource.isFile() &&
+                (!moonlightNegotiationSource.text.contains("MAX_RTSP_RESPONSE_SIZE") ||
+                 !moonlightNegotiationSource.text.contains("sessionToken == NULL"))) {
+            throw new GradleException("""
+The moonlight-common-c submodule is missing Nova's upstream RTSP hardening patches.
+Run: bash tools/apply-native-patches.sh
+An earlier PyroWave patch application alone does not include these bounds checks.
+""".stripIndent())
+        }
+
+        if (moonlightNegotiationSource.isFile() &&
                 !moonlightNegotiationSource.text.contains("PYROWAVE_PROFILE_TOKEN")) {
             throw new GradleException("""
 The moonlight-common-c submodule is missing Nova's PyroWave protocol patches.
