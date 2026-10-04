@@ -2356,6 +2356,25 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+    fun getDesktopSteam(): PolarisDesktopSteam? = try {
+        executeGetWithRetry(Request.Builder().url("$baseUrl/host/steam").build()).use { response ->
+            PolarisDesktopSteam.parse(JSONObject(response.body?.string().orEmpty()))
+        }
+    } catch (_: Exception) { null }
+
+    fun controlDesktopSteam(action: String, revision: String, confirmed: Boolean = false): PolarisDesktopSteam? {
+        if (action !in setOf("open", "big_picture", "quit") || revision.isBlank()) return null
+        return try {
+            val body = JSONObject().put("action", action).put("revision", revision).put("confirm_game_quit", confirmed)
+            val request = Request.Builder().url("$baseUrl/host/steam/action")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body.toString())).build()
+            executeNonRetryable(request).use { response ->
+                PolarisDesktopSteam.parse(JSONObject(response.body?.string().orEmpty()))
+                    ?.let { it.copy(accepted = response.code == 200 && it.accepted) }
+            }
+        } catch (_: Exception) { null }
+    }
+
     fun getHostPower(): PolarisCapabilities.HostPower? {
         return try {
             val request = Request.Builder().url("$baseUrl/host/power").build()

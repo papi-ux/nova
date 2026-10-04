@@ -152,6 +152,7 @@ internal interface NovaHostMenuActions {
     fun scanQr()
 
     /** The host's console, a page pushed in this panel (N6). */
+    fun steamPage(): NovaPage = NovaCommonPage.Notice(key = "desktop-steam", title = "Steam", message = "Steam controls are unavailable.", closeLabel = "Close")
     fun hostConsolePage(): NovaPage
     fun openLibrary()
     fun checkLibrary()
@@ -372,6 +373,12 @@ internal fun novaHostMenuItems(
             }
         }
         if (!libraryFirst) offerLibrary()
+
+        if (!details.nvidiaServer) {
+            menu.opens(NovaHostSheetAction("steam", "Steam", "Open Steam, Big Picture, or quit Steam on this PC", R.drawable.ic_play)) {
+                actions.steamPage()
+            }
+        }
 
         // Only where a hold on the dashboard would work. An awake host has nothing to be woken
         // for, so the row that used to say Wake Host here is gone rather than renamed. One A

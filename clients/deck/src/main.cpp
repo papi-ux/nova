@@ -1706,6 +1706,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     nova::deck::runtime::DeckAppShortcuts appShortcuts;
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &appShortcuts, &nova::deck::runtime::DeckAppShortcuts::shutdown);
     nova::deck::runtime::DeckGameTools gameTools;
+    nova::deck::runtime::DeckSteamControl steamControl;
     nova::deck::runtime::DeckHostPowerController hostPower;
     nova::deck::runtime::DeckHostWakeController hostWake;
     nova::deck::runtime::DeckHostSettingsController hostSettings;
@@ -1719,13 +1720,15 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         for (const auto& host : snapshot.hosts) if (host.id == snapshot.selectedHostId) name = toQString(host.displayName);
         hostWake.setTarget(standalone ? toQString(snapshot.selectedHostId) : QString{}, name);
         gameTools.setTarget(toQString(snapshot.selectedHostId), standalone ? libraryRefresh.gameToolsResolver() : nova::deck::runtime::DeckGameToolsResolver{});
+        steamControl.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.steamResolver() : nova::deck::runtime::DeckSteamResolver{}, libraryRefresh.steamIdentityKey());
         hostPower.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.hostPowerResolver() : nova::deck::runtime::DeckHostPowerResolver{});
         hostSettings.setTarget(toQString(snapshot.selectedHostId), name, standalone ? libraryRefresh.hostSettingsResolver() : nova::deck::runtime::DeckHostSettingsResolver{});
     };
     updatePowerTarget();
     const auto coordinateHostActions = [&] {
         const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
-        const bool maintenance = updates.busy();
+        const bool maintenance = updates.busy() || steamControl.busy();
+        steamControl.setBlocked(updates.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing());
         hostWake.setBlocked(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
         appShortcuts.setBlocked(streaming || maintenance);
         updates.setBlocked(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
@@ -1745,6 +1748,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     coordinateHostActions();
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::stateChanged,
         &updates, coordinateHostActions);
+    QObject::connect(&steamControl, &nova::deck::runtime::DeckSteamControl::stateChanged, &updates, coordinateHostActions);
     QObject::connect(&hostPower, &nova::deck::runtime::DeckHostPowerController::stateChanged,
         &updates, coordinateHostActions);
     QObject::connect(&hostSettings, &nova::deck::runtime::DeckHostSettingsController::stateChanged,
@@ -1794,6 +1798,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     gameShortcuts.setCatalog(toQString(libraryRefresh.snapshot().selectedHostId), libraryRefresh.state().value("destinationId", "desktop").toString(), libraryGames);
     engine.rootContext()->setContextProperty("novaStandalone", standalone);
     engine.rootContext()->setContextProperty("novaLibraryRefresh", &libraryRefresh);
+    engine.rootContext()->setContextProperty("novaSteamControl", &steamControl);
     engine.rootContext()->setContextProperty("novaHostPower", &hostPower);
     engine.rootContext()->setContextProperty("novaHostWake", &hostWake);
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);

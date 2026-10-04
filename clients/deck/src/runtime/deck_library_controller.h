@@ -1,4 +1,5 @@
 #pragma once
+#include "runtime/deck_steam_control.h"
 
 #include "runtime/deck_native_target.h"
 #include "runtime/deck_host_power.h"
@@ -36,6 +37,8 @@ public:
     const backend::DeckLiveHostLibrarySnapshot& snapshot() const { return snapshot_; }
     DeckNativeTargetResolver targetResolver() const;
     DeckHostPowerResolver hostPowerResolver() const;
+    DeckSteamResolver steamResolver() const;
+    QString steamIdentityKey() const;
     DeckHostSettingsResolver hostSettingsResolver() const;
     DeckGameToolsResolver gameToolsResolver() const;
     void setSessionBusy(bool busy);

@@ -68,7 +68,7 @@ ApplicationWindow {
         novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
         novaHostSettings.setInteractionPaused(automaticRefreshPaused)
     }
-    onActiveChanged: if (novaStandalone) { novaLibraryRefresh.setWindowActive(active); novaHostPower.setWindowActive(active); novaHostSettings.setWindowActive(active) }
+    onActiveChanged: if (novaStandalone) { novaLibraryRefresh.setWindowActive(active); novaHostPower.setWindowActive(active); novaHostSettings.setWindowActive(active); novaSteamControl.setWindowActive(active) }
     Component.onCompleted: {
         if (novaStandalone) {
             novaLibraryRefresh.setInteractionPaused(automaticRefreshPaused)
@@ -76,6 +76,7 @@ ApplicationWindow {
             novaLibraryRefresh.setWindowActive(active)
             novaHostPower.setWindowActive(active)
             novaHostSettings.setWindowActive(active)
+            novaSteamControl.setWindowActive(active)
         }
     }
 
@@ -783,6 +784,7 @@ ApplicationWindow {
         destinationName: novaStandalone ? (novaLibraryRefresh.state.destinationName || "Destination unavailable") : "Desktop"
         destinationPlayable: !novaStandalone || novaLibraryRefresh.state.destinationPlayable !== false
         gameTools: novaStandalone ? novaGameTools : null
+        steamController: novaStandalone ? novaSteamControl : null
         hostSettingsController: novaStandalone ? novaHostSettings : null
         returnLabel: novaStandalone ? "Back to Details" : "Back to Library"
         onClosed: root.gameLinkStarted ? root.close() : novaStandalone ? androidLibrary.focusGame() : focusLaunchAction()
@@ -848,6 +850,7 @@ ApplicationWindow {
     LibraryBrowser {
         gameTools: novaGameTools
         gameShortcuts: novaGameShortcuts
+        steamController: novaSteamControl
         hostPower: novaHostPower
         hostWake: novaHostWake
         appShortcuts: novaAppShortcuts

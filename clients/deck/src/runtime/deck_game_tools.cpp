@@ -149,6 +149,11 @@ bool DeckGameTools::start(const QString& action, QVariantMap values) {
             if (item->steamLaunchAvailable) for (const auto& mode : item->steamLaunchAllowedModes)
                 if (mode == "direct" || mode == "big-picture") modes.append(QString::fromStdString(mode));
             job->steam = {{"allowed", modes}, {"mode", QString::fromStdString(item->steamLaunchMode)}};
+            if (item->steamKeepVirtual && item->steamKeepMirror) {
+                job->steam["keepVirtual"] = *item->steamKeepVirtual;
+                job->steam["keepMirror"] = *item->steamKeepMirror;
+                job->steam["lifetimeKnown"] = true;
+            }
             if (job->action == "steam" && (!modes.contains(job->values.value("mode").toString()) ||
                 job->values.value("previous").toString() != QString::fromStdString(item->steamLaunchMode))) {
                 job->copy = "Steam launch settings changed. Review the current choice, then try again."; return;

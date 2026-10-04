@@ -33,6 +33,7 @@ Popup {
     property var desktopInput: null
     required property var settingsProvider
     property var hostSettingsController: null
+    property var steamController: null
     property var gameTools: null
     property var launchPolicy: ({ known: false, hostDefault: "", allowed: [] })
     property var streamCapabilities: ({})
@@ -408,6 +409,18 @@ Popup {
                     textFormat: Text.PlainText; wrapMode: Text.WordWrap
                     color: NovaTheme.warning; font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                 }
+                NovaButton {
+                    id: streamSteam
+                    objectName: "native-steam-controls"
+                    Layout.fillWidth: true
+                    text: "Steam"
+                    enabled: !!nativePreview.steamController
+                    visible: !!nativePreview.steamController
+                    unit: nativePreview.unit
+                    onClicked: streamSteamSheet.open()
+                    Keys.onUpPressed: nativeEndAction.forceActiveFocus()
+                    Keys.onDownPressed: reassignPlayers.enabled ? reassignPlayers.forceActiveFocus() : inGameAppearance.forceActiveFocus()
+                }
                 Label {
                     text: "Players"; color: NovaTheme.text
                     font.pixelSize: 20 * nativePreview.unit * NovaTheme.fontScale; font.bold: true
@@ -442,7 +455,7 @@ Popup {
                     Accessible.description: "Press a button on each controller in the order you want to play."
                     enabled: nativePreview.players.some(player => !player.waiting)
                     onClicked: if (inputHub && inputHub.reassignPlayers()) reassignNotice.restart()
-                    Keys.onUpPressed: nativeEndAction.forceActiveFocus()
+                    Keys.onUpPressed: streamSteam.visible ? streamSteam.forceActiveFocus() : nativeEndAction.forceActiveFocus()
                     Keys.onDownPressed: inGameAppearance.forceActiveFocus()
                 }
                 NovaButton {
@@ -452,7 +465,7 @@ Popup {
                     unit: nativePreview.unit
                     text: "Appearance"
                     onClicked: streamAppearance.open()
-                    Keys.onUpPressed: reassignPlayers.enabled ? reassignPlayers.forceActiveFocus() : nativeEndAction.forceActiveFocus()
+                    Keys.onUpPressed: reassignPlayers.enabled ? reassignPlayers.forceActiveFocus() : streamSteam.visible ? streamSteam.forceActiveFocus() : nativeEndAction.forceActiveFocus()
                     Keys.onDownPressed: inGameScale.forceActiveFocus()
                 }
                 NovaButton {
@@ -601,6 +614,7 @@ Popup {
             unit: nativePreview.unit
             onClosed: if (nativePlaying && session.controlsVisible) doctorAction.forceActiveFocus()
         }
+        SteamControls { id: streamSteamSheet; controller: nativePreview.steamController; unit: nativePreview.unit; onClosed: streamSteam.forceActiveFocus() }
         HudSettings {
             id: hudSettings
             unit: nativePreview.unit
@@ -731,7 +745,7 @@ Popup {
             onClicked: requestEnd()
             Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) requestEnd() }
             Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) requestEnd() }
-            Keys.onDownPressed: reassignPlayers.enabled ? reassignPlayers.forceActiveFocus() : inGameAppearance.forceActiveFocus()
+            Keys.onDownPressed: streamSteam.visible ? streamSteam.forceActiveFocus() : reassignPlayers.enabled ? reassignPlayers.forceActiveFocus() : inGameAppearance.forceActiveFocus()
             Keys.onLeftPressed: nativeDisconnectAction.visible ? nativeDisconnectAction.forceActiveFocus() : nativePreviewAction.forceActiveFocus()
             Keys.onUpPressed: {
                 if (nativeDisconnectAction.visible) nativeDisconnectAction.forceActiveFocus()

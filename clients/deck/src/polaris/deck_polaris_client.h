@@ -62,6 +62,13 @@ struct DeckPolarisResult {
     }
 };
 
+struct DeckDesktopSteam {
+    std::string state, revision, message;
+    bool gameActive = false, effectiveKeepRunning = false, accepted = false;
+    bool available() const { return state == "running" || state == "stopped"; }
+};
+std::optional<DeckDesktopSteam> parseDesktopSteam(std::string_view json);
+
 struct DeckHostPower {
     bool supported = false, enabled = false, permitted = false;
     std::string blockedMessage, lastOutcome, lastMessage;
@@ -114,6 +121,7 @@ struct DeckPolarisGame {
     std::string launchRecommendedMode;
     std::vector<std::string> launchAllowedModes;
     std::string launchModeReason;
+    std::optional<bool> steamKeepVirtual, steamKeepMirror;
     bool steamLaunchAvailable = false;
     std::string steamLaunchMode;
     std::string steamLaunchRecommendedMode;
@@ -216,6 +224,9 @@ public:
         const DeckLiveTuningTelemetry& observed, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<QVariantMap> fetchPyrowaveAdvice(int width, int height, int fps, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostPower> fetchHostPower() const;
+    [[nodiscard]] DeckPolarisResult<DeckDesktopSteam> fetchDesktopSteam() const;
+    [[nodiscard]] DeckPolarisResult<DeckDesktopSteam> controlDesktopSteam(const std::string& action, const std::string& revision,
+        bool confirm, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostSettings> fetchHostSettings(const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<bool> fetchHostSettingsIdle(const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostSettings> setHostResumeTimeout(int seconds,

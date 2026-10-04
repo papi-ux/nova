@@ -46,8 +46,21 @@ data class PolarisGame(
      * with a Space's Big Picture. False from a host that does not send the mark. Added last so
      * no positional caller shifts, as [playTime] explains.
      */
-    @SerialName("steam_big_picture") val steamBigPicture: Boolean = false
+    @SerialName("steam_big_picture") val steamBigPicture: Boolean = false,
+    @SerialName("steam_lifecycle") val steamLifecycle: SteamLifecycle? = null
 ) {
+    @Serializable
+    data class SteamLifecycle(
+        @SerialName("keep_in_host_virtual_display") val keepVirtual: Boolean,
+        @SerialName("keep_in_desktop_display") val keepMirror: Boolean,
+    ) {
+        fun keep(mode: String): Boolean = when (mode) {
+            MODE_HOST_VIRTUAL_DISPLAY -> keepVirtual
+            MODE_DESKTOP_DISPLAY -> keepMirror
+            else -> false
+        }
+    }
+
     @Serializable
     data class SpaceContext(val id: String, val name: String, val target: String)
 
