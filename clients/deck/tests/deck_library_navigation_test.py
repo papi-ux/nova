@@ -1076,7 +1076,13 @@ def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(power_phase("countdown"))
         command("xdotool", "keyup", "Return")
     a = fixtures["a"]
-    keys("Up", "Up", "Up", "Right", "Return", *(["Down"] * 7))
+    keys("Up", "Up", "Up", "Right", "Return")
+    for _ in range(12):
+        if state().get("focus") == "library-steam-controls":
+            break
+        keys("Down")
+    wait(lambda s: s.get("focus") == "library-steam-controls")
+    keys("Down")
     wait(lambda s: s.get("focus") == "library-sleep-host")
     open_power()
     save_capture("host-sleep-ready.png")

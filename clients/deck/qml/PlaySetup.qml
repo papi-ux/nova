@@ -533,6 +533,19 @@ FocusScope {
                         detail: mode === "direct" ? "Start the game directly on this PC." : "Open Steam Big Picture on this PC before the game."
                     })), Math.max(0, ((toolsState.steam || {}).allowed || []).indexOf((toolsState.steam || {}).mode)))
                 }
+                Copy {
+                    objectName: "play-setup-steam-lifetime"
+                    Layout.fillWidth: true
+                    visible: !spaceSession && ((toolsState.steam || {}).lifetimeKnown === true)
+                    text: {
+                        const mode = configuration.launchMode === "default" ? launchPolicy.hostDefault : configuration.launchMode
+                        if (mode !== "host_virtual_display" && mode !== "desktop_display") return "After End Session: clean up the private runtime. Disconnect keeps it resumable."
+                        const keep = mode === "host_virtual_display" ? toolsState.steam.keepVirtual : toolsState.steam.keepMirror
+                        return keep ? "After End Session: end the game this stream launched and keep desktop Steam running." : "After End Session: close managed desktop Steam."
+                    }
+                    wrapMode: Text.WordWrap
+                    color: NovaTheme.secondary
+                }
                 Setting {
                     id: reset; objectName: "play-setup-reset"
                     explanation: "Reset this game's stream, face-button and launch choices. Other games and device audio stay unchanged."

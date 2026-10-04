@@ -172,6 +172,11 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
 
     const auto steamLaunch = object.value(QStringLiteral("steam_launch")).toObject();
     game.steamLaunchAvailable = steamLaunch.value(QStringLiteral("available")).toBool(false);
+    const auto lifecycle = object.value("steam_lifecycle").toObject();
+    if (lifecycle.value("keep_in_host_virtual_display").isBool() && lifecycle.value("keep_in_desktop_display").isBool()) {
+        game.steamKeepVirtual = lifecycle.value("keep_in_host_virtual_display").toBool();
+        game.steamKeepMirror = lifecycle.value("keep_in_desktop_display").toBool();
+    }
     game.steamLaunchMode = toStd(steamLaunch.value(QStringLiteral("mode")).toString());
     game.steamLaunchRecommendedMode = toStd(steamLaunch.value(QStringLiteral("recommended_mode")).toString());
     game.steamLaunchAllowedModes = stringList(steamLaunch.value(QStringLiteral("allowed_modes")));
@@ -317,6 +322,24 @@ std::string_view describe(const DeckPolarisRequestStatus status) {
         return "malformed-body";
     }
     return "unknown";
+}
+
+std::optional<DeckDesktopSteam> parseDesktopSteam(std::string_view json) {
+    const auto object = parseObject(json);
+    if (!object || object->value("version").toInt(-1) != 1 || !object->value("status").isBool()) return {};
+    DeckDesktopSteam state;
+    state.state = object->value("state").toString().toStdString();
+    if (state.state == "unavailable" && !object->value("status").toBool()) {
+        state.message = object->value("error").toString().left(400).toStdString(); return state;
+    }
+    if (!state.available() || !object->value("status").toBool() || !object->value("revision").isString() ||
+        object->value("revision").toString().isEmpty() || !object->value("game_active").isBool() ||
+        !object->value("effective_keep_running").isBool()) return {};
+    state.revision = object->value("revision").toString().toStdString();
+    state.gameActive = object->value("game_active").toBool();
+    state.effectiveKeepRunning = object->value("effective_keep_running").toBool();
+    state.accepted = object->value("accepted").toBool(false);
+    return state;
 }
 
 std::optional<DeckHostPower> parseHostPower(std::string_view json) {
@@ -727,7 +750,7 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
         return result;
     }
     // Preserve only authenticated, bounded bodies for the host's refusal copy.
-    if (post && result.httpStatus >= 200 && result.httpStatus < 600)
+    if ((post || path == "/polaris/v1/host/steam") && result.httpStatus >= 200 && result.httpStatus < 600)
         result.value = std::string(body.constData(), static_cast<std::size_t>(body.size()));
     if (result.httpStatus == 401 || result.httpStatus == 403) {
         result.status = DeckPolarisRequestStatus::Unauthorized;
@@ -937,6 +960,27 @@ DeckPolarisResult<QVariantMap> DeckPolarisClient::fetchPyrowaveAdvice(int width,
         return advice && advice->matches(width,height,fps) ? std::optional<QVariantMap>(advice->toMap()) : std::nullopt;
     });
 }
+DeckPolarisResult<DeckDesktopSteam> DeckPolarisClient::fetchDesktopSteam() const {
+    const auto raw = get("/polaris/v1/host/steam", 32 * 1024);
+    DeckPolarisResult<DeckDesktopSteam> result {raw.status, raw.httpStatus, raw.detail, {}};
+    if (raw.value) result.value = parseDesktopSteam(*raw.value);
+    if (raw.ok() && !result.value) result.status = DeckPolarisRequestStatus::MalformedBody;
+    return result;
+}
+DeckPolarisResult<DeckDesktopSteam> DeckPolarisClient::controlDesktopSteam(const std::string& action, const std::string& revision,
+    bool confirm, const std::function<bool()>& cancelled) const {
+    if ((action != "open" && action != "big_picture" && action != "quit") || revision.empty())
+        return {DeckPolarisRequestStatus::MalformedBody, 0, {}, {}};
+    const auto body = QJsonDocument(QJsonObject{{"action", QString::fromStdString(action)},
+        {"revision", QString::fromStdString(revision)}, {"confirm_game_quit", confirm}}).toJson(QJsonDocument::Compact).toStdString();
+    const auto raw = request("/polaris/v1/host/steam/action", 32 * 1024, true, cancelled, body);
+    DeckPolarisResult<DeckDesktopSteam> result {raw.status, raw.httpStatus, raw.detail, {}};
+    if (raw.value) result.value = parseDesktopSteam(*raw.value);
+    if (raw.ok() && !result.value) result.status = DeckPolarisRequestStatus::MalformedBody;
+    if (result.value && (!raw.ok() || raw.httpStatus != 200)) result.value->accepted = false;
+    return result;
+}
+
 DeckPolarisResult<DeckHostPower> DeckPolarisClient::fetchHostPower() const {
     return parsed<DeckHostPower>(get("/polaris/v1/host/power", 32 * 1024), parseHostPower);
 }

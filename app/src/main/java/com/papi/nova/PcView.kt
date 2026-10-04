@@ -106,6 +106,7 @@ import com.papi.nova.ui.NovaHostMenuActions
 import com.papi.nova.ui.novaHostMenuHeader
 import com.papi.nova.ui.NovaHostConsole
 import com.papi.nova.ui.NovaHostConsoleLink
+import com.papi.nova.ui.NovaSteamControls
 import com.papi.nova.ui.NovaHostConsolePage
 import com.papi.nova.ui.novaHostMenuItems
 import com.papi.nova.ui.compose.NovaThemeSwatch
@@ -2154,6 +2155,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             override fun pair() = doPair(details, null, null)
             override fun otpPairPage(): NovaPage = buildOtpPairPage(details)
             override fun scanQr() = launchQrScanner()
+            override fun steamPage(): NovaPage {
+                val address = details.activeAddress?.address
+                val cert = details.serverCert
+                val port = details.httpsPort.takeIf { it > 0 } ?: 47984
+                return com.papi.nova.ui.NovaSteamPage(
+                    if (address != null && cert != null) PolarisApiClient(this@PcView, address, port, cert) else null,
+                    details.name.orEmpty())
+            }
             override fun hostConsolePage(): NovaPage = hostConsolePageFor(computer)
             override fun openLibrary() = doNovaLibrary(details)
             override fun checkLibrary() = maybeProbeLibraryReadiness(computer)
@@ -2196,6 +2205,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         surfaces.open(menu, NovaEdge.End, currentFocus?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None) { page ->
             // The only page of its own the host menu pushes: the host's console (N6).
             if (page is NovaHostConsolePage) NovaHostConsole(page)
+            if (page is com.papi.nova.ui.NovaSteamPage) NovaSteamControls(page)
         }
         hostPanelWatch?.cancel()
         hostPanelWatch = lifecycleScope.launch {

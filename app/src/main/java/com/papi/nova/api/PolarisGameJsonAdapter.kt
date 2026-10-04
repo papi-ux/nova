@@ -73,6 +73,9 @@ object PolarisGameJsonAdapter {
             hdrSupported = json.optBoolean("hdr_supported", false),
             launchMode = launchMode,
             steamLaunch = steamLaunch,
+            steamLifecycle = json.optJSONObject("steam_lifecycle")?.takeIf {
+                it.opt("keep_in_host_virtual_display") is Boolean && it.opt("keep_in_desktop_display") is Boolean
+            }?.let { PolarisGame.SteamLifecycle(it.getBoolean("keep_in_host_virtual_display"), it.getBoolean("keep_in_desktop_display")) },
             displayPlanner = parseDisplayPlanner(json.optJSONObject("display_planner")),
             artwork = parseArtworkManifest(json.optJSONObject("artwork")),
             space = json.optJSONObject("space")?.let { context ->

@@ -1165,6 +1165,7 @@ class NovaQuickMenu(
             when (page) {
                 is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)
                 is CommandCenterPage.Listing -> CommandCenterListingPage(page)
+                is NovaSteamPage -> NovaSteamControls(page)
                 is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                 else -> Unit
             }
@@ -1384,6 +1385,8 @@ class NovaQuickMenu(
         val host = CommandCenterSection(
             game.getString(R.string.nova_cc_host_section),
             listOf(
+                NovaMenuItem.Opens(key = "steam", label = "Steam", caption = "Control desktop Steam on this PC",
+                    page = { NovaSteamPage(commandClient, "Streaming PC") }),
                 serverCommands,
                 NovaMenuItem.Action(
                     key = "fetch-clipboard",

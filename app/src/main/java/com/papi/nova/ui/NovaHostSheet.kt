@@ -152,6 +152,7 @@ internal interface NovaHostMenuActions {
     fun scanQr()
 
     /** The host's console, a page pushed in this panel (N6). */
+    fun steamPage(): NovaPage = NovaCommonPage.Notice(key = "desktop-steam", title = "Steam", message = "Steam controls are unavailable.", closeLabel = "Close")
     fun hostConsolePage(): NovaPage
     fun openLibrary()
     fun checkLibrary()
@@ -399,6 +400,11 @@ internal fun novaHostMenuItems(
     }
     menu.inPlace(action("wake_address", R.string.wol_address_title, R.string.wol_address_caption, R.drawable.ic_edit)) {
         actions.editWakeAddress()
+    }
+    if (details.state == ComputerDetails.State.ONLINE && !needsPairing && !details.nvidiaServer) {
+        menu.opens(NovaHostSheetAction("steam", "Steam", "Open Steam, Big Picture, or quit Steam on this PC", R.drawable.ic_play)) {
+            actions.steamPage()
+        }
     }
     menu.opens(action("details", R.string.pcview_menu_details, R.string.pcview_sheet_caption_details, R.drawable.ic_help)) {
         NovaCommonPage.Notice(

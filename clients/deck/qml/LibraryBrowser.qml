@@ -19,6 +19,7 @@ FocusScope {
     property var updateController: null
     required property var settingsProvider
     property var hostPower: null
+    property var steamController: null
     property var hostWake: null
     property var appShortcuts: null
     property var gamepad: null
@@ -1309,6 +1310,7 @@ FocusScope {
         unit: browser.unit
         onClosed: wakeButton.forceActiveFocus()
     }
+    SteamControls { id: steamSheet; controller: browser.steamController; unit: browser.unit; onClosed: steamButton.forceActiveFocus() }
     HostPower {
         id: powerSheet
         controller: browser.hostPower
@@ -1485,6 +1487,16 @@ FocusScope {
                 text: "Appearance"
                 onClicked: appearanceSettings.open()
                 Keys.onUpPressed: rumbleButton.forceActiveFocus()
+                Keys.onDownPressed: steamButton.forceActiveFocus()
+            }
+            ChromeButton {
+                id: steamButton
+                objectName: "library-steam-controls"
+                Layout.fillWidth: true
+                text: "Steam"
+                enabled: browser.steamController !== null && !sessionBusy && !refreshState.busy
+                onClicked: steamSheet.open()
+                Keys.onUpPressed: appearanceButton.forceActiveFocus()
                 Keys.onDownPressed: sleepButton.forceActiveFocus()
             }
             ChromeButton {
@@ -1494,7 +1506,7 @@ FocusScope {
                 text: "Sleep Host"
                 enabled: browser.hostPower !== null && !sessionBusy && !refreshState.busy
                 onClicked: powerSheet.open()
-                Keys.onUpPressed: appearanceButton.forceActiveFocus()
+                Keys.onUpPressed: steamButton.forceActiveFocus()
                 Keys.onDownPressed: wakeButton.forceActiveFocus()
             }
             ChromeButton {

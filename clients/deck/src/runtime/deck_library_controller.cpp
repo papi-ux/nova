@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <QTcpSocket>
+#include <QCryptographicHash>
 
 namespace nova::deck::runtime {
 namespace {
@@ -157,6 +158,41 @@ DeckHostPowerResolver DeckLibraryController::hostPowerResolver() const {
             QTcpSocket socket;
             socket.connectToHost(address, port);
             return socket.waitForConnected(1000);
+        };
+        return target;
+    };
+}
+
+QString DeckLibraryController::steamIdentityKey() const {
+    if (!identity_) return {};
+    const auto* host = identity_->hostById(selectedHost().toStdString());
+    if (!host) return {};
+    QByteArray bytes;
+    for (const auto& field : {identity_->clientCertificatePem, host->serverCertificatePem, host->preferredAddress(),
+            std::to_string(host->preferredHttpPort()), std::to_string(host->nativeHttpsPort)}) {
+        bytes.append(field.data(), static_cast<qsizetype>(field.size())); bytes.append('\0');
+    }
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+DeckSteamResolver DeckLibraryController::steamResolver() const {
+    if (busy() || closing_ || state_.value("failed").toBool() || !identity_) return {};
+    const auto* host = identity_->hostById(selectedHost().toStdString());
+    if (!host || !host->hasServerCertificate() || !identity_->hasClientIdentity()) return {};
+    const auto probe = std::find_if(snapshot_.probes.begin(), snapshot_.probes.end(),
+        [&](const auto& item) { return item.hostId == host->stableId(); });
+    if (probe == snapshot_.probes.end() || probe->standardHost || probe->status != polaris::DeckPolarisRequestStatus::Ok) return {};
+    const int port = probe->resolvedHttpsPort > 0 ? probe->resolvedHttpsPort : host->nativeHttpsPort;
+    if (port <= 0 || port > 65535) return {};
+    return [expected = *identity_, saved = *host, port, loader = loader_]() -> std::optional<DeckSteamTarget> {
+        if (!sameIdentity(expected, loader())) return {};
+        auto client = std::make_shared<polaris::DeckPolarisClient>(
+            backend::polarisClientForHost(expected, saved, port, std::chrono::milliseconds(4000)));
+        DeckSteamTarget target;
+        target.identityValid = [expected, loader] { return sameIdentity(expected, loader()); };
+        target.read = [client] { return client->fetchDesktopSteam(); };
+        target.act = [client](const std::string& action, const std::string& revision, bool confirmed, const std::function<bool()>& cancelled) {
+            return client->controlDesktopSteam(action, revision, confirmed, cancelled);
         };
         return target;
     };

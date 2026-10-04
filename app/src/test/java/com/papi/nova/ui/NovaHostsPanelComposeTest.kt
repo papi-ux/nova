@@ -65,6 +65,8 @@ class NovaHostsPanelComposeTest {
         override fun scanQr() { ran += "scan_qr" }
         override fun hostConsolePage(): NovaPage =
             NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")
+        override fun steamPage(): NovaPage =
+            NovaCommonPage.Notice(key = "desktop-steam", title = "Steam", message = "", closeLabel = "Close")
         override fun openLibrary() { ran += "open_library" }
         override fun checkLibrary() { ran += "checking_library" }
         override fun watch() { ran += "watch" }
@@ -135,6 +137,12 @@ class NovaHostsPanelComposeTest {
         keys.press(NovaTestKeys.LEFT)
         rule.onNodeWithText(string(R.string.pcview_menu_test_network)).assertIsFocused()
         keys.press(NovaTestKeys.DOWN)
+        rule.onNodeWithText("Steam").assertIsFocused()
+        keys.press(NovaTestKeys.CENTER)
+        assertEquals("desktop-steam", state.top?.key)
+        keys.back()
+        rule.onNodeWithText("Steam").assertIsFocused()
+        keys.press(NovaTestKeys.RIGHT)
         rule.onNodeWithText(string(R.string.pcview_menu_details)).assertIsFocused()
 
         // Behind the tile is the same page the row opened, and B comes back to the tile.
@@ -191,8 +199,8 @@ class NovaHostsPanelComposeTest {
         val keys = openHostMenu()
         rule.onNodeWithText(string(R.string.pcview_menu_nova_library)).assertIsFocused()
 
-        // Open Library, App List, Server Config, Test Network, Wake address, Details, then Delete.
-        repeat(6) { keys.press(NovaTestKeys.DOWN) }
+        // Open Library, App List, Server Config, Test Network, Wake address, Steam, Details, then Delete.
+        repeat(7) { keys.press(NovaTestKeys.DOWN) }
         rule.onNodeWithText(string(R.string.pcview_menu_delete_pc)).assertIsFocused()
         keys.press(NovaTestKeys.CENTER)
         rule.onNodeWithText(string(R.string.nova_panel_keep)).assertIsFocused()
@@ -208,7 +216,7 @@ class NovaHostsPanelComposeTest {
     fun deletePcIsConfirmedByARightAAfterTheGuardAndDeletesTheHost() {
         val keys = openHostMenu()
         rule.mainClock.autoAdvance = false
-        repeat(6) { keys.press(NovaTestKeys.DOWN) }
+        repeat(7) { keys.press(NovaTestKeys.DOWN) }
         rule.frames(4)
         rule.onNodeWithText(string(R.string.pcview_menu_delete_pc)).assertIsFocused()
 
@@ -229,7 +237,7 @@ class NovaHostsPanelComposeTest {
     @Test
     fun detailsPushesANoticeAndBReturnsToDetails() {
         val keys = openHostMenu()
-        repeat(5) { keys.press(NovaTestKeys.DOWN) }
+        repeat(6) { keys.press(NovaTestKeys.DOWN) }
         rule.onNodeWithText(string(R.string.pcview_menu_details)).assertIsFocused()
 
         keys.press(NovaTestKeys.CENTER)

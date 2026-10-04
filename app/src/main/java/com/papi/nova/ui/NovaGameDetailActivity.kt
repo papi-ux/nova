@@ -1970,6 +1970,19 @@ class NovaGameDetailActivity : NovaActivity() {
                 overridden = chosenFps == null && fpsPin != null,
             )
 
+            if (currentGame.isSteamGame || currentGame.steamBigPicture) {
+                val mode = uiState.launchStreamMode.ifBlank { uiState.hostStreamDisplayMode }
+                val desktop = mode == PolarisGame.MODE_HOST_VIRTUAL_DISPLAY || mode == PolarisGame.MODE_DESKTOP_DISPLAY
+                val lifetime = currentGame.steamLifecycle
+                rows += NovaPlaySetupRowState(
+                    row = NovaPlaySetupRow.STEAM_LIFETIME,
+                    label = "Steam after End Session",
+                    caption = if (desktop) "Set in Polaris for this app. Custom undo scripts still run." else "End Session cleans up the private runtime. Disconnect keeps it resumable.",
+                    value = if (!desktop) "Clean up private runtime" else if (lifetime == null) "Host has not reported a policy" else if (lifetime.keep(mode)) "Keep Steam running" else "Close managed Steam",
+                    options = emptyList(), enabled = false,
+                )
+            }
+
             if (uiState.showSteamLaunchMode) {
                 rows += NovaPlaySetupRowState(
                     row = NovaPlaySetupRow.STEAM_LAUNCH,

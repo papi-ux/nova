@@ -123,6 +123,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
     src/runtime/deck_frame_qualification_trace.cpp
+    src/runtime/deck_steam_control.cpp
     src/runtime/deck_host_power.cpp
     src/runtime/deck_host_wake.cpp
     src/runtime/deck_host_settings.cpp
@@ -363,6 +364,10 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_host_wake_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_host_wake_test COMMAND nova_deck_host_wake_test)
     set_tests_properties(nova_deck_host_wake_test PROPERTIES TIMEOUT 15)
+    add_executable(nova_deck_steam_control_test tests/deck_steam_control_test.cpp)
+    target_link_libraries(nova_deck_steam_control_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_steam_control_test COMMAND nova_deck_steam_control_test)
+    set_tests_properties(nova_deck_steam_control_test PROPERTIES TIMEOUT 20)
     add_executable(nova_deck_host_power_test tests/deck_host_power_test.cpp)
     add_executable(nova_deck_game_tools_test tests/deck_game_tools_test.cpp)
     target_link_libraries(nova_deck_game_tools_test PRIVATE nova_deck_core)
@@ -780,6 +785,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/Doctor.qml
                 qml/NovaButton.qml
                 qml/NovaScrollColumn.qml
+                qml/SteamControls.qml
                 qml/HostPower.qml
                 qml/HostWake.qml
                 qml/AppSteamShortcut.qml
@@ -1047,6 +1053,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             else()
                 message(STATUS "Deck saved-PC navigation test not registered: X11 test tools are unavailable")
             endif()
+            add_executable(nova_deck_steam_control_qml_test tests/deck_steam_control_qml_test.cpp)
+            target_link_libraries(nova_deck_steam_control_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
+            target_compile_definitions(nova_deck_steam_control_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_steam_control_qml_test COMMAND nova_deck_steam_control_qml_test)
+            set_tests_properties(nova_deck_steam_control_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 20)
             add_executable(nova_deck_host_power_qml_test tests/deck_host_power_qml_test.cpp)
             add_executable(nova_deck_hud_qml_test tests/deck_hud_qml_test.cpp)
             target_link_libraries(nova_deck_hud_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)

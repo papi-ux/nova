@@ -1157,6 +1157,7 @@ internal enum class NovaPlaySetupRow {
     FACE_BUTTONS,
     TUNING,
     STEAM_LAUNCH,
+    STEAM_LIFETIME,
     HOST_DEFAULT_DISPLAY,
     HOST_SCREEN_TO_ADD,
     HOST_SCREEN_SCALE,
