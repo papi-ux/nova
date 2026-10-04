@@ -30,6 +30,7 @@ class NovaHostMenuTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val ran = mutableListOf<String>()
     private val console = NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")
+    private val steam = NovaCommonPage.Notice(key = "desktop-steam", title = "Steam", message = "", closeLabel = "Close")
 
     private val actions = object : NovaHostMenuActions {
         override fun wake() { ran += "wake" }
@@ -39,6 +40,7 @@ class NovaHostMenuTest {
             NovaCommonPage.Form(key = "pair_otp", title = "OTP Pair", fields = emptyList(), submitLabel = "Pair") { null }
         override fun scanQr() { ran += "scan_qr" }
         override fun hostConsolePage(): NovaPage = console
+        override fun steamPage(): NovaPage = steam
         override fun openLibrary() { ran += "open_library" }
         override fun checkLibrary() { ran += "checking_library" }
         override fun watch() { ran += "watch" }
@@ -108,7 +110,7 @@ class NovaHostMenuTest {
     @Test
     fun anIdleHostWithALibraryLeadsWithTheLibrary() {
         val items = menu(host())
-        assertEquals(listOf("open_library", "app_list", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
+        assertEquals(listOf("open_library", "app_list", "server_config", "test_network", "wake_address", "steam", "details", "delete"), items.keys())
         assertTrue((items[0] as NovaMenuItem.Action).emphasis)
     }
 
@@ -127,7 +129,7 @@ class NovaHostMenuTest {
                 libraryState = ComputerDetails.LibraryState.UNAVAILABLE
             },
         )
-        assertEquals(listOf("resume", "end_session", "app_list", "server_config", "test_network", "wake_address", "details", "delete"), items.keys())
+        assertEquals(listOf("resume", "end_session", "app_list", "server_config", "test_network", "wake_address", "steam", "details", "delete"), items.keys())
         val end = items[1] as NovaMenuItem.Destructive
         assertEquals(context.getString(R.string.game_dialog_action_end_session), end.confirmLabel)
         assertEquals("ending a session stays on Stay", null, end.stayLabel)
@@ -175,6 +177,16 @@ class NovaHostMenuTest {
         // Waiting on pairing: offered only while Nova still holds the certificate it paired with.
         val repair = host { pairState = PairingManager.PairState.NOT_PAIRED; serverCert = mock(X509Certificate::class.java) }
         assertTrue(menu(repair, needsPairing = true).first { it.key == "server_config" } is NovaMenuItem.Opens)
+    }
+
+    @Test
+    fun steamOpensTheSelectedHostsPageWithoutRunningAnAction() {
+        val row = menu(host()).first { it.key == "steam" } as NovaMenuItem.Opens
+        assertTrue(row.page() === steam)
+        assertTrue(ran.isEmpty())
+        assertFalse(menu(host { state = ComputerDetails.State.OFFLINE }).keys().contains("steam"))
+        assertFalse(menu(host(), needsPairing = true).keys().contains("steam"))
+        assertFalse(menu(host { nvidiaServer = true }).keys().contains("steam"))
     }
 
     @Test

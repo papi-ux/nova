@@ -374,12 +374,6 @@ internal fun novaHostMenuItems(
         }
         if (!libraryFirst) offerLibrary()
 
-        if (!details.nvidiaServer) {
-            menu.opens(NovaHostSheetAction("steam", "Steam", "Open Steam, Big Picture, or quit Steam on this PC", R.drawable.ic_play)) {
-                actions.steamPage()
-            }
-        }
-
         // Only where a hold on the dashboard would work. An awake host has nothing to be woken
         // for, so the row that used to say Wake Host here is gone rather than renamed. One A
         // never puts a host to sleep: the row splits, as ending a session does, with Keep Awake
@@ -406,6 +400,11 @@ internal fun novaHostMenuItems(
     }
     menu.inPlace(action("wake_address", R.string.wol_address_title, R.string.wol_address_caption, R.drawable.ic_edit)) {
         actions.editWakeAddress()
+    }
+    if (details.state == ComputerDetails.State.ONLINE && !needsPairing && !details.nvidiaServer) {
+        menu.opens(NovaHostSheetAction("steam", "Steam", "Open Steam, Big Picture, or quit Steam on this PC", R.drawable.ic_play)) {
+            actions.steamPage()
+        }
     }
     menu.opens(action("details", R.string.pcview_menu_details, R.string.pcview_sheet_caption_details, R.drawable.ic_help)) {
         NovaCommonPage.Notice(
