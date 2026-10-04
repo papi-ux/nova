@@ -1,0 +1,55 @@
+From 0b5217f4df977fcadd2dcba0aa666a5ce9e4a393 Mon Sep 17 00:00:00 2001
+From: nova <nova@papi-ux.com>
+Date: Sun, 4 Oct 2026 15:26:36 -0400
+Subject: [PATCH] fix(rtsp): clean Session error replies and map Windows size
+ error
+
+---
+ src/PlatformSockets.h | 5 +++++
+ src/RtspConnection.c  | 3 +++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/src/PlatformSockets.h b/src/PlatformSockets.h
+index 78ae4be..772172d 100644
+--- a/src/PlatformSockets.h
++++ b/src/PlatformSockets.h
+@@ -54,6 +54,11 @@ extern in_port_t n3ds_udp_port;
+ #define ETIMEDOUT WSAETIMEDOUT
+ #define ECONNREFUSED WSAECONNREFUSED
+ 
++#ifdef EMSGSIZE
++#undef EMSGSIZE
++#endif
++#define EMSGSIZE WSAEMSGSIZE
++
+ typedef int SOCK_RET;
+ typedef int SOCKADDR_LEN;
+ 
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index cacbd9a..c094a2d 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -1227,6 +1227,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+ 
+         if (sessionId == NULL) {
+             Limelog("RTSP SETUP streamid=audio is missing session attribute\n");
++            freeMessage(&response);
+             ret = -1;
+             goto Exit;
+         }
+@@ -1239,6 +1240,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+         sessionToken = strtok_r(sessionId, ";", &strtokCtx);
+         if (sessionToken == NULL || sessionToken[0] == '\0') {
+             Limelog("RTSP SETUP streamid=audio has malformed session attribute\n");
++            freeMessage(&response);
+             ret = -1;
+             goto Exit;
+         }
+@@ -1246,6 +1248,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+         sessionIdString = strdup(sessionToken);
+         if (sessionIdString == NULL) {
+             Limelog("Failed to duplicate session ID string\n");
++            freeMessage(&response);
+             ret = -1;
+             goto Exit;
+         }

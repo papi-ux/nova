@@ -52,7 +52,9 @@ jobs:
         run: ./gradlew --no-build-cache -PnovaAbis=x86_64 testNonRoot_gameDebugUnitTest
 
       - name: Run helper and onboarding tests
-        run: python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing tools.test_pyrowave_packet_guard tools.test_native_page_alignment
+        run: |
+          bash tools/apply-native-patches.sh
+          python3 -m unittest tools.test_nova_retroid_smoke tools.test_native_submodule_preflight tools.test_native_optimization tools.test_pyrowave_timing tools.test_pyrowave_packet_guard tools.test_native_page_alignment tools.test_moonlight_rtsp
 
   deck:
     name: Linux client build and tests
@@ -68,7 +70,7 @@ jobs:
       - name: Install Deck client build dependencies
         run: |
           pacman -Syu --noconfirm --needed \
-            git gcc cmake ninja pkgconf \
+            git gcc cmake ninja pkgconf patch \
             qt6-base qt6-declarative qt6-wayland wayland wayland-protocols \
             ffmpeg libva libdrm mesa \
             libpulse pipewire pipewire-audio opus openssl dbus python \
