@@ -173,24 +173,11 @@ class ShortcutTrampoline : NovaActivity() {
                                             if (canStartShortcutWithoutQuit(details, launchPlan)) {
                                                 val readyLaunchPlan = readyShortcutLaunchPlan ?: launchPlan
                                                 intentStack.add(
-                                                    ServerHelper.createStartIntent(
-                                                        this@ShortcutTrampoline,
-                                                        readyLaunchPlan.app,
+                                                    createShortcutStartIntent(
                                                         details,
                                                         activeBinder,
-                                                        readyLaunchPlan.usesVirtualDisplay
-                                                            ?: prefConfig.useVirtualDisplay,
-                                                        displayModeExplicit = false,
-                                                        watchOnly = false,
-                                                        profilePreference = readyLaunchPlan.profilePreference,
-                                                        launchOptimizationJson = readyLaunchPlan.launchOptimizationJson,
-                                                        mirrorDesktop = readyLaunchPlan.mirrorDesktop,
-                                                        streamWidth = readyLaunchPlan.streamWidth,
-                                                        streamHeight = readyLaunchPlan.streamHeight,
-                                                        streamFps = readyLaunchPlan.streamFps,
-                                                        streamMode = readyLaunchPlan.streamMode,
-                                                        encoderBackend = readyLaunchPlan.encoderBackend,
-                                                        faceButtonLayout = readyLaunchPlan.faceButtonLayout,
+                                                        readyLaunchPlan,
+                                                        prefConfig.useVirtualDisplay,
                                                     ),
                                                 )
 
@@ -808,6 +795,30 @@ class ShortcutTrampoline : NovaActivity() {
         }
     }
 
+    private fun createShortcutStartIntent(
+        details: ComputerDetails,
+        activeBinder: ComputerManagerService.ComputerManagerBinder,
+        readyLaunchPlan: ShortcutLaunchPlan,
+        withVirtualDisplay: Boolean,
+    ): Intent = ServerHelper.createStartIntent(
+        this@ShortcutTrampoline,
+        readyLaunchPlan.app,
+        details,
+        activeBinder,
+        readyLaunchPlan.usesVirtualDisplay ?: withVirtualDisplay,
+        displayModeExplicit = false,
+        watchOnly = false,
+        profilePreference = readyLaunchPlan.profilePreference,
+        launchOptimizationJson = readyLaunchPlan.launchOptimizationJson,
+        mirrorDesktop = readyLaunchPlan.mirrorDesktop,
+        streamWidth = readyLaunchPlan.streamWidth,
+        streamHeight = readyLaunchPlan.streamHeight,
+        streamFps = readyLaunchPlan.streamFps,
+        streamMode = readyLaunchPlan.streamMode,
+        encoderBackend = readyLaunchPlan.encoderBackend,
+        faceButtonLayout = readyLaunchPlan.faceButtonLayout,
+    )
+
     private fun startConfirmedShortcutLaunch(
         details: ComputerDetails,
         activeBinder: ComputerManagerService.ComputerManagerBinder,
@@ -816,24 +827,7 @@ class ShortcutTrampoline : NovaActivity() {
     ) {
         Thread {
             val readyLaunchPlan = applyPolarisShortcutLaunchPreflight(details, launchPlan, withVirtualDisplay)
-            val startIntent = ServerHelper.createStartIntent(
-                this@ShortcutTrampoline,
-                readyLaunchPlan.app,
-                details,
-                activeBinder,
-                readyLaunchPlan.usesVirtualDisplay ?: withVirtualDisplay,
-                displayModeExplicit = false,
-                watchOnly = false,
-                profilePreference = readyLaunchPlan.profilePreference,
-                launchOptimizationJson = readyLaunchPlan.launchOptimizationJson,
-                mirrorDesktop = readyLaunchPlan.mirrorDesktop,
-                streamWidth = readyLaunchPlan.streamWidth,
-                streamHeight = readyLaunchPlan.streamHeight,
-                streamFps = readyLaunchPlan.streamFps,
-                streamMode = readyLaunchPlan.streamMode,
-                encoderBackend = readyLaunchPlan.encoderBackend,
-                faceButtonLayout = readyLaunchPlan.faceButtonLayout,
-            )
+            val startIntent = createShortcutStartIntent(details, activeBinder, readyLaunchPlan, withVirtualDisplay)
 
             runOnUiThread {
                 intentStack.add(startIntent)
