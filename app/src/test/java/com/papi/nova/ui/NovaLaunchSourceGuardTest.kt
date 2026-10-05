@@ -286,6 +286,10 @@ class NovaLaunchSourceGuardTest {
             "private fun applyPolarisShortcutLaunchPreflight(",
             "private fun findPolarisShortcutGame("
         )
+        val startIntent = trampoline.section(
+            "private fun createShortcutStartIntent(",
+            "private fun startConfirmedShortcutLaunch("
+        )
 
         assertTrue(
             "shortcut launch should resolve Polaris library metadata before direct game start without mutating host/client state",
@@ -301,7 +305,9 @@ class NovaLaunchSourceGuardTest {
                 applyPreflight.contains("apiClient.getClientSettings()") &&
                 applyPreflight.contains("apiClient.getOptimization(") &&
                 !applyPreflight.contains("recoveryLaunchProfile(") &&
-                applyPreflight.contains("val launchUsesVirtualDisplay = withVirtualDisplay") &&
+                applyPreflight.contains("NovaGameDetailUiState.from(") &&
+                applyPreflight.contains("NovaLaunchModeOverrides.loadAvailable(") &&
+                applyPreflight.contains("val launchUsesVirtualDisplay = launchUiState.playUsesVirtualDisplay") &&
                 applyPreflight.contains("val launchMirrorDesktop = false") &&
                 applyPreflight.contains("val launchResolution = StreamSyncManager.resolveAutoSafeResolution(") &&
                 applyPreflight.contains("val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(") &&
@@ -313,8 +319,10 @@ class NovaLaunchSourceGuardTest {
         )
         assertTrue(
             "shortcut launch should carry deterministic fields into Game without persisting them as paired settings",
-            directLaunch.contains("readyLaunchPlan.profilePreference") &&
-                directLaunch.contains("readyLaunchPlan.launchOptimizationJson") &&
+            directLaunch.contains("createShortcutStartIntent(") &&
+                trampoline.contains("createShortcutStartIntent(details, activeBinder, readyLaunchPlan, withVirtualDisplay)") &&
+                startIntent.contains("readyLaunchPlan.profilePreference") &&
+                startIntent.contains("readyLaunchPlan.launchOptimizationJson") &&
                 applyPreflight.contains("width = preferences.width") &&
                 applyPreflight.contains("height = preferences.height") &&
                 applyPreflight.contains("fps = preferences.fps") &&
