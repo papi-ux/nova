@@ -3,6 +3,7 @@ package com.papi.nova
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.view.WindowManager
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.api.PolarisApiClient
@@ -71,7 +72,11 @@ class ShortcutLaunchTopologyTest {
                     sessionOverridable = it != sessionRestrictedMode)
             }),
         )
-        val activity = Robolectric.buildActivity(ShortcutTrampoline::class.java).get()
+        val activity = Mockito.spy(Robolectric.buildActivity(ShortcutTrampoline::class.java).get())
+        // Do not run the real onCreate/polling service. Give the visual intent path
+        // its Android display without starting a host connection.
+        Mockito.doReturn((context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay)
+            .`when`(activity).display
         val planType = ShortcutTrampoline::class.java.declaredClasses.single { it.simpleName == "ShortcutLaunchPlan" }
         val plan = planType.declaredConstructors.single { it.parameterCount == 12 }.apply { isAccessible = true }
             .newInstance(NvApp(game.name, game.id, game.appId, false), "auto", null,
