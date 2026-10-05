@@ -11,7 +11,6 @@ import android.os.IBinder
 import android.util.Log
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisClientSettings
-import com.papi.nova.api.PolarisStreamDisplayMode
 import com.papi.nova.computers.ComputerDatabaseManager
 import com.papi.nova.computers.ComputerManagerListener
 import com.papi.nova.computers.ComputerManagerService
@@ -27,6 +26,8 @@ import com.papi.nova.ui.AutoQualityProfilePreferences
 import com.papi.nova.ui.NovaEncoderBackendOverrides
 import com.papi.nova.ui.NovaFaceButtonLayoutOverrides
 import com.papi.nova.ui.NovaLaunchPreflight
+import com.papi.nova.ui.NovaGameDetailUiState
+import com.papi.nova.ui.NovaLaunchModeOverrides
 import com.papi.nova.ui.NovaLaunchStreamOverride
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.utils.CacheHelper
@@ -726,13 +727,27 @@ class ShortcutTrampoline : NovaActivity() {
             // The per-game Tuning choice, not a fixed "auto": a game pinned to High FPS
             // in Play Setup must launch pinned from a home-screen shortcut too.
             val profilePreference = AutoQualityProfilePreferences.load(this, polarisGame.id, polarisGame.name)
+            // Use the same current host/app policy and saved per-game choice as Play.
+            // The legacy global toggle alone can disagree with the host's topology.
+            val launchUiState = NovaGameDetailUiState.from(
+                game = polarisGame,
+                defaultToVirtualDisplay = withVirtualDisplay,
+                clientSettings = clientSettings,
+                profilePreference = profilePreference,
+                launchModeOverride = if (clientSettings != null) {
+                    NovaLaunchModeOverrides.loadAvailable(this, polarisGame, clientSettings)
+                } else {
+                    NovaLaunchModeOverrides.load(this, polarisGame)
+                },
+            )
             val metered = StreamSyncManager.isMeteredNetwork(this)
             val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
             val optimization = apiClient.getOptimization(
                 DeviceUtils.getModel(),
                 polarisGame.id.ifBlank { polarisGame.name },
                 profilePreference,
-                mode = PolarisStreamDisplayMode.preflightModeForLaunch(withVirtualDisplay, clientSettings),
+                mode = launchUiState.playMode,
+                topologyLocked = true,
                 width = preferences.width,
                 height = preferences.height,
                 fps = preferences.fps,
@@ -752,9 +767,9 @@ class ShortcutTrampoline : NovaActivity() {
                 preferences.height,
                 preferences.fps.toInt(),
             )
-            val launchUsesVirtualDisplay = withVirtualDisplay
+            val launchUsesVirtualDisplay = launchUiState.playUsesVirtualDisplay
             val launchMirrorDesktop = false
-            val launchMode = ""
+            val launchMode = launchUiState.launchStreamMode
             val launchResolution = StreamSyncManager.resolveAutoSafeResolution(
                 preferences.width,
                 preferences.height,
@@ -806,7 +821,9 @@ class ShortcutTrampoline : NovaActivity() {
         details,
         activeBinder,
         readyLaunchPlan.usesVirtualDisplay ?: withVirtualDisplay,
-        displayModeExplicit = false,
+        // Typed Polaris preflight uses the same explicit display contract as Play.
+        // A stock host or an unavailable preflight retains its legacy launch intent.
+        displayModeExplicit = readyLaunchPlan.usesVirtualDisplay != null,
         watchOnly = false,
         profilePreference = readyLaunchPlan.profilePreference,
         launchOptimizationJson = readyLaunchPlan.launchOptimizationJson,
