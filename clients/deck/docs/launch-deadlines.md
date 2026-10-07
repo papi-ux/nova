@@ -27,12 +27,12 @@ GET as idempotent and can resend it after unexpected EOF; its custom operation
 does not take that replay path. A peer close without an HTTP receipt, or a
 truncated successful reply, is a transport failure. Tests require exactly one
 delivered request for each mutation even when the peer drops the reply. The
-upstream behavior is in Qt's [idempotency check](https://github.com/qt/qtbase/blob/v6.10.0/src/network/access/qhttpnetworkrequest.cpp#L398)
-and [unexpected EOF handler](https://github.com/qt/qtbase/blob/v6.10.0/src/network/access/qhttpnetworkconnectionchannel.cpp#L272).
+upstream behavior is in Qt's [idempotency check](https://github.com/qt/qtbase/blob/5a8637e4516bc48a0b3f4b5ec3b18618b92e7222/src/network/access/qhttpnetworkrequest.cpp#L398)
+and [unexpected EOF handler](https://github.com/qt/qtbase/blob/5a8637e4516bc48a0b3f4b5ec3b18618b92e7222/src/network/access/qhttpnetworkconnectionchannel.cpp#L272).
 
 The CTest cases `nova_deck_launch_budget_transport_test` and
 `nova_deck_native_launch_cancel_test` cover delayed pinned HTTPS replies,
 ordinary/resume/lookalike deadlines, cancellation before and after the host
 receives a request, UI progress, receipt races, unknown outcomes, and owned
-cleanup, including lost and partial TLS replies without replay. They use local fake hosts and do not qualify a physical SteamOS
-transition or streaming session.
+cleanup, including lost and partial TLS replies without replay. They use local
+fake hosts and do not qualify a physical SteamOS transition or streaming session.

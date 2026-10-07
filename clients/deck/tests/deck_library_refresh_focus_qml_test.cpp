@@ -131,5 +131,5 @@ int main(int argc, char** argv) {
         QTest::qWait(20);
     require(window->activeFocusItem() && window->activeFocusItem()->objectName() == "game-42", "explicit refresh lost its game focus recovery");
     require(!warnings, "library refresh focus emitted QML warnings");
-    std::cout << "Deferred background completion retains newer Search/Options input; unchanged and explicit refresh recovery passed.\n";
+    std::cout << "Deferred background completion retains newer Search, Options, game and Clear focus; unchanged and explicit refresh recovery passed.\n";
 }
