@@ -131,6 +131,28 @@ def expected_destination(snapshot):
     return "desktop"
 
 
+def resume_browsing_for_refresh(wait, keys, state):
+    # Route assertions can intentionally end on a filter/destination control or
+    # inside game details. Automatic refresh pauses there, even with no popup.
+    # Return through real keyboard input after those assertions, preserving the
+    # selected PC/game/destination and every library constraint.
+    checkpoint = state()
+    if checkpoint.get("detailOpen"):
+        keys("Escape")
+        wait(lambda s: not s.get("detailOpen"))
+    for _ in range(3):
+        current = state()
+        if current.get("focus") == current.get("game"):
+            break
+        keys("Down")
+    browsing = wait(lambda s: s.get("focus") == s.get("game") and not s.get("detailOpen")
+                    and not s.get("busy") and "smokeRefresh" in s)
+    for key in ("host", "game", "query", "filter", "filterValue", "sort", "layout"):
+        assert browsing.get(key) == checkpoint.get(key), f"returning to browsing changed {key}: {checkpoint}, {browsing}"
+    assert expected_destination(browsing) == expected_destination(checkpoint), "returning to browsing changed destination"
+    return browsing
+
+
 def observe_automatic_refreshes(wait, baseline, after_each, cycles=2, timeout=6):
     """Wait for `cycles` automatic refreshes that Qt completed after `baseline`, one at a time.
 
@@ -2437,7 +2459,7 @@ def main():
             if observed_exit:
                 # Replace the incidental idle refreshes with two explicit, completed ones, then ask
                 # the app to quit. The watchdog and app.wait deadline below are unchanged.
-                observe_automatic_refreshes(wait, wait(lambda s: not s.get("busy") and "smokeRefresh" in s), during_soak)
+                observe_automatic_refreshes(wait, resume_browsing_for_refresh(wait, keys, state), during_soak)
                 timing.mark("soaked")
                 request_smoke_quit(main_quit_path, app.pid, main_quit_token)
                 timing.mark("quitRequested")
