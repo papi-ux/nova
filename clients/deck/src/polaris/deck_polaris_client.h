@@ -193,10 +193,10 @@ public:
         DeckPolarisTlsIdentity identity,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(4000));
 
-    // A bounded per-operation deadline can accommodate host teardown without
-    // lengthening ordinary reads or launch requests.
+    // Per-operation deadlines and cancellation keep slow launch/teardown
+    // requests bounded without lengthening ordinary reads.
     [[nodiscard]] DeckPolarisResult<std::string> get(const std::string& path, std::size_t maxBodyBytes = 4 * 1024 * 1024,
-        std::optional<std::chrono::milliseconds> timeout = {}) const;
+        std::optional<std::chrono::milliseconds> timeout = {}, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisCapabilities> fetchCapabilities() const;
     [[nodiscard]] DeckPolarisResult<DeckPolarisGamesPage> fetchGamesPage(int limit, int offset, bool desktop = false) const;
     [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchAllGames(int pageSize = 100,

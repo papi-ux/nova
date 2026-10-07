@@ -17,20 +17,27 @@
 #include <QTemporaryDir>
 #include <QUrlQuery>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 
 #include <cstdlib>
+#include <functional>
 #include <chrono>
+#include <iostream>
+#include <source_location>
 #include <string>
 
 namespace {
 
 // Keep setup and verification active in every CMake build type.
-void require(bool condition) {
-    if (!condition) std::abort();
+void require(bool condition, const std::source_location& location = std::source_location::current()) {
+    if (!condition) {
+        std::cerr << location.file_name() << ':' << location.line() << ": requirement failed\n";
+        std::abort();
+    }
 }
 
 QByteArray readFile(const QString& path) {
@@ -55,7 +62,10 @@ TestIdentity createIdentity(const QString& directory, const QString& name) {
     return {readFile(certPath), readFile(keyPath)};
 }
 
-TestIdentity createDerivedServer(const QString& directory) {
+// A leaf signed by `issuer` (an identity made by createIdentity in the same
+// directory) with an IP SAN for 127.0.0.1: it chains to that pinned
+// certificate but is not it.
+TestIdentity createDerivedServer(const QString& directory, const QString& issuer = QStringLiteral("server")) {
     const auto run = [](const QStringList& args) {
         QProcess process;
         process.start(QStringLiteral(NOVA_DECK_TEST_OPENSSL), args);
@@ -68,8 +78,8 @@ TestIdentity createDerivedServer(const QString& directory) {
     require(extensions.open(QIODevice::WriteOnly));
     extensions.write("basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n");
     extensions.close();
-    run({"x509", "-req", "-in", directory + "/derived.csr", "-CA", directory + "/server.crt",
-         "-CAkey", directory + "/server.key", "-set_serial", "2", "-days", "1",
+    run({"x509", "-req", "-in", directory + "/derived.csr", "-CA", directory + "/" + issuer + ".crt",
+         "-CAkey", directory + "/" + issuer + ".key", "-set_serial", "2", "-days", "1",
          "-extfile", directory + "/derived.ext", "-out", directory + "/derived.crt"});
     return {readFile(directory + "/derived.crt"), readFile(directory + "/derived.key")};
 }
@@ -280,6 +290,306 @@ void testResponseDeadlineSurvivesIncomingBytes() {
     QElapsedTimer timer; timer.start();
     const auto reply = connection.get("/applist");
     require(reply.status == DeckPolarisRequestStatus::Timeout && !reply.value && timer.elapsed() < 1200 && https.requests == 1);
+}
+
+void testLaunchBudgetAndCancellation() {
+    using namespace nova::deck;
+    QTemporaryDir directory;
+    const auto server = createIdentity(directory.path(), "launch-server");
+    const auto client = createIdentity(directory.path(), "launch-client");
+    TlsServer https(server);
+    https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    polaris::DeckPolarisClient connection({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()},
+        std::chrono::milliseconds(250));
+    const auto fetch = stream::fetcherOverPolarisClient(connection);
+    https.eventStream = [](QSslSocket* socket) {
+        QTimer::singleShot(750, socket, [socket] {
+            const QByteArray body = "<root status_code=\"200\"><gamesession>1</gamesession></root>";
+            socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: "
+                + QByteArray::number(body.size()) + "\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    };
+    // Both exact launch forms survive the ordinary deadline, with mTLS intact.
+    for (const auto* path : {"/launch", "/launch?appid=17"}) {
+        const auto before = https.requests;
+        const auto reply = fetch(path);
+        require(reply.transportOk && reply.status == 200 && https.requests == before + 1);
+    }
+    // Resume and lookalike paths must not inherit launch's longer window.
+    for (const auto* path : {"/serverinfo", "/resume?appid=17", "/launching", "/launch/extra", "/api/launch"}) {
+        QElapsedTimer elapsed; elapsed.start();
+        require(!fetch(path).transportOk && elapsed.elapsed() < 1500);
+    }
+    identity::DeckMoonlightIdentity identity;
+    identity.loaded = true;
+    identity.clientCertificatePem = client.cert.toStdString();
+    identity.clientPrivateKeyPemForBackendOnly = client.key.toStdString();
+    identity::DeckMoonlightHostRecord host;
+    host.uuid = "launch-host"; host.manualAddress = "127.0.0.1";
+    host.nativeHttpsPort = https.serverPort(); host.serverCertificatePem = server.cert.toStdString();
+    identity.hosts.push_back(host);
+    backend::DeckLiveHostLibrarySnapshot snapshot;
+    snapshot.selectedHostId = host.stableId();
+    PolarisGameFixture game;
+    game.id = "moonlight-app-17"; game.appId = 17;
+    snapshot.library.games.push_back(game);
+    const auto target = runtime::nativeTargetResolver(identity, snapshot)(QString::fromStdString(host.stableId()), "moonlight-app-17");
+    require(target && bool(target->fetchWithCancellation));
+    bool cancelled = true;
+    const auto cancellable = [&](const std::string& path) {
+        return target->fetchWithCancellation(path, [&] { return cancelled; });
+    };
+    auto before = https.requests;
+    require(!cancellable("/launch?appid=17").transportOk && https.requests == before);
+    cancelled = false;
+    int heartbeats = 0;
+    QTimer heartbeat;
+    QObject::connect(&heartbeat, &QTimer::timeout, [&] { ++heartbeats; });
+    heartbeat.start(5);
+    https.eventStream = [&](QSslSocket* socket) {
+        // The host has received the mutation but deliberately withholds its
+        // receipt. Local abort must settle without a retry or extra /cancel.
+        QTimer::singleShot(100, socket, [&] { cancelled = true; });
+    };
+    QElapsedTimer elapsed; elapsed.start();
+    before = https.requests;
+    const auto aborted = cancellable("/launch?appid=17");
+    require(!aborted.transportOk && cancelled && elapsed.elapsed() < 1500 && heartbeats > 0);
+    require(https.requests == before + 1 && https.paths.back() == "/launch");
+    // Cleanup uses the uncancelled fetcher and retains exact session authority.
+    https.eventStream = {};
+    https.handler = [](const QUrl& url) {
+        require(url.path() == "/cancel" && QUrlQuery(url).queryItemValue("sessiontoken") == "owned-session");
+        return std::pair{200, QByteArray("<root status_code=\"200\"><cancel>1</cancel></root>")};
+    };
+    require(stream::requestHostSessionCancel(target->fetch, "owned-session").cancelled && https.requests == before + 2);
+    // The host reads the mutation and then closes without any HTTP receipt.
+    // Unknown delivery must not become a refusal or an automatic GET replay.
+    https.eventStream = [](QSslSocket* socket) { socket->disconnectFromHost(); };
+    for (const auto* path : {"/launch?appid=17", "/resume?appid=17", "/cancel?sessiontoken=owned-session"}) {
+        before = https.requests;
+        const auto lost = target->fetch(path);
+        require(!lost.transportOk && lost.retryableTransportFailure && lost.status == 0);
+        require(https.requests == before + 1);
+    }
+    // A truncated successful reply also cannot prove what happened on the host.
+    https.eventStream = [](QSslSocket* socket) {
+        socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 1000\r\n\r\n<root");
+        socket->disconnectFromHost();
+    };
+    before = https.requests;
+    const auto partial = target->fetch("/launch?appid=17");
+    require(!partial.transportOk && partial.retryableTransportFailure && https.requests == before + 1);
+}
+
+// Runs this thread's event loop for `ms`, so anything Qt would still send late
+// (a transparent resend) reaches the fixture before the count is read.
+void settle(int ms) {
+    QEventLoop loop;
+    QTimer::singleShot(ms, &loop, &QEventLoop::quit);
+    loop.exec();
+}
+
+// Session-changing GETs go out once over an owned socket: every way the host can
+// fail to answer is one delivered, bodyless GET and no receipt, never a replay.
+void testSessionGetOnce() {
+    using namespace nova::deck::polaris;
+    QTemporaryDir directory;
+    require(directory.isValid());
+    const auto server = createIdentity(directory.path(), "launch-server");
+    const auto client = createIdentity(directory.path(), "launch-client");
+    TlsServer https(server);
+    https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    const DeckPolarisClient connection({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()},
+        std::chrono::milliseconds(1500));
+    const QByteArray hostHeader = "Host: 127.0.0.1:" + QByteArray::number(https.serverPort());
+    const std::vector<std::pair<std::string, QString>> mutations{
+        {"/launch?appid=17&mode=a%20b", "/launch"}, {"/resume?appid=17", "/resume"},
+        {"/cancel?sessiontoken=owned-session", "/cancel"}};
+    const auto delivered = [&](int before, const std::string& target, const QString& path) {
+        settle(150);
+        if (https.requests != before + 1)
+            std::cerr << target << ": " << https.requests - before << " requests delivered, expected exactly 1\n";
+        require(https.requests == before + 1 && https.paths.back() == path);
+        require(https.methods.back() == "GET" && https.bodies.back().isEmpty());
+        const auto& head = https.headers.back();
+        require(head.startsWith("GET " + QByteArray::fromStdString(target) + " HTTP/1.1\r\n"));
+        require(head.contains(hostHeader) && head.contains("Accept-Encoding: identity") && !head.contains("Content-Length"));
+    };
+    const auto noReceipt = [&](const DeckPolarisResult<std::string>& reply) {
+        return reply.status == DeckPolarisRequestStatus::Unreachable && reply.httpStatus == 0 && !reply.value;
+    };
+
+    // The host reads the mutation and ends the connection without a receipt:
+    // at once, by abort, or after a delay. Exactly one GET is delivered.
+    const std::vector<std::function<void(QSslSocket*)>> lost{
+        [](QSslSocket* socket) { socket->disconnectFromHost(); },
+        [](QSslSocket* socket) { socket->abort(); },
+        [](QSslSocket* socket) { QTimer::singleShot(100, socket, [socket] { socket->disconnectFromHost(); }); },
+    };
+    for (const auto& [target, path] : mutations) {
+        for (const auto& close : lost) {
+            https.eventStream = close;
+            const int before = https.requests;
+            require(noReceipt(connection.get(target)));
+            delivered(before, target, path);
+        }
+    }
+
+    // Complete receipts in every supported framing.
+    const auto answer = [&](QByteArray raw, bool closeAfter = true) {
+        https.eventStream = [raw, closeAfter](QSslSocket* socket) {
+            socket->write(raw);
+            if (closeAfter) socket->disconnectFromHost();
+        };
+    };
+    const std::vector<std::pair<QByteArray, std::string>> framings{
+        {"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello", "hello"},
+        {"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nhel\r\n2;ext=1\r\nlo\r\n0\r\nX-Trailer: 1\r\n\r\n", "hello"},
+        {"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok", "ok"},
+        {"HTTP/1.0 200 OK\r\nContent-Encoding: identity\r\nContent-Length: 0\r\n\r\n", ""},
+    };
+    for (const auto& [raw, body] : framings) {
+        answer(raw);
+        const int before = https.requests;
+        const auto reply = connection.get("/launch?appid=17");
+        require(reply.status == DeckPolarisRequestStatus::Ok && reply.httpStatus == 200 && reply.value == body);
+        delivered(before, "/launch?appid=17", "/launch");
+    }
+    // A receipt split across writes is read whole.
+    https.eventStream = [](QSslSocket* socket) {
+        socket->write("HTTP/1.1 200 OK\r\nContent-Le");
+        QTimer::singleShot(50, socket, [socket] { socket->write("ngth: 5\r\n\r\nhel"); });
+        QTimer::singleShot(100, socket, [socket] { socket->write("lo"); socket->disconnectFromHost(); });
+    };
+    require(connection.get("/launch?appid=17").value == std::string("hello"));
+
+    // Known answers keep their status; a redirect is never followed.
+    for (const auto& [code, expected] : std::vector<std::pair<int, DeckPolarisRequestStatus>>{
+             {409, DeckPolarisRequestStatus::HttpError}, {503, DeckPolarisRequestStatus::HttpError},
+             {401, DeckPolarisRequestStatus::Unauthorized}, {403, DeckPolarisRequestStatus::Unauthorized},
+             {302, DeckPolarisRequestStatus::HttpError}}) {
+        answer("HTTP/1.1 " + QByteArray::number(code) + " X\r\nLocation: /launch?appid=99\r\nContent-Length: 6\r\n\r\n<root>");
+        const int before = https.requests;
+        const auto reply = connection.get("/launch?appid=17");
+        require(reply.status == expected && reply.httpStatus == code && !reply.value);
+        delivered(before, "/launch?appid=17", "/launch");
+    }
+
+    // Lost, partial, oversize and malformed replies are no receipt, never a refusal
+    // or a success, and are never sent again.
+    const std::vector<QByteArray> unusable{
+        "HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n<root",
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n" + QByteArray(100, 'x'),
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n40\r\n" + QByteArray(64, 'x') + "\r\n40\r\n" + QByteArray(64, 'x') + "\r\n0\r\n\r\n",
+        "HTTP/1.1 200 OK\r\n\r\n" + QByteArray(100, 'x'),
+        "HTTP/2 200\r\nContent-Length: 0\r\n\r\n",
+        "HTTP/1.1 2x0 OK\r\nContent-Length: 0\r\n\r\n",
+        "HTTP/1.1 200 OK\nContent-Length: 0\n\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n0\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Length: 3\r\n\r\nok",
+        "HTTP/1.1 200 OK\r\nContent-Length: 2a\r\n\r\nok",
+        "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: 2\r\n\r\nok",
+        "HTTP/1.1 200 OK\r\nX-Folded: a\r\n b\r\nContent-Length: 2\r\n\r\nok",
+        "HTTP/1.1 101 Switching Protocols\r\nUpgrade: x\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nhello\r\n0\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nhelo\r\n0\r\n\r\n",
+        "HTTP/1.1 200 OK\r\n" + QByteArray(9000, 'a'),
+        "HTTP/1.1 200 OK\r\nX-Long: " + QByteArray(9000, 'a') + "\r\nContent-Length: 0\r\n\r\n",
+        [] { QByteArray many = "HTTP/1.1 200 OK\r\n"; for (int i = 0; i < 50; ++i) many += "X-" + QByteArray::number(i) + ": " + QByteArray(700, 'v') + "\r\n"; return many + "Content-Length: 0\r\n\r\n"; }(),
+        [] { QByteArray flood = "HTTP/1.1 200 OK\r\n"; for (int i = 0; i < 150; ++i) flood += "X-" + QByteArray::number(i) + ": 1\r\n"; return flood + "Content-Length: 0\r\n\r\n"; }(),
+    };
+    for (const auto& raw : unusable) {
+        answer(raw);
+        const int before = https.requests;
+        const auto reply = connection.get("/launch?appid=17", 64);
+        if (!noReceipt(reply)) std::cerr << "accepted unusable reply: " << raw.left(80).toStdString() << '\n';
+        require(noReceipt(reply));
+        delivered(before, "/launch?appid=17", "/launch");
+    }
+    // Close-delimited framing is read, but through QSslSocket a TCP close without
+    // TLS close_notify ends it exactly like a clean close. A refusal keeps its
+    // status; a success without a length, cleanly closed or cut short, is no receipt.
+    answer("HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n<root>busy</root>");
+    {
+        const int before = https.requests;
+        const auto reply = connection.get("/launch?appid=17");
+        require(reply.status == DeckPolarisRequestStatus::HttpError && reply.httpStatus == 409);
+        delivered(before, "/launch?appid=17", "/launch");
+    }
+    for (const bool cutShort : {false, true}) {
+        https.eventStream = [cutShort](QSslSocket* socket) {
+            socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n<root");
+            QTimer::singleShot(50, socket, [socket, cutShort] { cutShort ? socket->abort() : socket->disconnectFromHost(); });
+        };
+        const int before = https.requests;
+        require(noReceipt(connection.get("/launch?appid=17")));
+        delivered(before, "/launch?appid=17", "/launch");
+    }
+
+    // Cancellation: before sending nothing leaves; while pending it ends promptly
+    // without a resend; the deadline does the same.
+    https.eventStream = [](QSslSocket*) {};
+    {
+        const int before = https.requests;
+        require(connection.get("/launch?appid=17", 4096, std::nullopt, [] { return true; }).status
+            == DeckPolarisRequestStatus::Timeout);
+        settle(150);
+        require(https.requests == before);
+    }
+    {
+        bool cancelled = false;
+        QTimer::singleShot(200, [&] { cancelled = true; });
+        QElapsedTimer elapsed;
+        elapsed.start();
+        const int before = https.requests;
+        const auto reply = connection.get("/launch?appid=17", 4096, std::chrono::seconds(30), [&] { return cancelled; });
+        require(reply.status == DeckPolarisRequestStatus::Timeout && elapsed.elapsed() < 1000);
+        delivered(before, "/launch?appid=17", "/launch");
+    }
+    {
+        QElapsedTimer elapsed;
+        elapsed.start();
+        const int before = https.requests;
+        require(connection.get("/resume?appid=17", 4096, std::chrono::milliseconds(300)).status == DeckPolarisRequestStatus::Timeout);
+        require(elapsed.elapsed() < 1200);
+        delivered(before, "/resume?appid=17", "/resume");
+    }
+    https.eventStream = {};
+
+    // A leaf that chains to the pinned certificate but is not it never receives a request.
+    const auto derived = createDerivedServer(directory.path(), QStringLiteral("launch-server"));
+    TlsServer impostor(derived);
+    impostor.trustClient(client.cert);
+    require(impostor.listen(QHostAddress::LocalHost, 0));
+    const DeckPolarisClient pinnedToServer({"127.0.0.1", impostor.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()});
+    for (const auto& [target, path] : mutations) {
+        require(pinnedToServer.get(target).status == DeckPolarisRequestStatus::CertMismatch);
+        settle(100);
+        require(impostor.requests == 0);
+    }
+
+    // An IPv6 literal is bracketed in Host, as QNetworkAccessManager writes it.
+    TlsServer v6(server);
+    v6.trustClient(client.cert);
+    if (v6.listen(QHostAddress::LocalHostIPv6, 0)) {
+        const DeckPolarisClient overV6({"::1", v6.serverPort()},
+            {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()});
+        const auto reply = overV6.get("/cancel?sessiontoken=owned-session");
+        require(reply.ok() && v6.requests == 1);
+        require(v6.headers.back().contains("Host: [::1]:" + QByteArray::number(v6.serverPort())));
+    } else {
+        std::cerr << "IPv6 loopback unavailable; bracketed Host case not exercised\n";
+    }
 }
 
 void testStandardHostLibraryAndLaunch() {
@@ -1526,6 +1836,7 @@ int main(int argc, char** argv) {
     QTemporaryDir appData;
     qputenv("XDG_DATA_HOME", appData.path().toUtf8());
     QCoreApplication app(argc, argv);
+    if (app.arguments().contains("--launch-budget")) { testLaunchBudgetAndCancellation(); testSessionGetOnce(); return 0; }
     testSilentHttpStillUsesPinnedHttps(false);
     testSilentHttpStillUsesPinnedHttps(true);
     testDerivedCertificateCannotReceiveHttp();

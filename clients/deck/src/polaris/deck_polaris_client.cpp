@@ -610,9 +610,416 @@ private:
 };
 }
 
+namespace {
+// Session-changing GameStream requests (/launch, /resume, /cancel) are GETs on
+// the wire, and QNetworkAccessManager can transparently resend a GET it has
+// already delivered (see docs/launch-deadlines.md). These go out exactly once
+// over an owned socket instead, and their reply is read by this bounded
+// HTTP/1.1 reader. Anything it cannot frame completely is "no receipt".
+bool isSessionChangingGet(std::string_view path) {
+    return path == "/launch" || path == "/resume" || path == "/cancel";
+}
+
+class SessionReplyReader {
+public:
+    explicit SessionReplyReader(std::size_t maxBody) : maxBody_(maxBody) {}
+
+    void feed(const QByteArray& bytes) {
+        if (done() || failed()) return;
+        buffer_ += bytes;
+        while (!done() && !failed() && step()) {}
+        // A line can never legitimately need more than one line limit of input.
+        if (!done() && !failed() && state_ != State::Body && state_ != State::ChunkData &&
+            buffer_.size() > static_cast<qsizetype>(kMaxLine))
+            fail("an over-long reply line");
+    }
+
+    // The peer ended the connection cleanly: only a close-delimited body may end here.
+    void finishAtEof() {
+        if (done() || failed()) return;
+        if (state_ == State::Body && closeDelimited_) { state_ = State::Done; return; }
+        fail("the connection ended before a complete reply");
+    }
+
+    [[nodiscard]] bool done() const { return state_ == State::Done; }
+    [[nodiscard]] bool failed() const { return state_ == State::Failed; }
+    [[nodiscard]] bool tooLarge() const { return tooLarge_; }
+    [[nodiscard]] bool closeDelimited() const { return closeDelimited_; }
+    [[nodiscard]] int status() const { return status_; }
+    [[nodiscard]] const QByteArray& body() const { return body_; }
+    [[nodiscard]] const std::string& failure() const { return failure_; }
+
+private:
+    enum class State { Status, Headers, Body, ChunkSize, ChunkData, ChunkEnd, Trailers, Done, Failed };
+    static constexpr std::size_t kMaxLine = 8 * 1024;
+    static constexpr std::size_t kMaxHeaderBytes = 32 * 1024; // all header, interim and trailer lines
+    static constexpr int kMaxHeaderLines = 100;
+    static constexpr int kMaxInterimReplies = 4;
+    static constexpr std::size_t kMaxChunkFraming = 64 * 1024;
+
+    void fail(std::string why) { state_ = State::Failed; failure_ = std::move(why); }
+
+    // One CRLF-terminated line. A bare LF or CR is malformed, never guessed at.
+    std::optional<QByteArray> line() {
+        const auto end = buffer_.indexOf('\n');
+        if (end < 0) return std::nullopt;
+        if (end == 0 || buffer_.at(end - 1) != '\r') { fail("a reply line without CRLF"); return std::nullopt; }
+        if (static_cast<std::size_t>(end) + 1 > kMaxLine) { fail("an over-long reply line"); return std::nullopt; }
+        QByteArray text = buffer_.left(end - 1);
+        buffer_.remove(0, end + 1);
+        if (text.contains('\r') || text.contains('\0')) { fail("a control character in a reply line"); return std::nullopt; }
+        // Chunk-size lines count against chunk framing; status, header, interim and
+        // trailer lines against the header budget. Each bound holds on its own.
+        (state_ == State::ChunkSize ? chunkFraming_ : headerBytes_) += static_cast<std::size_t>(end + 1);
+        if (headerBytes_ > kMaxHeaderBytes) { fail("too many reply header bytes"); return std::nullopt; }
+        if (chunkFraming_ > kMaxChunkFraming) { fail("too much chunk framing"); return std::nullopt; }
+        return text;
+    }
+
+    static bool token(const QByteArray& name) {
+        if (name.isEmpty()) return false;
+        for (const char c : name) {
+            const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                std::string_view("!#$%&'*+-.^_`|~").find(c) != std::string_view::npos;
+            if (!ok) return false;
+        }
+        return true;
+    }
+
+    bool step() {
+        switch (state_) {
+        case State::Status: {
+            const auto text = line();
+            if (!text) return false;
+            // HTTP/1.x SP 3DIGIT [SP reason]
+            if (!(text->startsWith("HTTP/1.1 ") || text->startsWith("HTTP/1.0 ")) || text->size() < 12 ||
+                (text->size() > 12 && text->at(12) != ' ')) { fail("a malformed status line"); return false; }
+            int code = 0;
+            for (int i = 9; i < 12; ++i) {
+                const char c = text->at(i);
+                if (c < '0' || c > '9') { fail("a malformed status code"); return false; }
+                code = code * 10 + (c - '0');
+            }
+            if (code < 100 || code > 599) { fail("an out-of-range status code"); return false; }
+            status_ = code;
+            headers_.clear();
+            headerLines_ = 0;
+            state_ = State::Headers;
+            return true;
+        }
+        case State::Headers: {
+            const auto text = line();
+            if (!text) return false;
+            if (!text->isEmpty()) return header(*text);
+            return endOfHeaders();
+        }
+        case State::Body: {
+            if (buffer_.isEmpty()) return false;
+            const auto room = static_cast<qsizetype>(maxBody_) - body_.size();
+            const auto want = closeDelimited_ ? buffer_.size() : std::min<qsizetype>(buffer_.size(), remaining_);
+            if (want > room) { tooLarge_ = true; fail("the host response exceeded the size limit"); return false; }
+            body_ += buffer_.left(want);
+            buffer_.remove(0, want);
+            if (!closeDelimited_) {
+                remaining_ -= want;
+                if (remaining_ == 0) { state_ = State::Done; buffer_.clear(); }
+            }
+            return true;
+        }
+        case State::ChunkSize: {
+            const auto text = line();
+            if (!text) return false;
+            auto size = text->left(text->indexOf(';') < 0 ? text->size() : text->indexOf(';')).trimmed();
+            if (size.isEmpty() || size.size() > 15) { fail("a malformed chunk size"); return false; }
+            qint64 value = 0;
+            for (const char c : size) {
+                const int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+                if (digit < 0) { fail("a malformed chunk size"); return false; }
+                value = value * 16 + digit;
+            }
+            if (value == 0) { state_ = State::Trailers; return true; }
+            if (value > static_cast<qint64>(maxBody_) - body_.size()) { tooLarge_ = true; fail("the host response exceeded the size limit"); return false; }
+            remaining_ = value;
+            state_ = State::ChunkData;
+            return true;
+        }
+        case State::ChunkData: {
+            if (buffer_.isEmpty()) return false;
+            const auto want = std::min<qsizetype>(buffer_.size(), remaining_);
+            body_ += buffer_.left(want);
+            buffer_.remove(0, want);
+            remaining_ -= want;
+            if (remaining_ == 0) state_ = State::ChunkEnd;
+            return true;
+        }
+        case State::ChunkEnd: {
+            if (buffer_.size() < 2) return false;
+            if (buffer_.at(0) != '\r' || buffer_.at(1) != '\n') { fail("a chunk without its CRLF"); return false; }
+            buffer_.remove(0, 2);
+            chunkFraming_ += 2;
+            state_ = State::ChunkSize;
+            return true;
+        }
+        case State::Trailers: {
+            const auto text = line();
+            if (!text) return false;
+            if (text->isEmpty()) { state_ = State::Done; buffer_.clear(); return true; }
+            if (++headerLines_ > kMaxHeaderLines || text->startsWith(' ') || text->startsWith('\t') || text->indexOf(':') <= 0) {
+                fail("a malformed trailer");
+                return false;
+            }
+            return true;
+        }
+        case State::Done:
+        case State::Failed:
+            return false;
+        }
+        return false;
+    }
+
+    bool header(const QByteArray& text) {
+        if (++headerLines_ > kMaxHeaderLines) { fail("too many reply headers"); return false; }
+        if (text.startsWith(' ') || text.startsWith('\t')) { fail("a folded reply header"); return false; }
+        const auto colon = text.indexOf(':');
+        const auto name = colon > 0 ? text.left(colon) : QByteArray{};
+        if (!token(name)) { fail("a malformed reply header"); return false; }
+        headers_.emplace_back(name.toLower(), text.mid(colon + 1).trimmed());
+        return true;
+    }
+
+    bool endOfHeaders() {
+        if (status_ < 200) {
+            // Interim replies carry no receipt; a protocol switch is never accepted here.
+            if (status_ == 101 || ++interim_ > kMaxInterimReplies) { fail("an unsupported interim reply"); return false; }
+            state_ = State::Status;
+            return true;
+        }
+        std::optional<qint64> length;
+        bool chunked = false;
+        for (const auto& [name, value] : headers_) {
+            if (name == "content-length") {
+                if (value.isEmpty() || value.size() > 15) { fail("a malformed Content-Length"); return false; }
+                qint64 parsed = 0;
+                for (const char c : value) {
+                    if (c < '0' || c > '9') { fail("a malformed Content-Length"); return false; }
+                    parsed = parsed * 10 + (c - '0');
+                }
+                if (length && *length != parsed) { fail("conflicting Content-Length headers"); return false; }
+                length = parsed;
+            } else if (name == "transfer-encoding") {
+                if (chunked || value.toLower() != "chunked") { fail("an unsupported Transfer-Encoding"); return false; }
+                chunked = true;
+            } else if (name == "content-encoding" && value.toLower() != "identity") {
+                fail("an unsupported Content-Encoding");
+                return false;
+            }
+        }
+        if (chunked && length) { fail("both Transfer-Encoding and Content-Length"); return false; }
+        if (status_ == 204 || status_ == 304) { state_ = State::Done; buffer_.clear(); return true; }
+        if (chunked) { state_ = State::ChunkSize; return true; }
+        if (length) {
+            if (*length > static_cast<qint64>(maxBody_)) { tooLarge_ = true; fail("the host response exceeded the size limit"); return false; }
+            remaining_ = *length;
+            state_ = remaining_ == 0 ? State::Done : State::Body;
+            if (remaining_ == 0) buffer_.clear();
+            return true;
+        }
+        closeDelimited_ = true;
+        state_ = State::Body;
+        return true;
+    }
+
+    std::size_t maxBody_;
+    State state_ = State::Status;
+    QByteArray buffer_;
+    QByteArray body_;
+    std::vector<std::pair<QByteArray, QByteArray>> headers_;
+    int status_ = 0;
+    int headerLines_ = 0;
+    int interim_ = 0;
+    qint64 remaining_ = 0;
+    bool closeDelimited_ = false;
+    bool tooLarge_ = false;
+    std::size_t headerBytes_ = 0;
+    std::size_t chunkFraming_ = 0;
+    std::string failure_;
+};
+
+struct SessionGetIdentity {
+    QSslCertificate clientCertificate;
+    QSslKey clientKey;
+    QSslCertificate pinnedServerCertificate;
+};
+
+DeckPolarisResult<std::string> sendSessionGetOnce(const DeckPolarisEndpoint& endpoint, const DeckPolarisRequestTarget& target,
+    const SessionGetIdentity& identity, std::size_t maxBodyBytes, std::chrono::milliseconds timeout,
+    const std::function<bool()>& cancelled) {
+    DeckPolarisResult<std::string> result;
+    QUrl url;
+    url.setScheme(QStringLiteral("https"));
+    url.setHost(QString::fromStdString(endpoint.address));
+    url.setPort(endpoint.httpsPort);
+    url.setPath(QString::fromStdString(target.path));
+    if (!target.query.empty()) url.setQuery(QString::fromStdString(target.query));
+    // The same request target QNetworkAccessManager would put on the wire.
+    QByteArray uri = url.toEncoded(QUrl::RemoveScheme | QUrl::RemoveAuthority | QUrl::RemoveFragment);
+    QByteArray host = url.host(QUrl::FullyEncoded).toUtf8();
+    const bool invalid = !url.isValid() || host.isEmpty() || !uri.startsWith('/') ||
+        std::any_of(uri.begin(), uri.end(), [](char c) { return static_cast<unsigned char>(c) <= 0x20 || c == 0x7f; });
+    if (invalid) {
+        result.status = DeckPolarisRequestStatus::Unreachable;
+        result.detail = "invalid request target";
+        return result;
+    }
+    if (host.contains(':')) host = '[' + host + ']';
+    if (endpoint.httpsPort != 443) host += ':' + QByteArray::number(endpoint.httpsPort);
+    const QByteArray requestBytes = "GET " + uri + " HTTP/1.1\r\nHost: " + host +
+        "\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+    if (cancelled && cancelled()) { result.status = DeckPolarisRequestStatus::Timeout; return result; }
+
+    const QSslCertificate& pinned = identity.pinnedServerCertificate;
+    QSslConfiguration ssl = QSslConfiguration::defaultConfiguration();
+    ssl.setLocalCertificate(identity.clientCertificate);
+    ssl.setPrivateKey(identity.clientKey);
+    ssl.setCaCertificates({pinned});
+    ssl.setPeerVerifyMode(QSslSocket::VerifyPeer);
+    ssl.setAllowedNextProtocols({QByteArrayLiteral("http/1.1")});
+    QSslSocket socket;
+    socket.setSslConfiguration(ssl);
+    socket.setReadBufferSize(64 * 1024);
+
+    SessionReplyReader reply(maxBodyBytes);
+    QEventLoop loop;
+    QTimer deadline;
+    QTimer cancellation;
+    bool finished = false, stopping = false, sent = false, foreign = false, timedOut = false, cancelledNow = false;
+    QAbstractSocket::SocketError socketError = QAbstractSocket::UnknownSocketError;
+    const auto finish = [&] {
+        if (finished) return;
+        finished = true;
+        loop.quit();
+    };
+    // Every abort this function starts is a refusal, never an end of reply.
+    const auto stop = [&] {
+        stopping = true;
+        socket.abort();
+        finish();
+    };
+    const auto drain = [&] {
+        while (socket.bytesAvailable() > 0 && !reply.done() && !reply.failed())
+            reply.feed(socket.read(64 * 1024));
+    };
+    QObject::connect(&socket, &QSslSocket::sslErrors, &socket, [&](const QList<QSslError>& errors) {
+        // Only the expected self-signed/name errors, and only on the exact pinned certificate.
+        QList<QSslError> tolerated;
+        for (const auto& error : errors) {
+            const bool expected = error.error() == QSslError::HostNameMismatch || error.error() == QSslError::SelfSignedCertificate ||
+                error.error() == QSslError::CertificateUntrusted;
+            if (expected && sameCertificate(error.certificate(), pinned)) tolerated.push_back(error);
+            else foreign = true;
+        }
+        if (!foreign && tolerated.size() == errors.size()) socket.ignoreSslErrors(tolerated);
+        else stop();
+    });
+    QObject::connect(&socket, &QSslSocket::encrypted, &socket, [&] {
+        if (!sameCertificate(socket.peerCertificate(), pinned)) { foreign = true; stop(); return; }
+        if (cancelled && cancelled()) { cancelledNow = true; stop(); return; }
+        if (sent) return;
+        sent = true;
+        socket.write(requestBytes);
+    });
+    QObject::connect(&socket, &QSslSocket::readyRead, &socket, [&] {
+        if (stopping) return;
+        // Bytes before the request was written cannot be its reply: refuse before sending.
+        if (!sent) { stop(); return; }
+        drain();
+        if (reply.done() || reply.failed()) stop();
+    });
+    const auto ended = [&] {
+        if (stopping || finished) return;
+        if (sent) {
+            drain();
+            reply.finishAtEof();
+        }
+        finish();
+    };
+    QObject::connect(&socket, &QSslSocket::disconnected, &socket, ended);
+    QObject::connect(&socket, &QSslSocket::errorOccurred, &socket, [&](QAbstractSocket::SocketError error) {
+        if (stopping || finished) return;
+        if (error == QAbstractSocket::RemoteHostClosedError) { ended(); return; }
+        socketError = error;
+        finish();
+    });
+    deadline.setSingleShot(true);
+    QObject::connect(&deadline, &QTimer::timeout, &socket, [&] { timedOut = true; stop(); });
+    if (cancelled) {
+        QObject::connect(&cancellation, &QTimer::timeout, &socket, [&] {
+            if (cancelled()) { cancelledNow = true; stop(); }
+        });
+        cancellation.start(20);
+    }
+    deadline.start(timeout);
+    socket.connectToHostEncrypted(QString::fromStdString(endpoint.address), static_cast<quint16>(endpoint.httpsPort));
+    if (!finished) loop.exec();
+    const auto peer = socket.peerCertificate();
+    QObject::disconnect(&socket, nullptr, nullptr, nullptr);
+    QObject::disconnect(&deadline, nullptr, nullptr, nullptr);
+    QObject::disconnect(&cancellation, nullptr, nullptr, nullptr);
+    deadline.stop();
+    cancellation.stop();
+    socket.abort();
+
+    if (foreign || (!peer.isNull() && !sameCertificate(peer, pinned))) {
+        result.status = DeckPolarisRequestStatus::CertMismatch;
+        result.detail = "the host presented a certificate that is not the one pinned at pairing";
+        return result;
+    }
+    if (timedOut || cancelledNow) {
+        result.status = DeckPolarisRequestStatus::Timeout;
+        result.detail = "no answer within the timeout";
+        return result;
+    }
+    if (!sent) {
+        result.status = DeckPolarisRequestStatus::Unreachable;
+        result.detail = socketError == QAbstractSocket::ConnectionRefusedError ? "connection refused"
+            : socketError == QAbstractSocket::HostNotFoundError ? "host name did not resolve"
+            : socketError == QAbstractSocket::SslHandshakeFailedError ? "TLS handshake failed" : "network error";
+        return result;
+    }
+    if (!reply.done()) {
+        // Delivered, and no complete receipt: the host's outcome is unknown.
+        result.status = DeckPolarisRequestStatus::Unreachable;
+        result.detail = reply.failed() ? "no complete reply: " + reply.failure() : "connection closed by the host";
+        return result;
+    }
+    if (reply.closeDelimited() && reply.status() >= 200 && reply.status() < 300) {
+        // A TCP close without TLS close_notify ends the body exactly as a clean
+        // close does through QSslSocket, so a close-delimited success can never
+        // prove it is complete. A receipt needs Content-Length or chunking.
+        result.status = DeckPolarisRequestStatus::Unreachable;
+        result.detail = "no complete reply: a success without a length cannot prove it is complete";
+        return result;
+    }
+    result.httpStatus = reply.status();
+    if (result.httpStatus == 401 || result.httpStatus == 403) {
+        result.status = DeckPolarisRequestStatus::Unauthorized;
+        result.detail = "the host does not accept this client certificate";
+        return result;
+    }
+    if (result.httpStatus < 200 || result.httpStatus >= 300) {
+        result.status = DeckPolarisRequestStatus::HttpError;
+        result.detail = "HTTP " + std::to_string(result.httpStatus);
+        return result;
+    }
+    result.status = DeckPolarisRequestStatus::Ok;
+    result.value = std::string(reply.body().constData(), static_cast<std::size_t>(reply.body().size()));
+    return result;
+}
+} // namespace
+
 DeckPolarisResult<std::string> DeckPolarisClient::get(const std::string& path, std::size_t maxBodyBytes,
-    std::optional<std::chrono::milliseconds> timeout) const {
-    return request(path, maxBodyBytes, false, {}, "{}", false, timeout);
+    std::optional<std::chrono::milliseconds> timeout, const std::function<bool()>& cancelled) const {
+    return request(path, maxBodyBytes, false, cancelled, "{}", false, timeout);
 }
 
 DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& path,
@@ -632,6 +1039,11 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
     }
 
     const auto target = splitRequestTarget(path);
+    if (!post && isSessionChangingGet(target.path)) {
+        return sendSessionGetOnce(endpoint_, target,
+            {session_->clientCertificate, session_->clientKey, session_->pinnedServerCertificate},
+            maxBodyBytes, requestTimeout, cancelled);
+    }
     QUrl url;
     url.setScheme(QStringLiteral("https"));
     url.setHost(QString::fromStdString(endpoint_.address));
@@ -745,6 +1157,12 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
         return result;
     }
     if (peer.isNull()) {
+        result.status = DeckPolarisRequestStatus::Unreachable;
+        result.detail = std::string(describeNetworkError(networkError));
+        return result;
+    }
+    if (result.httpStatus == 0 || (result.httpStatus >= 200 && result.httpStatus < 300
+                                  && networkError != QNetworkReply::NoError)) {
         result.status = DeckPolarisRequestStatus::Unreachable;
         result.detail = std::string(describeNetworkError(networkError));
         return result;

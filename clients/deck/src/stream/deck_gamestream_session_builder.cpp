@@ -60,15 +60,16 @@ std::optional<DeckServerInfo> parseServerInfo(std::string_view xml) {
     return info;
 }
 
-DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client) {
-    return [&client](const std::string& target) -> DeckHttpResponse {
-        // Polaris may finish draining Steam and its private compositor before
-        // sending /cancel's reply. Give that one request time to complete;
-        // ordinary reads/launches retain their deadline, and a lost reply does
-        // not authorize another cancellation.
-        const auto timeout = polaris::splitRequestTarget(target).path == "/cancel"
-            ? std::optional<std::chrono::milliseconds>{std::chrono::seconds(30)} : std::nullopt;
-        const auto reply = client.get(target, 4 * 1024 * 1024, timeout);
+DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client,
+    std::function<bool()> cancelled) {
+    return [&client, cancelled = std::move(cancelled)](const std::string& target) -> DeckHttpResponse {
+        // Match Moonlight Qt's bounded launch window for host session switches.
+        // Teardown keeps its existing budget; reads and resume retain the
+        // client's ordinary deadline. A lost reply never authorizes /cancel.
+        const auto path = polaris::splitRequestTarget(target).path;
+        const auto timeout = path == "/launch" ? std::optional<std::chrono::milliseconds>{std::chrono::seconds(120)}
+            : path == "/cancel" ? std::optional<std::chrono::milliseconds>{std::chrono::seconds(30)} : std::nullopt;
+        const auto reply = client.get(target, 4 * 1024 * 1024, timeout, cancelled);
         DeckHttpResponse response;
         response.retryableTransportFailure = reply.status == polaris::DeckPolarisRequestStatus::Unreachable ||
             reply.status == polaris::DeckPolarisRequestStatus::Timeout;
@@ -172,6 +173,7 @@ DeckSessionBuildResult buildStreamConnection(
     const DeckHttpResponse launchReply = fetch(buildLaunchTarget(selected, keys));
     if (!launchReply.transportOk) {
         result.retryableTransportFailure = launchReply.retryableTransportFailure;
+        result.launchOutcomeUnknown = !selected.resume && launchReply.retryableTransportFailure;
         result.error = "could not reach the host to start the session";
         return result;
     }

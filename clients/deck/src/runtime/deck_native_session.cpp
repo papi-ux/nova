@@ -887,14 +887,21 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             return;
         }
         shared->publish("launching", resume ? "Resuming your game…" : "Starting or resuming the selected game…");
-        built = buildStreamConnection(target->fetch, target->serverAddress,
+        const auto launchCancelled = [shared, &displayRateLimit, fps = target->request.fps] {
+            return shared->cancelled.load() || fps > displayRateLimit();
+        };
+        const DeckHttpFetcher launchFetch = target->fetchWithCancellation
+            ? DeckHttpFetcher{[&target, launchCancelled](const std::string& path) {
+                return target->fetchWithCancellation(path, launchCancelled);
+            }} : target->fetch;
+        built = buildStreamConnection(launchFetch, target->serverAddress,
             launchRequestForStream(target->request, target->appId, target->appUuid),
-            generateStreamKeys(), [shared, &displayRateLimit, fps = target->request.fps]() {
-                return shared->cancelled.load() || fps > displayRateLimit();
-            }, resume ? DeckSessionStartMode::ResumeOnly : polaris::isSpaceGame(gameId.toStdString())
+            generateStreamKeys(), launchCancelled,
+            resume ? DeckSessionStartMode::ResumeOnly : polaris::isSpaceGame(gameId.toStdString())
                 ? DeckSessionStartMode::Launch : DeckSessionStartMode::PlayOrResume,
             resume ? resume->sessionToken : std::string{});
         if (!built.ok || shared->cancelled) {
+            if (built.launchOutcomeUnknown) hostCancelAccepted = false;
             cleanup();
             if (resume && built.retryableTransportFailure && !shared->cancelled) {
                 shared->resumeTicket = resume;
