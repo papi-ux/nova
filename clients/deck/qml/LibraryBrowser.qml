@@ -240,7 +240,13 @@ FocusScope {
             // or editing that began while the request was already in flight.
             if (destinations.opened || detailOpen || options.opened || systemMenu.opened || settingsHub.opened || sourcePicker.opened || morePicker.opened) return
             if (saved.automatic) {
-                for (const control of [search, hostButton, destinationButton, optionsButton, systemButton, settingsButton, stageReview].concat(filterButtons))
+                const controls = [search, hostButton, destinationButton, optionsButton, systemButton, settingsButton, stageReview].concat(filterButtons)
+                // Input can arrive after apply() queues this restoration. Keep
+                // the player's current chrome focus before restoring old focus.
+                const current = Window.window.activeFocusItem
+                for (const control of controls)
+                    if (control.visible && control.enabled && control === current) return
+                for (const control of controls)
                     if (control.visible && control.enabled && control.objectName === saved.focus) { control.forceActiveFocus(); return }
             }
             focusGame()
