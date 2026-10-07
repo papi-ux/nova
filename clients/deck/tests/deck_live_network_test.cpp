@@ -322,7 +322,7 @@ void testLaunchBudgetAndCancellation() {
     identity.hosts.push_back(host);
     backend::DeckLiveHostLibrarySnapshot snapshot;
     snapshot.selectedHostId = host.stableId();
-    polaris::DeckPolarisGame game;
+    PolarisGameFixture game;
     game.id = "moonlight-app-17"; game.appId = 17;
     snapshot.library.games.push_back(game);
     const auto target = runtime::nativeTargetResolver(identity, snapshot)(QString::fromStdString(host.stableId()), "moonlight-app-17");
