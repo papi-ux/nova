@@ -442,6 +442,9 @@ Full Qt shell smoke, when Qt deps are present:
     cmake --build build/deck-smoke-qt
     ctest --test-dir build/deck-smoke-qt --output-on-failure
 
+For library route timing, completed-refresh checks and observed shutdown, see
+[Library route timing and observed shutdown](docs/ui-smoke-timing.md).
+
 An ordinary `nova-deck` launch, including bare `flatpak run com.papi_ux.Nova`, opens Nova-owned pairing on first run and the saved library afterwards. `nova-deck --smoke-exit` checks this startup path offscreen. Sample libraries require a build with `BUILD_TESTING=ON` and an explicit `--fixture` or `NOVA_DECK_FRONTEND_SMOKE=1` route; production bundles do not install the sample fixtures.
 
 Steam Deck Game Mode rootless Podman validation route, for preview/QSG render cards that must run against the actual Deck gamescope socket:
