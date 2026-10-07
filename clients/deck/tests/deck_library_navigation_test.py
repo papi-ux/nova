@@ -5,6 +5,7 @@ from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import secrets
 from pathlib import Path
 import ssl
 import socket
@@ -16,6 +17,170 @@ from urllib.parse import urlsplit, parse_qs
 from xml.sax.saxutils import escape
 from deck_artwork_fixture import artwork_png
 from deck_ui_input import wait_for_ui_observations
+
+# One compact JSON record per app phase, on stdout, so CTest keeps it in LastTest.log and
+# JUnit output even when the test passes. Measurement only: nothing here waits, decides or
+# changes the run. Times are time.monotonic() seconds relative to the phase's own spawn.
+ROUTE_TIMING_PREFIX = "NOVA_DECK_ROUTE_TIMING_V1 "
+ROUTE_MODES = ("automatic", "experience", "filters", "stage", "play_setup", "artwork", "polish", "spaces",
+               "setup_parity", "host_scope", "profile_sync", "keep_in_step", "background_sync", "readability",
+               "launch_modes", "stream_plan", "audio_settings", "appearance", "host_power", "paging",
+               "wake_pc", "steam_app", "handoff_limits")
+
+
+class RouteTimings:
+    def __init__(self, route):
+        self.route = route
+        self.phase = None
+
+    def begin(self, name):
+        # Taken immediately before the app process is created.
+        self.phase = {"name": name, "spawn": time.monotonic(), "ready": None, "navigated": None,
+                      "soaked": None, "quitRequested": None, "watchdogMs": None}
+
+    def started(self, process):
+        arguments = list(getattr(process, "args", []) or [])
+        if "--frontend-smoke-exit-after-ms" in arguments:
+            index = arguments.index("--frontend-smoke-exit-after-ms")
+            if index + 1 < len(arguments):
+                self.phase["watchdogMs"] = int(arguments[index + 1])
+
+    def mark(self, point):
+        # "ready": the first state wait after spawn passed. "navigated": every navigation step
+        # and assertion of the phase passed. "soaked": the explicit post-navigation refresh
+        # observation passed. "quitRequested": the quit request was written. Navigated-to-exit
+        # therefore includes any soak and quit, and is not pure idle time.
+        if self.phase is not None and self.phase[point] is None:
+            self.phase[point] = time.monotonic()
+
+    def exited(self, returncode, outcome="exited"):
+        # Called only after the exit was actually observed (app.wait / subprocess.run returned).
+        self._emit(outcome, returncode, time.monotonic(), None)
+
+    def abandon(self, process):
+        # The phase did not reach its observed exit (an assertion or timeout raised). Record
+        # what is known, never a completion: an exit noticed only now has no exit time.
+        if self.phase is None:
+            return
+        try:
+            code = process.poll() if process is not None else None
+        except Exception:
+            code = None
+        if process is None:
+            outcome = "failed"
+        elif code is None:
+            outcome = "running-at-cleanup"
+        else:
+            outcome = "exited-unobserved"
+        self._emit(outcome, code, None, time.monotonic())
+
+    def _emit(self, outcome, returncode, exit_time, noticed_time):
+        phase, self.phase = self.phase, None
+        if phase is None:
+            return
+        spawn = phase["spawn"]
+
+        def since(moment):
+            return None if moment is None else round(moment - spawn, 3)
+
+        record = {
+            "schema": 1, "route": self.route, "phase": phase["name"], "outcome": outcome,
+            "returncode": returncode, "watchdogMs": phase["watchdogMs"],
+            "spawnToReadyS": since(phase["ready"]), "spawnToNavigatedS": since(phase["navigated"]),
+            "spawnToExitS": since(exit_time),
+            "navigatedToExitS": None if exit_time is None or phase["navigated"] is None else round(exit_time - phase["navigated"], 3),
+            "spawnToCleanupS": since(noticed_time),
+            "spawnToSoakedS": since(phase["soaked"]), "spawnToQuitRequestedS": since(phase["quitRequested"]),
+            "quitRequestToExitS": None if exit_time is None or phase["quitRequested"] is None else round(exit_time - phase["quitRequested"], 3),
+        }
+        print(ROUTE_TIMING_PREFIX + json.dumps(record, separators=(",", ":"), sort_keys=True), flush=True)
+
+
+# Nova #276: the eight audited single-flag routes end on an observed, requested clean exit
+# instead of their long fixed idle tail. Every other route keeps its watchdog-timed exit.
+OBSERVED_EXIT_ROUTES = ("filters", "readability", "spaces", "setup_parity", "host_scope", "profile_sync",
+                        "keep_in_step", "polish")
+SMOKE_QUIT_ACCEPTED = "NOVA_DECK_SMOKE_QUIT_ACCEPTED "
+APP_LOG_ERRORS = ("ReferenceError", "TypeError", "failed to load", "is not a type", "Cannot assign")
+
+
+def smoke_quit_arguments(path, token):
+    return ["--frontend-smoke-quit-file", str(path), "--frontend-smoke-quit-token", token]
+
+
+def request_smoke_quit(path, pid, token):
+    # Atomic: the app reads the request on its 50 ms observation tick and must never see a
+    # partial file. It quits only for this exact process and token.
+    staging = path.with_name(path.name + ".staging")
+    staging.write_text(json.dumps({"pid": pid, "token": token}))
+    os.replace(staging, path)
+
+
+def quit_acknowledged(log_text, token):
+    return any(line.strip() == SMOKE_QUIT_ACCEPTED + token for line in log_text.splitlines())
+
+
+def expected_destination(snapshot):
+    # The library's own destination observation. A host without Spaces reports "desktop";
+    # an empty id is accepted as desktop only while the destination is not yet known.
+    destination = snapshot.get("destination") or {}
+    selected = destination.get("selectedId") or ""
+    if selected:
+        return selected
+    assert not destination.get("known"), f"a known destination has no selected id: {destination}"
+    return "desktop"
+
+
+def resume_browsing_for_refresh(wait, keys, state):
+    # Route assertions can intentionally end on a filter/destination control or
+    # inside game details. Automatic refresh pauses there, even with no popup.
+    # Return through real keyboard input after those assertions, preserving the
+    # selected PC/game/destination and every library constraint.
+    checkpoint = state()
+    if checkpoint.get("detailOpen"):
+        keys("Escape")
+        wait(lambda s: not s.get("detailOpen"))
+    for _ in range(3):
+        current = state()
+        if current.get("focus") == current.get("game"):
+            break
+        keys("Down")
+    browsing = wait(lambda s: s.get("focus") == s.get("game") and not s.get("detailOpen")
+                    and not s.get("busy") and "smokeRefresh" in s)
+    for key in ("host", "game", "query", "filter", "filterValue", "sort", "layout"):
+        assert browsing.get(key) == checkpoint.get(key), f"returning to browsing changed {key}: {checkpoint}, {browsing}"
+    assert expected_destination(browsing) == expected_destination(checkpoint), "returning to browsing changed destination"
+    return browsing
+
+
+def observe_automatic_refreshes(wait, baseline, after_each, cycles=2, timeout=6):
+    """Wait for `cycles` automatic refreshes that Qt completed after `baseline`, one at a time.
+
+    `baseline` must be a post-navigation observation taken while no refresh was in flight, so
+    every counted completion belongs to a request that started after navigation. Each cycle's
+    completion and success are observed separately: the controller consumed the result, it
+    succeeded, and the selected host, destination, game and focus did not move.
+    """
+    assert not baseline.get("busy") and "smokeRefresh" in baseline, f"no idle post-navigation baseline: {baseline}"
+    refresh = baseline["smokeRefresh"]
+    completed, successful = refresh["completed"], refresh["successful"]
+    host, focus, game = baseline.get("host"), baseline.get("focus"), baseline.get("game")
+    destination = expected_destination(baseline)
+    observed = []
+    for cycle in range(1, cycles + 1):
+        current = wait(lambda s: s.get("smokeRefresh", {}).get("completed", -1) > completed, timeout=timeout)
+        refresh = current["smokeRefresh"]
+        assert refresh["completed"] == completed + 1, f"refresh {cycle} was not observed on its own: {refresh}"
+        assert refresh["successful"] == successful + 1, f"automatic refresh {cycle} did not succeed: {refresh}"
+        assert refresh["host"] == host and refresh["destination"] == destination, \
+            f"automatic refresh {cycle} changed host/destination: {refresh}, expected {host}/{destination}"
+        assert current.get("host") == host and current.get("focus") == focus and current.get("game") == game, \
+            f"automatic refresh {cycle} moved the selection: {current}"
+        assert expected_destination(current) == destination, f"automatic refresh {cycle} changed destination: {current}"
+        after_each()
+        completed, successful = completed + 1, successful + 1
+        observed.append(dict(refresh))
+    return observed
 
 
 def command(*args):
@@ -1774,6 +1939,9 @@ def main():
     parser.add_argument("--steam-app", action="store_true")
     parser.add_argument("--handoff-limits", action="store_true")
     args = parser.parse_args()
+    # Label the route by the flags actually given, before the aliases below widen them.
+    timing = RouteTimings("+".join(mode for mode in ROUTE_MODES if getattr(args, mode)) or "default")
+    observed_exit = timing.route in OBSERVED_EXIT_ROUTES
     args.host_power = args.host_power or args.wake_pc or args.steam_app or args.handoff_limits
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
     args.spaces = args.spaces or args.setup_parity or args.host_scope
@@ -2107,11 +2275,31 @@ def main():
         # The filter route sends hundreds of keys, each acknowledged by Qt.
         # Its old 42-second lifetime could end before the final host switch;
         # retain the independent 70-second CTest deadline and per-state waits.
+        def after_exit(output_text=None):
+            # After every observed app exit: the whole app log (or a captured run's output), the
+            # pairing identity and any fixture violation that arrived late must all be clean.
+            text = log.read_text() if output_text is None else output_text
+            assert not any(error in text for error in APP_LOG_ERRORS), text
+            assert identity.read_bytes() == before, "the app changed credentials by the time it exited"
+            assert not violations, violations
+
+        def during_soak():
+            assert identity.read_bytes() == before, "an automatic refresh changed credentials"
+            assert not violations, violations
+
+        def quit_phase(name):
+            # A fresh file and token per process; only the eight observed-exit routes use them.
+            path, token = root/f"smoke-quit-{name}.json", secrets.token_hex(16)
+            return path, token, smoke_quit_arguments(path, token)
+
+        main_quit_path, main_quit_token, main_quit_args = quit_phase("main") if observed_exit else (None, None, [])
+        timing.begin("main")
         app = subprocess.Popen([str(args.binary.resolve()), "--live" if args.handoff_limits else "--standalone", "--frontend-smoke-codecs", "--frontend-smoke-library-state",
                                 str(observation), "--frontend-smoke-capture", str(capture),
-                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args],
+                                "--frontend-smoke-exit-after-ms", "22000" if args.wake_pc or args.steam_app or args.handoff_limits else "90000" if args.readability else "30000" if args.background_sync else "55000" if args.keep_in_step or args.filters else "95000" if args.spaces else "65000" if args.polish else "50000" if args.host_power else "40000" if args.appearance else "30000" if args.audio_settings else "42000" if args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "24000" if args.automatic else "14000", *auto_args, *main_quit_args],
 
                                env=env, stdout=output, stderr=output)
+        timing.started(app)
 
         def state():
             return json.loads(observation.read_text()) if observation.exists() else {}
@@ -2157,6 +2345,7 @@ def main():
         try:
             prefix = "game-" if args.host_power or args.filters or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else "gamestream-app-"
             wait(lambda s: s.get("host") == "a" and s.get("focus") == ("space.room-a.big-picture-v1" if args.spaces else prefix+"7"))
+            timing.mark("ready")
             window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
             command("xdotool", "windowfocus", "--sync", window)
             wait(lambda s: s.get("windowActive"))
@@ -2266,17 +2455,33 @@ def main():
                      and not s.get("busy") and s.get("launchEnabled"))
             assert identity.read_bytes() == before, "library interaction changed credentials"
             assert not violations, violations
+            timing.mark("navigated")
+            if observed_exit:
+                # Replace the incidental idle refreshes with two explicit, completed ones, then ask
+                # the app to quit. The watchdog and app.wait deadline below are unchanged.
+                observe_automatic_refreshes(wait, resume_browsing_for_refresh(wait, keys, state), during_soak)
+                timing.mark("soaked")
+                request_smoke_quit(main_quit_path, app.pid, main_quit_token)
+                timing.mark("quitRequested")
             app.wait(timeout=100 if args.spaces or args.readability else 70 if args.polish else 55 if args.host_power else 45 if args.appearance or args.audio_settings or args.filters or args.stage or args.play_setup or (args.artwork or args.polish or args.spaces) or args.launch_modes or args.stream_plan else 16)
+            timing.exited(app.returncode)
+            if observed_exit:
+                assert quit_acknowledged(log.read_text(), main_quit_token), "Nova exited without acknowledging the quit request (watchdog exit)"
             assert app.returncode == 0, log.read_text()
             assert not any(error in log.read_text() for error in (
                 "ReferenceError", "TypeError", "failed to load", "is not a type", "Cannot assign",
             )), log.read_text()
+            after_exit()
             if args.keep_in_step:
                 observation.unlink()
+                restart_quit_path, restart_quit_token, restart_quit_args = quit_phase("restart-keep-in-step") if observed_exit else (None, None, [])
+                timing.begin("restart-keep-in-step")
                 app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs",
-                    "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "17000"],
+                    "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "17000", *restart_quit_args],
                     env=env, stdout=output, stderr=output)
+                timing.started(app)
                 wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == "space.room-a.big-picture-v1")
+                timing.mark("ready")
                 window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Right", "Return", "Return")
@@ -2305,14 +2510,27 @@ def main():
                 time.sleep(3.2)
                 assert len(fixtures["a"]["settings_posts"]) == 4 and identity.read_bytes() == before and not violations
                 assert state()["fontScale"] == 1.3 and state()["playSetup"]["configuration"]["bitrateKbps"] == 40000
+                timing.mark("navigated")
+                if observed_exit:
+                    # No automatic refresh in this phase: its assertions above are complete.
+                    request_smoke_quit(restart_quit_path, app.pid, restart_quit_token)
+                    timing.mark("quitRequested")
                 app.wait(timeout=22)
+                timing.exited(app.returncode)
+                if observed_exit:
+                    assert quit_acknowledged(log.read_text(), restart_quit_token), "restart exited without acknowledging the quit request"
                 assert app.returncode == 0, log.read_text()
+                after_exit()
             if args.profile_sync:
                 observation.unlink()
+                restart_quit_path, restart_quit_token, restart_quit_args = quit_phase("restart-profile-sync") if observed_exit else (None, None, [])
+                timing.begin("restart-profile-sync")
                 app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs",
-                    "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "12000"],
+                    "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "12000", *restart_quit_args],
                     env=env, stdout=output, stderr=output)
+                timing.started(app)
                 wait(lambda s: s.get("host") == "a" and not s.get("busy") and s.get("focus") == "space.room-a.big-picture-v1")
+                timing.mark("ready")
                 window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
@@ -2329,14 +2547,27 @@ def main():
                 assert state()["fontScale"] == 1.3, "partial appearance record was overwritten during startup"
                 assert len(fixtures["a"]["settings_posts"]) == 3 and identity.read_bytes() == before and not violations
                 save_capture("profile-restarted-1280.png")
+                timing.mark("navigated")
+                if observed_exit:
+                    # No automatic refresh in this phase: its assertions above are complete.
+                    request_smoke_quit(restart_quit_path, app.pid, restart_quit_token)
+                    timing.mark("quitRequested")
                 app.wait(timeout=17)
+                timing.exited(app.returncode)
+                if observed_exit:
+                    assert quit_acknowledged(log.read_text(), restart_quit_token), "restart exited without acknowledging the quit request"
                 assert app.returncode == 0, log.read_text()
+                after_exit()
             if args.setup_parity:
                 observation.unlink()
+                restart_quit_path, restart_quit_token, restart_quit_args = quit_phase("restart-setup-parity") if observed_exit else (None, None, [])
+                timing.begin("restart-setup-parity")
                 app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs",
-                    "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "7000"],
+                    "--frontend-smoke-library-state", str(observation), "--frontend-smoke-exit-after-ms", "7000", *restart_quit_args],
                     env=env, stdout=output, stderr=output)
+                timing.started(app)
                 wait(lambda s: s.get("host") == "a" and s.get("focus") == "game-7")
+                timing.mark("ready")
                 window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
@@ -2345,14 +2576,26 @@ def main():
                     "faceButtonLayout": False, "launchMode": False, "videoCodec": False, "profilePreference": False, "encoderBackend": False}, "independent reset or scope lost on restart"
                 assert state()["playSetup"]["destination"]["id"] == "desktop" and identity.read_bytes() == before and not violations
                 save_capture("setup-restarted-1280.png")
+                timing.mark("navigated")
+                if observed_exit:
+                    # No automatic refresh in this phase: its assertions above are complete.
+                    request_smoke_quit(restart_quit_path, app.pid, restart_quit_token)
+                    timing.mark("quitRequested")
                 app.wait(timeout=12)
+                timing.exited(app.returncode)
+                if observed_exit:
+                    assert quit_acknowledged(log.read_text(), restart_quit_token), "restart exited without acknowledging the quit request"
                 assert app.returncode == 0, log.read_text()
+                after_exit()
             if args.play_setup or args.launch_modes or args.stream_plan or args.audio_settings:
                 observation.unlink()
+                timing.begin("restart-play-setup")
                 app = subprocess.Popen([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs",
                     "--frontend-smoke-library-state", str(observation),
                     "--frontend-smoke-exit-after-ms", "6000"], env=env, stdout=output, stderr=output)
+                timing.started(app)
                 wait(lambda s: s.get("host") == "a" and s.get("focus") == ("game-7" if args.launch_modes or args.stream_plan else "gamestream-app-7"))
+                timing.mark("ready")
                 window = command("xdotool", "search", "--onlyvisible", "--pid", str(app.pid), "--name", "^Nova Linux$").splitlines()[-1]
                 command("xdotool", "windowfocus", "--sync", window)
                 keys("Return", "Return")
@@ -2368,14 +2611,21 @@ def main():
                     assert state()["playSetup"]["audio"] == {"channels": 8, "playHostAudio": True, "label": "7.1 surround"}, "audio lost on restart"
                     assert not state()["rumble"]["enabled"], "rumble preference lost on restart or PC switch"
                 assert identity.read_bytes() == before and not violations, "Play Setup restart changed credentials or sent a mutation"
+                timing.mark("navigated")
                 app.wait(timeout=10)
+                timing.exited(app.returncode)
                 assert app.returncode == 0, log.read_text()
+                after_exit()
             if args.experience or args.filters or args.stage or args.appearance:
                 observation.unlink()
+                timing.begin("persistence-run")
                 restarted = subprocess.run([str(args.binary.resolve()), "--standalone", "--frontend-smoke-codecs",
                     "--frontend-smoke-library-state", str(observation),
                     "--frontend-smoke-exit-after-ms", "600"], env=env, capture_output=True, text=True, timeout=15)
+                timing.started(restarted)
+                timing.exited(restarted.returncode, "exited-no-navigation")
                 assert restarted.returncode == 0, restarted.stderr
+                after_exit(restarted.stdout + restarted.stderr)
                 if args.appearance:
                     assert state()["theme"] == "portable_chrome" and state()["fontScale"] == 1.3, "appearance did not survive restart"
                 elif args.stage:
@@ -2386,6 +2636,7 @@ def main():
                     assert state()["layout"] == "compact" and state()["sort"] == "name", "library options did not survive restart"
                 assert identity.read_bytes() == before and not violations, "restart changed pairing or sent a mutation"
         finally:
+            timing.abandon(app if timing.phase is not None and timing.phase["name"] != "persistence-run" else None)
             for fixture in fixtures.values():
                 fixture["release"].set()
             if app.poll() is None:
