@@ -105,6 +105,9 @@ int main(int argc, char** argv) {
     filter->forceActiveFocus();
     complete("backgroundCompletion");
     keyBeforeDeferredRestore(Qt::Key_Down);
+    require(window->activeFocusItem() && (window->activeFocusItem()->objectName() == "game-42"
+                || window->activeFocusItem()->objectName() == "android-library-grid"),
+            "Down did not reach the game or grid before deferred restore");
     QTest::qWait(150);
     require(window->activeFocusItem() && window->activeFocusItem()->objectName() == "game-42",
             "background completion undid the player's newer game focus");
