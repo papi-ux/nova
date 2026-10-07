@@ -147,7 +147,7 @@ def main():
         parser.error('Require a fresh work directory outside the checkout')
     work.mkdir(parents=True)
     receipt = {'gate': 'FAIL', 'profile': 'Release; PyroWave ON; Vulkan ON; BUILD_TESTING ON',
-               'jobs': args.jobs, 'ctest_parallel': 2, 'retries': 0,
+               'jobs': args.jobs, 'ctest_parallel': 2, 'retries': 0, 'stop_on_first_failure': True,
                'physical_streaming_GPU_input_HDR_acceptance': False, 'commands': []}
     before = source_bookend(source)
     (work / 'source-before.json').write_text(json.dumps(before, indent=2) + '\n')
@@ -192,7 +192,7 @@ def main():
         receipt['registered_tests'] = sorted(validate_inventory(inventory))
         run(['cmake', '--build', str(build), '--parallel', str(args.jobs)], 'build', env)
         receipt['release_flags'] = audit_flags(build)
-        run(['ctest', '--test-dir', str(build), '--parallel', '2', '--output-on-failure',
+        run(['ctest', '--test-dir', str(build), '--parallel', '2', '--stop-on-failure', '--output-on-failure',
              '--no-tests=error', '--output-junit', str(work / 'codec-tests.xml')], 'ctest', env)
         receipt['tests'] = validate_results(work / 'codec-tests.xml', inventory)
         if leaves(prefix) != prefix_before:
