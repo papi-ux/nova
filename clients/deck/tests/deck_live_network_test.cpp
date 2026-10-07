@@ -24,13 +24,18 @@
 
 #include <cstdlib>
 #include <chrono>
+#include <iostream>
+#include <source_location>
 #include <string>
 
 namespace {
 
 // Keep setup and verification active in every CMake build type.
-void require(bool condition) {
-    if (!condition) std::abort();
+void require(bool condition, const std::source_location& location = std::source_location::current()) {
+    if (!condition) {
+        std::cerr << location.file_name() << ':' << location.line() << ": requirement failed\n";
+        std::abort();
+    }
 }
 
 QByteArray readFile(const QString& path) {
@@ -314,6 +319,7 @@ void testLaunchBudgetAndCancellation() {
         require(!fetch(path).transportOk && elapsed.elapsed() < 1500);
     }
     identity::DeckMoonlightIdentity identity;
+    identity.loaded = true;
     identity.clientCertificatePem = client.cert.toStdString();
     identity.clientPrivateKeyPemForBackendOnly = client.key.toStdString();
     identity::DeckMoonlightHostRecord host;
