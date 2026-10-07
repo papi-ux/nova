@@ -21,9 +21,18 @@ receipt has already arrived, existing cleanup uses its exact session token
 through an independent fetcher, even after the launch flag is cancelled.
 Failed/cancelled resume preserves the existing game.
 
+Session-changing `/launch`, `/resume` and `/cancel` requests keep their on-wire
+GET verb but use a fresh pinned HTTP/1.1 CustomOperation. Qt classifies ordinary
+GET as idempotent and can resend it after unexpected EOF; its custom operation
+does not take that replay path. A peer close without an HTTP receipt, or a
+truncated successful reply, is a transport failure. Tests require exactly one
+delivered request for each mutation even when the peer drops the reply. The
+upstream behavior is in Qt's [idempotency check](https://github.com/qt/qtbase/blob/v6.10.0/src/network/access/qhttpnetworkrequest.cpp#L398)
+and [unexpected EOF handler](https://github.com/qt/qtbase/blob/v6.10.0/src/network/access/qhttpnetworkconnectionchannel.cpp#L272).
+
 The CTest cases `nova_deck_launch_budget_transport_test` and
 `nova_deck_native_launch_cancel_test` cover delayed pinned HTTPS replies,
 ordinary/resume/lookalike deadlines, cancellation before and after the host
 receives a request, UI progress, receipt races, unknown outcomes, and owned
-cleanup. They use local fake hosts and do not qualify a physical SteamOS
+cleanup, including lost and partial TLS replies without replay. They use local fake hosts and do not qualify a physical SteamOS
 transition or streaming session.

@@ -361,6 +361,23 @@ void testLaunchBudgetAndCancellation() {
         return std::pair{200, QByteArray("<root status_code=\"200\"><cancel>1</cancel></root>")};
     };
     require(stream::requestHostSessionCancel(target->fetch, "owned-session").cancelled && https.requests == before + 2);
+    // The host reads the mutation and then closes without any HTTP receipt.
+    // Unknown delivery must not become a refusal or an automatic GET replay.
+    https.eventStream = [](QSslSocket* socket) { socket->disconnectFromHost(); };
+    for (const auto* path : {"/launch?appid=17", "/resume?appid=17", "/cancel?sessiontoken=owned-session"}) {
+        before = https.requests;
+        const auto lost = target->fetch(path);
+        require(!lost.transportOk && lost.retryableTransportFailure && lost.status == 0);
+        require(https.requests == before + 1);
+    }
+    // A truncated successful reply also cannot prove what happened on the host.
+    https.eventStream = [](QSslSocket* socket) {
+        socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 1000\r\n\r\n<root");
+        socket->disconnectFromHost();
+    };
+    before = https.requests;
+    const auto partial = target->fetch("/launch?appid=17");
+    require(!partial.transportOk && partial.retryableTransportFailure && https.requests == before + 1);
 }
 
 void testStandardHostLibraryAndLaunch() {

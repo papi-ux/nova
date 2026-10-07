@@ -242,10 +242,13 @@ FocusScope {
             if (saved.automatic) {
                 const controls = [search, hostButton, destinationButton, optionsButton, systemButton, settingsButton, stageReview].concat(filterButtons)
                 // Input can arrive after apply() queues this restoration. Keep
-                // the player's current chrome focus before restoring old focus.
+                // any live control, including a game, Clear or a newer popup.
                 const current = Window.window.activeFocusItem
-                for (const control of controls)
-                    if (control.visible && control.enabled && control === current) return
+                if (current && current !== browser && current !== Window.window.contentItem
+                        && current.visible && current.enabled) {
+                    if (current === grid) focusGame()
+                    return
+                }
                 for (const control of controls)
                     if (control.visible && control.enabled && control.objectName === saved.focus) { control.forceActiveFocus(); return }
             }

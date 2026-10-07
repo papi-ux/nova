@@ -57,10 +57,11 @@ int main(int argc, char** argv) {
                 settingsProvider: settings
                 host: ({id: "host", displayName: "Fixture PC"})
                 refreshState: ({busy: false, automatic: true, failed: false, destinationPlayable: true})
-                games: [{id: "game-42", title: "Control Ultimate Edition"}]
+                games: [{id: "game-42", title: "Control Ultimate Edition", source: "steam"}]
             }
             function backgroundCompletion() { library.prepare(true); library.apply() }
             function manualCompletion() { library.prepare(false); library.apply() }
+            function constrain() { library.setFilter("source", "steam") }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create());
@@ -100,6 +101,24 @@ int main(int argc, char** argv) {
     require(window->activeFocusItem() == options, "Up did not reach Options before deferred restore");
     QTest::qWait(150);
     require(window->activeFocusItem() == options, "background completion undid the player's newer Options focus");
+
+    filter->forceActiveFocus();
+    complete("backgroundCompletion");
+    keyBeforeDeferredRestore(Qt::Key_Down);
+    QTest::qWait(150);
+    require(window->activeFocusItem() && window->activeFocusItem()->objectName() == "game-42",
+            "background completion undid the player's newer game focus");
+
+    complete("constrain");
+    QTest::qWait(150);
+    auto* more = item("library-filter-more");
+    auto* clear = item("library-clear-filters");
+    more->forceActiveFocus();
+    complete("backgroundCompletion");
+    keyBeforeDeferredRestore(Qt::Key_Right);
+    require(window->activeFocusItem() == clear, "Right did not reach Clear before deferred restore");
+    QTest::qWait(150);
+    require(window->activeFocusItem() == clear, "background completion undid the player's newer Clear focus");
 
     filter->forceActiveFocus();
     complete("backgroundCompletion");

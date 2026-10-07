@@ -664,6 +664,15 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
     const auto uploadSize = static_cast<qint64>(postBody.size());
     OneShotPostBody upload(std::move(postBody));
     QNetworkAccessManager singleRequestManager;
+    const bool oneShotGet = !post && (target.path == "/launch" || target.path == "/resume" || target.path == "/cancel");
+    if (oneShotGet) {
+        // These GET endpoints change session state. Qt treats a CustomOperation
+        // as non-idempotent even when its on-wire verb is GET, preventing the
+        // HTTP/1.1 unexpected-EOF replay of an already delivered mutation.
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+        request.setAttribute(QNetworkRequest::AuthenticationReuseAttribute, QNetworkRequest::Manual);
+        request.setRawHeader("Connection", "close");
+    }
     if (post) {
         request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
         request.setAttribute(QNetworkRequest::DoNotBufferUploadDataAttribute, true);
@@ -674,7 +683,8 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
     }
     if (cancelled && cancelled()) { result.status = DeckPolarisRequestStatus::Timeout; return result; }
     QNetworkReply* reply = post ? (remove ? singleRequestManager.sendCustomRequest(request, "DELETE", &upload)
-        : singleRequestManager.post(request, &upload)) : session_->manager.get(request);
+        : singleRequestManager.post(request, &upload)) : oneShotGet
+        ? singleRequestManager.sendCustomRequest(request, "GET") : session_->manager.get(request);
     reply->setReadBufferSize(static_cast<qint64>(maxBodyBytes + 1));
     QByteArray body;
     bool tooLarge = false;
@@ -745,6 +755,12 @@ DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& pat
         return result;
     }
     if (peer.isNull()) {
+        result.status = DeckPolarisRequestStatus::Unreachable;
+        result.detail = std::string(describeNetworkError(networkError));
+        return result;
+    }
+    if (result.httpStatus == 0 || (result.httpStatus >= 200 && result.httpStatus < 300
+                                  && networkError != QNetworkReply::NoError)) {
         result.status = DeckPolarisRequestStatus::Unreachable;
         result.detail = std::string(describeNetworkError(networkError));
         return result;
