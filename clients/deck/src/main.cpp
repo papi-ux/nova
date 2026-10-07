@@ -1942,6 +1942,29 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     const QString frontendSmokeCapturePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-capture"));
     const QString graphicsStatePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-graphics-state"));
     const QString librarySmokeStatePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-library-state"));
+    const QString librarySmokeQuitPath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-quit-file"));
+    const QString librarySmokeQuitToken = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-quit-token"));
+    const bool controlledLibrarySmoke = frontendSmokeExitAfterMs > 0 && !librarySmokeStatePath.isEmpty()
+        && !librarySmokeQuitPath.isEmpty() && !librarySmokeQuitToken.isEmpty();
+    // Test-only observation: a request reaching a fixture is not proof that Qt
+    // consumed its reply and published the refreshed library. Count completion
+    // at the controller's existing automatic-result boundary instead.
+    auto librarySmokeRefresh = std::make_shared<QVariantMap>(QVariantMap{
+        {"completed", 0}, {"successful", 0}, {"host", QString{}}, {"destination", QString{}},
+    });
+    if (controlledLibrarySmoke) {
+        QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::stateChanged,
+            &app, [&libraryRefresh, librarySmokeRefresh] {
+                const auto state = libraryRefresh.state();
+                if (libraryRefresh.busy() || !state.value("automatic").toBool()) return;
+                (*librarySmokeRefresh)["completed"] = librarySmokeRefresh->value("completed").toInt() + 1;
+                if (!state.value("failed").toBool()) {
+                    (*librarySmokeRefresh)["successful"] = librarySmokeRefresh->value("successful").toInt() + 1;
+                }
+                (*librarySmokeRefresh)["host"] = toQString(libraryRefresh.snapshot().selectedHostId);
+                (*librarySmokeRefresh)["destination"] = state.value("destinationId");
+            });
+    }
     const QString backendDtoInteractionSmokePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-backend-dto-interactions"));
     const QString backendReadOnlyStateMatrixSmokePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-readonly-state-matrix"));
     const QString expandedDiagnosticsFrameSmokePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-expanded-diagnostics-frame"));
@@ -1958,7 +1981,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         &engine,
         &QQmlApplicationEngine::objectCreated,
         &app,
-        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput, &windowController](QObject *object) {
+        [smokeExit, frontendSmokeExitAfterMs, frontendSmokeCapturePath, graphicsStatePath, librarySmokeStatePath, controlledLibrarySmoke, librarySmokeQuitPath, librarySmokeQuitToken, librarySmokeRefresh, backendDtoInteractionSmokePath, backendReadOnlyStateMatrixSmokePath, expandedDiagnosticsFrameSmokePath, expandedDiagnosticsCapturePath, &app, &productPreviewPipeline, &nativeSession, &displayCapabilities, &desktopInput, &windowController](QObject *object) {
             if (object != nullptr) {
                 displayCapabilities.watchWindow(qobject_cast<QWindow*>(object));
                 desktopInput.watchWindow(qobject_cast<QWindow*>(object), object);
@@ -2022,13 +2045,30 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                 // Optional local UI observation for actual-window regressions.
                 // Only the public QML selection/focus state enters this file.
                 auto* timer = new QTimer(object);
-                QObject::connect(timer, &QTimer::timeout, object, [object, librarySmokeStatePath] {
+                QObject::connect(timer, &QTimer::timeout, object, [object, librarySmokeStatePath,
+                    controlledLibrarySmoke, librarySmokeQuitPath, librarySmokeQuitToken, librarySmokeRefresh] {
                     QVariant state;
                     if (!QMetaObject::invokeMethod(object, "libraryInteractionState", Q_RETURN_ARG(QVariant, state))) return;
+                    auto observed = state.toMap();
+                    if (controlledLibrarySmoke) observed.insert("smokeRefresh", *librarySmokeRefresh);
                     QSaveFile file(librarySmokeStatePath);
                     if (file.open(QIODevice::WriteOnly)) {
-                        file.write(QJsonDocument::fromVariant(state.toMap()).toJson(QJsonDocument::Compact));
+                        file.write(QJsonDocument::fromVariant(observed).toJson(QJsonDocument::Compact));
                         file.commit();
+                    }
+                    if (controlledLibrarySmoke) {
+                        QFile request(librarySmokeQuitPath);
+                        if (!request.open(QIODevice::ReadOnly)) return;
+                        // Ignore stale, partial or oversized requests. Each test
+                        // process must prove receipt of its own PID/token pair.
+                        if (request.size() > 1024) return;
+                        const auto document = QJsonDocument::fromJson(request.readAll());
+                        if (!document.isObject()) return;
+                        const auto message = document.object();
+                        if (message.value("pid").toDouble(-1) != QCoreApplication::applicationPid()
+                            || message.value("token").toString() != librarySmokeQuitToken) return;
+                        std::cout << "NOVA_DECK_SMOKE_QUIT_ACCEPTED " << librarySmokeQuitToken.toStdString() << std::endl;
+                        QCoreApplication::quit();
                     }
                 });
                 timer->start(50);
