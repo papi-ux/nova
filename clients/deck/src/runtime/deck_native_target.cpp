@@ -58,14 +58,19 @@ DeckNativeTargetResolver nativeTargetResolver(
         if (!game->id.starts_with("moonlight-app-") && !standardHost) target.appUuid = game->id;
         target.serverAddress = host->preferredAddress();
         const auto clientId = identity->clientCertificateFingerprintSha256();
-        target.fetch = [client, standardHost, clientId, destination](const std::string& path) {
+        target.fetchWithCancellation = [client, standardHost, clientId, destination](const std::string& path,
+            const std::function<bool()>& cancelled) {
+            if (cancelled && cancelled()) return stream::DeckHttpResponse{};
             // Recheck immediately before launch/resume, including default mode.
             // A read-only library snapshot never authorizes a different place.
             if (destination && (path.starts_with("/launch?") || path.starts_with("/resume?"))) {
-                const auto fresh = client->fetchSpaces();
+                const auto fresh = client->fetchSpaces(cancelled);
                 if (!fresh.ok() || !fresh.value->permitsPlay(*destination)) return stream::DeckHttpResponse{};
             }
-            return fetcherOverPolarisClient(*client)(standardHost ? standardHostTarget(path, clientId) : path);
+            return fetcherOverPolarisClient(*client, cancelled)(standardHost ? standardHostTarget(path, clientId) : path);
+        };
+        target.fetch = [fetch = target.fetchWithCancellation](const std::string& path) {
+            return fetch(path, {});
         };
         if (!standardHost && !game->id.starts_with("moonlight-app-")) {
             target.automaticReconnect = !spaceGame;

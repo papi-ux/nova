@@ -49,7 +49,8 @@ using DeckHttpFetcher = std::function<DeckHttpResponse(const std::string& target
 /// outlive the fetcher. A host that could not be reached at all (no answer,
 /// timeout, unusable identity) is a transport failure; every other outcome is
 /// an answer and carries the HTTP status, with the body only when it was 2xx.
-DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client);
+DeckHttpFetcher fetcherOverPolarisClient(const polaris::DeckPolarisClient& client,
+    std::function<bool()> cancelled = {});
 
 /// The outcome of assembling a connection descriptor.
 struct DeckSessionBuildResult {
@@ -57,6 +58,9 @@ struct DeckSessionBuildResult {
     /// The host accepted launch/resume. Only a new launch is owed app cleanup
     /// when setup fails; an existing resumed game must be preserved.
     bool hostSessionStarted = false;
+    // No launch receipt arrived after a timeout/disconnect. Local cancellation
+    // cannot prove host rollback or authorize a tokenless /cancel.
+    bool launchOutcomeUnknown = false;
     bool resumed = false; ///< existing games must survive failed/cancelled setup
     bool sessionSelectionRejected = false; ///< error is a fixed player-facing reason
     bool retryableTransportFailure = false;

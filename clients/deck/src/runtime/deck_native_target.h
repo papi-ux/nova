@@ -30,6 +30,9 @@ struct DeckNativeLaunchTarget {
     bool automaticReconnect = false; // Polaris route, still requires fresh ownership/token checks
     std::function<bool()> transientCapabilityFailure;
     DeckHudHostFactory hostTelemetry;
+    // Pending launch reads can be interrupted. Keep fetch independent of the
+    // launch cancellation flag so owned session cleanup can still run.
+    std::function<stream::DeckHttpResponse(const std::string&, const std::function<bool()>&)> fetchWithCancellation;
 };
 using DeckNativeTargetResolver = std::function<std::optional<DeckNativeLaunchTarget>(
     const QString& hostId, const QString& gameId)>;

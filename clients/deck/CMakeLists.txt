@@ -482,6 +482,8 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_native_session_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_native_session_test COMMAND nova_deck_native_session_test)
     set_tests_properties(nova_deck_native_session_test PROPERTIES TIMEOUT 60)
+    add_test(NAME nova_deck_native_launch_cancel_test COMMAND nova_deck_native_session_test --launch-cancel)
+    set_tests_properties(nova_deck_native_launch_cancel_test PROPERTIES TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     if(NOVA_DECK_BUILD_PYROWAVE)
         foreach(case IN ITEMS refusal limits stale cancelled)
             add_test(NAME nova_deck_native_pyrowave_review_${case}_test
@@ -640,6 +642,8 @@ if(BUILD_TESTING)
         NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/test/resources/polaris-doctor-pyrowave-v2.json")
     add_test(NAME nova_deck_live_network_test COMMAND nova_deck_live_network_test)
     set_tests_properties(nova_deck_live_network_test PROPERTIES TIMEOUT 45)
+    add_test(NAME nova_deck_launch_budget_transport_test COMMAND nova_deck_live_network_test --launch-budget)
+    set_tests_properties(nova_deck_launch_budget_transport_test PROPERTIES TIMEOUT 15)
 
     add_executable(nova_deck_moonlight_launcher_test
         tests/deck_moonlight_launcher_test.cpp

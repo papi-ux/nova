@@ -282,6 +282,81 @@ void testResponseDeadlineSurvivesIncomingBytes() {
     require(reply.status == DeckPolarisRequestStatus::Timeout && !reply.value && timer.elapsed() < 1200 && https.requests == 1);
 }
 
+void testLaunchBudgetAndCancellation() {
+    using namespace nova::deck;
+    QTemporaryDir directory;
+    const auto server = createIdentity(directory.path(), "launch-server");
+    const auto client = createIdentity(directory.path(), "launch-client");
+    TlsServer https(server);
+    https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    polaris::DeckPolarisClient connection({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()},
+        std::chrono::milliseconds(250));
+    const auto fetch = stream::fetcherOverPolarisClient(connection);
+    https.eventStream = [](QSslSocket* socket) {
+        QTimer::singleShot(750, socket, [socket] {
+            const QByteArray body = "<root status_code=\"200\"><gamesession>1</gamesession></root>";
+            socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: "
+                + QByteArray::number(body.size()) + "\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    };
+    // Both exact launch forms survive the ordinary deadline, with mTLS intact.
+    for (const auto* path : {"/launch", "/launch?appid=17"}) {
+        const auto before = https.requests;
+        const auto reply = fetch(path);
+        require(reply.transportOk && reply.status == 200 && https.requests == before + 1);
+    }
+    // Resume and lookalike paths must not inherit launch's longer window.
+    for (const auto* path : {"/serverinfo", "/resume?appid=17", "/launching", "/launch/extra", "/api/launch"}) {
+        QElapsedTimer elapsed; elapsed.start();
+        require(!fetch(path).transportOk && elapsed.elapsed() < 1500);
+    }
+    identity::DeckMoonlightIdentity identity;
+    identity.clientCertificatePem = client.cert.toStdString();
+    identity.clientPrivateKeyPemForBackendOnly = client.key.toStdString();
+    identity::DeckMoonlightHostRecord host;
+    host.uuid = "launch-host"; host.manualAddress = "127.0.0.1";
+    host.nativeHttpsPort = https.serverPort(); host.serverCertificatePem = server.cert.toStdString();
+    identity.hosts.push_back(host);
+    backend::DeckLiveHostLibrarySnapshot snapshot;
+    snapshot.selectedHostId = host.stableId();
+    polaris::DeckPolarisGame game;
+    game.id = "moonlight-app-17"; game.appId = 17;
+    snapshot.library.games.push_back(game);
+    const auto target = runtime::nativeTargetResolver(identity, snapshot)(QString::fromStdString(host.stableId()), "moonlight-app-17");
+    require(target && bool(target->fetchWithCancellation));
+    bool cancelled = true;
+    const auto cancellable = [&](const std::string& path) {
+        return target->fetchWithCancellation(path, [&] { return cancelled; });
+    };
+    auto before = https.requests;
+    require(!cancellable("/launch?appid=17").transportOk && https.requests == before);
+    cancelled = false;
+    int heartbeats = 0;
+    QTimer heartbeat;
+    QObject::connect(&heartbeat, &QTimer::timeout, [&] { ++heartbeats; });
+    heartbeat.start(5);
+    https.eventStream = [&](QSslSocket* socket) {
+        // The host has received the mutation but deliberately withholds its
+        // receipt. Local abort must settle without a retry or extra /cancel.
+        QTimer::singleShot(100, socket, [&] { cancelled = true; });
+    };
+    QElapsedTimer elapsed; elapsed.start();
+    before = https.requests;
+    const auto aborted = cancellable("/launch?appid=17");
+    require(!aborted.transportOk && cancelled && elapsed.elapsed() < 1500 && heartbeats > 0);
+    require(https.requests == before + 1 && https.paths.back() == "/launch");
+    // Cleanup uses the uncancelled fetcher and retains exact session authority.
+    https.eventStream = {};
+    https.handler = [](const QUrl& url) {
+        require(url.path() == "/cancel" && QUrlQuery(url).queryItemValue("sessiontoken") == "owned-session");
+        return std::pair{200, QByteArray("<root status_code=\"200\"><cancel>1</cancel></root>")};
+    };
+    require(stream::requestHostSessionCancel(target->fetch, "owned-session").cancelled && https.requests == before + 2);
+}
+
 void testStandardHostLibraryAndLaunch() {
     using namespace nova::deck;
     using polaris::DeckPolarisRequestStatus;
@@ -1526,6 +1601,7 @@ int main(int argc, char** argv) {
     QTemporaryDir appData;
     qputenv("XDG_DATA_HOME", appData.path().toUtf8());
     QCoreApplication app(argc, argv);
+    if (app.arguments().contains("--launch-budget")) { testLaunchBudgetAndCancellation(); return 0; }
     testSilentHttpStillUsesPinnedHttps(false);
     testSilentHttpStillUsesPinnedHttps(true);
     testDerivedCertificateCannotReceiveHttp();

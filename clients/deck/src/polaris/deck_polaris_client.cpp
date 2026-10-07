@@ -611,8 +611,8 @@ private:
 }
 
 DeckPolarisResult<std::string> DeckPolarisClient::get(const std::string& path, std::size_t maxBodyBytes,
-    std::optional<std::chrono::milliseconds> timeout) const {
-    return request(path, maxBodyBytes, false, {}, "{}", false, timeout);
+    std::optional<std::chrono::milliseconds> timeout, const std::function<bool()>& cancelled) const {
+    return request(path, maxBodyBytes, false, cancelled, "{}", false, timeout);
 }
 
 DeckPolarisResult<std::string> DeckPolarisClient::request(const std::string& path,

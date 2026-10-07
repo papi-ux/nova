@@ -772,6 +772,42 @@ void testCancelDuringHttp(const std::string& path) {
     require(host.cancels == host.launches, "cancelled launch was not cleaned up exactly once");
 }
 
+void testCancellableLaunchFetch() {
+    for (const auto* path : {"/serverinfo", "/launch"}) {
+        for (bool receiptArrived : {false, true}) {
+            Host host; Driver driver;
+            std::atomic<bool> entered{false};
+            auto resolver = host.resolver();
+            DeckNativeSessionController controller(true,
+                [&](const QString& hostId, const QString& gameId) {
+                    auto target = resolver(hostId, gameId);
+                    if (!target) return target;
+                    target->fetchWithCancellation = [fetch = target->fetch, &entered, path, receiptArrived]
+                        (const std::string& request, const std::function<bool()>& cancelled) {
+                        if (request.substr(0, request.find('?')) != path) return fetch(request);
+                        require(bool(cancelled), "native launch lost its cancellation predicate");
+                        entered = true;
+                        QElapsedTimer deadline; deadline.start();
+                        while (!cancelled() && deadline.elapsed() < 1500) QThread::msleep(1);
+                        require(cancelled(), "pending HTTP did not observe native Cancel");
+                        return receiptArrived ? fetch(request) : DeckHttpResponse{false, 0, {}, true};
+                    };
+                    return target;
+                }, driver);
+            require(controller.start("host", "game"), "cancellable launch rejected");
+            until([&] { return entered.load(); });
+            controller.stop();
+            settled(controller);
+            require(phase(controller) == "cancelled" && driver.starts == 0, "cancelled request reached media startup");
+            const bool ownedReceipt = receiptArrived && std::string(path) == "/launch";
+            require(host.cancels == (ownedReceipt ? 1 : 0), "missing receipt authorized cleanup or owned cleanup was suppressed");
+            const bool unknown = !receiptArrived && std::string(path) == "/launch";
+            require(controller.state().value("copy").toString().contains("Host cleanup is not confirmed") == unknown,
+                "lost launch reply invented a confirmed host outcome");
+        }
+    }
+}
+
 void testConnectionCancellation() {
     Host host;
     Driver driver;
@@ -2517,6 +2553,7 @@ int main(int argc, char** argv) {
         testEndRequestCopy(app.arguments().at(index + 1)); return 0;
     }
     if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
+    if (app.arguments().contains("--launch-cancel")) { testCancellableLaunchFetch(); return 0; }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
     QSettings::setDefaultFormat(QSettings::IniFormat);
