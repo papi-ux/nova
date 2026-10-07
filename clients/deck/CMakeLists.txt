@@ -483,7 +483,9 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_native_session_test COMMAND nova_deck_native_session_test)
     set_tests_properties(nova_deck_native_session_test PROPERTIES TIMEOUT 60)
     add_test(NAME nova_deck_native_launch_cancel_test COMMAND nova_deck_native_session_test --launch-cancel)
-    set_tests_properties(nova_deck_native_launch_cancel_test PROPERTIES TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # Run the bounded launch regressions early in parallel full-inventory CI.
+    # COST controls scheduling priority here; it is not a measured duration.
+    set_tests_properties(nova_deck_native_launch_cancel_test PROPERTIES COST 1000 TIMEOUT 15 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     if(NOVA_DECK_BUILD_PYROWAVE)
         foreach(case IN ITEMS refusal limits stale cancelled)
             add_test(NAME nova_deck_native_pyrowave_review_${case}_test
@@ -643,7 +645,7 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_live_network_test COMMAND nova_deck_live_network_test)
     set_tests_properties(nova_deck_live_network_test PROPERTIES TIMEOUT 45)
     add_test(NAME nova_deck_launch_budget_transport_test COMMAND nova_deck_live_network_test --launch-budget)
-    set_tests_properties(nova_deck_launch_budget_transport_test PROPERTIES TIMEOUT 15)
+    set_tests_properties(nova_deck_launch_budget_transport_test PROPERTIES COST 1000 TIMEOUT 15)
 
     add_executable(nova_deck_moonlight_launcher_test
         tests/deck_moonlight_launcher_test.cpp
@@ -1094,7 +1096,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_link_libraries(nova_deck_library_refresh_focus_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_library_refresh_focus_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_library_refresh_focus_qml_test COMMAND nova_deck_library_refresh_focus_qml_test)
-            set_tests_properties(nova_deck_library_refresh_focus_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 15)
+            set_tests_properties(nova_deck_library_refresh_focus_qml_test PROPERTIES COST 1000 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 15)
             add_executable(nova_deck_appearance_qml_test tests/deck_appearance_qml_test.cpp)
             target_link_libraries(nova_deck_appearance_qml_test PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_appearance_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
