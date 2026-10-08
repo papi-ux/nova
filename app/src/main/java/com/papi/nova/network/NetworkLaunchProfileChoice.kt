@@ -9,6 +9,12 @@ data class NetworkLaunchProfileChoice(
     val source: Source,
     /** The matched rule when [source] is [Source.RULE]. */
     val match: NetworkRuleMatch? = null,
+    /**
+     * A fingerprint of [profileUuid]'s saved settings when the choice was made, so an edit to that
+     * profile counts as a different effective profile. Null for the active profile, whose edits
+     * apply to launches as they always have.
+     */
+    val profileRevision: Int? = null,
 ) {
     enum class Source {
         /** No rules, rules off, or none matched: the active profile, as before. */
@@ -36,16 +42,47 @@ data class NetworkLaunchProfileChoice(
             snapshot: NetworkSnapshot,
             overrideUuid: String?,
             profileExists: (String) -> Boolean,
+            profileRevision: (String) -> Int? = { null },
         ): NetworkLaunchProfileChoice {
             when {
                 overrideUuid == OVERRIDE_ACTIVE_PROFILE ->
                     return NetworkLaunchProfileChoice(null, Source.OVERRIDE_ACTIVE)
                 overrideUuid != null && profileExists(overrideUuid) ->
-                    return NetworkLaunchProfileChoice(overrideUuid, Source.OVERRIDE)
+                    return NetworkLaunchProfileChoice(overrideUuid, Source.OVERRIDE, profileRevision = profileRevision(overrideUuid))
             }
             val match = NetworkProfileRuleEngine.evaluate(rules, snapshot, profileExists)
                 ?: return NetworkLaunchProfileChoice(null, Source.ACTIVE)
-            return NetworkLaunchProfileChoice(match.rule.profileUuid, Source.RULE, match)
+            val uuid = match.rule.profileUuid
+            return NetworkLaunchProfileChoice(uuid, Source.RULE, match, profileRevision(uuid))
         }
+
+        /**
+         * Whether two choices launch with the same settings: the same saved profile at the same
+         * revision, or both the active profile. A null choice (rules never apply) is the active
+         * profile. Which rule or reason chose it does not matter here, only what would be sent.
+         */
+        @JvmStatic
+        fun sameEffectiveProfile(a: NetworkLaunchProfileChoice?, b: NetworkLaunchProfileChoice?): Boolean =
+            a?.profileUuid == b?.profileUuid && a?.profileRevision == b?.profileRevision
     }
+}
+
+/**
+ * The last check before a launch leaves Play Setup. The plan on screen and the preflight the host
+ * answered were both made for one effective profile; if what would launch now is a different one
+ * (the network, the host's answer, a rule, a profile or the override changed), the launch stops,
+ * the plan is shown again with the new profile, and Play has to be pressed again.
+ */
+object NetworkLaunchProfileGate {
+    enum class Decision { PROCEED, PLAN_CHANGED }
+
+    @JvmStatic
+    fun decide(
+        displayed: NetworkLaunchProfileChoice?,
+        preflighted: NetworkLaunchProfileChoice?,
+        current: NetworkLaunchProfileChoice?,
+    ): Decision =
+        if (NetworkLaunchProfileChoice.sameEffectiveProfile(displayed, current) &&
+            NetworkLaunchProfileChoice.sameEffectiveProfile(preflighted, current)
+        ) Decision.PROCEED else Decision.PLAN_CHANGED
 }

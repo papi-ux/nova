@@ -34,6 +34,7 @@ data class HostConnectionEvidence(
     companion object {
         const val SCHEMA_VERSION = 1
         const val SCOPE_CONTROL_CONNECTION = "control_connection"
+        const val SOURCE_TAILSCALED_LOCALAPI = "tailscaled_localapi"
         /** The contract's freshness window; a longer declared window is not trusted. */
         const val MAX_AGE_MS = 10_000L
         /** How far ahead of this device's wall clock an observation may be before it is refused. */
@@ -73,14 +74,20 @@ data class HostConnectionEvidence(
             return parse(json, nowWallMs)
         }
 
+        /** A JSON integer exactly: `1`, never `1.0`, `"1"` or `true`. */
+        private fun exactLong(value: Any?): Long? = when (value) {
+            is Int -> value.toLong()
+            is Long -> value
+            else -> null
+        }
+
         /**
          * Validate schema 1 strictly and decide what may be shown. [nowWallMs] is this device's wall
          * clock, which the host's `observed_at_ms` (also wall clock) is compared with.
          */
         @JvmStatic
         fun parse(json: JSONObject, nowWallMs: Long): HostConnectionEvidence {
-            val schema = json.opt("schema_version")
-            if (schema !is Number || schema.toDouble() != SCHEMA_VERSION.toDouble()) return unknown(Reason.UNSUPPORTED_SCHEMA)
+            if (exactLong(json.opt("schema_version")) != SCHEMA_VERSION.toLong()) return unknown(Reason.UNSUPPORTED_SCHEMA)
             val status = when (json.opt("status")) {
                 "unknown" -> Status.UNKNOWN
                 "tailscale" -> Status.TAILSCALE
@@ -90,13 +97,16 @@ data class HostConnectionEvidence(
             val tailscale = json.optJSONObject("tailscale") ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
             val hostReason = (tailscale.opt("reason") as? String)?.let { hostReasons[it] } ?: Reason.UNRECOGNIZED
             if (status == Status.UNKNOWN) return unknown(hostReason)
+            // Reasons are a fixed enum; an answer that claims anything with another one is not schema 1.
+            if (hostReason == Reason.UNRECOGNIZED) return unknown(Reason.UNSUPPORTED_SCHEMA)
 
             val confirmed = tailscale.opt("confirmed") as? Boolean ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
             if (tailscale.opt("scope") != SCOPE_CONTROL_CONNECTION) return unknown(Reason.UNSUPPORTED_SCHEMA)
+            if (tailscale.opt("source") != SOURCE_TAILSCALED_LOCALAPI) return unknown(Reason.UNSUPPORTED_SCHEMA)
             val transport = (tailscale.opt("transport") as? String)?.let { transports[it] }
                 ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
-            val observedAt = (tailscale.opt("observed_at_ms") as? Number)?.toLong() ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
-            val maxAge = (tailscale.opt("max_age_ms") as? Number)?.toLong() ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
+            val observedAt = exactLong(tailscale.opt("observed_at_ms")) ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
+            val maxAge = exactLong(tailscale.opt("max_age_ms")) ?: return unknown(Reason.UNSUPPORTED_SCHEMA)
             if (observedAt <= 0L || maxAge <= 0L) return unknown(Reason.UNSUPPORTED_SCHEMA)
 
             // Only "tailscale" with confirmed=true, or "not_tailscale" with confirmed=false, is consistent.
@@ -114,6 +124,20 @@ data class HostConnectionEvidence(
                 HostConnectionEvidence(Status.NOT_TAILSCALE, Transport.UNKNOWN, hostReason)
             }
         }
+
+        /**
+         * The wall-clock time after which a body that is valid at [nowWallMs] stops being valid, or
+         * null when it is not valid now (so there is nothing to expire). Used to re-check the shown
+         * plan the moment the host's answer ages out, rather than at the next unrelated redraw.
+         */
+        @JvmStatic
+        fun freshUntilWallMs(body: String?, nowWallMs: Long): Long? {
+            if (parseBody(body, nowWallMs).status == Status.UNKNOWN) return null
+            val tailscale = runCatching { JSONObject(body!!).getJSONObject("tailscale") }.getOrNull() ?: return null
+            val observedAt = exactLong(tailscale.opt("observed_at_ms")) ?: return null
+            val maxAge = exactLong(tailscale.opt("max_age_ms")) ?: return null
+            return observedAt + minOf(maxAge, MAX_AGE_MS) + 1
+        }
     }
 }
 
@@ -125,4 +149,8 @@ data class HostConnectionObservation(val body: String?, val supported: Boolean) 
     fun evaluate(nowWallMs: Long): HostConnectionEvidence =
         if (!supported) HostConnectionEvidence.unknown(HostConnectionEvidence.Reason.HOST_UNSUPPORTED)
         else HostConnectionEvidence.parseBody(body, nowWallMs)
+
+    /** When a currently valid answer expires; null when it is not valid now. */
+    fun freshUntilWallMs(nowWallMs: Long): Long? =
+        if (!supported) null else HostConnectionEvidence.freshUntilWallMs(body, nowWallMs)
 }

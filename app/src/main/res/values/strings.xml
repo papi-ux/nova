@@ -1942,6 +1942,7 @@
     <string name="nova_launch_profile_caption_rules_off">Network rules are off for this host.</string>
     <string name="nova_launch_profile_caption_rule">Rule %1$d matched: %2$s</string>
     <string name="nova_launch_profile_caption_override">Chosen for this launch only.</string>
+    <string name="nova_launch_profile_changed_notice">Changed since this plan was shown, so nothing launched. Check the plan and press Play again.</string>
     <string name="nova_launch_profile_edit_rules">Network Rules…</string>
     <string name="nova_launch_profile_edit_rules_consequence">Choose saved profiles by network for this host.</string>
 

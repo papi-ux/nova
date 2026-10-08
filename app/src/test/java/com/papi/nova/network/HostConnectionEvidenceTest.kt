@@ -6,6 +6,7 @@ import com.papi.nova.network.HostConnectionEvidence.Transport
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -133,6 +134,60 @@ class HostConnectionEvidenceTest {
         assertEquals(HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA), HostConnectionEvidence.parseBody("[]", now))
         val oversized = body(extra = { it.put("pad", "x".repeat(HostConnectionEvidence.MAX_BODY_CHARS)) }).toString()
         assertEquals(HostConnectionEvidence.unknown(Reason.REQUEST_FAILED), HostConnectionEvidence.parseBody(oversized, now))
+    }
+
+    @Test fun theSchemaVersionAndTimestampsMustBeExactIntegers() {
+        val unsupported = HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA)
+        assertEquals(Status.TAILSCALE, parse(body(schema = 1L)).status)
+        assertEquals(unsupported, parse(body(schema = 1.0)))
+        assertEquals(unsupported, parse(body(schema = true)))
+        assertEquals(unsupported, parse(body(observedAt = (now - 1_000L).toDouble())))
+        assertEquals(unsupported, parse(body(maxAge = 10_000.0)))
+        assertEquals(unsupported, parse(body(maxAge = "10000")))
+        // The same rules hold for the text the host actually sends.
+        assertEquals(unsupported, HostConnectionEvidence.parseBody(body().toString().replace("\"schema_version\":1", "\"schema_version\":1.0"), now))
+        assertEquals(Status.TAILSCALE, HostConnectionEvidence.parseBody(body().toString(), now).status)
+    }
+
+    @Test fun theSourceMustBeTheHostsTailscaledLocalApi() {
+        val unsupported = HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA)
+        listOf<Any?>(null, "", "client_hint", "TAILSCALED_LOCALAPI", 1).forEach { source ->
+            val json = body().also { it.getJSONObject("tailscale").put("source", source ?: JSONObject.NULL) }
+            assertEquals(source.toString(), unsupported, parse(json))
+        }
+        val missing = body().also { it.getJSONObject("tailscale").remove("source") }
+        assertEquals(unsupported, parse(missing))
+        assertEquals(unsupported, parse(body(status = "not_tailscale", confirmed = false).also {
+            it.getJSONObject("tailscale").put("source", "guess")
+        }))
+    }
+
+    @Test fun aClaimWithAReasonOutsideTheEnumIsNotSchemaOne() {
+        assertEquals(HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA), parse(body(reason = "because")))
+        assertEquals(HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA), parse(body(reason = null)))
+        assertEquals(HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA),
+            parse(body(status = "not_tailscale", confirmed = false, reason = "because")))
+    }
+
+    @Test fun theContractSampleUnknownIsAcceptedAsUnknown() {
+        // The frozen sample: unknown, confirmed=false, observed_at_ms 0.
+        val sample = body(status = "unknown", confirmed = false, transport = "unknown", observedAt = 0L, reason = "peer_not_confirmed")
+        assertEquals(HostConnectionEvidence.unknown(Reason.PEER_NOT_CONFIRMED), parse(sample))
+    }
+
+    @Test fun aValidAnswerSaysWhenItExpiresAndAnInvalidOneDoesNot() {
+        val observedAt = now - 1_000L
+        val fresh = body(observedAt = observedAt).toString()
+        assertEquals(observedAt + 10_001L, HostConnectionEvidence.freshUntilWallMs(fresh, now))
+        assertEquals(Status.TAILSCALE, HostConnectionEvidence.parseBody(fresh, observedAt + 10_000L).status)
+        assertEquals(Status.UNKNOWN, HostConnectionEvidence.parseBody(fresh, observedAt + 10_001L).status)
+        // A shorter declared window expires sooner; a longer one is still clamped.
+        assertEquals(observedAt + 2_001L, HostConnectionEvidence.freshUntilWallMs(body(observedAt = observedAt, maxAge = 2_000L).toString(), now))
+        assertEquals(observedAt + 10_001L, HostConnectionEvidence.freshUntilWallMs(body(observedAt = observedAt, maxAge = 60_000L).toString(), now))
+        assertNull(HostConnectionEvidence.freshUntilWallMs(fresh, observedAt + 10_001L))
+        assertNull(HostConnectionEvidence.freshUntilWallMs(body(status = "unknown", reason = "peer_idle").toString(), now))
+        assertNull(HostConnectionObservation(fresh, supported = false).freshUntilWallMs(now))
+        assertEquals(observedAt + 10_001L, HostConnectionObservation(fresh, supported = true).freshUntilWallMs(now))
     }
 
     @Test fun nothingIdentifyingInTheBodyReachesTheResult() {

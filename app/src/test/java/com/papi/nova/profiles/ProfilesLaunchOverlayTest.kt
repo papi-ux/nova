@@ -92,6 +92,42 @@ class ProfilesLaunchOverlayTest {
         assertSame(active, manager.getActive())
     }
 
+    /**
+     * Regression for the passed-preferences fix: every value readPreferences used to take from the
+     * active profile behind its caller's back now comes from the preferences it is given, as the
+     * profile editor passes its own. The active profile says the opposite of each value.
+     */
+    @Test
+    fun readPreferencesTakesEveryHelperValueFromPassedPreferencesNotTheActiveProfile() {
+        manager.update(SettingsProfile(active.getUuid(), "Home", 1L, 2L, mapOf(
+            "video_format" to "forceh265", "list_video_scale_mode" to "fill", "frame_pacing" to "latency",
+            "pref_low_latency_frame_balance" to false, "analog_scrolling" to "right")))
+        val edited = context.getSharedPreferences("edited-profile-under-test", Context.MODE_PRIVATE)
+        edited.edit().clear()
+            .putString("video_format", "neverh265")
+            .putString("list_video_scale_mode", "stretch")
+            .putString("frame_pacing", "balanced")
+            .putBoolean("pref_low_latency_frame_balance", true)
+            .putString("analog_scrolling", "left")
+            .commit()
+
+        val config = PreferenceConfiguration.readPreferences(context, edited)
+        assertEquals(PreferenceConfiguration.FormatOption.FORCE_H264, config.videoFormat)
+        assertEquals(PreferenceConfiguration.ScaleMode.STRETCH, config.videoScaleMode)
+        assertEquals(PreferenceConfiguration.FRAME_PACING_BALANCED, config.framePacing)
+        assertEquals(true, config.preferLowerDelays)
+        assertEquals(PreferenceConfiguration.AnalogStickForScrolling.LEFT, config.analogStickForScrolling)
+        assertEquals("balanced", PreferenceConfiguration.getSelectedFramePacingName(edited))
+
+        // Without passed preferences nothing changed: the active profile is read, as before.
+        val durable = PreferenceConfiguration.readPreferences(context)
+        assertEquals(PreferenceConfiguration.FormatOption.FORCE_HEVC, durable.videoFormat)
+        assertEquals(PreferenceConfiguration.ScaleMode.FILL, durable.videoScaleMode)
+        assertEquals(PreferenceConfiguration.AnalogStickForScrolling.RIGHT, durable.analogStickForScrolling)
+        assertEquals(false, durable.preferLowerDelays)
+        assertEquals("latency", PreferenceConfiguration.getSelectedFramePacingName(context))
+    }
+
     @Test
     fun writesThroughTheLaunchOverlayGoToBasePreferencesNotTheProfile() {
         manager.getOverlayingSharedPreferences(context, travel.getUuid().toString()).edit()
