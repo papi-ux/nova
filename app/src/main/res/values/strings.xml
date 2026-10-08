@@ -1308,6 +1308,8 @@
     <string name="nova_recap_report_subject">Nova stream recap report</string>
     <string name="nova_recap_report_share_title">Share Nova stream recap report</string>
     <string name="nova_recap_report_problem_title">Stream Recap Report</string>
+    <string name="nova_recap_report_saving_title">Saving Report</string>
+    <string name="nova_recap_report_saving_message">Saving the stream recap report on this device. Nothing will be sent. Close this to stop waiting; a report already being written may still be kept, but nothing more will appear.</string>
     <string name="nova_recap_report_invalid">This recap can\'t be saved as a report.</string>
     <string name="nova_recap_report_storage_failed">Couldn\'t save the stream recap report. Check this device\'s storage and try again.</string>
     <string name="nova_recap_report_no_share_target">No app here can receive the report. Install an app that shares files, then try again.</string>
