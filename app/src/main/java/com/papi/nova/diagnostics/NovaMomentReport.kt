@@ -132,18 +132,8 @@ object NovaMomentReport {
             androidRelease = token(androidRelease, VERSION_PATTERN) ?: "unknown",
             androidSdk = androidSdk.takeIf { it in 1..1000 } ?: 0,
             device = deviceLabel(device),
-            role = when {
-                space -> StreamRole.SPACE
-                watching -> StreamRole.WATCHING
-                else -> StreamRole.PLAYING
-            },
-            requested = Requested(
-                width = requestedWidth.takeIf { it in 1..16384 },
-                height = requestedHeight.takeIf { it in 1..16384 },
-                fps = finite(requestedFps.toDouble(), 1.0, 1000.0),
-                bitrateKbps = requestedBitrateKbps.takeIf { it in 1..10_000_000 },
-                codecPreference = codecPreference(requestedCodec),
-            ),
+            role = role(watching, space),
+            requested = requested(requestedWidth, requestedHeight, requestedFps, requestedBitrateKbps, requestedCodec),
             readings = readings,
             sampleAgeMs = if (readings == Readings.UNAVAILABLE) null else age,
             observed = if (readings != Readings.CURRENT || sample == null) null else Observed(
@@ -169,6 +159,24 @@ object NovaMomentReport {
             ),
         )
     }
+
+    /** How the stream is used on this device: a Space, watching, or playing. */
+    @JvmStatic
+    fun role(watching: Boolean, space: Boolean): StreamRole = when {
+        space -> StreamRole.SPACE
+        watching -> StreamRole.WATCHING
+        else -> StreamRole.PLAYING
+    }
+
+    /** What the settings asked for, validated; each value out of range is unknown. */
+    @JvmStatic
+    fun requested(width: Int, height: Int, fps: Float, bitrateKbps: Int, codec: String): Requested = Requested(
+        width = width.takeIf { it in 1..16384 },
+        height = height.takeIf { it in 1..16384 },
+        fps = finite(fps.toDouble(), 1.0, 1000.0),
+        bitrateKbps = bitrateKbps.takeIf { it in 1..10_000_000 },
+        codecPreference = codecPreference(codec),
+    )
 
     /** The closed JSON object: exactly these keys, in this shape, whatever the inputs held. */
     @JvmStatic

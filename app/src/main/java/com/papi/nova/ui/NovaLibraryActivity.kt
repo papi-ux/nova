@@ -193,6 +193,8 @@ class NovaLibraryActivity : NovaActivity() {
     private var isRefreshing by mutableStateOf(false)
     private var loadErrorMessage by mutableStateOf<String?>(null)
     private var launchErrorMessage by mutableStateOf<String?>(null)
+    /** The After-stream recap for this Library's requested host, read on resume; never written here. */
+    private var lastStreamRecap by mutableStateOf<com.papi.nova.diagnostics.NovaStreamRecap.Recap?>(null)
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
     /** Whether the last key came from a remote, so the hint bar names a remote's keys (C04). */
@@ -429,6 +431,7 @@ class NovaLibraryActivity : NovaActivity() {
 
     override fun onResume() {
         super.onResume()
+        lastStreamRecap = com.papi.nova.diagnostics.NovaStreamRecapStore.process.forHost(streamPcUuid)
         spaceFocusEpoch++
         startSpacesPolling()
         NovaSpaceRetrySignal.consumeTarget(this, streamPcUuid, streamHost)?.let(::retrySpaceOpenWhenChecked)
@@ -1467,6 +1470,23 @@ class NovaLibraryActivity : NovaActivity() {
         }
     }
 
+    /** The recap's read-only page, in the library's end panel, pushed when one is open. */
+    private fun viewStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {
+        val page = NovaStreamRecapPages.page(this, recap)
+        val surfaces = novaSurfaces
+        if (surfaces.panel.isOpen) {
+            surfaces.panel.push(page)
+        } else {
+            surfaces.open(page, NovaEdge.End) { shown -> LibraryPanelPage(shown) }
+        }
+    }
+
+    /** Dismisses that recap only; a newer one, should one have arrived, stays. */
+    private fun dismissStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {
+        com.papi.nova.diagnostics.NovaStreamRecapStore.process.dismiss(recap.generation)
+        lastStreamRecap = com.papi.nova.diagnostics.NovaStreamRecapStore.process.forHost(streamPcUuid)
+    }
+
     private fun hostConsolePage(path: String): NovaHostConsolePage {
         val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
         return NovaHostConsolePage(
@@ -1881,6 +1901,18 @@ class NovaLibraryActivity : NovaActivity() {
                                     vertical = 4.dp,
                                 ),
                             )
+                            // The last stream's recap, if this host has one: optional, never focused first.
+                            lastStreamRecap?.let { recap ->
+                                NovaStreamRecapCard(
+                                    recap = recap,
+                                    onView = { viewStreamRecap(recap) },
+                                    onDismiss = { dismissStreamRecap(recap) },
+                                    modifier = Modifier.padding(
+                                        horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
+                                        vertical = 4.dp,
+                                    ),
+                                )
+                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -1976,6 +2008,18 @@ class NovaLibraryActivity : NovaActivity() {
                                     vertical = 4.dp,
                                 ),
                             )
+                            // The last stream's recap, if this host has one: optional, never focused first.
+                            lastStreamRecap?.let { recap ->
+                                NovaStreamRecapCard(
+                                    recap = recap,
+                                    onView = { viewStreamRecap(recap) },
+                                    onDismiss = { dismissStreamRecap(recap) },
+                                    modifier = Modifier.padding(
+                                        horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
+                                        vertical = 4.dp,
+                                    ),
+                                )
+                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
