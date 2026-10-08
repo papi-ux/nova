@@ -62,6 +62,7 @@ internal object NovaWorkingBaselineText {
         NovaWorkingBaselineFlow.Outcome.NO_ENTRY -> R.string.nova_working_baseline_no_entry
         NovaWorkingBaselineFlow.Outcome.READINGS_UNAVAILABLE -> R.string.nova_working_baseline_readings_unavailable
         NovaWorkingBaselineFlow.Outcome.STORAGE_FAILED -> R.string.nova_working_baseline_storage_failed
+        NovaWorkingBaselineFlow.Outcome.BUSY -> R.string.nova_working_baseline_busy
     })
 
     fun succeeded(outcome: NovaWorkingBaselineFlow.Outcome): Boolean = outcome == NovaWorkingBaselineFlow.Outcome.SAVED ||

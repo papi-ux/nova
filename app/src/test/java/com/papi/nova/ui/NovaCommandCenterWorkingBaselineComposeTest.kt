@@ -31,6 +31,7 @@ import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.NovaWindowPlacement
 import com.papi.nova.ui.panel.setPanelContent
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -84,9 +85,34 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         )
     }
 
+    /** IO work waits here until the test runs it, so a write can be outstanding. */
+    private class HeldRuntime : NovaCommandCenterRuntime {
+        val io = ArrayList<suspend () -> Unit>()
+        override fun launchIo(name: String, block: suspend () -> Unit) {
+            io += block
+        }
+        override suspend fun onMain(block: () -> Unit) = block()
+        override fun postDelayed(delayMs: Long, block: () -> Unit) = Unit
+        fun runIo() = runBlocking { val pending = io.toList(); io.clear(); pending.forEach { it() } }
+    }
+
+    private val runtime = HeldRuntime()
+
+    private fun runIo() {
+        rule.runOnUiThread { runtime.runIo() }
+        rule.waitForIdle()
+    }
+
+    /** A save straight through the flow, written at once, for tests about what follows it. */
+    private fun saved() {
+        flow.save {}
+        runIo()
+    }
+
     private val flow by lazy {
         NovaWorkingBaselineFlow(
             store = NovaWorkingBaselineStore(prefs),
+            runtime = runtime,
             entry = { NovaWorkingBaseline.RequestedEntry.of("pc-entry", "app-entry") },
             isActive = { active },
             snapshot = ::snapshot,
@@ -189,18 +215,26 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         liveFps = 33.0 // the stream changes while the confirmation is open
         rule.onNodeWithText(text(R.string.nova_working_baseline_save)).performClick()
         rule.waitForIdle()
+        // Frozen at the press; the write is still queued, and the page says a change is under way.
+        assertEquals(1, snapshots)
+        assertTrue(outcomes.isEmpty())
+        assertTrue(prefs.all.isEmpty())
+        val busy = pages().menu().items.single { it.key == NovaWorkingBaselinePages.SAVE } as NovaMenuItem.Action
+        assertEquals(text(R.string.nova_working_baseline_busy), busy.disabledReason)
+        liveFps = 12.0
+        runIo()
         assertEquals(listOf(Outcome.SAVED), outcomes)
         assertEquals(1, snapshots)
         assertEquals(33.0, flow.state().saved!!.readings.renderedFps!!, 0.0)
-        assertEquals(1, redraws)
+        assertEquals(2, redraws)
         // The page is read again in place: it now offers Compare and Replace.
         rule.onNodeWithText(text(R.string.nova_working_baseline_compare)).assertExists()
         rule.onNodeWithText(text(R.string.nova_working_baseline_replace)).assertExists()
     }
 
     @Test fun aReplacementAlsoAsksAndNamesTheBaselineItReplaces() {
-        assertEquals(Outcome.SAVED, flow.save())
-        val confirm = pages().confirmation(flow.state().saved, replacing = true)
+        saved()
+        val confirm = pages().confirmation(flow.state())
         assertEquals(text(R.string.nova_working_baseline_confirm_replace_title), confirm.title)
         assertEquals(text(R.string.nova_working_baseline_replace_action), confirm.actionLabel)
         assertEquals(text(R.string.nova_working_baseline_cancel), confirm.stayLabel)
@@ -208,20 +242,46 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         assertFalse(confirm.destructive)
         liveFps = 50.0
         confirm.onConfirm()
+        runIo()
         assertEquals(listOf(Outcome.REPLACED), outcomes)
         assertEquals(50.0, flow.state().saved!!.readings.renderedFps!!, 0.0)
     }
 
     @Test fun aStreamThatStopsWhileTheConfirmationIsOpenSavesNothing() {
-        val confirm = pages().confirmation(null, replacing = false)
+        val confirm = pages().confirmation(flow.state())
         active = false
         confirm.onConfirm()
         assertEquals(listOf(Outcome.NOT_ACTIVE), outcomes)
+        assertTrue(runtime.io.isEmpty())
         assertTrue(prefs.all.isEmpty())
     }
 
+    @Test fun anAnswerArrivingAfterTheMenuClosedIsNotShown() {
+        val confirm = pages().confirmation(flow.state())
+        confirm.onConfirm()
+        assertEquals(1, redraws) // the page shows the change under way
+        flow.retire() // the Command Center closed before the write finished
+        runIo()
+        assertTrue(outcomes.isEmpty())
+        assertEquals(1, redraws)
+        assertEquals(59.8, flow.state().saved!!.readings.renderedFps!!, 0.0)
+    }
+
+    @Test fun confirmationsSayWhenOtherUnreadableBaselinesMayAlsoBeRemoved() {
+        saved()
+        prefs.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "lost").commit()
+        val state = flow.state()
+        val confirm = pages().confirmation(state)
+        assertEquals(text(R.string.nova_working_baseline_confirm_replace_title), confirm.title)
+        assertTrue(confirm.message.text, confirm.message.text.contains(text(R.string.nova_working_baseline_confirm_unrecoverable_note)))
+        assertTrue(confirm.message.text, confirm.message.text.contains(text(R.string.nova_working_baseline_confirm_unreadable_note)))
+        val clear = pages().menu().items.single { it.key == NovaWorkingBaselinePages.CLEAR } as NovaMenuItem.Destructive
+        assertEquals(text(R.string.nova_working_baseline_clear_consequence_unrecoverable), clear.consequence)
+        assertEquals(state, flow.state()) // reading for the pages wrote nothing
+    }
+
     @Test fun compareShowsBothSidesWithTheirScopesAndChangesNothing() {
-        flow.save()
+        saved()
         val before = prefs.all
         liveFps = 41.0
         val notice = pages().comparison()
@@ -238,7 +298,7 @@ class NovaCommandCenterWorkingBaselineComposeTest {
     }
 
     @Test fun compareWithACorruptBaselineSaysSoAndLeavesItForSaveOrClear() {
-        flow.save()
+        saved()
         val name = prefs.all.keys.single { it.startsWith(NovaWorkingBaselineStore.ENTRY_PREFIX) }
         prefs.edit().putString(name, "{}").commit()
         val before = prefs.all
@@ -251,7 +311,7 @@ class NovaCommandCenterWorkingBaselineComposeTest {
     }
 
     @Test fun withNoStreamUpOnlyClearIsOffered() {
-        flow.save()
+        saved()
         active = false
         val menu = pages().menu()
         val compare = menu.items.single { it.key == NovaWorkingBaselinePages.COMPARE } as NovaMenuItem.Action
@@ -260,7 +320,9 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         assertEquals(text(R.string.nova_working_baseline_needs_stream), save.disabledReason)
         val clear = menu.items.single { it.key == NovaWorkingBaselinePages.CLEAR } as NovaMenuItem.Destructive
         assertEquals(text(R.string.nova_working_baseline_keep), clear.stayLabel)
+        assertEquals(text(R.string.nova_working_baseline_clear_consequence), clear.consequence)
         clear.onConfirm()
+        runIo()
         assertEquals(listOf(Outcome.CLEARED), outcomes)
         assertEquals(NovaWorkingBaselineStore.Loaded.None, flow.state().loaded)
     }
@@ -269,7 +331,7 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         val header = pages().menu().header!!
         assertEquals(text(R.string.nova_working_baseline_status_none), header.status)
         assertTrue(header.hint!!.contains("isn't proof"))
-        val confirm: NovaCommonPage.Confirm = pages().confirmation(null, replacing = false)
+        val confirm: NovaCommonPage.Confirm = pages().confirmation(flow.state())
         assertTrue(confirm.message.text.contains("picture, audio and controls"))
     }
 }

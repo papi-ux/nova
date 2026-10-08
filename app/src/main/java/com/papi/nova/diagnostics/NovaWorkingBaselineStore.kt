@@ -8,10 +8,17 @@ import java.security.SecureRandom
  * app entry, in their own app-private preferences file (excluded from backup and device transfer
  * by the app's backup rules, like every preferences file).
  *
- * Reading never writes. A missing or malformed local key, an entry that doesn't parse, or a file
- * holding more than this store ever writes all read as unavailable and are left exactly as they
- * are. Creating the key, evicting old entries and removing unreadable ones happen only in the
- * user's explicit Save ([save]) and Clear ([clear]).
+ * Reading ([load], [inspect]) never writes. A missing or malformed local key, an entry that
+ * doesn't parse, or a file holding anything this store doesn't write (another name, too many
+ * entries, a value over [NovaWorkingBaseline.MAX_ENTRY_BYTES] UTF-8 bytes) all read as unavailable
+ * and are left exactly as they are.
+ *
+ * Maintenance happens only in the user's explicit, confirmed [save] and [clear], off the main
+ * thread and one at a time. Both remove what can no longer be read or attributed: with no usable
+ * key that is every stored baseline, since none can be matched to an entry. Only Save creates the
+ * key when there is none and evicts the oldest readable baseline beyond the limit; Clear keeps
+ * every other readable baseline. [inspect] says beforehand when either would remove anything
+ * beyond this entry, so the confirmation can say so.
  */
 class NovaWorkingBaselineStore(
     private val preferences: SharedPreferences,
@@ -25,88 +32,126 @@ class NovaWorkingBaselineStore(
         data class Found(val baseline: NovaWorkingBaseline.Baseline) : Loaded
     }
 
+    /** A read-only look at this entry and at what a Save or Clear would also remove. */
+    data class Inspection(
+        val loaded: Loaded,
+        /** Other stored records can't be read or attributed, so Save or Clear would remove them. */
+        val unrecoverableOthers: Boolean,
+        /** Saving this entry would evict the oldest other baseline to stay within the limit. */
+        val saveEvictsOldest: Boolean,
+    )
+
     enum class Saved { SAVED, REPLACED, READINGS_UNAVAILABLE, STORAGE_FAILED }
 
     /** Read-only. */
-    fun load(entry: NovaWorkingBaseline.RequestedEntry): Loaded {
-        val stored = try {
-            preferences.all
-        } catch (_: RuntimeException) {
-            return Loaded.Unreadable
+    fun load(entry: NovaWorkingBaseline.RequestedEntry): Loaded = inspect(entry).loaded
+
+    /** Read-only. */
+    fun inspect(entry: NovaWorkingBaseline.RequestedEntry): Inspection {
+        val stored = read() ?: return Inspection(Loaded.Unreadable, unrecoverableOthers = true, saveEvictsOldest = false)
+        if (stored.isEmpty()) return Inspection(Loaded.None, unrecoverableOthers = false, saveEvictsOldest = false)
+        val key = NovaWorkingBaseline.unhex(stored[LOCAL_KEY] as? String)
+        val scope = key?.let { NovaWorkingBaseline.scope(it, entry) }
+            // No usable key: nothing stored can be matched to any entry, this one included.
+            ?: return Inspection(Loaded.Unreadable, unrecoverableOthers = stored.keys.any { it != LOCAL_KEY }, saveEvictsOldest = false)
+        val mine = ENTRY_PREFIX + scope
+        val readable = readableOthers(stored, mine)
+        val unrecoverable = stored.keys.count { it != LOCAL_KEY && it != mine } > readable.size
+        val loaded = when {
+            !withinBounds(stored) -> Loaded.Unreadable
+            mine !in stored -> Loaded.None
+            else -> NovaWorkingBaseline.parse(stored[mine] as? String, scope)?.let { Loaded.Found(it) } ?: Loaded.Unreadable
         }
-        if (!withinBounds(stored)) return Loaded.Unreadable
-        val keyText = stored[LOCAL_KEY]
-        if (keyText == null) return if (stored.isEmpty()) Loaded.None else Loaded.Unreadable
-        val scope = NovaWorkingBaseline.scope(NovaWorkingBaseline.unhex(keyText as? String), entry) ?: return Loaded.Unreadable
-        val value = stored[ENTRY_PREFIX + scope] ?: return Loaded.None
-        return NovaWorkingBaseline.parse(value as? String, scope)?.let { Loaded.Found(it) } ?: Loaded.Unreadable
+        return Inspection(loaded, unrecoverable, saveEvictsOldest = readable.size >= NovaWorkingBaseline.MAX_SCOPES)
     }
 
     /**
-     * The user's confirmed Save or Replace of [snapshot], frozen at that press. This is the
-     * maintenance point: it creates the local key if there is none (an unusable key is replaced,
-     * which orphans every entry hashed with it, so those go too), drops whatever doesn't read,
-     * and evicts the oldest baselines to stay within [NovaWorkingBaseline.MAX_SCOPES].
+     * The user's confirmed Save or Replace of [snapshot], frozen at that press. Off the main
+     * thread. Storage that refuses or throws is [Saved.STORAGE_FAILED], never a crash.
      */
-    fun save(entry: NovaWorkingBaseline.RequestedEntry, snapshot: NovaMomentReport.Snapshot): Saved {
+    @Synchronized
+    fun save(entry: NovaWorkingBaseline.RequestedEntry, snapshot: NovaMomentReport.Snapshot): Saved = try {
+        saveLocked(entry, snapshot)
+    } catch (_: RuntimeException) {
+        Saved.STORAGE_FAILED
+    }
+
+    private fun saveLocked(entry: NovaWorkingBaseline.RequestedEntry, snapshot: NovaMomentReport.Snapshot): Saved {
         if (snapshot.readings != NovaMomentReport.Readings.CURRENT) return Saved.READINGS_UNAVAILABLE
-        val stored = try {
-            preferences.all
-        } catch (_: RuntimeException) {
-            return Saved.STORAGE_FAILED
-        }
+        val stored = preferences.all
         val existingKey = NovaWorkingBaseline.unhex(stored[LOCAL_KEY] as? String)
         val key = existingKey ?: newKey().takeIf { it.size == NovaWorkingBaseline.KEY_BYTES } ?: return Saved.STORAGE_FAILED
         val scope = NovaWorkingBaseline.scope(key, entry) ?: return Saved.STORAGE_FAILED
         val baseline = NovaWorkingBaseline.fromSnapshot(scope, snapshot) ?: return Saved.READINGS_UNAVAILABLE
         val text = NovaWorkingBaseline.encode(baseline) ?: return Saved.READINGS_UNAVAILABLE
+        val mine = ENTRY_PREFIX + scope
 
-        // Every other entry this store can still read, oldest first; anything else is removed.
-        val kept = if (existingKey == null) emptyList() else stored.mapNotNull { (name, value) ->
-            val other = name.removePrefix(ENTRY_PREFIX)
-            if (name == ENTRY_PREFIX + scope || other == name || !NovaWorkingBaseline.isScope(other)) null
-            else NovaWorkingBaseline.parse(value as? String, other)?.let { name to it.markedAtUtc }
-        }.sortedBy { it.second }
-        val keep = kept.takeLast(NovaWorkingBaseline.MAX_SCOPES - 1).map { it.first }.toSet()
-        val replaced = existingKey != null && NovaWorkingBaseline.parse(stored[ENTRY_PREFIX + scope] as? String, scope) != null
+        // Every other entry this store can still read, newest kept; anything else is removed.
+        val keep = if (existingKey == null) emptySet() else readableOthers(stored, mine)
+            .sortedBy { it.second }.takeLast(NovaWorkingBaseline.MAX_SCOPES - 1).map { it.first }.toSet()
+        val replaced = existingKey != null && NovaWorkingBaseline.parse(stored[mine] as? String, scope) != null
 
         val editor = preferences.edit()
-        stored.keys.filter { it != LOCAL_KEY && it !in keep }.forEach { editor.remove(it) }
+        stored.keys.filter { it != LOCAL_KEY && it != mine && it !in keep }.forEach { editor.remove(it) }
         if (existingKey == null) editor.putString(LOCAL_KEY, NovaWorkingBaseline.hex(key))
-        editor.putString(ENTRY_PREFIX + scope, text)
+        editor.putString(mine, text)
         return if (editor.commit()) (if (replaced) Saved.REPLACED else Saved.SAVED) else Saved.STORAGE_FAILED
     }
 
     /**
-     * The user's confirmed Clear for this entry: removes its baseline, readable or not. Never
-     * creates a key. Returns false only if storage refused the change.
+     * The user's confirmed Clear for this entry, off the main thread: removes its baseline,
+     * readable or not, and whatever else can no longer be read or attributed. Never creates a key.
+     * Returns false if storage refused or threw.
      */
-    fun clear(entry: NovaWorkingBaseline.RequestedEntry): Boolean {
-        val stored = try {
-            preferences.all
-        } catch (_: RuntimeException) {
-            return false
-        }
+    @Synchronized
+    fun clear(entry: NovaWorkingBaseline.RequestedEntry): Boolean = try {
+        clearLocked(entry)
+    } catch (_: RuntimeException) {
+        false
+    }
+
+    private fun clearLocked(entry: NovaWorkingBaseline.RequestedEntry): Boolean {
+        val stored = preferences.all
         val key = NovaWorkingBaseline.unhex(stored[LOCAL_KEY] as? String)
-        val editor = preferences.edit()
-        if (key == null) {
-            // Nothing stored can be matched to an entry without a usable key; Clear empties the file.
-            if (stored.isEmpty()) return true
-            stored.keys.forEach { editor.remove(it) }
+        val scope = key?.let { NovaWorkingBaseline.scope(it, entry) }
+        val remove = if (scope == null) {
+            // Nothing stored can be matched to an entry without a usable key.
+            stored.keys.filter { it != LOCAL_KEY }
         } else {
-            val name = ENTRY_PREFIX + (NovaWorkingBaseline.scope(key, entry) ?: return false)
-            if (name !in stored) return true
-            editor.remove(name)
+            // Every other readable baseline stays, however many there are: Clear never evicts.
+            val keep = readableOthers(stored, ENTRY_PREFIX + scope).map { it.first }.toSet()
+            stored.keys.filter { it != LOCAL_KEY && it !in keep }
         }
+        if (remove.isEmpty()) return true
+        val editor = preferences.edit()
+        remove.forEach { editor.remove(it) }
         return editor.commit()
     }
 
-    /** Only the names this store writes, no more of them than it keeps, and values within size. */
+    /** The file as stored, or null if even reading it fails. */
+    private fun read(): Map<String, *>? = try {
+        preferences.all
+    } catch (_: RuntimeException) {
+        null
+    }
+
+    /** Every entry other than [mine] that reads as a baseline of its own scope, with its time. */
+    private fun readableOthers(stored: Map<String, *>, mine: String): List<Pair<String, String>> =
+        stored.mapNotNull { (name, value) ->
+            val scope = name.removePrefix(ENTRY_PREFIX)
+            if (name == mine || scope == name || !NovaWorkingBaseline.isScope(scope)) null
+            else NovaWorkingBaseline.parse(value as? String, scope)?.let { name to it.markedAtUtc }
+        }
+
+    /**
+     * Only the names this store writes, no more of them than it keeps, and every value a string
+     * within [NovaWorkingBaseline.MAX_ENTRY_BYTES] UTF-8 bytes, whichever entry it belongs to.
+     */
     private fun withinBounds(stored: Map<String, *>): Boolean {
         if (stored.size > NovaWorkingBaseline.MAX_SCOPES + 1) return false
         return stored.all { (name, value) ->
             (name == LOCAL_KEY || (name.startsWith(ENTRY_PREFIX) && NovaWorkingBaseline.isScope(name.removePrefix(ENTRY_PREFIX)))) &&
-                value is String && value.length <= NovaWorkingBaseline.MAX_ENTRY_BYTES
+                value is String && NovaWorkingBaseline.fitsEntry(value)
         }
     }
 

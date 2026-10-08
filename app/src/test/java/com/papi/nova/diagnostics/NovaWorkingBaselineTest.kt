@@ -118,6 +118,26 @@ class NovaWorkingBaselineTest {
         assertNull(NovaWorkingBaseline.encode(longDevice))
     }
 
+    @Test fun onlyRealCalendarTimesAreAcceptedAndNoClockIsConsulted() {
+        listOf("2026-02-30T10:00:00Z", "2026-13-01T10:00:00Z", "2026-10-08T24:00:00Z", "2026-10-08T23:60:00Z",
+            "2026-10-08T23:59:60Z", "2025-02-29T00:00:00Z", "0000-01-01T00:00:00Z", "2026-19-45T99:00:00Z").forEach {
+            assertFalse(it, NovaWorkingBaseline.isCalendarUtc(it))
+            assertNull(it, NovaWorkingBaseline.parse(stored().put("marked_at_utc", it).toString(), scope))
+        }
+        // Past, leap-day and far-future times are descriptive, not expired.
+        listOf("2028-02-29T23:59:59Z", "1999-01-01T00:00:00Z", "2099-12-31T23:59:59Z").forEach {
+            assertTrue(it, NovaWorkingBaseline.isCalendarUtc(it))
+            assertEquals(it, NovaWorkingBaseline.parse(stored().put("marked_at_utc", it).toString(), scope)?.markedAtUtc)
+        }
+    }
+
+    @Test fun theEntryBoundIsUtf8BytesNotCharacters() {
+        assertTrue(NovaWorkingBaseline.fitsEntry("a".repeat(NovaWorkingBaseline.MAX_ENTRY_BYTES)))
+        assertFalse(NovaWorkingBaseline.fitsEntry("a".repeat(NovaWorkingBaseline.MAX_ENTRY_BYTES + 1)))
+        assertFalse(NovaWorkingBaseline.fitsEntry("é".repeat(1_100)))
+        assertTrue(NovaWorkingBaseline.fitsEntry("é".repeat(1_024)))
+    }
+
     @Test fun anEntryIsOnlyEverReadForItsOwnScope() {
         val other = NovaWorkingBaseline.scope(key, NovaWorkingBaseline.RequestedEntry.of(PC, "another-app-entry")!!)!!
         assertNull(NovaWorkingBaseline.parse(NovaWorkingBaseline.encode(baseline()), other))
