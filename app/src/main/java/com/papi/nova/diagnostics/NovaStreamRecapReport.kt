@@ -33,7 +33,7 @@ object NovaStreamRecapReport {
     val NOT_INCLUDED = listOf(
         "host_identity_or_address",
         "app_or_session_identity",
-        "host_side_readings",
+        "host_diagnostics",
         "measured_throughput",
         "game_or_scene",
         "network_path",
@@ -131,7 +131,8 @@ object NovaStreamRecapReport {
         appendLine("- Readings are unweighted averages over accepted client samples, each with its own count, lowest and highest value. Unknown stays null.")
         appendLine("- Requested settings are what Nova asked for at launch. The requested bitrate is not measured throughput.")
         appendLine("- Video frames missing are counted from decoder counters between client samples, and over the whole connection only when those counters were unbroken.")
-        appendLine("- Control-channel round trip is not video latency. No host-side readings, game, scene or network path are included, and there is no health grade.")
+        appendLine("- Processing latency is reported by the host through frame metadata received by this client. No separate host diagnostics were requested.")
+        appendLine("- Control-channel round trip is not video latency. No host diagnostics, game, scene or network path are included, and there is no health grade.")
         appendLine()
         appendLine("## Recap")
         appendLine("```json")
