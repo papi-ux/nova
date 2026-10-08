@@ -184,4 +184,49 @@ class ProfilesLaunchOverlayTest {
         assertEquals(PreferenceConfiguration.FormatOption.FORCE_HEVC, durable.videoFormat)
         assertSame(active, manager.getActive())
     }
+
+    @Test
+    fun baseEditsUpdateTheShownChoiceBeforePreflightAndStopBeingObservedWhileAway() {
+        manager.setActive(null)
+        val activity = Robolectric.buildActivity(com.papi.nova.ui.NovaGameDetailActivity::class.java).get()
+        val type = activity.javaClass
+        type.getDeclaredField("serverUuid").apply { isAccessible = true }.set(activity, "fixture-host")
+        val stateField = type.getDeclaredField("displayedLaunchChoice\$delegate").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val shown = stateField.get(activity) as androidx.compose.runtime.MutableState<com.papi.nova.network.NetworkLaunchProfileChoice?>
+        val revalidate = type.getDeclaredMethod("revalidateLaunchProfile").apply { isAccessible = true }
+        val register = type.getDeclaredMethod("registerLaunchBasePreferences").apply { isAccessible = true }
+        val unregister = type.getDeclaredMethod("unregisterLaunchBasePreferences").apply { isAccessible = true }
+        revalidate.invoke(activity)
+        var retirements = 0
+        type.getDeclaredField("onEffectiveLaunchProfileChanged").apply { isAccessible = true }
+            .set(activity, { retirements++; Unit })
+        val base = PreferenceManager.getDefaultSharedPreferences(context)
+        register.invoke(activity)
+        register.invoke(activity) // Resume registration is idempotent.
+        try {
+            base.edit().putString("list_fps", "90").commit()
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            assertEquals("90", shown.value?.profileRevision?.get("list_fps"))
+            assertEquals(1, retirements)
+            val preflightChoice = shown.value
+            revalidate.invoke(activity) // The next preflight discovers no further change.
+            assertEquals(1, retirements)
+            assertEquals(com.papi.nova.network.NetworkLaunchProfileGate.Decision.PROCEED,
+                com.papi.nova.network.NetworkLaunchProfileGate.decide(preflightChoice, preflightChoice, shown.value))
+
+            unregister.invoke(activity)
+            base.edit().putString("list_fps", "120").commit()
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            assertEquals("90", shown.value?.profileRevision?.get("list_fps"))
+            assertEquals(1, retirements)
+            register.invoke(activity)
+            revalidate.invoke(activity) // onResume checks edits made while away.
+            assertEquals("120", shown.value?.profileRevision?.get("list_fps"))
+            assertEquals(2, retirements)
+            assertNull(manager.getActive())
+        } finally {
+            unregister.invoke(activity)
+        }
+    }
 }
