@@ -62,6 +62,65 @@ class NovaQuickMenu(
     private val runtime = NovaCommandCenterRuntime.of(game)
 
     /**
+     * Report This Moment: frozen at the press, saved off the main thread, confirmed in the stream,
+     * and shared only from that confirmation's explicit Share.
+     */
+    private val momentReporter: com.papi.nova.diagnostics.NovaMomentReporter = com.papi.nova.diagnostics.NovaMomentReporter(
+        runtime = runtime,
+        freeze = { game.freezeMomentReport() },
+        prepare = { frozen ->
+            com.papi.nova.diagnostics.NovaMomentReporter.prepare(
+                com.papi.nova.diagnostics.NovaMomentShare.directory(game), frozen)
+        },
+        saved = { report -> surfaces.present(momentSavedPage(report)) },
+        offer = { file -> com.papi.nova.diagnostics.NovaMomentShare.offer(game, file) },
+        isActive = game::canReportMoment,
+        canShare = {
+            !game.isFinishing && !game.isDestroyed &&
+                game.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+        },
+        feedback = { outcome ->
+            when (outcome) {
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.OFFERED ->
+                    NovaSnackbar.show(game, game.getString(R.string.nova_moment_report_offered), anchor = session?.anchor)
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.NOT_ACTIVE ->
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_not_active), anchor = session?.anchor)
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.STORAGE_FAILED ->
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_storage_failed), anchor = session?.anchor)
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.NO_SHARE_TARGET ->
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_no_share_target), anchor = session?.anchor)
+            }
+        },
+    )
+
+    init {
+        // A stream going away retires any report still being saved and closes the log it holds.
+        game.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                momentReporter.retire()
+                game.cancelRuntimeTask(com.papi.nova.diagnostics.NovaMomentReporter.TASK)
+            }
+            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) = momentReporter.retire()
+        })
+    }
+
+    /**
+     * The saved moment, in the stream. Keep Playing is focused and is what B does; Share Report is
+     * the explicit choice that opens another app, which can pause or stop the stream.
+     */
+    private fun momentSavedPage(report: com.papi.nova.diagnostics.NovaMomentReporter.Saved) =
+        com.papi.nova.ui.panel.NovaCommonPage.Confirm(
+            key = "nova-moment-saved-${report.file.name}",
+            title = game.getString(R.string.nova_moment_report_saved_title),
+            message = androidx.compose.ui.text.AnnotatedString(
+                game.getString(R.string.nova_moment_report_saved_message, report.markedAtUtc)),
+            stayLabel = game.getString(R.string.nova_moment_report_keep_playing),
+            actionLabel = game.getString(R.string.nova_moment_report_share),
+            destructive = false,
+            onConfirm = { momentReporter.share(report) },
+        )
+
+    /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
      * what the open pages lend the host code (their scope, for closing and waiting on the
      * stream's focus, and a view in the panel window for snackbars).
@@ -470,6 +529,7 @@ class NovaQuickMenu(
                 polarisHost = host.polaris,
                 lastStatus = host.last,
                 commandKeysAllowed = game.canSendCommandKeys(),
+                momentReportAvailable = game.canReportMoment(),
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = host.unavailable,
@@ -1146,6 +1206,10 @@ class NovaQuickMenu(
                         NovaQuickMenuActionId.MORE_CONTROLS -> {
                             // The legacy Quick Menu's extras, pushed in this panel.
                             surfaces.panel.push(moreControlsPage(menu.device))
+                        }
+                        NovaQuickMenuActionId.REPORT_MOMENT -> {
+                            // Frozen here, at the press, before anything is read or written.
+                            momentReporter.report()
                         }
                         else -> Unit
                     }

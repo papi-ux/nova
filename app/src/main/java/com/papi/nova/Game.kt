@@ -7244,6 +7244,61 @@ private fun syncPerfTextWanted() {
 decoderRenderer?.setPerfTextWanted(::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay)
 }
 
+/**
+ * Report This Moment's freeze, on the main thread at the press: the client snapshot, the values the
+ * log must not show, and where each log file ended. Null unless a stream is actually up on this
+ * device; watching and Spaces are reported as such, and nothing here claims host ownership.
+ */
+internal fun canReportMoment():Boolean =
+    com.papi.nova.diagnostics.NovaMomentReport.canCapture(isStreamActive, connected, isFinishing, isDestroyed) &&
+        ::prefConfig.isInitialized
+
+internal fun freezeMomentReport():com.papi.nova.diagnostics.NovaMomentReporter.Frozen? {
+if (!canReportMoment()) return null
+// The anchor a reader finds in the log tail, written before the log's ends are frozen.
+LimeLog.info("Nova: Report This Moment marked")
+val sample = lastCompanionPerfSample?.let {
+    com.papi.nova.diagnostics.NovaMomentReport.Sample(
+        codec = it.codec, width = it.width, height = it.height, renderedFps = it.renderedFps,
+        receivedFps = it.incomingFps, decodeTimeMs = it.decodeTimeMs, rttMs = it.rttMs,
+        rttVarianceMs = it.rttVarianceMs, packetLossPct = it.packetLossPct,
+        hostProcessingLatencyMs = it.hostProcessingLatencyMs, framesExpected = it.framesExpected,
+        framesLost = it.framesLost, monotonicTimestampMs = it.monotonicTimestampMs)
+}
+val snapshot = com.papi.nova.diagnostics.NovaMomentReport.capture(
+    markedAtUtc = com.papi.nova.diagnostics.NovaDiagnostics.utcTimestamp(),
+    nowElapsedMs = android.os.SystemClock.elapsedRealtime(),
+    novaVersion = BuildConfig.VERSION_NAME,
+    buildType = BuildConfig.BUILD_TYPE,
+    androidRelease = Build.VERSION.RELEASE ?: "",
+    androidSdk = Build.VERSION.SDK_INT,
+    device = "${Build.MANUFACTURER} ${Build.MODEL}",
+    watching = watchOnlyRequested,
+    space = spaceSession,
+    requestedWidth = prefConfig.width,
+    requestedHeight = prefConfig.height,
+    requestedFps = prefConfig.fps,
+    requestedBitrateKbps = prefConfig.bitrate,
+    requestedCodec = prefConfig.videoFormat?.name ?: "",
+    sample = sample)
+// Values this stream knows and the log must not carry, whatever shape a line gives them.
+val known = LinkedHashMap<String, String>()
+fun knownValue(value:String?, label:String) { value?.trim()?.takeIf { it.length >= 3 }?.let { known[it] = label } }
+knownValue(host, "<host>")
+knownValue(pcName, "<host-name>")
+knownValue(getIntent().getStringExtra(EXTRA_PC_UUID), "<uuid>")
+knownValue(uniqueId, "<client-id>")
+knownValue(appUUID, "<uuid>")
+knownValue(lastPolarisSessionStatus?.appSessionId, "[redacted]")
+// The client's own cached status, read as it stands; no request is made for the report.
+knownValue(novaApiClient?.sessionStatusUpdates?.value?.appSessionId, "[redacted]")
+return com.papi.nova.diagnostics.NovaMomentReporter.Frozen(
+    snapshot = snapshot,
+    known = known,
+    // Held open where it ended now, so later or rotated lines cannot join the moment.
+    log = com.papi.nova.diagnostics.NovaMomentLog.mark(com.papi.nova.diagnostics.NovaDiagnostics.diagnosticsDirectory(this)))
+}
+
 fun copyNovaHudDiagnostics() {
 val diagnosticText:String = novaHud?.getDiagnosticSummaryText()
     ?: "Nova stream diagnostics\nNo active Nova HUD sample yet. Enable Nova HUD during a stream and try again."
