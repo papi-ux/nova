@@ -531,12 +531,11 @@ class NovaGameDetailActivity : NovaActivity() {
      */
     private fun revalidateLaunchProfile() {
         if (isDestroyed) return
-        val now = System.currentTimeMillis()
-        displayedHostEvidence = if (networkRulesApply()) hostConnectionObservation?.evaluate(now) else null
+        displayedHostEvidence = if (networkRulesApply()) hostConnectionEvidence() else null
         val previous = displayedLaunchChoice
         val next = networkLaunchChoice()
         displayedLaunchChoice = next
-        scheduleHostConnectionFreshness(now)
+        scheduleHostConnectionFreshness()
         if (!com.papi.nova.network.NetworkLaunchProfileChoice.sameEffectiveProfile(previous, next)) onEffectiveLaunchProfileChanged()
     }
 
@@ -544,15 +543,17 @@ class NovaGameDetailActivity : NovaActivity() {
      * The host's answer is good for a few seconds. Ask again shortly before it ages out, so a
      * reachable host does not flap to unknown, and re-check the plan the moment it does age out.
      */
-    private fun scheduleHostConnectionFreshness(nowWallMs: Long) {
+    private fun scheduleHostConnectionFreshness() {
         hostConnectionFreshnessJob?.cancel()
         hostConnectionFreshnessJob = null
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
-        val until = hostConnectionObservation?.freshUntilWallMs(nowWallMs) ?: return
+        val freshFor = hostConnectionObservation
+            ?.freshForMs(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()) ?: return
         hostConnectionFreshnessJob = lifecycleScope.launch {
-            delay((until - HOST_CONNECTION_REFRESH_LEAD_MS - nowWallMs).coerceAtLeast(0L))
+            val refreshAfter = (freshFor - HOST_CONNECTION_REFRESH_LEAD_MS).coerceAtLeast(0L)
+            delay(refreshAfter)
             refreshHostConnection()
-            delay((until - System.currentTimeMillis()).coerceAtLeast(0L))
+            delay((freshFor - refreshAfter).coerceAtLeast(0L))
             revalidateLaunchProfile()
         }
     }
@@ -578,7 +579,7 @@ class NovaGameDetailActivity : NovaActivity() {
 
     /** The host's answer as it stands now: an answer that has aged past its window is unknown. */
     private fun hostConnectionEvidence(): com.papi.nova.network.HostConnectionEvidence? =
-        hostConnectionObservation?.evaluate(System.currentTimeMillis())
+        hostConnectionObservation?.evaluate(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
 
     /**
      * Which saved settings the next launch uses and why, or null where rules never apply. Read by

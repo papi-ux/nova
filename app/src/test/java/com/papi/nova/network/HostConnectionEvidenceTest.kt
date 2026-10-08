@@ -17,6 +17,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class HostConnectionEvidenceTest {
     private val now = 1_800_000_000_000L
+    private val elapsed = 5_000_000L
 
     private fun body(
         status: String = "tailscale",
@@ -120,16 +121,49 @@ class HostConnectionEvidenceTest {
     }
 
     @Test fun aKeptAnswerBecomesUnknownOnceItAges() {
-        val observation = HostConnectionObservation(body().toString(), supported = true)
-        assertEquals(Status.TAILSCALE, observation.evaluate(now).status)
-        assertEquals(HostConnectionEvidence.unknown(Reason.STALE), observation.evaluate(now + 10_000L))
+        val observation = HostConnectionObservation(body().toString(), supported = true, receivedAtElapsedMs = elapsed)
+        assertEquals(Status.TAILSCALE, observation.evaluate(now, elapsed).status)
+        assertEquals(HostConnectionEvidence.unknown(Reason.STALE), observation.evaluate(now + 10_000L, elapsed + 10_000L))
+    }
+
+    @Test fun settingTheDeviceClockBackCannotKeepAnOldAnswerFresh() {
+        // Received at elapsed; observed 1 s before. 20 s later by the monotonic clock, the wall
+        // clock has been set back 20 s, so by wall time alone the answer still looks 1 s old.
+        val observation = HostConnectionObservation(body().toString(), supported = true, receivedAtElapsedMs = elapsed)
+        assertEquals(Status.TAILSCALE, HostConnectionEvidence.parseBody(observation.body, now).status)
+        assertEquals(HostConnectionEvidence.unknown(Reason.STALE), observation.evaluate(now, elapsed + 20_000L))
+        // Exactly at the receipt bound it still counts; one past it does not.
+        val atBound = HostConnectionObservation(body(observedAt = now).toString(), true, receivedAtElapsedMs = elapsed)
+        assertEquals(Status.TAILSCALE, atBound.evaluate(now, elapsed + 10_000L).status)
+        assertEquals(HostConnectionEvidence.unknown(Reason.STALE), atBound.evaluate(now, elapsed + 10_001L))
+        // A monotonic clock before the receipt (a different boot) is not trusted either.
+        assertEquals(HostConnectionEvidence.unknown(Reason.STALE), observation.evaluate(now, elapsed - 1L))
+        // Not-Tailscale answers are bounded the same way; unknown ones stay unknown with their reason.
+        val notTailscale = HostConnectionObservation(body(status = "not_tailscale", confirmed = false).toString(), true, elapsed)
+        assertEquals(HostConnectionEvidence.unknown(Reason.STALE), notTailscale.evaluate(now, elapsed + 10_001L))
+        val unknown = HostConnectionObservation(body(status = "unknown", reason = "peer_idle").toString(), true, elapsed)
+        assertEquals(HostConnectionEvidence.unknown(Reason.PEER_IDLE), unknown.evaluate(now, elapsed + 60_000L))
+    }
+
+    @Test fun theFreshnessDelayIsTheShorterOfTheHostWindowAndTheReceiptBound() {
+        // Observed 1 s before receipt: the host window ends first, 9 001 ms after receipt.
+        val hostBound = HostConnectionObservation(body(observedAt = now - 1_000L).toString(), true, elapsed)
+        assertEquals(9_001L, hostBound.freshForMs(now, elapsed))
+        // Observed 1.5 s in the future (allowed skew): the receipt bound ends first, 10 001 ms after.
+        val receiptBound = HostConnectionObservation(body(observedAt = now + 1_500L).toString(), true, elapsed)
+        assertEquals(10_001L, receiptBound.freshForMs(now, elapsed))
+        // 9 s after receipt with the wall clock set back 5 s, the host window alone would allow
+        // 5 001 ms more; the receipt bound allows only 1 001, and that is what is used.
+        assertEquals(1_001L, hostBound.freshForMs(now + 9_000L - 5_000L, elapsed + 9_000L))
+        assertNull(hostBound.freshForMs(now, elapsed + 10_001L))
+        assertNull(HostConnectionObservation(body().toString(), supported = false, receivedAtElapsedMs = elapsed).freshForMs(now, elapsed))
     }
 
     @Test fun oldHostsMissingCapabilityAndFailuresAreSupportedUnknowns() {
         assertEquals(HostConnectionEvidence.unknown(Reason.HOST_UNSUPPORTED),
-            HostConnectionObservation(body().toString(), supported = false).evaluate(now))
+            HostConnectionObservation(body().toString(), supported = false, receivedAtElapsedMs = elapsed).evaluate(now, elapsed))
         assertEquals(HostConnectionEvidence.unknown(Reason.REQUEST_FAILED),
-            HostConnectionObservation(null, supported = true).evaluate(now))
+            HostConnectionObservation(null, supported = true, receivedAtElapsedMs = elapsed).evaluate(now, elapsed))
         assertEquals(HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA), HostConnectionEvidence.parseBody("not json", now))
         assertEquals(HostConnectionEvidence.unknown(Reason.UNSUPPORTED_SCHEMA), HostConnectionEvidence.parseBody("[]", now))
         val oversized = body(extra = { it.put("pad", "x".repeat(HostConnectionEvidence.MAX_BODY_CHARS)) }).toString()
@@ -186,8 +220,6 @@ class HostConnectionEvidenceTest {
         assertEquals(observedAt + 10_001L, HostConnectionEvidence.freshUntilWallMs(body(observedAt = observedAt, maxAge = 60_000L).toString(), now))
         assertNull(HostConnectionEvidence.freshUntilWallMs(fresh, observedAt + 10_001L))
         assertNull(HostConnectionEvidence.freshUntilWallMs(body(status = "unknown", reason = "peer_idle").toString(), now))
-        assertNull(HostConnectionObservation(fresh, supported = false).freshUntilWallMs(now))
-        assertEquals(observedAt + 10_001L, HostConnectionObservation(fresh, supported = true).freshUntilWallMs(now))
     }
 
     @Test fun nothingIdentifyingInTheBodyReachesTheResult() {

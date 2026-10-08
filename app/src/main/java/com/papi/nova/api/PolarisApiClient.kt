@@ -1184,6 +1184,21 @@ class PolarisApiClient @JvmOverloads constructor(
                 lastSleepAt = json.optLong("last_sleep_at", 0L),
             )
 
+        /**
+         * At most [maxBytes] of [body], or null when it is longer: a declared length over the
+         * limit is refused unread, and an undeclared or chunked one is read only to one byte past
+         * the limit, never to its end.
+         */
+        @JvmStatic
+        internal fun readBoundedBody(
+            body: okhttp3.ResponseBody,
+            maxBytes: Long = com.papi.nova.network.HostConnectionEvidence.MAX_BODY_BYTES,
+        ): String? {
+            if (body.contentLength() > maxBytes) return null
+            val source = body.source()
+            return if (source.request(maxBytes + 1)) null else source.buffer.readUtf8()
+        }
+
         @JvmStatic
         fun parseCapabilitiesResponse(json: JSONObject): PolarisCapabilities {
             val features = json.optJSONObject("features")
@@ -2412,27 +2427,22 @@ class PolarisApiClient @JvmOverloads constructor(
      * logged: it is about a tailnet, and failures log a fixed message without the exception text.
      */
     fun getNetworkConnection(capabilities: PolarisCapabilities?): com.papi.nova.network.HostConnectionObservation {
-        if (capabilities?.features?.networkConnectionV1 != true) {
-            return com.papi.nova.network.HostConnectionObservation(body = null, supported = false)
-        }
+        fun observation(body: String?, supported: Boolean) = com.papi.nova.network.HostConnectionObservation(
+            body = body, supported = supported, receivedAtElapsedMs = android.os.SystemClock.elapsedRealtime(),
+        )
+        if (capabilities?.features?.networkConnectionV1 != true) return observation(null, supported = false)
         return try {
             val request = Request.Builder().url("$baseUrl/network/connection").build()
             executeGetWithRetry(request).use { response ->
                 when (response.code) {
-                    200 -> com.papi.nova.network.HostConnectionObservation(
-                        body = response.body?.let { body ->
-                            val declared = body.contentLength()
-                            if (declared > com.papi.nova.network.HostConnectionEvidence.MAX_BODY_CHARS) null else body.string()
-                        },
-                        supported = true
-                    )
-                    404 -> com.papi.nova.network.HostConnectionObservation(body = null, supported = false)
-                    else -> com.papi.nova.network.HostConnectionObservation(body = null, supported = true)
+                    200 -> observation(response.body?.let { readBoundedBody(it) }, supported = true)
+                    404 -> observation(null, supported = false)
+                    else -> observation(null, supported = true)
                 }
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: host connection evidence unavailable")
-            com.papi.nova.network.HostConnectionObservation(body = null, supported = true)
+            observation(null, supported = true)
         }
     }
 

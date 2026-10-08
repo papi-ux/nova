@@ -22,6 +22,13 @@ class NetworkLaunchProfileGateTest {
     private val home = "11111111-1111-1111-1111-111111111111"
     private val travel = "22222222-2222-2222-2222-222222222222"
     private val now = 1_800_000_000_000L
+    /** This device's monotonic clock when [now] was read, and when every answer here arrived. */
+    private val elapsed = 5_000_000L
+
+    private fun observed(body: String) = HostConnectionObservation(body, supported = true, receivedAtElapsedMs = elapsed)
+
+    /** Judge an answer [afterMs] after it arrived, both clocks moving together. */
+    private fun HostConnectionObservation.at(afterMs: Long) = evaluate(now + afterMs, elapsed + afterMs)
 
     /** The saved profiles and their settings fingerprints, as ProfilesManager would answer. */
     private val saved = mutableMapOf(home to 1, travel to 7)
@@ -55,14 +62,14 @@ class NetworkLaunchProfileGateTest {
 
     @Test fun aConfirmedTailscaleAnswerWithUnknownTransportStillMatches() {
         // Root's settlement: transport is informational; a fresh confirmed answer is enough.
-        val evidence = HostConnectionObservation(hostAnswer(now - 500L, "unknown"), supported = true).evaluate(now)
+        val evidence = observed(hostAnswer(now - 500L, "unknown")).at(0L)
         assertEquals(Status.TAILSCALE, evidence.status)
         assertEquals(HostConnectionEvidence.Transport.UNKNOWN, evidence.transport)
         val choice = choose(snapshot(LinkTransport.CELLULAR, evidence.status))
         assertEquals(travel, choice.profileUuid)
         // Direct, DERP or peer relay choose exactly the same profile.
         listOf("direct", "derp", "peer_relay").forEach { transport ->
-            val status = HostConnectionObservation(hostAnswer(now - 500L, transport), true).evaluate(now).status
+            val status = observed(hostAnswer(now - 500L, transport)).at(0L).status
             assertTrue(NetworkLaunchProfileChoice.sameEffectiveProfile(choice, choose(snapshot(LinkTransport.CELLULAR, status))))
         }
     }
@@ -75,14 +82,14 @@ class NetworkLaunchProfileGateTest {
     }
 
     @Test fun hostEvidenceAgingOutStopsALaunchItChose() {
-        val observation = HostConnectionObservation(hostAnswer(now - 1_000L, "derp"), supported = true)
-        val shown = choose(snapshot(LinkTransport.CELLULAR, observation.evaluate(now).status))
+        val observation = observed(hostAnswer(now - 1_000L, "derp"))
+        val shown = choose(snapshot(LinkTransport.CELLULAR, observation.at(0L).status))
         assertEquals(travel, shown.profileUuid)
-        val later = choose(snapshot(LinkTransport.CELLULAR, observation.evaluate(now + 9_001L).status))
+        val later = choose(snapshot(LinkTransport.CELLULAR, observation.at(9_001L).status))
         assertEquals(NetworkLaunchProfileChoice.Source.ACTIVE, later.source)
         assertEquals(Decision.PLAN_CHANGED, NetworkLaunchProfileGate.decide(shown, shown, later))
         // Still inside the window it launches.
-        val inside = choose(snapshot(LinkTransport.CELLULAR, observation.evaluate(now + 9_000L).status))
+        val inside = choose(snapshot(LinkTransport.CELLULAR, observation.at(9_000L).status))
         assertEquals(Decision.PROCEED, NetworkLaunchProfileGate.decide(shown, shown, inside))
     }
 
