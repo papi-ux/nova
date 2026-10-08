@@ -69,7 +69,8 @@ class NovaMomentReportTest {
         assertEquals("decoder_video_frames_in_sample_window", decoder.getString("frame_loss_scope"))
         val text = json.toString()
         assertFalse(text.contains("packet_loss"))
-        assertFalse(json.getJSONObject("network_estimate").has("loss_pct"))
+        assertFalse(json.getJSONObject("control_channel").has("loss_pct"))
+        assertEquals("control_stream_round_trip_estimate", json.getJSONObject("control_channel").getString("scope"))
         assertTrue(json.getJSONArray("not_included").toString().contains("control_channel_loss"))
     }
 
@@ -92,7 +93,7 @@ class NovaMomentReportTest {
         assertEquals("stale", decoder.getString("readings"))
         assertTrue(decoder.isNull("rendered_fps"))
         assertTrue(decoder.isNull("frame_loss_pct"))
-        assertTrue(NovaMomentReport.toJson(stale).getJSONObject("network_estimate").isNull("rtt_ms"))
+        assertTrue(NovaMomentReport.toJson(stale).getJSONObject("control_channel").isNull("rtt_ms"))
     }
 
     @Test fun nonFiniteNegativeAndOutOfRangeReadingsBecomeNull() {
@@ -102,8 +103,8 @@ class NovaMomentReportTest {
         assertNull(observed.decoderFrameLossPct)
         assertNull(observed.decodeTimeMs)
         // A zero RTT is MoonBridge's "no estimate yet", not a measured 0 ms.
-        assertNull(observed.networkRttMs)
-        assertNull(observed.networkRttVarianceMs)
+        assertNull(observed.controlRttMs)
+        assertNull(observed.controlRttVarianceMs)
         assertNull(bad.requested.fps)
         assertNull(capture(sample(lossPct = 140.0)).observed!!.decoderFrameLossPct)
         // JSON carries explicit nulls, never NaN.
@@ -114,14 +115,14 @@ class NovaMomentReportTest {
 
     @Test fun theSchemaIsClosed() {
         val json = NovaMomentReport.toJson(capture())
-        assertEquals(setOf("kind", "marked_at_utc", "client", "stream", "requested_settings", "client_decoder", "network_estimate", "not_included"), json.keys().asSequence().toSet())
+        assertEquals(setOf("kind", "marked_at_utc", "client", "stream", "requested_settings", "client_decoder", "control_channel", "not_included"), json.keys().asSequence().toSet())
         assertEquals(setOf("app", "version", "build_type", "android_release", "android_sdk", "device"), json.getJSONObject("client").keys().asSequence().toSet())
         assertEquals(setOf("active_on_this_device", "role"), json.getJSONObject("stream").keys().asSequence().toSet())
         assertEquals(setOf("width", "height", "fps", "bitrate_kbps", "codec_preference"), json.getJSONObject("requested_settings").keys().asSequence().toSet())
         assertEquals(setOf("readings", "sample_age_ms", "codec", "decoder", "width", "height", "rendered_fps", "received_fps",
             "decode_time_ms", "host_processing_latency_ms", "frame_loss_pct", "frame_loss_scope", "frames_expected", "frames_lost"),
             json.getJSONObject("client_decoder").keys().asSequence().toSet())
-        assertEquals(setOf("rtt_ms", "rtt_variance_ms", "source"), json.getJSONObject("network_estimate").keys().asSequence().toSet())
+        assertEquals(setOf("rtt_ms", "rtt_variance_ms", "scope"), json.getJSONObject("control_channel").keys().asSequence().toSet())
         assertEquals(NovaMomentReport.KIND, json.getString("kind"))
         // No field anywhere names an identity, command scope, endpoint or commit.
         fun keys(value: Any?): List<String> = when (value) {
@@ -137,6 +138,28 @@ class NovaMomentReportTest {
         }
         // What is not included is said, as labels only.
         assertEquals(NovaMomentReport.NOT_INCLUDED, (0 until json.getJSONArray("not_included").length()).map { json.getJSONArray("not_included").getString(it) })
+    }
+
+    @Test fun zeroFrameWindowsAndMissingRttAreUnknownNotHealthy() {
+        // The renderer writes 0% loss when its window had no frames, and 0 RTT before an estimate.
+        val idle = capture(Sample("c2.qti.hevc.decoder", 1920, 1080, 0.0, 0.0, 0.0, 0, 0, 0.0, null, 0, 0, now - 100))
+        assertEquals(Readings.CURRENT, idle.readings)
+        assertNull(idle.observed!!.decoderFrameLossPct)
+        assertNull(idle.observed!!.controlRttMs)
+        // No cumulative frames either way: still unknown even with a frame rate.
+        val noFrames = capture(Sample("c2.qti.hevc.decoder", 1920, 1080, 60.0, 60.0, 2.0, 12, 1, 0.0, null, 0, 0, now - 100))
+        assertNull(noFrames.observed!!.decoderFrameLossPct)
+        // A real window with frames reports its loss, including a true zero.
+        assertEquals(0.0, capture(sample(lossPct = 0.0)).observed!!.decoderFrameLossPct!!, 0.0)
+    }
+
+    @Test fun onlyRealDecoderComponentNamesFillTheDecoderField() {
+        for (name in listOf("c2.qti.hevc.decoder", "OMX.qcom.video.decoder.avc", "OMX.google.h264.decoder", "c2.android.av1.decoder"))
+            assertEquals(name, capture(sample(codec = name)).observed!!.decoder)
+        // Host names, tokens and dotted words that merely look safe are not decoders.
+        for (masquerade in listOf("gaming-pc.tail0000.ts.net", "c2.example.ts.net", "OMX.secret-token", "c2.evil",
+                "host.decoder.example.com", "6f1c9e2a-session-token-value"))
+            assertNull(masquerade, capture(sample(codec = masquerade)).observed!!.decoder)
     }
 
     @Test fun freeTextInputsCannotCarryIdentityIntoTheSchema() {

@@ -71,7 +71,7 @@ class NovaCommandCenterReportMomentComposeTest {
         row.assertIsEnabled()
         val description = row.fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
         assertTrue(description, description.startsWith(rule.activity.getString(R.string.nova_moment_report_action)))
-        assertTrue(description, description.contains("Nothing is sent automatically"))
+        assertTrue(description, description.contains("nothing is sent automatically", ignoreCase = true))
         row.performClick()
         rule.waitForIdle()
         assertEquals(listOf(NovaQuickMenuActionId.REPORT_MOMENT), pressed)

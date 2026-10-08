@@ -7287,10 +7287,13 @@ knownValue(getIntent().getStringExtra(EXTRA_PC_UUID), "<uuid>")
 knownValue(uniqueId, "<client-id>")
 knownValue(appUUID, "<uuid>")
 knownValue(lastPolarisSessionStatus?.appSessionId, "[redacted]")
+// The client's own cached status, read as it stands; no request is made for the report.
+knownValue(novaApiClient?.sessionStatusUpdates?.value?.appSessionId, "[redacted]")
 return com.papi.nova.diagnostics.NovaMomentReporter.Frozen(
     snapshot = snapshot,
     known = known,
-    log = com.papi.nova.diagnostics.NovaMomentLog.parts(com.papi.nova.diagnostics.NovaDiagnostics.diagnosticsDirectory(this)))
+    // Held open where it ended now, so later or rotated lines cannot join the moment.
+    log = com.papi.nova.diagnostics.NovaMomentLog.mark(com.papi.nova.diagnostics.NovaDiagnostics.diagnosticsDirectory(this)))
 }
 
 fun copyNovaHudDiagnostics() {

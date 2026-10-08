@@ -53,8 +53,9 @@ object NovaMomentReport {
         val renderedFps: Double?,
         val receivedFps: Double?,
         val decodeTimeMs: Double?,
-        val networkRttMs: Double?,
-        val networkRttVarianceMs: Double?,
+        /** The stream's control-channel round trip, not media latency or loss. */
+        val controlRttMs: Double?,
+        val controlRttVarianceMs: Double?,
         val hostProcessingLatencyMs: Double?,
         /** Video frames missing in the decoder's sample window: media loss, not control-channel loss. */
         val decoderFrameLossPct: Double?,
@@ -147,17 +148,20 @@ object NovaMomentReport {
             sampleAgeMs = if (readings == Readings.UNAVAILABLE) null else age,
             observed = if (readings != Readings.CURRENT || sample == null) null else Observed(
                 codec = codecFamily(sample.codec),
-                decoder = token(sample.codec, DECODER_PATTERN)?.takeIf { it != "PyroWave" },
+                decoder = decoderName(sample.codec),
                 width = sample.width.takeIf { it in 1..16384 },
                 height = sample.height.takeIf { it in 1..16384 },
                 renderedFps = finite(sample.renderedFps, 0.0, 1000.0),
                 receivedFps = finite(sample.receivedFps, 0.0, 1000.0),
                 decodeTimeMs = finite(sample.decodeTimeMs, 0.0, 10_000.0),
                 // MoonBridge reports 0 before it has an estimate; that is "unknown", not 0 ms.
-                networkRttMs = sample.rttMs.takeIf { it in 1..60_000 }?.toDouble(),
-                networkRttVarianceMs = sample.rttVarianceMs.takeIf { sample.rttMs in 1..60_000 && it in 0..60_000 }?.toDouble(),
+                controlRttMs = sample.rttMs.takeIf { it in 1..60_000 }?.toDouble(),
+                controlRttVarianceMs = sample.rttVarianceMs.takeIf { sample.rttMs in 1..60_000 && it in 0..60_000 }?.toDouble(),
                 hostProcessingLatencyMs = sample.hostProcessingLatencyMs?.let { finite(it, 0.0, 10_000.0) },
-                decoderFrameLossPct = finite(sample.packetLossPct, 0.0, 100.0),
+                // The renderer reports 0 when its window had no frames to count: unknown, not healthy.
+                decoderFrameLossPct = finite(sample.packetLossPct, 0.0, 100.0)?.takeIf {
+                    sample.framesExpected > 0 && (sample.receivedFps > 0.0 || sample.renderedFps > 0.0)
+                },
                 framesExpected = sample.framesExpected.takeIf { it >= 0 },
                 framesLost = sample.framesLost.takeIf { it >= 0 && (sample.framesExpected < 0 || it <= sample.framesExpected) },
             ),
@@ -203,10 +207,10 @@ object NovaMomentReport {
                 .put("frame_loss_scope", "decoder_video_frames_in_sample_window")
                 .put("frames_expected", observed?.framesExpected ?: JSONObject.NULL)
                 .put("frames_lost", observed?.framesLost ?: JSONObject.NULL))
-            .put("network_estimate", JSONObject()
-                .put("rtt_ms", observed?.networkRttMs ?: JSONObject.NULL)
-                .put("rtt_variance_ms", observed?.networkRttVarianceMs ?: JSONObject.NULL)
-                .put("source", "client_rtt_estimate"))
+            .put("control_channel", JSONObject()
+                .put("rtt_ms", observed?.controlRttMs ?: JSONObject.NULL)
+                .put("rtt_variance_ms", observed?.controlRttVarianceMs ?: JSONObject.NULL)
+                .put("scope", "control_stream_round_trip_estimate"))
             .put("not_included", org.json.JSONArray(NOT_INCLUDED))
     }
 
@@ -224,13 +228,14 @@ object NovaMomentReport {
     fun render(snapshot: Snapshot, log: NovaMomentLog.Tail): String = buildString {
         appendLine("# Nova moment report")
         appendLine()
-        appendLine("> Captured on this device when Report This Moment was pressed, at ${snapshot.markedAtUtc}.")
+        appendLine("> Captured on this device when Report This Moment was pressed, at ${snapshot.markedAtUtc} (the moment, not when this file was shared).")
         appendLine("> Nothing was sent automatically. You chose where to share this file.")
         appendLine()
         appendLine("## What this describes")
         appendLine("- The client decoder readings are ${describe(snapshot)}.")
         appendLine("- Requested settings are what Nova asked for; client decoder readings are what it measured.")
-        appendLine("- Frame loss counts missing video frames in the decoder's sample window. It is not control-channel loss.")
+        appendLine("- Frame loss counts missing video frames in the decoder's sample window. It is not control-channel or packet loss.")
+        appendLine("- Control-channel round trip is the stream connection's estimate. It is not video latency.")
         appendLine("- No host snapshot is included. For the host side, export the Polaris support bundle from the host's Troubleshooting screen and attach it too.")
         appendLine("- The version is the Nova build that is running; no source commit is claimed.")
         appendLine()
@@ -243,7 +248,8 @@ object NovaMomentReport {
         appendLine(
             "The most recent ${log.bytes} bytes (${log.lines} lines) of Nova's log when the moment was marked, " +
                 "redacted. This is a byte tail, not a time window around the moment" +
-                (if (log.truncated) "; older lines were left out." else ".")
+                (if (log.truncated) "; older lines were left out." else ".") +
+                (if (log.changedSinceMoment) " A log file changed after the moment, so its lines were left out." else "")
         )
         if (log.text.isEmpty()) {
             appendLine()
@@ -265,8 +271,15 @@ object NovaMomentReport {
     private val UTC_PATTERN = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z""")
     private val VERSION_PATTERN = Regex("""[0-9A-Za-z][0-9A-Za-z.+_\-]{0,63}""")
     private val WORD_PATTERN = Regex("""[A-Za-z][A-Za-z0-9_]{0,31}""")
-    /** Android codec component names, such as c2.qti.hevc.decoder or OMX.google.h264.decoder. */
-    private val DECODER_PATTERN = Regex("""[A-Za-z][A-Za-z0-9._\-]{1,95}""")
+    /**
+     * Android decoder component names only: c2.* or OMX.*, dotted words, naming a decoder, such as
+     * c2.qti.hevc.decoder or OMX.qcom.video.decoder.avc. A host name or token in the codec label
+     * does not take this shape and is dropped rather than reported as a decoder.
+     */
+    private val DECODER_PATTERN = Regex("""(?:c2|OMX)(?:\.[A-Za-z0-9_]{1,24}){2,7}""")
+
+    private fun decoderName(label: String?): String? =
+        token(label, DECODER_PATTERN)?.takeIf { it.length <= 96 && it.contains("decoder", ignoreCase = true) }
 
     private fun token(value: String?, pattern: Regex): String? = value?.trim()?.takeIf { pattern.matches(it) }
 

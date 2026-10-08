@@ -61,14 +61,18 @@ class NovaQuickMenu(
     /** The stream's runtime, where the Command Center's work runs. */
     private val runtime = NovaCommandCenterRuntime.of(game)
 
-    /** Report This Moment: frozen at the press, written off the main thread, shared by the user. */
-    private val momentReporter = com.papi.nova.diagnostics.NovaMomentReporter(
+    /**
+     * Report This Moment: frozen at the press, saved off the main thread, confirmed in the stream,
+     * and shared only from that confirmation's explicit Share.
+     */
+    private val momentReporter: com.papi.nova.diagnostics.NovaMomentReporter = com.papi.nova.diagnostics.NovaMomentReporter(
         runtime = runtime,
         freeze = { game.freezeMomentReport() },
         prepare = { frozen ->
             com.papi.nova.diagnostics.NovaMomentReporter.prepare(
                 com.papi.nova.diagnostics.NovaMomentShare.directory(game), frozen)
         },
+        saved = { report -> surfaces.present(momentSavedPage(report)) },
         offer = { file -> com.papi.nova.diagnostics.NovaMomentShare.offer(game, file) },
         feedback = { outcome ->
             val anchor = session?.anchor
@@ -84,6 +88,29 @@ class NovaQuickMenu(
             }
         },
     )
+
+    init {
+        // A stream going away retires any report still being saved and closes the log it holds.
+        game.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) = momentReporter.retire()
+        })
+    }
+
+    /**
+     * The saved moment, in the stream. Keep Playing is focused and is what B does; Share Report is
+     * the explicit choice that opens another app, which can pause or stop the stream.
+     */
+    private fun momentSavedPage(report: com.papi.nova.diagnostics.NovaMomentReporter.Saved) =
+        com.papi.nova.ui.panel.NovaCommonPage.Confirm(
+            key = "nova-moment-saved-${report.file.name}",
+            title = game.getString(R.string.nova_moment_report_saved_title),
+            message = androidx.compose.ui.text.AnnotatedString(
+                game.getString(R.string.nova_moment_report_saved_message, report.markedAtUtc)),
+            stayLabel = game.getString(R.string.nova_moment_report_keep_playing),
+            actionLabel = game.getString(R.string.nova_moment_report_share),
+            destructive = false,
+            onConfirm = { momentReporter.share(report) },
+        )
 
     /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
