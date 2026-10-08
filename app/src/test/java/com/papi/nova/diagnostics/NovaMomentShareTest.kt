@@ -3,6 +3,7 @@ package com.papi.nova.diagnostics
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
@@ -28,7 +29,10 @@ class NovaMomentShareTest {
         // Robolectric gives each test a new cache root. Attach the manifest provider before
         // requesting a URI so FileProvider discards a path strategy from an earlier test.
         val application = RuntimeEnvironment.getApplication()
-        Robolectric.setupContentProvider(FileProvider::class.java, "${application.packageName}.fileprovider")
+        val providerInfo = requireNotNull(application.packageManager.resolveContentProvider(
+            "${application.packageName}.fileprovider", PackageManager.GET_META_DATA))
+        assertTrue(providerInfo.grantUriPermissions)
+        Robolectric.buildContentProvider(FileProvider::class.java).create(providerInfo).get()
     }
 
     /** An activity that has no app able to receive a share. */
