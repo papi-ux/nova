@@ -211,7 +211,7 @@ object DiagnosticsRedaction {
      * log line nothing does, and losing one diagnostic line costs far less than
      * exporting a secret.
      */
-    private fun redactAssignments(text: String): String {
+    private fun redactAssignments(text: String, alsoSensitive: (String) -> Boolean = { false }): String {
         val output = StringBuilder()
         var cursor = 0
         var searchFrom = 0
@@ -227,7 +227,7 @@ object DiagnosticsRedaction {
             if (value.isEmpty() ||
                 value == REDACTED ||
                 AUTH_SCHEME_VALUE.matches(value) ||
-                !isSensitiveIdentifier(label, true)
+                !(isSensitiveIdentifier(label, true) || alsoSensitive(label))
             ) {
                 searchFrom = valueStart
                 continue
@@ -242,13 +242,22 @@ object DiagnosticsRedaction {
     }
 
     @JvmStatic
-    fun redact(value: String?): String {
+    fun redact(value: String?): String = redact(value) { false }
+
+    /**
+     * [redact], also treating names [alsoSensitive] accepts as secret. A narrower report (a moment
+     * report) can drop command-authority and identity values, such as app_session_id, that the
+     * general rules deliberately leave for diagnostics, without changing what other reports keep.
+     */
+    @JvmStatic
+    fun redact(value: String?, alsoSensitive: (String) -> Boolean): String {
         if (value.isNullOrEmpty()) return ""
         return redactAssignments(
             value
                 .replace(URL_CREDENTIAL) { "${it.groupValues[1]}$REDACTED:$REDACTED@" }
                 .replace(AUTH_HEADER) { "${it.groupValues[1]} $REDACTED" }
-                .replace(COOKIE_HEADER) { "${it.groupValues[1]}${it.groupValues[2]}$REDACTED" }
+                .replace(COOKIE_HEADER) { "${it.groupValues[1]}${it.groupValues[2]}$REDACTED" },
+            alsoSensitive,
         )
     }
 

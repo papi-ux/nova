@@ -61,6 +61,30 @@ class NovaQuickMenu(
     /** The stream's runtime, where the Command Center's work runs. */
     private val runtime = NovaCommandCenterRuntime.of(game)
 
+    /** Report This Moment: frozen at the press, written off the main thread, shared by the user. */
+    private val momentReporter = com.papi.nova.diagnostics.NovaMomentReporter(
+        runtime = runtime,
+        freeze = { game.freezeMomentReport() },
+        prepare = { frozen ->
+            com.papi.nova.diagnostics.NovaMomentReporter.prepare(
+                com.papi.nova.diagnostics.NovaMomentShare.directory(game), frozen)
+        },
+        offer = { file -> com.papi.nova.diagnostics.NovaMomentShare.offer(game, file) },
+        feedback = { outcome ->
+            val anchor = session?.anchor
+            when (outcome) {
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.OFFERED ->
+                    NovaSnackbar.show(game, game.getString(R.string.nova_moment_report_offered), anchor = anchor)
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.NOT_ACTIVE ->
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_not_active), anchor = anchor)
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.STORAGE_FAILED ->
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_storage_failed), anchor = anchor)
+                com.papi.nova.diagnostics.NovaMomentReporter.Outcome.NO_SHARE_TARGET ->
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_no_share_target), anchor = anchor)
+            }
+        },
+    )
+
     /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
      * what the open pages lend the host code (their scope, for closing and waiting on the
@@ -470,6 +494,8 @@ class NovaQuickMenu(
                 polarisHost = host.polaris,
                 lastStatus = host.last,
                 commandKeysAllowed = game.canSendCommandKeys(),
+                momentReportAvailable = com.papi.nova.diagnostics.NovaMomentReport.canCapture(
+                    game.isStreamActive, game.connected, game.isFinishing, game.isDestroyed),
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = host.unavailable,
@@ -1146,6 +1172,10 @@ class NovaQuickMenu(
                         NovaQuickMenuActionId.MORE_CONTROLS -> {
                             // The legacy Quick Menu's extras, pushed in this panel.
                             surfaces.panel.push(moreControlsPage(menu.device))
+                        }
+                        NovaQuickMenuActionId.REPORT_MOMENT -> {
+                            // Frozen here, at the press, before anything is read or written.
+                            momentReporter.report()
                         }
                         else -> Unit
                     }

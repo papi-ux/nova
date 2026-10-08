@@ -1161,6 +1161,16 @@
     <string name="nova_quick_menu_doctor_recovery_undo_caption">Cancel removes only this deprecated record; stream and launch settings remain unchanged.</string>
     <string name="nova_quick_menu_copy_hud_diagnostics">Copy HUD Diagnostics</string>
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
+    <!-- Report This Moment: a local snapshot of what this device saw, shared only by the user. -->
+    <string name="nova_moment_report_action">Report This Moment</string>
+    <string name="nova_moment_report_caption">Saves what this device sees right now with a short redacted log, then lets you choose where to share it. Nothing is sent automatically.</string>
+    <string name="nova_moment_report_unavailable_caption">Available while a stream is running on this device.</string>
+    <string name="nova_moment_report_offered">Moment captured. Choose where to share it; nothing was sent automatically. For the host side, export its support bundle from Troubleshooting.</string>
+    <string name="nova_moment_report_not_active">No stream is running on this device, so there\'s no moment to report.</string>
+    <string name="nova_moment_report_storage_failed">Couldn\'t save the moment report. Check this device\'s storage and try again.</string>
+    <string name="nova_moment_report_no_share_target">No app here can receive the moment report. Install an app that shares files, then try again.</string>
+    <string name="nova_moment_report_share_title">Share Nova moment report</string>
+    <string name="nova_moment_report_subject">Nova moment report</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
     <string name="nova_conn_reconnect">Reconnect</string>
     <string name="nova_quick_menu_close">Close</string>
