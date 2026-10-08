@@ -32,6 +32,8 @@ object NovaMomentLog {
         val truncated: Boolean,
         /** Raw bytes read from disk, never over the bound. */
         val bytesRead: Int,
+        /** A log file was truncated or rewritten after the moment; its lines were left out. */
+        val changedSinceMoment: Boolean = false,
     ) {
         companion object {
             val EMPTY = Tail("", 0, 0, false, 0)
@@ -40,71 +42,109 @@ object NovaMomentLog {
 
     private val GENERATION = Regex("""^${Regex.escape(NovaDiagnostics.LOG_BASE_NAME)}\.(\d+)$""")
 
-    /**
-     * A log file and where it ended when the moment was marked. Reading stops there, so lines
-     * written after the press (including by the report itself) are not part of the moment.
-     */
-    data class Part(val file: File, val end: Long)
+    /** Bytes before a captured end that must still be there when the tail is read. */
+    private const val FINGERPRINT_BYTES = 64
 
-    /** The rotating log files as they stand now, newest first (generation 0 is being written). */
-    @JvmStatic
-    fun parts(directory: File): List<Part> =
-        directory.listFiles()?.mapNotNull { file ->
-            GENERATION.matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull()?.let { it to file }
-        }?.filter { it.second.isFile }?.sortedBy { it.first }?.map { Part(it.second, it.second.length()) }.orEmpty()
+    /** One log file held open at the moment, with where it ended and what it ended with. */
+    internal class Held(val raf: RandomAccessFile, val end: Long, val fingerprint: ByteArray)
 
     /**
-     * Read, scrub and bound the newest log lines up to where the moment froze them.
-     *
-     * @param parts Newest first, with the length each had at the moment.
-     * @param known Exact values to replace, with their replacement labels, such as the host's
-     *              address or this pairing's unique id. Longer values are replaced first.
+     * The log as it stood at the press: each rotating file held open, newest first, with its end
+     * and the bytes just before it. Opened on the main thread at the press; read later, on IO,
+     * through the same descriptors, so a rotation that renames or replaces a file cannot put newer
+     * lines under the moment. A file that was truncated or rewritten since is left out rather than
+     * misattributed. Close it promptly: after reading, when the report is retired, or on teardown.
      */
-    @JvmStatic
-    @JvmOverloads
-    fun read(parts: List<Part>, known: Map<String, String> = emptyMap(), maxBytes: Int = MAX_BYTES): Tail {
-        require(maxBytes > 0)
-        var need = maxBytes.toLong()
-        var cutSomething = false
-        val chunks = ArrayList<ByteArray>()
-        for ((index, part) in parts.withIndex()) {
-            if (need <= 0L) {
-                cutSomething = cutSomething || parts.drop(index).any { it.end > 0 }
-                break
+    class Marked internal constructor(private var held: List<Held>?) : java.io.Closeable {
+        /** Read, scrub and bound the newest lines up to where the moment froze them. */
+        @Synchronized
+        fun read(known: Map<String, String> = emptyMap(), maxBytes: Int = MAX_BYTES): Tail {
+            require(maxBytes > 0)
+            val files = held ?: return Tail.EMPTY
+            var need = maxBytes.toLong()
+            var cutSomething = false
+            var changed = false
+            val chunks = ArrayList<ByteArray>()
+            for ((index, part) in files.withIndex()) {
+                if (need <= 0L) {
+                    cutSomething = cutSomething || files.drop(index).any { it.end > 0 }
+                    break
+                }
+                val chunk = try {
+                    if (part.raf.length() < part.end || !part.fingerprint.contentEquals(tailBytes(part.raf, part.end, part.fingerprint.size))) {
+                        changed = true
+                        continue
+                    }
+                    val take = minOf(part.end, need)
+                    if (take < part.end) cutSomething = true
+                    ByteArray(take.toInt()).also {
+                        part.raf.seek(part.end - take)
+                        part.raf.readFully(it)
+                    }
+                } catch (error: Exception) {
+                    changed = true
+                    continue
+                }
+                chunks.add(0, chunk)
+                need -= chunk.size
             }
-            val chunk = try {
-                RandomAccessFile(part.file, "r").use { raf ->
-                    // A file that shrank since the moment (rotated) is read to its current end.
-                    val length = minOf(part.end, raf.length()).coerceAtLeast(0L)
-                    val take = minOf(length, need)
-                    if (take < length) cutSomething = true
-                    val buffer = ByteArray(take.toInt())
-                    raf.seek(length - take)
-                    raf.readFully(buffer)
-                    buffer
+            val raw = ByteArray(chunks.sumOf { it.size }).also { out ->
+                var at = 0
+                for (chunk in chunks) {
+                    chunk.copyInto(out, at)
+                    at += chunk.size
+                }
+            }
+            if (raw.isEmpty()) return Tail.EMPTY.copy(changedSinceMoment = changed)
+
+            var text = decode(raw)
+            // A cut through the oldest file leaves half a line (and maybe half a character): drop it.
+            if (cutSomething) text = text.substringAfter('\n', "")
+            val (bounded, trimmed) = boundUtf8(scrub(text, known), maxBytes)
+            val size = bounded.toByteArray(StandardCharsets.UTF_8).size
+            val lines = if (bounded.isEmpty()) 0 else bounded.trimEnd('\n').count { it == '\n' } + 1
+            return Tail(bounded, size, lines, cutSomething || trimmed, raw.size, changed)
+        }
+
+        /** Idempotent; a read running on another thread finishes first. */
+        @Synchronized
+        override fun close() {
+            held?.forEach { runCatching { it.raf.close() } }
+            held = null
+        }
+
+        val isClosed: Boolean @Synchronized get() = held == null
+    }
+
+    /** Hold the rotating log files open as they stand now, newest first (generation 0 is being written). */
+    @JvmStatic
+    fun mark(directory: File): Marked {
+        val files = directory.listFiles()?.mapNotNull { file ->
+            GENERATION.matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull()?.let { it to file }
+        }?.filter { it.second.isFile }?.sortedBy { it.first }?.map { it.second }.orEmpty()
+        val held = files.mapNotNull { file ->
+            try {
+                val raf = RandomAccessFile(file, "r")
+                try {
+                    val end = raf.length()
+                    Held(raf, end, tailBytes(raf, end, FINGERPRINT_BYTES))
+                } catch (error: Exception) {
+                    raf.close()
+                    null
                 }
             } catch (error: Exception) {
-                continue
-            }
-            chunks.add(0, chunk)
-            need -= chunk.size
-        }
-        val raw = ByteArray(chunks.sumOf { it.size }).also { out ->
-            var at = 0
-            for (chunk in chunks) {
-                chunk.copyInto(out, at)
-                at += chunk.size
+                null
             }
         }
-        if (raw.isEmpty()) return Tail.EMPTY
+        return Marked(held)
+    }
 
-        var text = decode(raw)
-        // A cut through the oldest file leaves half a line (and maybe half a character): drop it.
-        if (cutSomething) text = text.substringAfter('\n', "")
-        val (bounded, trimmed) = boundUtf8(scrub(text, known), maxBytes)
-        val size = bounded.toByteArray(StandardCharsets.UTF_8).size
-        val lines = if (bounded.isEmpty()) 0 else bounded.trimEnd('\n').count { it == '\n' } + 1
-        return Tail(bounded, size, lines, cutSomething || trimmed, raw.size)
+    private fun tailBytes(raf: RandomAccessFile, end: Long, count: Int): ByteArray {
+        val take = minOf(end, count.toLong()).toInt()
+        return ByteArray(take).also {
+            raf.seek(end - take)
+            raf.readFully(it)
+        }
     }
 
     private fun decode(bytes: ByteArray): String =
@@ -176,6 +216,15 @@ object NovaMomentLog {
         RegexOption.IGNORE_CASE,
     )
     private val LONG_HEX = Regex("""\b[0-9A-Fa-f]{32,}\b""")
+    /**
+     * Paths that name a person, a device's user storage or another app's data: home folders on
+     * Linux and macOS, Android shared storage and app data, and Windows user folders. The whole
+     * path goes, since what follows the user name is as personal as the name.
+     */
+    private val PRIVATE_PATH = Regex(
+        """(?<![\w.])(?:/(?:home|Users|var/home|run/media|media|mnt|storage|sdcard|data/user(?:_de)?|data/data|data/media|data/local)(?:/[^\s"'<>|]*)?)""",
+    )
+    private val WINDOWS_USER_PATH = Regex("""\b[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\s"'<>|]*""", RegexOption.IGNORE_CASE)
 
     /**
      * Scrub one block of text; safe to run twice. Placeholders use angle brackets: a bracketed
@@ -191,6 +240,8 @@ object NovaMomentLog {
         }
         out = DiagnosticsRedaction.redact(out, ::isIdentityName)
         out = out.replace(PEM, "<certificate>")
+        out = out.replace(WINDOWS_USER_PATH, "<path>")
+        out = out.replace(PRIVATE_PATH, "<path>")
         out = out.replace(URL_HOST) { "${it.groupValues[1]}<host>" }
         out = out.replace(UUID, "<uuid>")
         out = out.replace(MAC, "<mac>")

@@ -34,9 +34,12 @@ class NovaMomentReporterTest {
         fun runIo() = runBlocking { val pending = io.toList(); io.clear(); pending.forEach { it() } }
     }
 
+    private val logDirectory get() = File(folder.root, "diagnostics").apply { mkdirs() }
+
     /** The stream's live state, which keeps changing after the press. */
     private var liveFps = 59.8
     private var streamActive = true
+    private val marked = ArrayList<NovaMomentLog.Marked>()
 
     private fun freezeNow(): NovaMomentReporter.Frozen? {
         if (!NovaMomentReport.canCapture(streamActive, connected = true, finishing = false, destroyed = false)) return null
@@ -46,40 +49,66 @@ class NovaMomentReporterTest {
             requestedWidth = 1920, requestedHeight = 1080, requestedFps = 60f, requestedBitrateKbps = 20_000, requestedCodec = "AUTO",
             sample = NovaMomentReport.Sample("c2.android.avc.decoder", 1920, 1080, liveFps, 60.0, 2.0, 15, 2, 0.5, null, 100, 1, 9_500L),
         )
-        val log = File(folder.root, "nova.log.0").apply { writeText("Nova: app_session_id=live-secret host=192.168.4.4\n") }
-        return NovaMomentReporter.Frozen(snapshot, mapOf("Den Rig" to "<host-name>"), listOf(NovaMomentLog.Part(log, log.length())))
+        File(logDirectory, "nova.log.0").appendText("Nova: app_session_id=live-secret host=192.168.4.4 fps=$liveFps\n")
+        val log = NovaMomentLog.mark(logDirectory).also { marked += it }
+        return NovaMomentReporter.Frozen(snapshot, mapOf("Den Rig" to "<host-name>"), log)
     }
 
     private val outcomes = ArrayList<Outcome>()
+    private val savedReports = ArrayList<NovaMomentReporter.Saved>()
     private val offered = ArrayList<File>()
 
-    private fun reporter(runtime: NovaCommandCenterRuntime, offer: (File) -> NovaMomentShare.Result = { file ->
-        offered += file
-        NovaMomentShare.Result.Offered(file)
-    }) = NovaMomentReporter(
+    private fun reporter(
+        runtime: NovaCommandCenterRuntime,
+        prepare: (NovaMomentReporter.Frozen) -> File? = { NovaMomentReporter.prepare(File(folder.root, "out"), it) },
+        offer: (File) -> NovaMomentShare.Result = { file ->
+            offered += file
+            NovaMomentShare.Result.Offered(file)
+        },
+    ) = NovaMomentReporter(
         runtime = runtime,
         freeze = ::freezeNow,
-        prepare = { frozen -> NovaMomentReporter.prepare(File(folder.root, "out"), frozen) },
+        prepare = prepare,
+        saved = { savedReports += it },
         offer = offer,
         feedback = { outcomes += it },
     )
 
-    @Test fun thePressFreezesTheMomentBeforeAnyIoAndLaterStateCannotReplaceIt() {
+    @Test fun thePressSavesTheFrozenMomentAndOpensNothing() {
         val runtime = HeldRuntime()
         reporter(runtime).report()
         assertEquals(1, runtime.io.size)
         // The stream moves on, and its log grows, before the IO half runs.
         liveFps = 12.0
-        File(folder.root, "nova.log.0").appendText("Nova: written after the press\n")
+        File(logDirectory, "nova.log.0").appendText("Nova: written after the press\n")
         runtime.runIo()
-        assertEquals(listOf(Outcome.OFFERED), outcomes)
-        val text = offered.single().readText()
+        // Saved and confirmed in the stream; no chooser, no other app, no send.
+        assertEquals(1, savedReports.size)
+        assertTrue(offered.isEmpty())
+        assertTrue(outcomes.isEmpty())
+        val text = savedReports.single().file.readText()
         assertTrue(text.contains("\"rendered_fps\": 59.8"))
         assertFalse(text.contains("\"rendered_fps\": 12"))
         assertFalse(text.contains("written after the press"))
-        // The log tail is scrubbed of the command token and the address.
         assertFalse(text.contains("live-secret"))
         assertFalse(text.contains("192.168.4.4"))
+        assertEquals("2026-10-08T11:30:00Z", savedReports.single().markedAtUtc)
+        // The log was held only until it was read.
+        assertTrue(marked.single().isClosed)
+    }
+
+    @Test fun onlyTheExplicitShareOpensTheChooserWithTheSavedBytes() {
+        val runtime = HeldRuntime()
+        val reporter = reporter(runtime)
+        reporter.report()
+        runtime.runIo()
+        val saved = savedReports.single()
+        val bytes = saved.file.readBytes()
+        liveFps = 30.0 // later state cannot change what is shared
+        reporter.share(saved)
+        assertEquals(listOf(Outcome.OFFERED), outcomes)
+        assertEquals(saved.file, offered.single())
+        assertTrue(bytes.contentEquals(offered.single().readBytes()))
     }
 
     @Test fun noActiveStreamMeansNoReportAndNoIo() {
@@ -88,16 +117,29 @@ class NovaMomentReporterTest {
         reporter(runtime).report()
         assertTrue(runtime.io.isEmpty())
         assertEquals(listOf(Outcome.NOT_ACTIVE), outcomes)
-        assertTrue(offered.isEmpty())
+        assertTrue(savedReports.isEmpty())
     }
 
-    @Test fun aStreamThatWentAwayRetiresTheHandoff() {
+    @Test fun teardownRetiresTheHandoffAndClosesTheHeldLog() {
+        val runtime = HeldRuntime()
+        val reporter = reporter(runtime)
+        reporter.report()
+        // The Activity is destroyed before the IO half ran: the log is not left open.
+        reporter.retire()
+        assertTrue(marked.single().isClosed)
+        runtime.runIo()
+        assertTrue(savedReports.isEmpty())
+        assertTrue(outcomes.isEmpty())
+    }
+
+    @Test fun aRuntimeThatIsGonePublishesNothing() {
         val runtime = HeldRuntime()
         reporter(runtime).report()
         runtime.alive = false // Activity finishing or destroyed: runtime refuses main-thread work
         runtime.runIo()
-        assertTrue(offered.isEmpty())
+        assertTrue(savedReports.isEmpty())
         assertTrue(outcomes.isEmpty())
+        assertTrue(marked.single().isClosed)
     }
 
     @Test fun aNewerPressRetiresAnOlderHandoffAndBothFilesStayDistinct() {
@@ -107,33 +149,29 @@ class NovaMomentReporterTest {
         liveFps = 30.0
         reporter.report()
         runtime.runIo()
-        // Only the newest press opens the share sheet.
-        assertEquals(listOf(Outcome.OFFERED), outcomes)
-        assertTrue(offered.single().readText().contains("\"rendered_fps\": 30"))
+        // Only the newest press is confirmed; both moments were saved as their own files.
+        assertTrue(savedReports.single().file.readText().contains("\"rendered_fps\": 30"))
         assertEquals(2, File(folder.root, "out").listFiles()!!.size)
-        reporter.retire()
-        reporter.report()
-        reporter.retire()
-        runtime.runIo()
-        assertEquals(1, offered.size)
+        assertTrue(marked.all { it.isClosed })
     }
 
     @Test fun failuresGiveMeaningfulFeedback() {
         val runtime = HeldRuntime()
-        reporter(runtime, offer = { NovaMomentShare.Result.Failed(NovaMomentShare.Reason.NO_SHARE_TARGET) }).report()
+        reporter(runtime, prepare = { null }).report()
         runtime.runIo()
+        assertEquals(listOf(Outcome.STORAGE_FAILED), outcomes)
+
+        outcomes.clear()
+        reporter(runtime, prepare = { throw java.io.IOException("disk") }).report()
+        runtime.runIo()
+        assertEquals(listOf(Outcome.STORAGE_FAILED), outcomes)
+        assertTrue(marked.all { it.isClosed })
+
+        outcomes.clear()
+        val reporter = reporter(runtime, offer = { NovaMomentShare.Result.Failed(NovaMomentShare.Reason.NO_SHARE_TARGET) })
+        reporter.report()
+        runtime.runIo()
+        reporter.share(savedReports.last())
         assertEquals(listOf(Outcome.NO_SHARE_TARGET), outcomes)
-
-        outcomes.clear()
-        val failing = NovaMomentReporter(runtime, ::freezeNow, prepare = { null }, offer = { error("not reached") }, feedback = { outcomes += it })
-        failing.report()
-        runtime.runIo()
-        assertEquals(listOf(Outcome.STORAGE_FAILED), outcomes)
-
-        outcomes.clear()
-        val throwing = NovaMomentReporter(runtime, ::freezeNow, prepare = { throw java.io.IOException("disk") }, offer = { error("not reached") }, feedback = { outcomes += it })
-        throwing.report()
-        runtime.runIo()
-        assertEquals(listOf(Outcome.STORAGE_FAILED), outcomes)
     }
 }

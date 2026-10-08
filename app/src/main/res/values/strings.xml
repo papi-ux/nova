@@ -1163,9 +1163,13 @@
     <string name="nova_quick_menu_copy_hud_diagnostics_caption">Privacy-safe stream summary for bug reports.</string>
     <!-- Report This Moment: a local snapshot of what this device saw, shared only by the user. -->
     <string name="nova_moment_report_action">Report This Moment</string>
-    <string name="nova_moment_report_caption">Saves what this device sees right now with a short redacted log, then lets you choose where to share it. Nothing is sent automatically.</string>
+    <string name="nova_moment_report_caption">Saves what this device sees right now with a short redacted log. You choose whether to share it; nothing is sent automatically.</string>
     <string name="nova_moment_report_unavailable_caption">Available while a stream is running on this device.</string>
-    <string name="nova_moment_report_offered">Moment captured. Choose where to share it; nothing was sent automatically. For the host side, export its support bundle from Troubleshooting.</string>
+    <string name="nova_moment_report_offered">Choose where to share the moment report. Nothing was sent automatically.</string>
+    <string name="nova_moment_report_saved_title">Moment Saved</string>
+    <string name="nova_moment_report_saved_message">Saved on this device from %1$s (UTC). Nothing has been sent. Sharing opens another app, which can pause or end this stream. For the host side, export its support bundle from Troubleshooting.</string>
+    <string name="nova_moment_report_keep_playing">Keep Playing</string>
+    <string name="nova_moment_report_share">Share Report</string>
     <string name="nova_moment_report_not_active">No stream is running on this device, so there\'s no moment to report.</string>
     <string name="nova_moment_report_storage_failed">Couldn\'t save the moment report. Check this device\'s storage and try again.</string>
     <string name="nova_moment_report_no_share_target">No app here can receive the moment report. Install an app that shares files, then try again.</string>
