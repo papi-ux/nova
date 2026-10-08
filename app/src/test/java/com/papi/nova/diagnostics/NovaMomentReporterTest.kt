@@ -39,6 +39,7 @@ class NovaMomentReporterTest {
     /** The stream's live state, which keeps changing after the press. */
     private var liveFps = 59.8
     private var streamActive = true
+    private var shareAvailable = true
     private val marked = ArrayList<NovaMomentLog.Marked>()
 
     private fun freezeNow(): NovaMomentReporter.Frozen? {
@@ -73,6 +74,7 @@ class NovaMomentReporterTest {
         offer = offer,
         feedback = { outcomes += it },
         isActive = { streamActive },
+        canShare = { shareAvailable },
     )
 
     @Test fun thePressSavesTheFrozenMomentAndOpensNothing() {
@@ -166,15 +168,26 @@ class NovaMomentReporterTest {
         assertTrue(marked.all { it.isClosed })
     }
 
-    @Test fun aStoppedStreamCannotLaunchTheOldShareConfirmation() {
+    @Test fun aSavedMomentCanBeSharedAfterItsStreamStops() {
         val runtime = HeldRuntime()
         val reporter = reporter(runtime)
         reporter.report()
         runtime.runIo()
         streamActive = false
         reporter.share(savedReports.single())
+        assertEquals(savedReports.single().file, offered.single())
+        assertEquals(listOf(Outcome.OFFERED), outcomes)
+    }
+
+    @Test fun aClosedScreenCannotLaunchTheOldShareConfirmation() {
+        val runtime = HeldRuntime()
+        val reporter = reporter(runtime)
+        reporter.report()
+        runtime.runIo()
+        shareAvailable = false
+        reporter.share(savedReports.single())
         assertTrue(offered.isEmpty())
-        assertEquals(listOf(Outcome.NOT_ACTIVE), outcomes)
+        assertTrue(outcomes.isEmpty())
     }
 
     @Test fun aNewerPressRetiresAnOlderHandoffAndBothFilesStayDistinct() {

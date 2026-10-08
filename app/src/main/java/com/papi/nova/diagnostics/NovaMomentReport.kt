@@ -160,7 +160,9 @@ object NovaMomentReport {
                 hostProcessingLatencyMs = sample.hostProcessingLatencyMs?.let { finite(it, 0.0, 10_000.0) },
                 // The renderer reports 0 when its window had no frames to count: unknown, not healthy.
                 decoderFrameLossPct = finite(sample.packetLossPct, 0.0, 100.0)?.takeIf {
-                    sample.framesExpected > 0 && (sample.receivedFps > 0.0 || sample.renderedFps > 0.0)
+                    sample.framesExpected > 0 &&
+                        (finite(sample.receivedFps, 0.0, 1000.0)?.let { it > 0.0 } == true ||
+                            finite(sample.renderedFps, 0.0, 1000.0)?.let { it > 0.0 } == true)
                 },
                 framesExpected = sample.framesExpected.takeIf { it >= 0 },
                 framesLost = sample.framesLost.takeIf { it >= 0 && (sample.framesExpected < 0 || it <= sample.framesExpected) },

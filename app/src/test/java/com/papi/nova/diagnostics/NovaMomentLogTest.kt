@@ -3,6 +3,9 @@ package com.papi.nova.diagnostics
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -191,6 +194,35 @@ class NovaMomentLogTest {
             assertEquals("previous\ncurrent\n", marked.read().text)
             val failure = runCatching { marked.read(maxBytes = NovaMomentLog.MAX_BYTES + 1) }.exceptionOrNull()
             assertTrue(failure is IllegalArgumentException)
+        }
+    }
+
+    @Test fun closingDoesNotWaitForRedactionOfTheCopiedTail() {
+        log("nova.log.0", "the marked line\n")
+        val marked = NovaMomentLog.mark(folder.root)
+        val enteredScrub = CountDownLatch(1)
+        val releaseScrub = CountDownLatch(1)
+        val known = object : Map<String, String> by emptyMap() {
+            override val entries: Set<Map.Entry<String, String>>
+                get() {
+                    enteredScrub.countDown()
+                    check(releaseScrub.await(5, TimeUnit.SECONDS))
+                    return emptySet()
+                }
+        }
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val reading = executor.submit<NovaMomentLog.Tail> { marked.read(known) }
+            assertTrue(enteredScrub.await(5, TimeUnit.SECONDS))
+            // The scrub is deliberately still blocked; retirement must finish anyway.
+            executor.submit { marked.close() }.get(2, TimeUnit.SECONDS)
+            assertTrue(marked.isClosed)
+            releaseScrub.countDown()
+            assertEquals("the marked line\n", reading.get(5, TimeUnit.SECONDS).text)
+        } finally {
+            releaseScrub.countDown()
+            marked.close()
+            executor.shutdownNow()
         }
     }
 

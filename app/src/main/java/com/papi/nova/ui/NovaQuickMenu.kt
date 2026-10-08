@@ -74,9 +74,10 @@ class NovaQuickMenu(
         },
         saved = { report -> surfaces.present(momentSavedPage(report)) },
         offer = { file -> com.papi.nova.diagnostics.NovaMomentShare.offer(game, file) },
-        isActive = {
-            com.papi.nova.diagnostics.NovaMomentReport.canCapture(
-                game.isStreamActive, game.connected, game.isFinishing, game.isDestroyed)
+        isActive = game::canReportMoment,
+        canShare = {
+            !game.isFinishing && !game.isDestroyed &&
+                game.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
         },
         feedback = { outcome ->
             val anchor = session?.anchor
@@ -529,8 +530,7 @@ class NovaQuickMenu(
                 polarisHost = host.polaris,
                 lastStatus = host.last,
                 commandKeysAllowed = game.canSendCommandKeys(),
-                momentReportAvailable = com.papi.nova.diagnostics.NovaMomentReport.canCapture(
-                    game.isStreamActive, game.connected, game.isFinishing, game.isDestroyed),
+                momentReportAvailable = game.canReportMoment(),
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = host.unavailable,
