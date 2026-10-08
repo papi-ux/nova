@@ -10,11 +10,11 @@ data class NetworkLaunchProfileChoice(
     /** The matched rule when [source] is [Source.RULE]. */
     val match: NetworkRuleMatch? = null,
     /**
-     * A fingerprint of [profileUuid]'s saved settings when the choice was made, so an edit to that
-     * profile counts as a different effective profile. Null for the active profile, whose edits
-     * apply to launches as they always have.
+     * A copied snapshot of the effective settings, including inherited base settings and the
+     * active-profile fallback. Compare values rather than hashes so edits cannot reuse an old
+     * preflight, even when two settings maps happen to have the same hash.
      */
-    val profileRevision: Int? = null,
+    val profileRevision: Map<String, Any?>? = null,
 ) {
     enum class Source {
         /** No rules, rules off, or none matched: the active profile, as before. */
@@ -42,24 +42,28 @@ data class NetworkLaunchProfileChoice(
             snapshot: NetworkSnapshot,
             overrideUuid: String?,
             profileExists: (String) -> Boolean,
-            profileRevision: (String) -> Int? = { null },
+            profileRevision: (String?) -> Map<String, Any?>? = { null },
         ): NetworkLaunchProfileChoice {
             when {
                 overrideUuid == OVERRIDE_ACTIVE_PROFILE ->
-                    return NetworkLaunchProfileChoice(null, Source.OVERRIDE_ACTIVE)
+                    return NetworkLaunchProfileChoice(null, Source.OVERRIDE_ACTIVE, profileRevision = snapshot(profileRevision(null)))
                 overrideUuid != null && profileExists(overrideUuid) ->
-                    return NetworkLaunchProfileChoice(overrideUuid, Source.OVERRIDE, profileRevision = profileRevision(overrideUuid))
+                    return NetworkLaunchProfileChoice(overrideUuid, Source.OVERRIDE, profileRevision = snapshot(profileRevision(overrideUuid)))
             }
             val match = NetworkProfileRuleEngine.evaluate(rules, snapshot, profileExists)
-                ?: return NetworkLaunchProfileChoice(null, Source.ACTIVE)
+                ?: return NetworkLaunchProfileChoice(null, Source.ACTIVE, profileRevision = snapshot(profileRevision(null)))
             val uuid = match.rule.profileUuid
-            return NetworkLaunchProfileChoice(uuid, Source.RULE, match, profileRevision(uuid))
+            return NetworkLaunchProfileChoice(uuid, Source.RULE, match, snapshot(profileRevision(uuid)))
+        }
+
+        private fun snapshot(values: Map<String, Any?>?): Map<String, Any?>? = values?.mapValues { (_, value) ->
+            if (value is Set<*>) value.toSet() else value
         }
 
         /**
          * Whether two choices launch with the same settings: the same saved profile at the same
-         * revision, or both the active profile. A null choice (rules never apply) is the active
-         * profile. Which rule or reason chose it does not matter here, only what would be sent.
+         * settings, including the active fallback. Null choices (rules never apply) compare with
+         * each other. Which rule or reason chose it does not matter, only what would be sent.
          */
         @JvmStatic
         fun sameEffectiveProfile(a: NetworkLaunchProfileChoice?, b: NetworkLaunchProfileChoice?): Boolean =
