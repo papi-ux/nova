@@ -39,7 +39,7 @@ class NetworkLaunchProfileGateTest {
     ))
 
     private fun choose(snapshot: NetworkSnapshot, override: String? = null, set: HostNetworkRules = rules) =
-        NetworkLaunchProfileChoice.resolve(set, snapshot, override, { it in saved }, { saved[it] })
+        NetworkLaunchProfileChoice.resolve(set, snapshot, override, { it in saved }, { key -> key?.let { saved[it] }?.let { mapOf("value" to it) } })
 
     private fun snapshot(transport: LinkTransport?, host: Status) = NetworkSnapshot(transport, false, transport == LinkTransport.CELLULAR, host)
 
@@ -146,5 +146,38 @@ class NetworkLaunchProfileGateTest {
         val ethernet = choose(snapshot(LinkTransport.ETHERNET, Status.UNKNOWN), set = twoRoutesHome)
         assertFalse(wifi == ethernet)
         assertEquals(Decision.PROCEED, NetworkLaunchProfileGate.decide(wifi, wifi, ethernet))
+    }
+
+    @Test fun activeFallbackAndActiveOverrideCannotReusePlansForChangedSettings() {
+        val settings = mutableMapOf<String, Any?>("codec" to "hevc")
+        fun active(override: String? = null) = NetworkLaunchProfileChoice.resolve(
+            HostNetworkRules.NONE, snapshot(LinkTransport.WIFI, Status.UNKNOWN), override,
+            { false }, { settings },
+        )
+        val shown = active()
+        assertEquals(Decision.PROCEED, NetworkLaunchProfileGate.decide(shown, shown,
+            active(NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE)))
+        settings["codec"] = "h264"
+        val changed = active()
+        assertEquals("hevc", shown.profileRevision?.get("codec"))
+        assertEquals(Decision.PLAN_CHANGED, NetworkLaunchProfileGate.decide(shown, shown, changed))
+        assertEquals(Decision.PLAN_CHANGED, NetworkLaunchProfileGate.decide(changed, shown, changed))
+    }
+
+    @Test fun equalSettingsHashesDoNotHideEditsAndSetSnapshotsRemainIndependent() {
+        val first = mapOf<String, Any?>("codec" to "Aa")
+        val second = mapOf<String, Any?>("codec" to "BB")
+        assertEquals(first.hashCode(), second.hashCode())
+        fun plan(values: Map<String, Any?>) = NetworkLaunchProfileChoice.resolve(
+            HostNetworkRules.NONE, snapshot(LinkTransport.WIFI, Status.UNKNOWN), null,
+            { false }, { values },
+        )
+        val shown = plan(first)
+        assertEquals(Decision.PLAN_CHANGED, NetworkLaunchProfileGate.decide(shown, shown, plan(second)))
+        val values = mutableSetOf("original")
+        val withSet = plan(mapOf("buttons" to values))
+        values.add("changed")
+        assertEquals(setOf("original"), withSet.profileRevision?.get("buttons"))
+        assertEquals(Decision.PLAN_CHANGED, NetworkLaunchProfileGate.decide(withSet, withSet, plan(mapOf("buttons" to values))))
     }
 }

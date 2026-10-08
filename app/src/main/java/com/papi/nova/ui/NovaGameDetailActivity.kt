@@ -594,7 +594,7 @@ class NovaGameDetailActivity : NovaActivity() {
             snapshot = com.papi.nova.network.NetworkSnapshot.read(this, hostStatus),
             overrideUuid = launchProfileOverride,
             profileExists = { profiles.getProfile(it) != null },
-            profileRevision = { profiles.getProfile(it)?.getOptions()?.hashCode() },
+            profileRevision = { profiles.getOverlayingSharedPreferences(this, it).all },
         )
     }
 
