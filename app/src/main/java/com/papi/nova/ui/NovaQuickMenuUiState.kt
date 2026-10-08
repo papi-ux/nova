@@ -44,8 +44,20 @@ enum class NovaQuickMenuActionId {
     ROTATE_SCREEN,
     MORE_KEYS,
     MORE_CONTROLS,
-    REPORT_MOMENT
+    REPORT_MOMENT,
+    WORKING_BASELINE
 }
+
+/**
+ * What the Working Baseline row shows, read without writing anything: whether this launch named a
+ * PC and app entry to group a baseline under, and when that entry's baseline was saved.
+ */
+data class NovaWorkingBaselineRow(
+    val hasEntry: Boolean,
+    val savedAtUtc: String? = null,
+    /** Something is stored for this entry but can't be read. */
+    val unreadable: Boolean = false,
+)
 
 data class NovaQuickMenuChip(
     val label: String,
@@ -205,6 +217,21 @@ data class NovaQuickMenuUiState(
             "restore_quality"
         )
 
+        /** Working Baseline's session row: available whenever the launch named a PC and app entry. */
+        internal fun workingBaselineAction(context: Context, workingBaseline: NovaWorkingBaselineRow) = NovaQuickMenuAction(
+            id = NovaQuickMenuActionId.WORKING_BASELINE,
+            label = context.getString(R.string.nova_working_baseline_action),
+            caption = when {
+                !workingBaseline.hasEntry -> context.getString(R.string.nova_working_baseline_no_entry_caption)
+                workingBaseline.unreadable -> context.getString(R.string.nova_working_baseline_unreadable_caption)
+                workingBaseline.savedAtUtc != null ->
+                    context.getString(R.string.nova_working_baseline_saved_caption, workingBaseline.savedAtUtc)
+                else -> context.getString(R.string.nova_working_baseline_none_caption)
+            },
+            // Without a named PC and app entry there is nothing to save, compare or clear.
+            enabled = workingBaseline.hasEntry
+        )
+
         @JvmStatic
         fun from(
             context: Context,
@@ -275,6 +302,8 @@ data class NovaQuickMenuUiState(
              * command ownership: a viewer can report what it sees.
              */
             momentReportAvailable: Boolean = true,
+            /** The Working Baseline row's reading of local storage; never changes anything. */
+            workingBaseline: NovaWorkingBaselineRow = NovaWorkingBaselineRow(hasEntry = true),
         ): NovaQuickMenuUiState {
             val viewerSession = status?.isViewer == true
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
@@ -539,6 +568,7 @@ data class NovaQuickMenuUiState(
                     ),
                     enabled = momentReportAvailable
                 ),
+                workingBaselineAction(context, workingBaseline),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.PASTE_CLIPBOARD,
                     label = context.getString(R.string.nova_quick_menu_paste_clipboard),

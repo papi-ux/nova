@@ -7244,19 +7244,18 @@ private fun syncPerfTextWanted() {
 decoderRenderer?.setPerfTextWanted(::prefConfig.isInitialized && prefConfig!!.enablePerfOverlay)
 }
 
-/**
- * Report This Moment's freeze, on the main thread at the press: the client snapshot, the values the
- * log must not show, and where each log file ended. Null unless a stream is actually up on this
- * device; watching and Spaces are reported as such, and nothing here claims host ownership.
- */
+/** A stream is actually up on this device, so its moment can be captured. */
 internal fun canReportMoment():Boolean =
     com.papi.nova.diagnostics.NovaMomentReport.canCapture(isStreamActive, connected, isFinishing, isDestroyed) &&
         ::prefConfig.isInitialized
 
-internal fun freezeMomentReport():com.papi.nova.diagnostics.NovaMomentReporter.Frozen? {
+/**
+ * The client snapshot of this instant, on the main thread, and nothing else: no log is marked or
+ * read, no file written, no host asked and no preference changed. Null unless a stream is up here.
+ * Report This Moment and Working Baseline both freeze through it.
+ */
+internal fun captureMomentSnapshot():com.papi.nova.diagnostics.NovaMomentReport.Snapshot? {
 if (!canReportMoment()) return null
-// The anchor a reader finds in the log tail, written before the log's ends are frozen.
-LimeLog.info("Nova: Report This Moment marked")
 val sample = lastCompanionPerfSample?.let {
     com.papi.nova.diagnostics.NovaMomentReport.Sample(
         codec = it.codec, width = it.width, height = it.height, renderedFps = it.renderedFps,
@@ -7265,7 +7264,7 @@ val sample = lastCompanionPerfSample?.let {
         hostProcessingLatencyMs = it.hostProcessingLatencyMs, framesExpected = it.framesExpected,
         framesLost = it.framesLost, monotonicTimestampMs = it.monotonicTimestampMs)
 }
-val snapshot = com.papi.nova.diagnostics.NovaMomentReport.capture(
+return com.papi.nova.diagnostics.NovaMomentReport.capture(
     markedAtUtc = com.papi.nova.diagnostics.NovaDiagnostics.utcTimestamp(),
     nowElapsedMs = android.os.SystemClock.elapsedRealtime(),
     novaVersion = BuildConfig.VERSION_NAME,
@@ -7281,6 +7280,26 @@ val snapshot = com.papi.nova.diagnostics.NovaMomentReport.capture(
     requestedBitrateKbps = prefConfig.bitrate,
     requestedCodec = prefConfig.videoFormat?.name ?: "",
     sample = sample)
+}
+
+/**
+ * The PC and app entry this stream was launched from, as the launch requested them, for grouping
+ * Working Baselines on this device. Null unless both are named. It is not the game the host is
+ * running or proof of the scene, host build or network path.
+ */
+internal fun workingBaselineEntry():com.papi.nova.diagnostics.NovaWorkingBaseline.RequestedEntry? =
+    com.papi.nova.diagnostics.NovaWorkingBaseline.RequestedEntry.of(getIntent().getStringExtra(EXTRA_PC_UUID), appUUID)
+
+/**
+ * Report This Moment's freeze, on the main thread at the press: the client snapshot, the values the
+ * log must not show, and where each log file ended. Null unless a stream is actually up on this
+ * device; watching and Spaces are reported as such, and nothing here claims host ownership.
+ */
+internal fun freezeMomentReport():com.papi.nova.diagnostics.NovaMomentReporter.Frozen? {
+if (!canReportMoment()) return null
+// The anchor a reader finds in the log tail, written before the log's ends are frozen.
+LimeLog.info("Nova: Report This Moment marked")
+val snapshot = captureMomentSnapshot() ?: return null
 // Values this stream knows and the log must not carry, whatever shape a line gives them.
 val known = LinkedHashMap<String, String>()
 fun knownValue(value:String?, label:String) { value?.trim()?.takeIf { it.length >= 3 }?.let { known[it] = label } }
