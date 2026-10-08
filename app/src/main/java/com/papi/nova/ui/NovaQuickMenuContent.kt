@@ -151,7 +151,8 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.ROTATE_SCREEN,
             NovaQuickMenuActionId.MORE_KEYS,
             NovaQuickMenuActionId.MORE_CONTROLS,
-            NovaQuickMenuActionId.REPORT_MOMENT -> onSessionAction(action.id)
+            NovaQuickMenuActionId.REPORT_MOMENT,
+            NovaQuickMenuActionId.WORKING_BASELINE -> onSessionAction(action.id)
         }
     }
 }
@@ -159,11 +160,15 @@ data class NovaQuickMenuCallbacks(
 /** Report This Moment's row, for tests and accessibility tooling. */
 internal const val REPORT_MOMENT_TAG = "nova-cc-report-moment"
 
+/** Working Baseline's row, for tests and accessibility tooling. */
+internal const val WORKING_BASELINE_TAG = "nova-cc-working-baseline"
+
 /** Rows that push a page of their own, and so carry the page mark. */
 private val OpensPage = setOf(
     NovaQuickMenuActionId.MOUSE_MODE,
     NovaQuickMenuActionId.MORE_KEYS,
     NovaQuickMenuActionId.MORE_CONTROLS,
+    NovaQuickMenuActionId.WORKING_BASELINE,
 )
 
 /**
@@ -915,7 +920,11 @@ private fun NovaPageScope.NovaQuickMenuRows(
             NovaQuickMenuRow(
                 row,
                 callbacks,
-                if (row.id == NovaQuickMenuActionId.REPORT_MOMENT) place.testTag(REPORT_MOMENT_TAG) else place,
+                when (row.id) {
+                    NovaQuickMenuActionId.REPORT_MOMENT -> place.testTag(REPORT_MOMENT_TAG)
+                    NovaQuickMenuActionId.WORKING_BASELINE -> place.testTag(WORKING_BASELINE_TAG)
+                    else -> place
+                },
                 opens = row.id in OpensPage,
             )
         }
