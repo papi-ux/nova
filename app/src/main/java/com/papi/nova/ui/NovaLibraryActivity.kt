@@ -1473,7 +1473,13 @@ class NovaLibraryActivity : NovaActivity() {
 
     /** The recap's read-only page, in the library's end panel, pushed when one is open. */
     private fun viewStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {
-        showLibraryEndPage(NovaStreamRecapPages.page(this, recap, onSaveReport = { streamRecapReporter.report(recap) }))
+        showLibraryEndPage(NovaStreamRecapPages.page(
+            this,
+            recap,
+            onSaveReport = { streamRecapReporter.report(recap) },
+            // Leaving the page another way retires any save still on its way; Save Report itself doesn't.
+            onLeave = { if (streamRecapReporterLazy.isInitialized()) streamRecapReporter.retire() },
+        ))
     }
 
     private fun showLibraryEndPage(page: com.papi.nova.ui.panel.NovaPage) {

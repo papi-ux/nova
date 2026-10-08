@@ -58,7 +58,8 @@ object NovaStreamRecapReport {
             return null
         }
         val bytes = markdown(json).toByteArray(StandardCharsets.UTF_8)
-        return bytes.takeIf { it.size <= maxBytes }
+        // MAX_BYTES is a hard cap: a caller may ask for less, never more.
+        return bytes.takeIf { it.size <= minOf(maxBytes, MAX_BYTES) }
     }
 
     /** The closed object: exactly these keys at every level. */
@@ -68,7 +69,7 @@ object NovaStreamRecapReport {
         if (recap.errorCode != null && recap.end != NovaStreamRecap.End.ERROR) throw Invalid()
         count(recap.acceptedSamples, allowZero = true)
         count(recap.rejectedSamples, allowZero = true)
-        if (!recap.mediaSampled && (recap.last != null || recap.samplesCoveredMs != null)) throw Invalid()
+        consistent(recap)
         val codecs = recap.codecs
         if (codecs.size > CODECS.size || codecs.toSet().size != codecs.size || codecs.any { it !in CODECS }) throw Invalid()
         val launch = recap.launch
@@ -174,6 +175,20 @@ object NovaStreamRecapReport {
             .put("received_fps", nullable(last.receivedFps?.let { number(it, 0.0, 1000.0) }))
             .put("decode_time_ms", nullable(last.decodeTimeMs?.let { number(it, 0.0, 10_000.0) }))
             .put("control_rtt_ms", nullable(last.controlRttMs?.let { number(it, 1.0, 60_000.0) }))
+    }
+
+    /** The recap's parts must agree with its own sample count before any of it is written. */
+    private fun consistent(recap: NovaStreamRecap.Recap) {
+        val accepted = recap.acceptedSamples
+        val stats = listOf(recap.renderedFps, recap.receivedFps, recap.decodeTimeMs, recap.hostProcessingLatencyMs, recap.controlRttMs)
+        if (accepted == 0) {
+            if (stats.any { it != null } || recap.lossBetweenSamples != null || recap.connectionLoss != null ||
+                recap.codecs.isNotEmpty() || recap.dimensionsChanged || recap.last != null || recap.samplesCoveredMs != null) throw Invalid()
+            return
+        }
+        if (recap.last == null || recap.codecs.isEmpty()) throw Invalid()
+        if ((accepted == 1) != (recap.samplesCoveredMs == null)) throw Invalid()
+        recap.lossBetweenSamples?.let { if (it.intervals > accepted - 1) throw Invalid() }
     }
 
     private fun nullable(value: Any?): Any = value ?: JSONObject.NULL

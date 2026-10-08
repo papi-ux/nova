@@ -119,6 +119,26 @@ class NovaStreamRecapReportTest {
         )
         invalid.forEachIndexed { index, model -> assertNull("case $index", render(model)) }
         assertNotNull(render(good))
+    }
+
+    @Test fun partsThatDisagreeWithTheSampleCountAreRefused() {
+        val good = recap()
+        val none = recap(samples = false)
+        val inconsistent = listOf(
+            none.copy(renderedFps = good.renderedFps),
+            none.copy(lossBetweenSamples = good.lossBetweenSamples),
+            none.copy(connectionLoss = good.connectionLoss),
+            none.copy(codecs = listOf("hevc")),
+            none.copy(dimensionsChanged = true),
+            good.copy(acceptedSamples = 1),                        // one sample cannot span time
+            good.copy(samplesCoveredMs = null),                    // two samples must
+            good.copy(lossBetweenSamples = NovaStreamRecap.Loss(2, 60, 3)), // more intervals than samples allow
+            good.copy(last = null),
+            good.copy(codecs = emptyList()),
+        )
+        inconsistent.forEachIndexed { index, model -> assertNull("case $index", render(model)) }
+        assertNotNull(render(none))
+        assertNotNull(render(good))
         assertNotNull("an error end may carry its code", render(recap(end = End.ERROR, code = -7)))
     }
 
@@ -127,6 +147,9 @@ class NovaStreamRecapReportTest {
         assertTrue(bytes.size <= NovaStreamRecapReport.MAX_BYTES)
         assertNull(NovaStreamRecapReport.render(recap(), "1.4.15", "release", maxBytes = bytes.size - 1))
         assertNotNull(NovaStreamRecapReport.render(recap(), "1.4.15", "release", maxBytes = bytes.size))
+        // A caller can lower the limit but never raise it past the hard cap.
+        assertNotNull(NovaStreamRecapReport.render(recap(), "1.4.15", "release", maxBytes = Int.MAX_VALUE))
+        assertTrue(NovaStreamRecapReport.render(recap(), "1.4.15", "release", maxBytes = Int.MAX_VALUE)!!.size <= NovaStreamRecapReport.MAX_BYTES)
     }
 
     @Test fun clientSoftwareIsOnlyAClosedToken() {
