@@ -57,21 +57,65 @@ class NovaStreamRecapReportPagesComposeTest {
 
     private fun text(id: Int) = rule.activity.getString(id)
 
-    @Test fun viewingTheRecapAndLeavingItSavesNothing() {
-        val keys = host(NovaStreamRecapPages.page(rule.activity, NovaStreamRecapReportTest.recap(), onSaveReport = { saves++ }))
+    private var leaves = 0
+
+    @Test fun viewingTheRecapAndLeavingItSavesNothingAndRetires() {
+        val keys = host(NovaStreamRecapPages.page(rule.activity, NovaStreamRecapReportTest.recap(),
+            onSaveReport = { saves++ }, onLeave = { leaves++ }))
         rule.onNodeWithText(text(R.string.nova_recap_save_report)).assertExists()
         keys.back()
         rule.waitForIdle()
         assertEquals(0, saves)
+        assertEquals(1, leaves)
         assertEquals(1, state.depth)
     }
 
-    @Test fun saveReportIsItsOwnPress() {
-        host(NovaStreamRecapPages.page(rule.activity, NovaStreamRecapReportTest.recap(), onSaveReport = { saves++ }))
+    @Test fun saveReportIsItsOwnPressAndDoesNotRetireItself() {
+        host(NovaStreamRecapPages.page(rule.activity, NovaStreamRecapReportTest.recap(),
+            onSaveReport = { saves++ }, onLeave = { leaves++ }))
         rule.onNodeWithText(text(R.string.nova_recap_save_report)).performClick()
         rule.waitForIdle()
         assertEquals(1, saves)
+        assertEquals(0, leaves)
         assertEquals(0, shares)
+    }
+
+    /** IO work that waits for the test, then lands on the main thread. */
+    private class HeldRuntime : NovaCommandCenterRuntime {
+        val io = ArrayList<suspend () -> Unit>()
+        override fun launchIo(name: String, block: suspend () -> Unit) { io += block }
+        override suspend fun onMain(block: () -> Unit) = block()
+        override fun postDelayed(delayMs: Long, block: () -> Unit) = Unit
+        fun runIo() = kotlinx.coroutines.runBlocking { val pending = io.toList(); io.clear(); pending.forEach { it() } }
+    }
+
+    @Test fun aSaveLeftBehindByClosingTheRecapNeverReopensItsResult() {
+        val runtime = HeldRuntime()
+        val results = ArrayList<NovaStreamRecapReporter.Saved>()
+        val reporter = NovaStreamRecapReporter(
+            runtime = runtime,
+            render = { com.papi.nova.diagnostics.NovaStreamRecapReport.render(it, "1.4.15", "release") },
+            write = { _, _ -> File(rule.activity.cacheDir, "unused.md") },
+            saved = { results += it },
+            offer = { com.papi.nova.diagnostics.NovaMomentShare.Result.Offered(it) },
+            feedback = {},
+            canShare = { true },
+        )
+        val recap = NovaStreamRecapReportTest.recap()
+        // Save Report from the page, then the recap page is viewed again and closed with B
+        // before the save's IO has finished.
+        reporter.report(recap)
+        val keys = host(NovaStreamRecapPages.page(rule.activity, recap,
+            onSaveReport = { reporter.report(recap) }, onLeave = { reporter.retire() }))
+        keys.back()
+        rule.waitForIdle()
+        rule.runOnUiThread { runtime.runIo() }
+        rule.waitForIdle()
+        assertTrue("no result reopens after the page was left", results.isEmpty())
+        // Its own transition still works: a save left alone confirms.
+        reporter.report(recap)
+        rule.runOnUiThread { runtime.runIo() }
+        assertEquals(1, results.size)
     }
 
     @Test fun theSavedConfirmationFocusesDoneAndBSharesNothing() {
