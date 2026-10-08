@@ -37,7 +37,7 @@ internal class NovaStreamRecapReportPanel(
     private var stopWatching: (() -> Unit)? = null
     private var tokens = 0L
 
-    private val reporter = NovaStreamRecapReporter(
+    private val reporter: NovaStreamRecapReporter = NovaStreamRecapReporter(
         runtime = runtime,
         render = render,
         write = write,
@@ -61,7 +61,9 @@ internal class NovaStreamRecapReportPanel(
     /** The screen is going: no answer may appear, and an unanswered Saving page goes quietly. */
     fun retire() = drop()
 
-    private fun share(report: NovaStreamRecapReporter.Saved) = reporter.share(report)
+    private fun share(report: NovaStreamRecapReporter.Saved) {
+        reporter.share(report)
+    }
 
     private fun savingPage(token: Long): NovaCommonPage.Notice {
         lateinit var page: NovaCommonPage.Notice
