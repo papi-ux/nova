@@ -84,6 +84,16 @@ class NovaStreamRecapTextTest {
         assertTrue(page, page.contains(text(R.string.nova_recap_codecs_mixed, "hevc, av1")))
     }
 
+    @Test fun aLastSampleOfUnknownAgeSaysSo() {
+        val acc = NovaStreamRecap.Accumulator(1L)
+        acc.launch(launch())
+        acc.connected(1_000L)
+        acc.accept(sample(5_000L), 5_000L)
+        val page = NovaStreamRecapText.page(context, acc.finish(End.CONNECTION_ENDED, null, 4_000L, "2026-10-08T14:00:00Z")!!)
+        assertTrue(page, page.contains("how long before the end isn't known"))
+        assertFalse(page, page.contains("0 s before the end"))
+    }
+
     @Test fun durationsReadPlainly() {
         assertEquals("4 s", NovaStreamRecapText.duration(4_900L))
         assertEquals("2 min 05 s", NovaStreamRecapText.duration(125_000L))

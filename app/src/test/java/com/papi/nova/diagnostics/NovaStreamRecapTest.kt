@@ -199,7 +199,44 @@ class NovaStreamRecapTest {
         val acc = connected()
         acc.accept(sample(2_000L, expected = 100, lost = 0), 2_000L)
         acc.accept(sample(3_000L, expected = 110, lost = 20), 3_000L)
-        assertNull(acc.end()!!.lossBetweenSamples)
+        val recap = acc.end()!!
+        assertNull(recap.lossBetweenSamples)
+        assertNull("an inconsistent interval also breaks the whole-connection ratio", recap.connectionLoss)
+    }
+
+    @Test fun lostFramesWithNoNewExpectedFramesBreakTheWholeConnectionRatio() {
+        val acc = connected()
+        acc.accept(sample(2_000L, expected = 100, lost = 0), 2_000L)
+        acc.accept(sample(3_000L, expected = 100, lost = 5), 3_000L)  // deltaExpected 0, deltaLost 5
+        acc.accept(sample(4_000L, expected = 160, lost = 5), 4_000L)  // a clean interval afterwards
+        val recap = acc.end()!!
+        assertNull(recap.connectionLoss)
+        assertEquals(1, recap.lossBetweenSamples!!.intervals)
+        assertEquals(60L, recap.lossBetweenSamples!!.framesExpected)
+        assertEquals(0L, recap.lossBetweenSamples!!.framesLost)
+    }
+
+    @Test fun anIntervalNeedsBothEndpointsValidAndLaterIntervalsRecover() {
+        val acc = connected()
+        acc.accept(sample(2_000L, expected = -1, lost = 0), 2_000L)  // accepted in time, invalid counters
+        acc.accept(sample(3_000L, expected = 100, lost = 0), 3_000L) // no interval from the invalid endpoint
+        acc.accept(sample(4_000L, expected = 160, lost = 3), 4_000L)
+        val recap = acc.end()!!
+        assertEquals(3, recap.acceptedSamples)
+        val loss = recap.lossBetweenSamples!!
+        assertEquals(1, loss.intervals)
+        assertEquals(60L, loss.framesExpected)
+        assertEquals(3L, loss.framesLost)
+        assertNull(recap.connectionLoss)
+    }
+
+    @Test fun anEndStampedBeforeTheLastSampleLeavesItsFreshnessUnknown() {
+        val acc = connected()
+        acc.accept(sample(5_000L), 5_000L)
+        val recap = acc.end(at = 4_000L)!!
+        assertNull("no invented freshness", recap.last!!.ageAtEndMs)
+        assertEquals(60.0, recap.last!!.renderedFps!!, 0.0)
+        assertEquals(3_000L, recap.connectedForMs)
     }
 
     @Test fun mixedCodecsAndSizesAreSaidRatherThanLabelledAsTheLastDecoder() {

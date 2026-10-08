@@ -1296,6 +1296,7 @@
     <string name="nova_recap_codecs_mixed">Codecs during this connection: %1$s. The readings above mix them.</string>
     <string name="nova_recap_dimensions_changed">The decoded size changed during this connection; the readings above mix sizes.</string>
     <string name="nova_recap_last">Last client sample, %1$s before the end: %2$s.</string>
+    <string name="nova_recap_last_age_unknown">Last client sample (how long before the end isn\'t known): %1$s.</string>
     <string name="nova_recap_not_measured">Not measured or compared: video throughput, host-side readings, the game or scene that ran, picture, audio and control quality, and the network path. This is no health grade.</string>
     <string name="nova_recap_lifetime">Kept only in memory on this device until a newer stream ends, you dismiss it, or Nova closes. Nothing was saved, logged or sent. Export isn\'t available yet.</string>
     <string name="nova_recap_unknown">unknown</string>

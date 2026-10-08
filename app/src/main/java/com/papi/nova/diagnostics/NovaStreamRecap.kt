@@ -47,7 +47,8 @@ object NovaStreamRecap {
 
     /** The newest accepted client sample before the end, validated like every other. */
     data class LastSample(
-        val ageAtEndMs: Long,
+        /** Null when the end was stamped before this sample: its freshness isn't known. */
+        val ageAtEndMs: Long?,
         val codec: String,
         val width: Int?,
         val height: Int?,
@@ -170,8 +171,7 @@ object NovaStreamRecap {
 
         private fun counters(previous: PerfOverlaySample?, sample: PerfOverlaySample) {
             val generation = sample.sessionGeneration
-            val countersValid = sample.framesExpected >= 0 && sample.framesLost >= 0 && sample.framesLost <= sample.framesExpected
-            if (generation <= 0L || !countersValid) {
+            if (!validCounters(sample)) {
                 continuous = false
                 return
             }
@@ -180,24 +180,36 @@ object NovaStreamRecap {
                 firstGeneration = generation
                 return
             }
+            // Both endpoints must be valid: an interval from an invalid previous sample says nothing.
+            if (!validCounters(previous)) {
+                continuous = false
+                connectionGeneration = generation
+                return
+            }
             if (generation != connectionGeneration || previous.sessionGeneration != generation) {
-                // A new decoder generation restarts the counters: no interval, no whole-connection ratio.
+                // A generation transition: no interval across it, and no whole-connection ratio,
+                // whatever the counters did there.
                 continuous = false
                 connectionGeneration = generation
                 return
             }
             val deltaExpected = sample.framesExpected - previous.framesExpected
             val deltaLost = sample.framesLost - previous.framesLost
-            if (deltaExpected < 0 || deltaLost < 0) {
+            if (deltaExpected < 0 || deltaLost < 0 || deltaLost > deltaExpected) {
+                // Decreasing or inconsistent counters: this interval and the whole-connection ratio go.
                 continuous = false
                 return
             }
-            if (deltaExpected > 0 && deltaLost <= deltaExpected) {
+            if (deltaExpected > 0) {
                 lossIntervals++
                 lossExpected += deltaExpected
                 lossLost += deltaLost
             }
         }
+
+        private fun validCounters(sample: PerfOverlaySample): Boolean =
+            sample.sessionGeneration > 0L && sample.framesExpected >= 0 && sample.framesLost >= 0 &&
+                sample.framesLost <= sample.framesExpected
 
         /**
          * The recap, once: null if the connection never started or it was already finished. Reads
@@ -209,8 +221,8 @@ object NovaStreamRecap {
             val launched = launch ?: return null
             if (connectedAt == 0L) return null
             val last = lastSample
-            // The renderer's counters start with the connection at generation 1 and restart with
-            // each later generation, so only an unbroken generation-1 run covers the whole of it.
+            // The renderer starts a connection at generation 1. Its cumulative counters are trusted
+            // for the whole connection only over an unbroken generation-1 run; any transition fails closed.
             val connectionLoss = last?.takeIf {
                 continuous && firstGeneration == FIRST_GENERATION && it.sessionGeneration == FIRST_GENERATION &&
                     it.framesExpected > 0L &&
@@ -237,7 +249,7 @@ object NovaStreamRecap {
                 dimensionsChanged = dimensionsChanged,
                 last = last?.let {
                     LastSample(
-                        ageAtEndMs = (endElapsed - it.monotonicTimestampMs).coerceAtLeast(0L),
+                        ageAtEndMs = (endElapsed - it.monotonicTimestampMs).takeIf { age -> age >= 0L },
                         codec = NovaMomentReport.codecFamily(it.codec),
                         width = it.width.takeIf { w -> w in 1..16_384 },
                         height = it.height.takeIf { h -> h in 1..16_384 },
