@@ -41,6 +41,8 @@ data class HostConnectionEvidence(
         const val MAX_FUTURE_SKEW_MS = 2_000L
         /** Answers larger than this are not parsed. */
         const val MAX_BODY_CHARS = 16 * 1024
+        /** At most this many bytes of an answer are ever read off the wire, whatever it declares. */
+        const val MAX_BODY_BYTES = 16 * 1024L
 
         @JvmStatic
         fun unknown(reason: Reason) = HostConnectionEvidence(Status.UNKNOWN, Transport.UNKNOWN, reason)
@@ -142,15 +144,35 @@ data class HostConnectionEvidence(
 }
 
 /**
- * A raw answer kept so it can be judged again later (before launch) without fetching: the
- * host's observation must still be inside its freshness window at that later moment.
+ * A raw answer kept so it can be judged again later (before launch) without fetching. Two clocks
+ * bound it: the host's observation must still be inside its window by the wall clock, and the
+ * answer must have been received at most [HostConnectionEvidence.MAX_AGE_MS] ago by this device's
+ * monotonic clock ([receivedAtElapsedMs], `SystemClock.elapsedRealtime()`), so setting the device
+ * clock back cannot keep an old answer, its transport or a rule built on it alive.
  */
-data class HostConnectionObservation(val body: String?, val supported: Boolean) {
-    fun evaluate(nowWallMs: Long): HostConnectionEvidence =
-        if (!supported) HostConnectionEvidence.unknown(HostConnectionEvidence.Reason.HOST_UNSUPPORTED)
-        else HostConnectionEvidence.parseBody(body, nowWallMs)
+data class HostConnectionObservation(
+    val body: String?,
+    val supported: Boolean,
+    val receivedAtElapsedMs: Long,
+) {
+    fun evaluate(nowWallMs: Long, nowElapsedMs: Long): HostConnectionEvidence {
+        if (!supported) return HostConnectionEvidence.unknown(HostConnectionEvidence.Reason.HOST_UNSUPPORTED)
+        val evidence = HostConnectionEvidence.parseBody(body, nowWallMs)
+        if (evidence.status == HostConnectionEvidence.Status.UNKNOWN) return evidence
+        val receiptAge = nowElapsedMs - receivedAtElapsedMs
+        return if (receiptAge < 0L || receiptAge > HostConnectionEvidence.MAX_AGE_MS) {
+            HostConnectionEvidence.unknown(HostConnectionEvidence.Reason.STALE)
+        } else evidence
+    }
 
-    /** When a currently valid answer expires; null when it is not valid now. */
-    fun freshUntilWallMs(nowWallMs: Long): Long? =
-        if (!supported) null else HostConnectionEvidence.freshUntilWallMs(body, nowWallMs)
+    /**
+     * How long a currently valid answer stays valid by both clocks, in milliseconds; null when it
+     * is not valid now. A delay, not a wall-clock time, so a clock change cannot stretch it.
+     */
+    fun freshForMs(nowWallMs: Long, nowElapsedMs: Long): Long? {
+        if (evaluate(nowWallMs, nowElapsedMs).status == HostConnectionEvidence.Status.UNKNOWN) return null
+        val byHost = (HostConnectionEvidence.freshUntilWallMs(body, nowWallMs) ?: return null) - nowWallMs
+        val byReceipt = receivedAtElapsedMs + HostConnectionEvidence.MAX_AGE_MS + 1 - nowElapsedMs
+        return minOf(byHost, byReceipt)
+    }
 }

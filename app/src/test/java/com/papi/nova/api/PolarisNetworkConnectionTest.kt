@@ -6,6 +6,7 @@ import java.io.IOException
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import okio.buffer
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -72,14 +73,14 @@ class PolarisNetworkConnectionTest {
             val observation = api.getNetworkConnection(caps)
             assertFalse(observation.supported)
             assertEquals(HostConnectionEvidence.unknown(HostConnectionEvidence.Reason.HOST_UNSUPPORTED),
-                observation.evaluate(System.currentTimeMillis()))
+                observation.evaluate(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()))
         }
         assertTrue(paths.isEmpty())
     }
 
     @Test fun aCapableHostIsAskedOnThePairedApiRoute() {
         val (api, paths) = client { response(it, 200, freshBody()) }
-        val evidence = api.getNetworkConnection(capabilities(true)).evaluate(System.currentTimeMillis())
+        val evidence = api.getNetworkConnection(capabilities(true)).evaluate(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
         assertEquals(listOf("/polaris/v1/network/connection"), paths.toList())
         assertEquals(HostConnectionEvidence.Status.TAILSCALE, evidence.status)
         assertEquals(HostConnectionEvidence.Transport.DERP, evidence.transport)
@@ -92,7 +93,60 @@ class PolarisNetworkConnectionTest {
         val (failing, _) = client { response(it, 503, freshBody()) }
         val failed = failing.getNetworkConnection(capabilities(true))
         assertNull(failed.body)
-        assertEquals(HostConnectionEvidence.Status.UNKNOWN, failed.evaluate(System.currentTimeMillis()).status)
+        assertEquals(HostConnectionEvidence.Status.UNKNOWN, failed.evaluate(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()).status)
+    }
+
+    /** A body of [size] bytes that declares [declared] (-1: unknown) and counts what is read from it. */
+    private class CountingBody(private val size: Long, private val declared: Long, private val fill: Byte = 'x'.code.toByte()) :
+        okhttp3.ResponseBody() {
+        var delivered = 0L
+            private set
+        private val upstream = object : okio.Source {
+            override fun read(sink: okio.Buffer, byteCount: Long): Long {
+                if (delivered >= size) return -1L
+                val n = minOf(byteCount, size - delivered, 4_096L)
+                sink.write(ByteArray(n.toInt()) { fill })
+                delivered += n
+                return n
+            }
+            override fun timeout() = okio.Timeout.NONE
+            override fun close() = Unit
+        }
+        private val buffered = upstream.buffer()
+        override fun contentType(): okhttp3.MediaType? = null
+        override fun contentLength() = declared
+        override fun source(): okio.BufferedSource = buffered
+    }
+
+    @Test fun anUndeclaredOrChunkedOversizedAnswerIsRefusedWithoutReadingItAll() {
+        val limit = HostConnectionEvidence.MAX_BODY_BYTES
+        val huge = CountingBody(size = 64L * 1024 * 1024, declared = -1L)
+        assertNull(PolarisApiClient.readBoundedBody(huge))
+        assertTrue("read ${huge.delivered} bytes of a 64 MiB answer", huge.delivered <= limit + 8_192L)
+
+        val (api, _) = client { request ->
+            okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("x")
+                .header("Transfer-Encoding", "chunked")
+                .body(CountingBody(size = 8L * 1024 * 1024, declared = -1L, fill = '1'.code.toByte())).build()
+        }
+        val observation = api.getNetworkConnection(capabilities(true))
+        assertNull(observation.body)
+        assertTrue(observation.supported)
+        assertEquals(HostConnectionEvidence.Status.UNKNOWN,
+            observation.evaluate(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()).status)
+        assertFalse("an oversized body must not be logged", synchronized(logs) { logs.joinToString("\n") }.contains("1111"))
+    }
+
+    @Test fun theReadLimitIsExactAndADeclaredOversizeIsNotReadAtAll() {
+        val limit = HostConnectionEvidence.MAX_BODY_BYTES
+        assertEquals(limit.toInt(), PolarisApiClient.readBoundedBody(CountingBody(limit, -1L))?.length)
+        assertNull(PolarisApiClient.readBoundedBody(CountingBody(limit + 1, -1L)))
+        assertEquals(limit.toInt(), PolarisApiClient.readBoundedBody(CountingBody(limit, limit))?.length)
+        val declaredHuge = CountingBody(size = limit + 1, declared = limit + 1)
+        assertNull(PolarisApiClient.readBoundedBody(declaredHuge))
+        assertEquals(0L, declaredHuge.delivered)
+        // A small answer of unknown length is read whole.
+        assertEquals("xx", PolarisApiClient.readBoundedBody(CountingBody(2L, -1L)))
     }
 
     @Test fun failuresAndAnswersNeverLogAddressesOrTheBody() {

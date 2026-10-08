@@ -179,11 +179,16 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
 private var novaStreamHostMaximumKbps: Int? = null
 // A saved profile a network rule (or its one-launch override) chose for this launch only.
-// Watching and resuming keep the active profile, as they always have.
+// Watching, resuming and Spaces keep the active profile, as they always have.
 private val launchProfileUuid: String? by lazy {
-    getIntent().getStringExtra(EXTRA_LAUNCH_PROFILE_UUID)?.takeIf {
-        !getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false) && !getIntent().getBooleanExtra(EXTRA_RESUME_EXISTING, false)
-    }
+    com.papi.nova.network.NovaLaunchProfileExtras.applicableProfile(
+        profileUuid = getIntent().getStringExtra(EXTRA_LAUNCH_PROFILE_UUID),
+        watchOnly = getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false),
+        resumeExisting = getIntent().getBooleanExtra(EXTRA_RESUME_EXISTING, false),
+        appUuid = getIntent().getStringExtra(EXTRA_APP_UUID),
+        appId = getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID),
+        launchOptimizationJson = getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION),
+    )
 }
 private fun launchSharedPreferences(): android.content.SharedPreferences =
     ProfilesManager.getInstance().getOverlayingSharedPreferences(this, launchProfileUuid)

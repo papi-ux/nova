@@ -90,7 +90,7 @@ class NovaNetworkLaunchProfileSourceGuardTest {
         assertTrue("host evidence arriving", section("private fun refreshHostConnection()", "private fun revalidateLaunchProfile()")
             .contains("revalidateLaunchProfile()"))
         val freshness = section("private fun scheduleHostConnectionFreshness(", "private fun registerNetworkChangeCallback()")
-        assertTrue("host evidence ageing out", freshness.contains("freshUntilWallMs(nowWallMs)") &&
+        assertTrue("host evidence ageing out", freshness.contains("freshForMs(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())") &&
             freshness.contains("refreshHostConnection()") && freshness.contains("revalidateLaunchProfile()"))
     }
 
