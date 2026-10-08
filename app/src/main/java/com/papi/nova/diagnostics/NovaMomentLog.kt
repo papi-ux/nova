@@ -10,8 +10,8 @@ import java.nio.charset.StandardCharsets
  * The recent end of Nova's own log, for a moment report: bounded, and scrubbed harder than a
  * general support report.
  *
- * Bounded in bytes on both sides: at most [MAX_BYTES] are ever read from disk, whatever the files
- * hold, and the redacted text handed back is at most [MAX_BYTES] of UTF-8. It is a byte and line
+ * The tail read and redacted text are each bounded to [MAX_BYTES] of UTF-8, with a small fixed
+ * fingerprint read for each rotating file. It is a byte and line
  * tail, the newest lines when the moment was marked, and never a time window around it.
  *
  * [DiagnosticsRedaction] removes credentials by name but not command authority or network
@@ -59,7 +59,7 @@ object NovaMomentLog {
         /** Read, scrub and bound the newest lines up to where the moment froze them. */
         @Synchronized
         fun read(known: Map<String, String> = emptyMap(), maxBytes: Int = MAX_BYTES): Tail {
-            require(maxBytes > 0)
+            require(maxBytes in 1..MAX_BYTES)
             val files = held ?: return Tail.EMPTY
             var need = maxBytes.toLong()
             var cutSomething = false
@@ -121,7 +121,7 @@ object NovaMomentLog {
     fun mark(directory: File): Marked {
         val files = directory.listFiles()?.mapNotNull { file ->
             GENERATION.matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull()?.let { it to file }
-        }?.filter { it.second.isFile }?.sortedBy { it.first }?.map { it.second }.orEmpty()
+        }?.filter { it.second.isFile }?.sortedBy { it.first }?.take(NovaDiagnostics.LOG_FILE_COUNT)?.map { it.second }.orEmpty()
         val held = files.mapNotNull { file ->
             try {
                 val raf = RandomAccessFile(file, "r")

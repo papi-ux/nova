@@ -74,6 +74,10 @@ class NovaQuickMenu(
         },
         saved = { report -> surfaces.present(momentSavedPage(report)) },
         offer = { file -> com.papi.nova.diagnostics.NovaMomentShare.offer(game, file) },
+        isActive = {
+            com.papi.nova.diagnostics.NovaMomentReport.canCapture(
+                game.isStreamActive, game.connected, game.isFinishing, game.isDestroyed)
+        },
         feedback = { outcome ->
             val anchor = session?.anchor
             when (outcome) {
@@ -92,6 +96,10 @@ class NovaQuickMenu(
     init {
         // A stream going away retires any report still being saved and closes the log it holds.
         game.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                momentReporter.retire()
+                game.cancelRuntimeTask(com.papi.nova.diagnostics.NovaMomentReporter.TASK)
+            }
             override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) = momentReporter.retire()
         })
     }

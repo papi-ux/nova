@@ -72,6 +72,7 @@ class NovaMomentReporterTest {
         saved = { savedReports += it },
         offer = offer,
         feedback = { outcomes += it },
+        isActive = { streamActive },
     )
 
     @Test fun thePressSavesTheFrozenMomentAndOpensNothing() {
@@ -140,6 +141,40 @@ class NovaMomentReporterTest {
         assertTrue(savedReports.isEmpty())
         assertTrue(outcomes.isEmpty())
         assertTrue(marked.single().isClosed)
+    }
+
+    @Test fun aStoppedStreamInALiveActivityPublishesNothing() {
+        val runtime = HeldRuntime()
+        reporter(runtime).report()
+        streamActive = false
+        runtime.runIo()
+        assertTrue(savedReports.isEmpty())
+        assertTrue(outcomes.isEmpty())
+        assertTrue(offered.isEmpty())
+        assertTrue(marked.single().isClosed)
+    }
+
+    @Test fun aNewPressClosesTheLogOfWorkThatNeverEnteredIo() {
+        val runtime = HeldRuntime()
+        val reporter = reporter(runtime)
+        reporter.report()
+        runtime.io.clear() // cancelled before the coroutine entered its body
+        reporter.report()
+        assertTrue(marked.first().isClosed)
+        runtime.runIo()
+        assertEquals(1, savedReports.size)
+        assertTrue(marked.all { it.isClosed })
+    }
+
+    @Test fun aStoppedStreamCannotLaunchTheOldShareConfirmation() {
+        val runtime = HeldRuntime()
+        val reporter = reporter(runtime)
+        reporter.report()
+        runtime.runIo()
+        streamActive = false
+        reporter.share(savedReports.single())
+        assertTrue(offered.isEmpty())
+        assertEquals(listOf(Outcome.NOT_ACTIVE), outcomes)
     }
 
     @Test fun aNewerPressRetiresAnOlderHandoffAndBothFilesStayDistinct() {
