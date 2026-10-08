@@ -48,6 +48,11 @@
         android:name="android.hardware.type.pc"
         android:required="false"/>
 
+    <!-- Only to offer "Open Tailscale" from host setup when that app is installed; no permission. -->
+    <queries>
+        <package android:name="com.tailscale.ipn" />
+    </queries>
+
     <application
         android:name=".NovaApplication"
         android:allowBackup="true"
@@ -295,6 +300,11 @@
         <activity
             android:name="com.papi.nova.ui.NovaGameDetailActivity"
             android:launchMode="singleTop"
+            android:theme="@style/AppTheme"
+            android:exported="false" />
+
+        <activity
+            android:name="com.papi.nova.ui.NovaNetworkRulesActivity"
             android:theme="@style/AppTheme"
             android:exported="false" />
 

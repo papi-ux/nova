@@ -157,6 +157,8 @@ internal fun NovaGameDetailContent(
     /** The host scope's last result, said under its plan until the next one; null says nothing. */
     hostPlaySetupNotice: NovaPolarisSyncNotice? = null,
     hostCopyRecovery: NovaHostCopyRecovery? = null,
+    /** Host connection evidence for this launch; informational, beside the host's other facts. */
+    networkFacts: List<NovaPlaySetupFact> = emptyList(),
     /**
      * What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0: the
      * verdict the codec preview reads, so What Will Happen and the status line say it too (#10).
@@ -426,6 +428,7 @@ internal fun NovaGameDetailContent(
                         ),
                     )
                 }
+                addAll(networkFacts)
             },
         ).let { plan ->
             // MangoHUD, when it is on, is a readout of what this launch carries, so it is a fact of

@@ -178,6 +178,20 @@ class Game : NovaActivity(), SurfaceHolder.Callback, OnGenericMotionListener, On
 
 private val runtimeTasks:NovaRuntimeTasks = NovaRuntimeTasks(this, "Nova runtime")
 private var novaStreamHostMaximumKbps: Int? = null
+// A saved profile a network rule (or its one-launch override) chose for this launch only.
+// Watching, resuming and Spaces keep the active profile, as they always have.
+private val launchProfileUuid: String? by lazy {
+    com.papi.nova.network.NovaLaunchProfileExtras.applicableProfile(
+        profileUuid = getIntent().getStringExtra(EXTRA_LAUNCH_PROFILE_UUID),
+        watchOnly = getIntent().getBooleanExtra(EXTRA_WATCH_ONLY, false),
+        resumeExisting = getIntent().getBooleanExtra(EXTRA_RESUME_EXISTING, false),
+        appUuid = getIntent().getStringExtra(EXTRA_APP_UUID),
+        appId = getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID),
+        launchOptimizationJson = getIntent().getStringExtra(EXTRA_LAUNCH_OPTIMIZATION),
+    )
+}
+private fun launchSharedPreferences(): android.content.SharedPreferences =
+    ProfilesManager.getInstance().getOverlayingSharedPreferences(this, launchProfileUuid)
 internal val novaLiveBitrate by lazy {
     com.papi.nova.manager.NovaStreamBitrateOwner(lifecycleScope,
         { novaApiClient }, { conn }, { isStreamActive && connected && !isFinishing && !isDestroyed },
@@ -846,7 +860,7 @@ UiHelper.setLocale(this)
 
  // Read the stream preferences
         val tierSnapshotAtRead = com.papi.nova.preferences.NovaTierRuntime.snapshot()
-        prefConfig = PreferenceConfiguration.readPreferences(this)
+        prefConfig = PreferenceConfiguration.readPreferences(this, launchSharedPreferences())
         com.papi.nova.ui.NovaVideoCodecOverrides.applyToLaunch(this, intent, prefConfig)
         // A per-game face-button choice from Play Setup outranks the Settings flip for this
         // launch. ControllerHandler and the on-screen pad read prefConfig later, so one
@@ -1222,7 +1236,7 @@ return
 
 // A cold shortcut can arrive before the application worker finishes the metadata probe.
 // Reuse the existing lifecycle-bound launch handoff instead of probing in readPreferences.
-val tierPreferences = ProfilesManager.getInstance().getOverlayingSharedPreferences(this)
+val tierPreferences = launchSharedPreferences()
 val needsGeneratedTier = com.papi.nova.manager.NovaTierLaunchPolicy.needsGeneratedTier(
     com.papi.nova.preferences.NovaStreamSettings.selected(tierPreferences.all), watchOnlyRequested,
     resumeExistingRequested, com.papi.nova.manager.WorkerLaunchContract.isProfileApp(appUUID ?: appId.toString()))
@@ -3898,7 +3912,7 @@ java.lang.String.valueOf((prefConfig!!.bitrate / 1000)),
 "${displayWidth}x${displayHeight}",
 "${prefConfig!!.fps} hz",
 "${decoderRenderer!!.getAverageDecoderLatency()} ms",
-PreferenceConfiguration.getSelectedFramePacingName(getBaseContext()),
+PreferenceConfiguration.getSelectedFramePacingName(launchSharedPreferences()),
 formatCurrentTime(System.currentTimeMillis())
 )
 }
@@ -6510,8 +6524,7 @@ setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE)
     private fun initMouseMode() {
 var mouseModes:Array<String?>? = getResources().getStringArray(R.array.mouse_mode_names)
 
-var savedMouseModeIndexStr:String? = ProfilesManager.getInstance()
-.getOverlayingSharedPreferences(this)
+var savedMouseModeIndexStr:String? = launchSharedPreferences()
 .getString("mouse_mode_list", "0")
 
 var savedMouseModeIndex:Int
@@ -7824,6 +7837,7 @@ private const val RTSP_SERVICE_UNAVAILABLE = 503
  const val EXTRA_MIRROR_DESKTOP:String = "MirrorDesktop"
 const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteamClose"
  const val EXTRA_WATCH_ONLY:String = "WatchOnly"
+ const val EXTRA_LAUNCH_PROFILE_UUID:String = "LaunchProfileUuid"
  const val EXTRA_STREAM_WIDTH:String = "StreamWidth"
  const val EXTRA_STREAM_HEIGHT:String = "StreamHeight"
  const val EXTRA_STREAM_FPS:String = "StreamFps"
