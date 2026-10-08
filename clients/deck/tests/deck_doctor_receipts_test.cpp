@@ -7,6 +7,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <atomic>
 #include <cstdlib>
@@ -16,9 +17,24 @@ using namespace nova::deck::runtime;
 using namespace nova::deck::polaris;
 namespace {
 void require(bool ok, const char* text) { if (!ok) { std::cerr << text << '\n'; std::exit(1); } }
-template<class F> void until(F predicate) {
+template<class F, class D> void until(const char* stage, F predicate, D diagnostic) {
     QElapsedTimer timer; timer.start(); while (!predicate() && timer.elapsed() < 2000) QThread::msleep(1);
-    require(predicate(), "receipt recovery timed out");
+    const bool satisfied = predicate();
+    if (!satisfied) {
+        std::cerr << "receipt recovery timed out at " << stage << " after " << timer.elapsed()
+                  << " ms: " << QJsonDocument(diagnostic()).toJson(QJsonDocument::Compact).constData() << '\n';
+    }
+    require(satisfied, "receipt recovery timed out");
+}
+QJsonObject waitState(const DeckHudHostObserver& observer, const std::atomic<int>& reads, const std::atomic<int>& posts) {
+    // Only fixture counters and the Doctor's public state: no request body or command identity.
+    const auto state = observer.snapshot();
+    QJsonObject out{{"reads", reads.load()}, {"posts", posts.load()}};
+    for (const auto* key : {"doctorActionState", "doctorActionBusy", "doctorCanApply", "doctorCanCheck", "doctorCanUndo"}) {
+        if (state.contains(key)) out[key] = QJsonValue::fromVariant(state.value(key));
+    }
+    if (state.contains("doctorActionMessage")) out["doctorActionMessage"] = state.value("doctorActionMessage").toString().left(240);
+    return out;
 }
 DeckHostTelemetry sample(int sequence = 1) { return *parseHostTelemetry(QJsonDocument(doctor_fixture::envelope(sequence)).toJson().toStdString()); }
 QJsonObject checkpoint(bool withReceipt = true) {
@@ -122,10 +138,11 @@ void failedIntentWrite() {
         return t;
     };
     DeckHudHostObserver observer(factory,{17,"private-game","private-token"},{20,300,100});
-    until([&] { return observer.snapshot().value("doctorCanApply").toBool(); });
+    const auto diagnostic = [&] { return waitState(observer, reads, posts); };
+    until("failed-intent-write:offer-ready", [&] { return observer.snapshot().value("doctorCanApply").toBool(); }, diagnostic);
     require(QFile::link(tmp.path()+"/missing",path+"/"+key+".json"), "failed-write fixture failed");
     require(observer.applyDoctorFix(), "failed-write Apply fixture failed");
-    until([&] { return observer.snapshot().value("doctorActionState") == "attention"; });
+    until("failed-intent-write:attention", [&] { return observer.snapshot().value("doctorActionState") == "attention"; }, diagnostic);
     require(posts==0 && !observer.snapshot().value("doctorCanApply").toBool() && !observer.applyDoctorFix() &&
         !observer.checkDoctorResult() && !observer.undoDoctorFix(), "failed durable intent dispatched or allowed recovery mutation");
 }
@@ -156,17 +173,32 @@ void observerRestart(bool lostReply) {
         return t;
     };
     const auto make = [&] { return std::make_unique<DeckHudHostObserver>(factory,DeckHudHostContext{17,"private-game","private-token"},DeckHudHostTiming{20,300,100}); };
-    auto first = make(); until([&] { return first->snapshot().value("doctorCanApply").toBool(); });
+    const auto diagnostic = [&](const auto& observer) {
+        auto out = waitState(observer, reads, posts);
+        out["lost_reply"] = lostReply; out["entered"] = entered.load();
+        out["dropped"] = dropped.load(); out["hold"] = hold.load();
+        return out;
+    };
+    auto first = make();
+    const auto firstDiagnostic = [&] { return diagnostic(*first); };
+    until(lostReply ? "lost-reply:initial-offer" : "receipt:initial-offer",
+          [&] { return first->snapshot().value("doctorCanApply").toBool(); }, firstDiagnostic);
     require(first->applyDoctorFix(), "initial observer Apply failed");
-    until([&] { return lostReply ? entered.load() : first->snapshot().value("doctorCanUndo").toBool(); });
+    until(lostReply ? "lost-reply:initial-post-entered" : "receipt:initial-undo-ready",
+          [&] { return lostReply ? entered.load() : first->snapshot().value("doctorCanUndo").toBool(); }, firstDiagnostic);
     first.reset(); require(!lostReply || dropped, "lost reply was not cancelled"); hold = false;
-    auto second = make(); until([&] { return second->snapshot().value("doctorCanCheck").toBool(); });
+    auto second = make();
+    const auto secondDiagnostic = [&] { return diagnostic(*second); };
+    until(lostReply ? "lost-reply:recovered-check-ready" : "receipt:recovered-check-ready",
+          [&] { return second->snapshot().value("doctorCanCheck").toBool(); }, secondDiagnostic);
     QThread::msleep(40);
     require(posts == 1 && !second->undoDoctorFix() && !second->applyDoctorFix(), "restart silently mutated or trusted cached Undo");
     require(second->checkDoctorResult(), "explicit recovered check failed");
-    until([&] { return second->snapshot().value("doctorCanUndo").toBool(); });
+    until(lostReply ? "lost-reply:revalidated-undo-ready" : "receipt:revalidated-undo-ready",
+          [&] { return second->snapshot().value("doctorCanUndo").toBool(); }, secondDiagnostic);
     require(posts == 2 && second->undoDoctorFix(), "revalidated Undo failed");
-    until([&] { return second->snapshot().value("doctorActionState") == "undone"; });
+    until(lostReply ? "lost-reply:undo-complete" : "receipt:undo-complete",
+          [&] { return second->snapshot().value("doctorActionState") == "undone"; }, secondDiagnostic);
     require(posts == 3, "Undo replayed"); second.reset(); require(!QFileInfo::exists(file), "terminal receipt survived retirement");
 }
 }
