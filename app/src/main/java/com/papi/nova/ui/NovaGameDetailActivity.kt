@@ -604,6 +604,9 @@ class NovaGameDetailActivity : NovaActivity() {
         revalidateLaunchProfile()
     }
 
+    private fun launchPlanPreferences(): PreferenceConfiguration =
+        com.papi.nova.network.LaunchProfilePreferences.read(this, displayedLaunchChoice?.profileUuid)
+
     /** Play Setup's Host connection fact: informational, never a fault or a bitrate decision. */
     private fun hostConnectionFacts(): List<NovaPlaySetupFact> {
         if (!networkRulesApply()) return emptyList()
@@ -840,7 +843,7 @@ class NovaGameDetailActivity : NovaActivity() {
             NovaVideoCodecOverrides.load(this@NovaGameDetailActivity, serverUuid, currentGame.id, currentGame.appId),
         )
         fun effectiveCodec() = NovaVideoCodecOverrides.resolve(chosenCodec,
-            PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity).videoFormat)
+            launchPlanPreferences().videoFormat)
         // Null keeps Polaris' configured host policy. "auto" is deliberately not
         // null: it asks Polaris to choose and permits fallback for this launch.
         var chosenEncoderBackend by mutableStateOf<String?>(
@@ -891,7 +894,7 @@ class NovaGameDetailActivity : NovaActivity() {
             // The worker response is an exact host-validated contract. Space choices
             // go into the request; rewriting the response invalidates its provenance.
             if (spaceGame != null) return optimizationState.rawOptimization
-            val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            val preferences = launchPlanPreferences()
             return NovaLaunchStreamOverride.compose(
                 raw = optimizationState.rawOptimization,
                 resolution = chosenResolution,
@@ -907,7 +910,7 @@ class NovaGameDetailActivity : NovaActivity() {
          * the choices made here, as attemptLaunch() will send them.
          */
         fun launchPreview(): NovaGameDetailOptimizationState {
-            val launchPreferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            val launchPreferences = launchPlanPreferences()
             val preview = optimizationState.withLaunchProfileSummary(
                 NovaLaunchProfileText(resources),
                 launchOptimization(),
@@ -921,13 +924,17 @@ class NovaGameDetailActivity : NovaActivity() {
                 } else null,
             )
             val source = launchOptimization()?.let { optimization ->
+                val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
+                val launchProfile = profiles.getProfile(displayedLaunchChoice?.profileUuid) ?: profiles.getActive()
+                val launchTier = com.papi.nova.preferences.NovaStreamSettings.selected(
+                    profiles.getOverlayingSharedPreferences(this@NovaGameDetailActivity, displayedLaunchChoice?.profileUuid).all)
                 com.papi.nova.manager.NovaStreamSourceLine.fromPreflight(optimization,
                     com.papi.nova.manager.NovaStreamSourceRequest(launchPreferences.width, launchPreferences.height,
                         (effectiveFpsPin(chosenFps, profilePreference, launchPreferences.fps) ?: launchPreferences.fps.toInt()).toDouble(),
                         launchPreferences.bitrate, com.papi.nova.manager.novaLaunchChoiceAttribution(
-                            deviceSettings.pictureTier.name.lowercase().replaceFirstChar(Char::uppercase),
+                            launchTier.name.lowercase().replaceFirstChar(Char::uppercase),
                             gamePinned = chosenResolution != null || chosenFps != null || chosenCodec != null || profilePreference != "auto",
-                            setupParticipates = com.papi.nova.profiles.ProfilesManager.getInstance().getActive()?.getOptions()?.keys?.any {
+                            setupParticipates = launchProfile?.getOptions()?.keys?.any {
                                 it in com.papi.nova.preferences.NovaSettingsMigration.STREAM_KEYS } == true)))
             }
             return if (source == null) preview else preview.copy(streamSource = source, profileSummary = preview.profileSummary?.let { summary ->
@@ -1895,7 +1902,7 @@ class NovaGameDetailActivity : NovaActivity() {
         /** What PyroWave asks for past the bitrate setting for this launch's plan, in Mbps, or 0. */
         fun planShortfallMbps(): Int {
             if (spaceGame != null || com.papi.nova.manager.WorkerLaunchContract.isProfileApp(currentGame.id)) return 0
-            val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            val preferences = launchPlanPreferences()
             return bitrateShortfallMbps(effectiveCodec(), launchSize(preferences), preferences)
         }
 
@@ -1920,7 +1927,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 enabled = !environmentChanging && environmentSnapshot?.canSwitch == true,
                 opensPage = true,
             )
-            val preferences = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+            val preferences = launchPlanPreferences()
             val fpsPin = if (spaceGame == null) NovaLaunchStreamOverride.highFpsPin(profilePreference, preferences.fps) else null
 
             val modeOptions = buildList {
@@ -3086,7 +3093,7 @@ class NovaGameDetailActivity : NovaActivity() {
             ?: ""
         // Planned from what this device is set to stream at, which is what a launch uses with
         // nothing chosen, so the row and the launch cannot disagree.
-        val preferences = PreferenceConfiguration.readPreferences(this)
+        val preferences = launchPlanPreferences()
         return NovaDisplayResolutionPlanner.from(
             contract = game.displayPlanner,
             fallbackMode = fallbackMode,
@@ -3437,7 +3444,7 @@ class NovaGameDetailActivity : NovaActivity() {
             }
         }
 
-        val clientPreferences = PreferenceConfiguration.readPreferences(this)
+        val clientPreferences = launchPlanPreferences()
         return NovaGameDetailOptimizationState(
             ai = aiCard,
             stability = stabilityCard,

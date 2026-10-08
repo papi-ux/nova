@@ -2,6 +2,7 @@ package com.papi.nova.profiles
 
 import android.app.Activity
 import android.content.Context
+import android.view.Display
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.Game
@@ -34,6 +35,12 @@ import org.robolectric.annotation.Config
 )
 @RunWith(RobolectricTestRunner::class)
 class ProfilesLaunchOverlayTest {
+    /** Robolectric generic activities do not attach a visual context on API 30+. */
+    class DisplayActivity : Activity() {
+        @Suppress("DEPRECATION")
+        override fun getDisplay(): Display = windowManager.defaultDisplay
+    }
+
     private lateinit var context: Context
     private lateinit var manager: ProfilesManager
     private lateinit var active: SettingsProfile
@@ -138,7 +145,7 @@ class ProfilesLaunchOverlayTest {
 
     @Test
     fun theStartIntentCarriesTheLaunchProfileOnlyWhenOneWasChosen() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(DisplayActivity::class.java).setup().get()
         fun intent(launchProfile: String?) = ServerHelper.createStartIntent(
             activity, NvApp("Game", "game-uuid", 7, false), "192.0.2.1", 47989, 47984, "unique", "pc-uuid", "PC",
             withVDisplay = false, displayModeExplicit = true, watchOnly = false,
@@ -148,6 +155,33 @@ class ProfilesLaunchOverlayTest {
             intent(travel.getUuid().toString()).getStringExtra(Game.EXTRA_LAUNCH_PROFILE_UUID))
         assertFalse(intent(null).hasExtra(Game.EXTRA_LAUNCH_PROFILE_UUID))
         assertFalse(intent("").hasExtra(Game.EXTRA_LAUNCH_PROFILE_UUID))
+        assertSame(active, manager.getActive())
+    }
+
+    @Test
+    fun theDetailPreviewReadsItsShownProfileWithoutReplacingTheActiveDefaults() {
+        manager.update(SettingsProfile(travel.getUuid(), "Travel", 1L, 2L, mapOf(
+            com.papi.nova.preferences.NovaSettingsMigration.TIER to "custom",
+            "list_resolution" to "1280x720", "list_fps" to "60",
+            "seekbar_bitrate_kbps" to 8000, "video_format" to "neverh265")))
+        val activity = Robolectric.buildActivity(com.papi.nova.ui.NovaGameDetailActivity::class.java).get()
+        val stateField = activity.javaClass.getDeclaredField("displayedLaunchChoice\$delegate").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val shown = stateField.get(activity) as androidx.compose.runtime.MutableState<com.papi.nova.network.NetworkLaunchProfileChoice?>
+        val reader = activity.javaClass.getDeclaredMethod("launchPlanPreferences").apply { isAccessible = true }
+        shown.value = com.papi.nova.network.NetworkLaunchProfileChoice(
+            travel.getUuid().toString(), com.papi.nova.network.NetworkLaunchProfileChoice.Source.OVERRIDE)
+        val launch = reader.invoke(activity) as PreferenceConfiguration
+        assertEquals(1280, launch.width)
+        assertEquals(720, launch.height)
+        assertEquals(60f, launch.fps, 0f)
+        assertEquals(8000, launch.bitrate)
+        assertEquals(PreferenceConfiguration.FormatOption.FORCE_H264, launch.videoFormat)
+        assertSame(active, manager.getActive())
+
+        shown.value = null
+        val durable = reader.invoke(activity) as PreferenceConfiguration
+        assertEquals(PreferenceConfiguration.FormatOption.FORCE_HEVC, durable.videoFormat)
         assertSame(active, manager.getActive())
     }
 }
