@@ -207,6 +207,23 @@ class ProfilesManager private constructor() {
         }
     }
 
+    /** A saved profile by its UUID string, or null when it is malformed or no longer exists. */
+    fun getProfile(uuid: String?): SettingsProfile? {
+        val id = uuid?.let { runCatching { UUID.fromString(it) }.getOrNull() } ?: return null
+        return profiles[id]
+    }
+
+    /**
+     * Settings for one launch that a network rule (or its one-launch override) chose: the named
+     * saved profile overlays the base preferences exactly as the active one would, but the active
+     * profile is not changed, so other hosts, resumes and the next launch are unaffected. A
+     * missing profile falls back to the active overlay.
+     */
+    fun getOverlayingSharedPreferences(context: Context, launchProfileUuid: String?): SharedPreferences {
+        val options = getProfile(launchProfileUuid)?.getOptions() ?: return getOverlayingSharedPreferences(context)
+        return OverlaySharedPreferences(androidx.preference.PreferenceManager.getDefaultSharedPreferences(context), options)
+    }
+
     private fun saveIfPossible(): Boolean {
         val context = appContext ?: return false
         return save(context)

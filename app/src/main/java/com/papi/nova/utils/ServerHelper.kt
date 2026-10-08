@@ -187,8 +187,13 @@ object ServerHelper {
         streamMode: String = "",
         encoderBackend: String = "",
         faceButtonLayout: String = "",
+        launchProfileUuid: String? = null,
     ): Intent {
-        val prefConfig = PreferenceConfiguration.readPreferences(parent)
+        // A network rule's profile applies to this launch only; the display choice below must
+        // come from the same settings Game will read.
+        val prefConfig = PreferenceConfiguration.readPreferences(parent,
+            if (launchProfileUuid.isNullOrBlank()) null
+            else com.papi.nova.profiles.ProfilesManager.getInstance().getOverlayingSharedPreferences(parent, launchProfileUuid))
         val selectedAndroidDisplay = if (prefConfig.enableFullExDisplay) {
             getAndroidStreamDisplay(parent, prefConfig)
         } else {
@@ -238,6 +243,9 @@ object ServerHelper {
         }
         gameIntent.putExtra(Game.EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE, forcePrivateAfterSteamClose)
         gameIntent.putExtra(Game.EXTRA_WATCH_ONLY, watchOnly)
+        if (!launchProfileUuid.isNullOrBlank()) {
+            gameIntent.putExtra(Game.EXTRA_LAUNCH_PROFILE_UUID, launchProfileUuid)
+        }
         if (streamWidth > 0 && streamHeight > 0) {
             gameIntent.putExtra(Game.EXTRA_STREAM_WIDTH, streamWidth)
             gameIntent.putExtra(Game.EXTRA_STREAM_HEIGHT, streamHeight)
@@ -438,6 +446,7 @@ object ServerHelper {
         streamMode: String = "",
         encoderBackend: String = "",
         faceButtonLayout: String = "",
+        launchProfileUuid: String? = null,
     ) {
         parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
             .putInt("last_played_$pcUuid", app.appId)
@@ -467,6 +476,7 @@ object ServerHelper {
             streamMode = streamMode,
             encoderBackend = encoderBackend,
             faceButtonLayout = faceButtonLayout,
+            launchProfileUuid = launchProfileUuid,
         )
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)

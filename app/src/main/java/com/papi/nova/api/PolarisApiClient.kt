@@ -1184,6 +1184,21 @@ class PolarisApiClient @JvmOverloads constructor(
                 lastSleepAt = json.optLong("last_sleep_at", 0L),
             )
 
+        /**
+         * At most [maxBytes] of [body], or null when it is longer: a declared length over the
+         * limit is refused unread, and an undeclared or chunked one is read only to one byte past
+         * the limit, never to its end.
+         */
+        @JvmStatic
+        internal fun readBoundedBody(
+            body: okhttp3.ResponseBody,
+            maxBytes: Long = com.papi.nova.network.HostConnectionEvidence.MAX_BODY_BYTES,
+        ): String? {
+            if (body.contentLength() > maxBytes) return null
+            val source = body.source()
+            return if (source.request(maxBytes + 1)) null else source.buffer.readUtf8()
+        }
+
         @JvmStatic
         fun parseCapabilitiesResponse(json: JSONObject): PolarisCapabilities {
             val features = json.optJSONObject("features")
@@ -1233,7 +1248,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1"),
                     bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1"),
                     manualBitrateMaxKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
-                        strictIntOrNull(features, "manual_bitrate_max_kbps"))
+                        strictIntOrNull(features, "manual_bitrate_max_kbps")),
+                    networkConnectionV1 = strictBoolean(features, "network_connection_v1")
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -2401,6 +2417,32 @@ class PolarisApiClient @JvmOverloads constructor(
         } catch (e: Exception) {
             LimeLog.warning("Nova: Capabilities probe failed: ${errorMessage(e)}")
             null
+        }
+    }
+
+    /**
+     * Ask the host how this client's control connection reaches it. Only a host that declares
+     * `network_connection_v1` is asked; any other host, a 404 or a failure is a supported unknown.
+     * The raw body is kept for [com.papi.nova.network.HostConnectionObservation] and is never
+     * logged: it is about a tailnet, and failures log a fixed message without the exception text.
+     */
+    fun getNetworkConnection(capabilities: PolarisCapabilities?): com.papi.nova.network.HostConnectionObservation {
+        fun observation(body: String?, supported: Boolean) = com.papi.nova.network.HostConnectionObservation(
+            body = body, supported = supported, receivedAtElapsedMs = android.os.SystemClock.elapsedRealtime(),
+        )
+        if (capabilities?.features?.networkConnectionV1 != true) return observation(null, supported = false)
+        return try {
+            val request = Request.Builder().url("$baseUrl/network/connection").build()
+            executeGetWithRetry(request).use { response ->
+                when (response.code) {
+                    200 -> observation(response.body?.let { readBoundedBody(it) }, supported = true)
+                    404 -> observation(null, supported = false)
+                    else -> observation(null, supported = true)
+                }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: host connection evidence unavailable")
+            observation(null, supported = true)
         }
     }
 

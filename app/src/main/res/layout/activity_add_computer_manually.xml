@@ -50,6 +50,62 @@
         android:textColor="@color/nova_error"
         android:visibility="gone" />
 
+    <!-- Reaching the host over Tailscale: how to enter it, and checks when it does not connect.
+         Open Tailscale shows only when that app's own launch activity is safe to open. -->
+    <LinearLayout
+        android:id="@+id/tailscaleSetup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/addPcError"
+        android:layout_marginTop="24dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tailscaleSetupTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:accessibilityHeading="true"
+            tools:targetApi="p"
+            android:text="@string/nova_tailscale_setup_title"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <TextView
+            android:id="@+id/tailscaleSetupBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/nova_tailscale_setup_body"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+
+        <TextView
+            android:id="@+id/tailscaleSetupChecks"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/nova_tailscale_setup_checks"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/openTailscaleButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/nova_tailscale_open"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/tailscaleHelpButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/nova_tailscale_help" />
+        </LinearLayout>
+    </LinearLayout>
+
     <Button
         android:id="@+id/addPcButton"
         android:layout_width="wrap_content"
