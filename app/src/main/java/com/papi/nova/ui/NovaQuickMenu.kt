@@ -80,16 +80,15 @@ class NovaQuickMenu(
                 game.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
         },
         feedback = { outcome ->
-            val anchor = session?.anchor
             when (outcome) {
                 com.papi.nova.diagnostics.NovaMomentReporter.Outcome.OFFERED ->
-                    NovaSnackbar.show(game, game.getString(R.string.nova_moment_report_offered), anchor = anchor)
+                    NovaSnackbar.show(game, game.getString(R.string.nova_moment_report_offered), anchor = session?.anchor)
                 com.papi.nova.diagnostics.NovaMomentReporter.Outcome.NOT_ACTIVE ->
-                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_not_active), anchor = anchor)
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_not_active), anchor = session?.anchor)
                 com.papi.nova.diagnostics.NovaMomentReporter.Outcome.STORAGE_FAILED ->
-                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_storage_failed), anchor = anchor)
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_storage_failed), anchor = session?.anchor)
                 com.papi.nova.diagnostics.NovaMomentReporter.Outcome.NO_SHARE_TARGET ->
-                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_no_share_target), anchor = anchor)
+                    NovaSnackbar.showError(game, game.getString(R.string.nova_moment_report_no_share_target), anchor = session?.anchor)
             }
         },
     )

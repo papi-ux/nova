@@ -12,7 +12,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@Config(sdk = [33])
+@RunWith(RobolectricTestRunner::class)
 class NovaMomentLogTest {
     @get:Rule val folder = TemporaryFolder()
 

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
 import java.io.File
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -11,16 +12,25 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @Config(sdk = [33])
 @RunWith(RobolectricTestRunner::class)
 class NovaMomentShareTest {
+    @Before fun attachProviderForThisApplication() {
+        // Robolectric gives each test a new cache root. Attach the manifest provider before
+        // requesting a URI so FileProvider discards a path strategy from an earlier test.
+        val application = RuntimeEnvironment.getApplication()
+        Robolectric.setupContentProvider(FileProvider::class.java, "${application.packageName}.fileprovider")
+    }
+
     /** An activity that has no app able to receive a share. */
     class NoTargetActivity : Activity() {
         override fun startActivity(intent: Intent?) {
@@ -48,7 +58,6 @@ class NovaMomentShareTest {
         assertEquals("${activity.packageName}.fileprovider", uri.authority)
         assertEquals(uri, send.clipData!!.getItemAt(0).uri)
         // The attachment is exactly what was frozen, and nothing else was started: no send happened.
-        Robolectric.setupContentProvider(androidx.core.content.FileProvider::class.java, uri.authority)
         assertArrayEquals(bytes, activity.contentResolver.openInputStream(uri)!!.use { it.readBytes() })
         assertNull(shadowOf(activity).nextStartedActivity)
     }
