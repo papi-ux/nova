@@ -53,7 +53,7 @@ class NovaInStreamFeedbackTest {
 
         val calls = Regex("""NovaSnackbar\.(show|showError|showSuccess|showSuccessWithAction|showQuiet)\(""")
             .findAll(menu).count()
-        val anchored = Regex("""anchor = menu.anchor""").findAll(menu).count()
+        val anchored = Regex("""anchor = (?:menu\.anchor|session\?\.anchor)""").findAll(menu).count()
 
         assertTrue("the Command Center should report through NovaSnackbar", calls > 0)
         assertEquals(
