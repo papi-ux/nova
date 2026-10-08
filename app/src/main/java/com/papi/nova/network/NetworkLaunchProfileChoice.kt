@@ -46,17 +46,17 @@ data class NetworkLaunchProfileChoice(
         ): NetworkLaunchProfileChoice {
             when {
                 overrideUuid == OVERRIDE_ACTIVE_PROFILE ->
-                    return NetworkLaunchProfileChoice(null, Source.OVERRIDE_ACTIVE, profileRevision = snapshot(profileRevision(null)))
+                    return NetworkLaunchProfileChoice(null, Source.OVERRIDE_ACTIVE, profileRevision = copySettings(profileRevision(null)))
                 overrideUuid != null && profileExists(overrideUuid) ->
-                    return NetworkLaunchProfileChoice(overrideUuid, Source.OVERRIDE, profileRevision = snapshot(profileRevision(overrideUuid)))
+                    return NetworkLaunchProfileChoice(overrideUuid, Source.OVERRIDE, profileRevision = copySettings(profileRevision(overrideUuid)))
             }
             val match = NetworkProfileRuleEngine.evaluate(rules, snapshot, profileExists)
-                ?: return NetworkLaunchProfileChoice(null, Source.ACTIVE, profileRevision = snapshot(profileRevision(null)))
+                ?: return NetworkLaunchProfileChoice(null, Source.ACTIVE, profileRevision = copySettings(profileRevision(null)))
             val uuid = match.rule.profileUuid
-            return NetworkLaunchProfileChoice(uuid, Source.RULE, match, snapshot(profileRevision(uuid)))
+            return NetworkLaunchProfileChoice(uuid, Source.RULE, match, copySettings(profileRevision(uuid)))
         }
 
-        private fun snapshot(values: Map<String, Any?>?): Map<String, Any?>? = values?.mapValues { (_, value) ->
+        private fun copySettings(values: Map<String, Any?>?): Map<String, Any?>? = values?.mapValues { (_, value) ->
             if (value is Set<*>) value.toSet() else value
         }
 
