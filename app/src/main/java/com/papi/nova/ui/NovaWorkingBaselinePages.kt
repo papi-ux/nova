@@ -25,6 +25,10 @@ internal class NovaWorkingBaselinePages(
     private val redraw: () -> Unit,
 ) {
     fun menu(): NovaCommonPage.Menu {
+        flow.onWriteFinished = {
+            redraw()
+            reopen(menu())
+        }
         val state = flow.state()
         val saved = state.saved
         val unreadable = state.loaded == NovaWorkingBaselineStore.Loaded.Unreadable
@@ -41,7 +45,7 @@ internal class NovaWorkingBaselinePages(
                 ) else NovaMenuItem.Action(
                     key = COMPARE,
                     label = context.getString(R.string.nova_working_baseline_compare),
-                    disabledReason = needsStream,
+                    disabledReason = if (state.busy) busy else needsStream,
                     onClick = {},
                 )
             )

@@ -159,7 +159,7 @@ class NovaQuickMenu(
         context = game,
         flow = workingBaseline,
         feedback = { outcome -> workingBaselineFeedback(menu, outcome) },
-        reopen = { page -> if (surfaces.panel.contains(page.key)) surfaces.panel.replaceTop(page) },
+        reopen = { page -> if (surfaces.panel.top?.key == page.key) surfaces.panel.replaceTop(page) },
         redraw = redraw,
     )
 
