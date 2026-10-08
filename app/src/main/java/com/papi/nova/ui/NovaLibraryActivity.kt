@@ -193,6 +193,8 @@ class NovaLibraryActivity : NovaActivity() {
     private var isRefreshing by mutableStateOf(false)
     private var loadErrorMessage by mutableStateOf<String?>(null)
     private var launchErrorMessage by mutableStateOf<String?>(null)
+    /** The After-stream recap for this Library's requested host, read on resume; never written here. */
+    private var lastStreamRecap by mutableStateOf<com.papi.nova.diagnostics.NovaStreamRecap.Recap?>(null)
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
     /** Whether the last key came from a remote, so the hint bar names a remote's keys (C04). */
@@ -429,6 +431,7 @@ class NovaLibraryActivity : NovaActivity() {
 
     override fun onResume() {
         super.onResume()
+        lastStreamRecap = com.papi.nova.diagnostics.NovaStreamRecapStore.process.forHost(streamPcUuid)
         spaceFocusEpoch++
         startSpacesPolling()
         NovaSpaceRetrySignal.consumeTarget(this, streamPcUuid, streamHost)?.let(::retrySpaceOpenWhenChecked)
@@ -801,6 +804,7 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun onStop() {
+        if (streamRecapReportLazy.isInitialized()) streamRecapReport.retire()
         activeSessionRefreshGate.invalidateForStop()
         activeSessionImmediateRefreshJob?.cancel()
         activeSessionImmediateRefreshJob = null
@@ -1467,6 +1471,66 @@ class NovaLibraryActivity : NovaActivity() {
         }
     }
 
+    /** The recap's read-only page, in the library's end panel, pushed when one is open. */
+    private fun viewStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {
+        showLibraryEndPage(NovaStreamRecapPages.page(this, recap, onSaveReport = { streamRecapReport.save(recap) }))
+    }
+
+    private fun showLibraryEndPage(page: com.papi.nova.ui.panel.NovaPage) {
+        val surfaces = novaSurfaces
+        if (surfaces.panel.isOpen) {
+            surfaces.panel.push(page)
+        } else {
+            surfaces.open(page, NovaEdge.End) { shown -> LibraryPanelPage(shown) }
+        }
+    }
+
+    /** Where the recap report's work runs: off the main thread, and back on it while this screen stands. */
+    private val libraryRuntime = object : NovaCommandCenterRuntime {
+        override fun launchIo(name: String, block: suspend () -> Unit) {
+            lifecycleScope.launch(Dispatchers.IO) { block() }
+        }
+        override suspend fun onMain(block: () -> Unit) = withContext(Dispatchers.Main) {
+            if (!isFinishing && !isDestroyed) block()
+        }
+        override fun postDelayed(delayMs: Long, block: () -> Unit) {
+            window.decorView.postDelayed(block, delayMs)
+        }
+    }
+
+    /**
+     * Save Report from the recap's page: a closeable Saving page this controller owns, answered in
+     * place by Report Saved or a problem only while that page is still on top. Leaving it, a newer
+     * save or this screen stopping drops the answer; Share stays the Saved page's own choice.
+     */
+    private val streamRecapReportLazy = lazy {
+        NovaStreamRecapReportPanel(
+            context = this,
+            panel = novaSurfaces.panel,
+            show = ::showLibraryEndPage,
+            foreground = {
+                !isFinishing && !isDestroyed &&
+                    lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+            },
+            runtime = libraryRuntime,
+            render = { recap ->
+                com.papi.nova.diagnostics.NovaStreamRecapReport.render(recap, com.papi.nova.BuildConfig.VERSION_NAME, com.papi.nova.BuildConfig.BUILD_TYPE)
+            },
+            write = { endedAtUtc, bytes ->
+                com.papi.nova.diagnostics.NovaStreamRecapExport.write(
+                    com.papi.nova.diagnostics.NovaStreamRecapExport.directory(this), endedAtUtc, bytes)
+            },
+            offer = { file -> com.papi.nova.diagnostics.NovaStreamRecapExport.offer(this, file) },
+        )
+    }
+    private val streamRecapReport by streamRecapReportLazy
+
+    /** Dismisses that recap only; a newer one, should one have arrived, stays. */
+    private fun dismissStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {
+        com.papi.nova.diagnostics.NovaStreamRecapStore.process.dismiss(recap.generation)
+        lastStreamRecap = com.papi.nova.diagnostics.NovaStreamRecapStore.process.forHost(streamPcUuid)
+    }
+
     private fun hostConsolePage(path: String): NovaHostConsolePage {
         val managementPort = if (streamHttpPort > 0) streamHttpPort + 1 else 47990
         return NovaHostConsolePage(
@@ -1881,6 +1945,18 @@ class NovaLibraryActivity : NovaActivity() {
                                     vertical = 4.dp,
                                 ),
                             )
+                            // The last stream's recap, if this host has one: optional, never focused first.
+                            lastStreamRecap?.let { recap ->
+                                NovaStreamRecapCard(
+                                    recap = recap,
+                                    onView = { viewStreamRecap(recap) },
+                                    onDismiss = { dismissStreamRecap(recap) },
+                                    modifier = Modifier.padding(
+                                        horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
+                                        vertical = 4.dp,
+                                    ),
+                                )
+                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -1976,6 +2052,18 @@ class NovaLibraryActivity : NovaActivity() {
                                     vertical = 4.dp,
                                 ),
                             )
+                            // The last stream's recap, if this host has one: optional, never focused first.
+                            lastStreamRecap?.let { recap ->
+                                NovaStreamRecapCard(
+                                    recap = recap,
+                                    onView = { viewStreamRecap(recap) },
+                                    onDismiss = { dismissStreamRecap(recap) },
+                                    modifier = Modifier.padding(
+                                        horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
+                                        vertical = 4.dp,
+                                    ),
+                                )
+                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,

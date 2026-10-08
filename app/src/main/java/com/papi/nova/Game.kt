@@ -230,6 +230,12 @@ private fun attachNovaLiveBitrate() {
 
 private var novaHud:com.papi.nova.ui.NovaStreamHud? = null
 private val doctorTelemetry:NovaHudSessionStats = NovaHudSessionStats()
+// After-stream recap: this instance's process-local generation, taken as it begins, fences any
+// older Game's late publication. Its own client-only accumulator, beside Doctor's, never replaces it.
+private val streamRecapGeneration:Long = com.papi.nova.diagnostics.NovaStreamRecapStore.process.begin()
+private val streamRecap = com.papi.nova.diagnostics.NovaStreamRecap.Accumulator(streamRecapGeneration)
+private var streamRecapEnd:com.papi.nova.diagnostics.NovaStreamRecap.End = com.papi.nova.diagnostics.NovaStreamRecap.End.UNKNOWN
+private var streamRecapErrorCode:Int? = null
  var configuredHudTargetFps:Float = 0f
 private var configuredStreamFrameRateFps:Float = 0f
 private var configuredDisplayRefreshRateHz:Float = 0f
@@ -1801,6 +1807,13 @@ configuredStreamHdr = willStreamHdr
         }
 doctorTelemetry.reset()
 doctorTelemetryUploadFailureLogged.set(false)
+// The recap's requested settings and role are the launch's, fixed here before anything changes them.
+streamRecap.launch(com.papi.nova.diagnostics.NovaStreamRecap.Launch(
+    role = com.papi.nova.diagnostics.NovaMomentReport.role(watchOnlyRequested, spaceSession),
+    requested = com.papi.nova.diagnostics.NovaMomentReport.requested(
+        prefConfig.width, prefConfig.height, prefConfig.fps, configuredStreamBitrateKbps, prefConfig.videoFormat?.name ?: ""),
+    reconnectRequested = getIntent().getBooleanExtra(EXTRA_RECONNECT_REQUESTED, false),
+    requestedHost = getIntent().getStringExtra(EXTRA_PC_UUID)))
 doctorTelemetry.setTargetFps(launchRefreshRate.toDouble())
 doctorTelemetry.recordBitrate(configuredStreamBitrateKbps)
 lastPolarisDeviceCapabilities = com.papi.nova.manager.StreamSyncManager.buildDeviceCapabilities(
@@ -3830,6 +3843,11 @@ if (!hostSessionEnded)
 {
 prepareBackgroundResumeWindow()
 }
+noteStreamRecapEnd(when {
+    hostSessionEnded -> com.papi.nova.diagnostics.NovaStreamRecap.End.HOST_END_REPORTED
+    quitOnStop -> com.papi.nova.diagnostics.NovaStreamRecap.End.END_REQUESTED
+    else -> com.papi.nova.diagnostics.NovaStreamRecap.End.LEFT_STREAM
+})
 stopConnection()
 var message:String? = null
 var selectedVideoFormat:String = ""
@@ -5686,6 +5704,16 @@ novaProgressOverlay?.updateState(stage)
 }
 override fun stageComplete(stage:String) {}
 
+/**
+ * Why this client connection is ending, as the caller about to stop it knows it, for the
+ * After-stream recap. Only the call that actually stops the connection is recorded; it changes
+ * nothing about the teardown.
+ */
+private fun noteStreamRecapEnd(end:com.papi.nova.diagnostics.NovaStreamRecap.End, errorCode:Int? = null) {
+streamRecapEnd = end
+streamRecapErrorCode = errorCode
+}
+
 private fun stopConnection() {
 if (connecting || connected)
 {
@@ -5701,6 +5729,9 @@ runtimeTasks.cancel("NovaDoctorTelemetry")
  // Raw Doctor sampling runs independently of HUD visibility.
 val summary:Map<String, Any> = doctorTelemetry.summary()
 com.papi.nova.LimeLog.info("Nova: observational session summary " + NovaHudSessionSummaryLog.format(summary))
+// The recap freezes what was already accumulated; nothing of the stream is read after teardown.
+streamRecap.finish(streamRecapEnd, streamRecapErrorCode, android.os.SystemClock.elapsedRealtime(),
+    com.papi.nova.diagnostics.NovaDiagnostics.utcTimestamp())?.let(com.papi.nova.diagnostics.NovaStreamRecapStore.process::publish)
 novaHud?.dismiss()
 novaHud = null
 syncPerfTextWanted()
@@ -5931,6 +5962,9 @@ if (!displayedFailureDialog)
 {
 displayedFailureDialog = true
 LimeLog.severe("Connection terminated: " + errorCode)
+// A graceful code ends this connection normally; it doesn't say the host app quit.
+noteStreamRecapEnd(if (errorCode == MoonBridge.ML_ERROR_GRACEFUL_TERMINATION) com.papi.nova.diagnostics.NovaStreamRecap.End.CONNECTION_ENDED
+    else com.papi.nova.diagnostics.NovaStreamRecap.End.ERROR, errorCode)
 stopConnection()
 
  // Display the error dialog if it was an unexpected termination.
@@ -6137,6 +6171,7 @@ fun handleStreamStartedState() {
 connected = true
 connecting = false
 isStreamActive = true
+streamRecap.connected(android.os.SystemClock.elapsedRealtime())
 attachNovaLiveBitrate()
 stopBackgroundResumeWindow()
 syncDisconnectResumeTimeoutPolicy()
@@ -6286,6 +6321,7 @@ if (attemptedConnection)
 
 if (connected)
 {
+noteStreamRecapEnd(com.papi.nova.diagnostics.NovaStreamRecap.End.SURFACE_LOST)
 stopConnection()
 }
 }
@@ -6435,6 +6471,7 @@ getIntent().removeExtra(EXTRA_RECONNECT_ATTEMPT)
 novaResilienceManager?.onReconnectSuccess()
 }
 doctorTelemetry.recordPerfSample(sample)
+streamRecap.accept(sample, android.os.SystemClock.elapsedRealtime())
 uploadDoctorSample(sample)
                 if (novaHud != null && novaHud!!.isShowing)
 {
@@ -7610,6 +7647,9 @@ relaunchIntent.removeExtra(EXTRA_LAUNCH_OPTIMIZATION)
 relaunchIntent.removeExtra(EXTRA_RECOVERY_RUN_ID)
 relaunchIntent.removeExtra(EXTRA_RESUME_EXISTING)
 relaunchIntent.removeExtra(EXTRA_RECONNECT_ATTEMPT)
+// Local only: this launch replaces an earlier connection at the user's or the resilience path's
+// request. It says a reconnect was requested, not that media came back.
+relaunchIntent.putExtra(EXTRA_RECONNECT_REQUESTED, true)
 if (reconnectAttempt > 0)
 {
 relaunchIntent.putExtra(EXTRA_RECONNECT_ATTEMPT, reconnectAttempt)
@@ -7639,6 +7679,7 @@ LimeLog.info("Nova: Reconnecting after error $errorCode (attempt $attempt/$maxAt
 controllerHandler?.stop()
 timerHandler?.removeCallbacksAndMessages(null)
 setInputGrabState(false)
+noteStreamRecapEnd(com.papi.nova.diagnostics.NovaStreamRecap.End.RECONNECT_REQUESTED)
 stopConnection()
 launchReplacementStream(attempt)
 }
@@ -7921,6 +7962,7 @@ const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteam
  const val EXTRA_RECOVERY_RUN_ID:String = "RecoveryRunId"
  const val EXTRA_RESUME_EXISTING:String = "ResumeExisting"
  const val EXTRA_RECONNECT_ATTEMPT:String = "ReconnectAttempt"
+ const val EXTRA_RECONNECT_REQUESTED:String = "ReconnectRequested"
  const val EXTRA_SERVER_COMMANDS:String = "ServerCommands"
  const val EXTRA_DISPLAY_ID:String = "DisplayID"
 
