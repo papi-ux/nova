@@ -178,7 +178,8 @@ class NovaGameDetailActivity : NovaActivity() {
                         // default without turning it into streamMode authority.
                         .put(RESULT_KEY_PRESENTATION_MODE, presentationMode)
                         .put(RESULT_KEY_PREFLIGHT, preflight ?: JSONObject.NULL)
-                        .put(RESULT_KEY_LAUNCH_PROFILE, networkLaunchChoice()?.profileUuid ?: JSONObject.NULL)
+                        // The profile the plan showed; launchConfirmed has just checked it still holds.
+                        .put(RESULT_KEY_LAUNCH_PROFILE, displayedLaunchChoice?.profileUuid ?: JSONObject.NULL)
                         .toString(),
                 )
                     .putExtra(EXTRA_RESULT_LAUNCH_GAME, PolarisGameJson.encode(game))
@@ -258,6 +259,27 @@ class NovaGameDetailActivity : NovaActivity() {
 
     /** This host's network rules; read again when this window returns from editing them. */
     private var hostNetworkRules by mutableStateOf(com.papi.nova.network.HostNetworkRules.NONE)
+
+    /**
+     * What Play Setup shows: the host's answer and the chosen profile as last re-checked by
+     * [revalidateLaunchProfile]. Drawn from here rather than recomputed while drawing, so the plan
+     * on screen is a single answer the launch can be checked against.
+     */
+    private var displayedHostEvidence by mutableStateOf<com.papi.nova.network.HostConnectionEvidence?>(null)
+    private var displayedLaunchChoice by mutableStateOf<com.papi.nova.network.NetworkLaunchProfileChoice?>(null)
+
+    /** A pressed Play met a changed profile: said in Play Setup until a launch goes ahead. */
+    private var launchProfileChangedNotice by mutableStateOf(false)
+
+    /**
+     * Assigned in setUpDetail: what a change of effective profile does to the fenced preflight
+     * (made for the old profile) and to a held launch.
+     */
+    private var onEffectiveLaunchProfileChanged: () -> Unit = {}
+    private var hostConnectionFreshnessJob: Job? = null
+    private var networkChangeCallback: android.net.ConnectivityManager.NetworkCallback? = null
+    private val launchProfilesListener =
+        com.papi.nova.profiles.ProfilesManager.ProfileChangeListener { revalidateLaunchProfile() }
 
     /**
      * Play Setup's pages, in a panel at the end edge of this window: Root, and Where It Runs or the
@@ -380,6 +402,19 @@ class NovaGameDetailActivity : NovaActivity() {
         if (resumedOnce) refreshPlayDestinations()
         hostNetworkRules = com.papi.nova.network.NetworkProfileRuleStore(this).load(serverUuid)
         resumedOnce = true
+        // Anything that can change the chosen profile is watched while this window is in front,
+        // and checked once on return for whatever changed while it was not.
+        com.papi.nova.profiles.ProfilesManager.getInstance().addListener(launchProfilesListener)
+        registerNetworkChangeCallback()
+        revalidateLaunchProfile()
+    }
+
+    override fun onPause() {
+        com.papi.nova.profiles.ProfilesManager.getInstance().removeListener(launchProfilesListener)
+        unregisterNetworkChangeCallback()
+        hostConnectionFreshnessJob?.cancel()
+        hostConnectionFreshnessJob = null
+        super.onPause()
     }
 
     private fun refreshShortcutPinState() {
@@ -485,7 +520,60 @@ class NovaGameDetailActivity : NovaActivity() {
                 apiClient.getNetworkConnection(apiClient.getLaunchCapabilities())
             }
             hostConnectionObservation = observation
+            revalidateLaunchProfile()
         }
+    }
+
+    /**
+     * Re-check what the next launch would use and update what Play Setup shows. When the effective
+     * profile changed, the preflight made for the old one is retired through
+     * [onEffectiveLaunchProfileChanged]; a change that only rewords the plan does nothing more.
+     */
+    private fun revalidateLaunchProfile() {
+        if (isDestroyed) return
+        val now = System.currentTimeMillis()
+        displayedHostEvidence = if (networkRulesApply()) hostConnectionObservation?.evaluate(now) else null
+        val previous = displayedLaunchChoice
+        val next = networkLaunchChoice()
+        displayedLaunchChoice = next
+        scheduleHostConnectionFreshness(now)
+        if (!com.papi.nova.network.NetworkLaunchProfileChoice.sameEffectiveProfile(previous, next)) onEffectiveLaunchProfileChanged()
+    }
+
+    /**
+     * The host's answer is good for a few seconds. Ask again shortly before it ages out, so a
+     * reachable host does not flap to unknown, and re-check the plan the moment it does age out.
+     */
+    private fun scheduleHostConnectionFreshness(nowWallMs: Long) {
+        hostConnectionFreshnessJob?.cancel()
+        hostConnectionFreshnessJob = null
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
+        val until = hostConnectionObservation?.freshUntilWallMs(nowWallMs) ?: return
+        hostConnectionFreshnessJob = lifecycleScope.launch {
+            delay((until - HOST_CONNECTION_REFRESH_LEAD_MS - nowWallMs).coerceAtLeast(0L))
+            refreshHostConnection()
+            delay((until - System.currentTimeMillis()).coerceAtLeast(0L))
+            revalidateLaunchProfile()
+        }
+    }
+
+    /** Nova's own default network changing (Wi-Fi, cellular, a VPN) can change which rule matches. */
+    private fun registerNetworkChangeCallback() {
+        if (networkChangeCallback != null || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N) return
+        val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            private fun changed() = runOnUiThread { revalidateLaunchProfile() }
+            override fun onAvailable(network: android.net.Network) = changed()
+            override fun onLost(network: android.net.Network) = changed()
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) = changed()
+        }
+        if (runCatching { cm.registerDefaultNetworkCallback(callback) }.isSuccess) networkChangeCallback = callback
+    }
+
+    private fun unregisterNetworkChangeCallback() {
+        val callback = networkChangeCallback ?: return
+        networkChangeCallback = null
+        runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(callback) }
     }
 
     /** The host's answer as it stands now: an answer that has aged past its window is unknown. */
@@ -505,20 +593,37 @@ class NovaGameDetailActivity : NovaActivity() {
             snapshot = com.papi.nova.network.NetworkSnapshot.read(this, hostStatus),
             overrideUuid = launchProfileOverride,
             profileExists = { profiles.getProfile(it) != null },
+            profileRevision = { profiles.getProfile(it)?.getOptions()?.hashCode() },
         )
+    }
+
+    /** A one-launch pick changes what Play Setup shows at once. */
+    private fun chooseLaunchProfileOverride(value: String?) {
+        launchProfileOverride = value
+        revalidateLaunchProfile()
     }
 
     /** Play Setup's Host connection fact: informational, never a fault or a bitrate decision. */
     private fun hostConnectionFacts(): List<NovaPlaySetupFact> {
         if (!networkRulesApply()) return emptyList()
-        val evidence = hostConnectionEvidence()
-        return listOf(
-            NovaPlaySetupFact(
+        val evidence = displayedHostEvidence
+        return buildList {
+            if (launchProfileChangedNotice) {
+                val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
+                add(NovaPlaySetupFact(
+                    key = getString(R.string.nova_launch_profile_row),
+                    value = displayedLaunchChoice?.profileUuid?.let { profiles.getProfile(it)?.getName() }
+                        ?: profiles.getActiveName().ifBlank { getString(R.string.nova_launch_profile_default_settings) },
+                    detail = getString(R.string.nova_launch_profile_changed_notice),
+                    tone = NovaPlaySetupTone.WARN,
+                ))
+            }
+            add(NovaPlaySetupFact(
                 key = getString(R.string.nova_host_connection_key),
-                value = NovaNetworkProfileCopy.hostConnectionValue(this, evidence),
-                detail = NovaNetworkProfileCopy.hostConnectionDetail(this, evidence),
-            ),
-        )
+                value = NovaNetworkProfileCopy.hostConnectionValue(this@NovaGameDetailActivity, evidence),
+                detail = NovaNetworkProfileCopy.hostConnectionDetail(this@NovaGameDetailActivity, evidence),
+            ))
+        }
     }
 
     /**
@@ -526,7 +631,8 @@ class NovaGameDetailActivity : NovaActivity() {
      * saved profile. Shown only where there is something to choose or a rule to explain.
      */
     private fun launchProfileRow(): NovaPlaySetupRowState? {
-        val choice = networkLaunchChoice() ?: return null
+        if (!networkRulesApply()) return null
+        val choice = displayedLaunchChoice ?: return null
         val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
         val saved = profiles.getProfiles().sortedBy { it.getName().lowercase() }
         val rules = hostNetworkRules
@@ -550,13 +656,13 @@ class NovaGameDetailActivity : NovaActivity() {
                 label = getString(R.string.nova_launch_profile_automatic),
                 consequence = getString(R.string.nova_launch_profile_automatic_consequence),
                 current = launchProfileOverride == null,
-                onSelect = { launchProfileOverride = null },
+                onSelect = { chooseLaunchProfileOverride(null) },
             ))
             add(NovaPlaySetupOption(
                 label = activeName,
                 consequence = getString(R.string.nova_launch_profile_active_consequence),
                 current = launchProfileOverride == com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE,
-                onSelect = { launchProfileOverride = com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE },
+                onSelect = { chooseLaunchProfileOverride(com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE) },
             ))
             saved.filter { it.getUuid().toString() != activeUuid }.forEach { profile ->
                 val uuid = profile.getUuid().toString()
@@ -564,7 +670,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     label = profile.getName(),
                     consequence = getString(R.string.nova_launch_profile_saved_consequence),
                     current = launchProfileOverride == uuid,
-                    onSelect = { launchProfileOverride = uuid },
+                    onSelect = { chooseLaunchProfileOverride(uuid) },
                 ))
             }
             add(NovaPlaySetupOption(
@@ -707,6 +813,9 @@ class NovaGameDetailActivity : NovaActivity() {
             ),
         )
         detailRunsInSpace = { currentGame.space != null }
+        // The first preflight below is made for the profile the plan will first show.
+        hostNetworkRules = com.papi.nova.network.NetworkProfileRuleStore(this).load(serverUuid)
+        revalidateLaunchProfile()
         var profilePreference by mutableStateOf(loadProfilePreference(currentGame))
         var uiState by mutableStateOf(buildUiState(currentGame, profilePreference))
         var mangoHudEnabled by mutableStateOf(game.mangohud)
@@ -764,6 +873,8 @@ class NovaGameDetailActivity : NovaActivity() {
         // still on the wire. The press is held rather than dropped: being quick should not
         // cost you the launch, and it must not cost you the guard either.
         var pendingLaunch by mutableStateOf(false)
+        // The effective profile the published preflight was made for; launchConfirmed checks it.
+        var preflightedLaunchChoice: com.papi.nova.network.NetworkLaunchProfileChoice? = null
 
         /**
          * The blob this launch would go out with: the host's plan, composed with the
@@ -996,6 +1107,26 @@ class NovaGameDetailActivity : NovaActivity() {
 
         fun launchConfirmed(mirrorDesktop: Boolean, forcePrivateAfterSteamClose: Boolean = false) {
             if (spaceGame != null && spaceLaunchDelivered) return
+            // The plan on screen and the preflight were made for one effective profile. If the
+            // network, the host's answer, a rule, a profile or the override changed which one
+            // would launch, nothing switches silently: the plan is shown again, the preflight is
+            // redone for the new profile, and Play has to be pressed again.
+            val shownLaunchChoice = displayedLaunchChoice
+            if (com.papi.nova.network.NetworkLaunchProfileGate.decide(
+                    shownLaunchChoice, preflightedLaunchChoice, networkLaunchChoice(),
+                ) == com.papi.nova.network.NetworkLaunchProfileGate.Decision.PLAN_CHANGED
+            ) {
+                pendingLaunch = false
+                steamDecision = null
+                launchProfileChangedNotice = true
+                revalidateLaunchProfile()
+                // When only the preflight was behind the plan, revalidating changed nothing on
+                // screen, so the preflight is redone here instead.
+                if (com.papi.nova.network.NetworkLaunchProfileChoice.sameEffectiveProfile(shownLaunchChoice, displayedLaunchChoice)) retryPreflight()
+                openPlaySetup(returnTo = playButtonFocus)
+                return
+            }
+            launchProfileChangedNotice = false
             if (spaceGame != null) spaceLaunchDelivered = true
             pendingLaunch = false
             onLaunch?.invoke(
@@ -1137,6 +1268,7 @@ class NovaGameDetailActivity : NovaActivity() {
             preflightJob = lifecycleScope.launch {
                 var launchCanReplay = false
                 var observedCapabilities: com.papi.nova.api.PolarisCapabilities? = null
+                var preflightChoice: com.papi.nova.network.NetworkLaunchProfileChoice? = null
                 val nextOptimizationState = try {
                     deviceSettings.awaitStreamWrites()
                     check(deviceSettings.uiState.value.tierSaveResult !in setOf(
@@ -1158,16 +1290,30 @@ class NovaGameDetailActivity : NovaActivity() {
                     }
                     val optimizationMode = uiState.playMode
                     val optimizationEncoder = selectedEncoderBackend()
+                    if (networkRulesApply()) {
+                        // Fresh host evidence for the rule this launch would apply. If it changes
+                        // the effective profile, revalidating retires this preflight for one made
+                        // for the new profile, and the plan on screen shows it.
+                        val freshHostConnection = withContext(Dispatchers.IO) {
+                            observedCapabilities = apiClient.getCapabilities()
+                            apiClient.getNetworkConnection(observedCapabilities)
+                        }
+                        if (!preflightRequestFence.owns(requestGeneration)) {
+                            throw CancellationException("launch preflight superseded")
+                        }
+                        hostConnectionObservation = freshHostConnection
+                        revalidateLaunchProfile()
+                        if (!preflightRequestFence.owns(requestGeneration)) {
+                            throw CancellationException("launch profile changed")
+                        }
+                    }
+                    // The host plans for the settings the plan on screen will send.
+                    preflightChoice = displayedLaunchChoice
                     val opt = withContext(Dispatchers.IO) {
                         // A fresh answer belongs to this paired API and this fenced preflight.
-                        observedCapabilities = apiClient.getCapabilities()
-                        // Fresh evidence for the rule this launch is about to apply, and the
-                        // settings it chooses, so the host plans for what will be sent.
-                        if (networkRulesApply()) {
-                            hostConnectionObservation = apiClient.getNetworkConnection(observedCapabilities)
-                        }
+                        if (observedCapabilities == null) observedCapabilities = apiClient.getCapabilities()
                         val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity,
-                            networkLaunchChoice()?.profileUuid?.let {
+                            preflightChoice?.profileUuid?.let {
                                 com.papi.nova.profiles.ProfilesManager.getInstance()
                                     .getOverlayingSharedPreferences(this@NovaGameDetailActivity, it)
                             })
@@ -1219,6 +1365,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 if (!preflightRequestFence.owns(requestGeneration) || !detailHostIsCurrent()) return@launch
                 hostCaptureCapabilities = observedCapabilities
                 optimizationState = nextOptimizationState
+                if (launchCanReplay) preflightedLaunchChoice = preflightChoice
                 if (pendingLaunch) {
                     if (launchCanReplay) {
                         attemptLaunch()
@@ -1231,6 +1378,16 @@ class NovaGameDetailActivity : NovaActivity() {
         }
 
         retryPreflight = { loadOptimization(profilePreference) }
+        onEffectiveLaunchProfileChanged = {
+            // The preflight was made for the old profile. A Play press held for it is not
+            // carried over to the new one: the plan shows the change and asks again.
+            if (pendingLaunch) {
+                pendingLaunch = false
+                launchProfileChangedNotice = true
+                openPlaySetup(returnTo = playButtonFocus)
+            }
+            loadOptimization(profilePreference)
+        }
         onPlaySetupClosed = {
             recoveryWriteAuthority?.retire()
             if (hostCopyWorking) {
@@ -3377,6 +3534,8 @@ class NovaGameDetailActivity : NovaActivity() {
         const val RESULT_KEY_PREFLIGHT = "preflightOptimization"
         /** A saved profile's UUID for this launch only, from a network rule or its override. */
         const val RESULT_KEY_LAUNCH_PROFILE = "launchProfileUuid"
+        /** Ask the host again this long before its answer ages out. */
+        private const val HOST_CONNECTION_REFRESH_LEAD_MS = 3_000L
 
         private const val DEFAULT_HTTPS_PORT = 47984
 
