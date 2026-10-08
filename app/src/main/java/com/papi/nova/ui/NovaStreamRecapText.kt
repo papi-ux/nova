@@ -146,17 +146,16 @@ internal object NovaStreamRecapText {
 internal object NovaStreamRecapPages {
     /**
      * The recap itself. With [onSaveReport], Save Report is its one action: the explicit choice
-     * that saves a report file. Viewing, Close and B never do; leaving without that answer runs
-     * [onLeave], which retires a save still on its way so its result can't reopen later.
+     * that saves a report file, whose own Saving page then owns the result
+     * ([NovaStreamRecapReportPanel]). Viewing, Close and B never save.
      */
-    fun page(context: Context, recap: NovaStreamRecap.Recap, onSaveReport: (() -> Unit)? = null, onLeave: () -> Unit = {}) =
+    fun page(context: Context, recap: NovaStreamRecap.Recap, onSaveReport: (() -> Unit)? = null) =
         com.papi.nova.ui.panel.NovaCommonPage.Notice(
             key = "nova-last-stream-${recap.generation}",
             title = context.getString(R.string.nova_recap_page_title),
             message = NovaStreamRecapText.page(context, recap),
             primary = onSaveReport?.let { com.papi.nova.ui.panel.NovaAction(context.getString(R.string.nova_recap_save_report), run = it) },
             closeLabel = context.getString(R.string.nova_recap_close),
-            onClose = onLeave,
             monospace = true,
         )
 
