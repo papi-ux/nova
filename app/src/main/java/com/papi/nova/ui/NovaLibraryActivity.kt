@@ -1182,6 +1182,8 @@ class NovaLibraryActivity : NovaActivity() {
             encoderBackend = request.optString(NovaGameDetailActivity.RESULT_KEY_ENCODER_BACKEND, ""),
             presentationMode = request.optString(NovaGameDetailActivity.RESULT_KEY_PRESENTATION_MODE, ""),
             preflightOptimization = request.optJSONObject(NovaGameDetailActivity.RESULT_KEY_PREFLIGHT),
+            launchProfileUuid = (request.opt(NovaGameDetailActivity.RESULT_KEY_LAUNCH_PROFILE) as? String)
+                ?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -1194,7 +1196,8 @@ class NovaLibraryActivity : NovaActivity() {
         forcePrivateAfterSteamClose: Boolean = false,
         profilePreference: String = "auto",
         encoderBackend: String = "",
-        preflightOptimization: org.json.JSONObject? = null
+        preflightOptimization: org.json.JSONObject? = null,
+        launchProfileUuid: String? = null,
     ) {
         // A launch that cannot start says so in place, on the library's recovery page, which
         // launchErrorMessage puts where the games were: a snackbar said it again over it (X2).
@@ -1250,16 +1253,22 @@ class NovaLibraryActivity : NovaActivity() {
                 if (!mangoHudSynced) {
                     LimeLog.warning("Nova: MangoHUD launch state sync failed; continuing launch")
                 }
+                // A Space keeps the settings its worker accepted; a rule's profile never applies to it.
+                val oneLaunchProfile = launchProfileUuid?.takeUnless { NovaSpaceUiState.isSpace(game) }
                 val preferences = com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity)
+                val launchPreferences = if (oneLaunchProfile == null) preferences
+                    else com.papi.nova.preferences.PreferenceConfiguration.readPreferences(this@NovaLibraryActivity,
+                        com.papi.nova.profiles.ProfilesManager.getInstance()
+                            .getOverlayingSharedPreferences(this@NovaLibraryActivity, oneLaunchProfile))
                 val metered = StreamSyncManager.isMeteredNetwork(this@NovaLibraryActivity)
-                val requestedBitrateKbps = if (metered) preferences.meteredBitrate else preferences.bitrate
+                val requestedBitrateKbps = if (metered) launchPreferences.meteredBitrate else launchPreferences.bitrate
                 val launchResolution = StreamSyncManager.resolveAutoSafeResolution(
-                    preferences.width,
-                    preferences.height,
+                    launchPreferences.width,
+                    launchPreferences.height,
                     preflightOptimization
                 )
                 val launchFps = StreamSyncManager.resolveAutoSafeTargetFps(
-                    preferences.fps,
+                    launchPreferences.fps,
                     preflightOptimization
                 )
                 val launchBitrateKbps = StreamSyncManager.resolveAutoSafeBitrateKbps(
@@ -1286,6 +1295,7 @@ class NovaLibraryActivity : NovaActivity() {
                             // Paired settings describe the user's durable Nova
                             // preferences. Preset-normalized values belong only to
                             // the resolved launch envelope passed to Game below.
+                            // A rule's one-launch profile is not durable either, so it is not pushed.
                             width = preferences.width,
                             height = preferences.height,
                             fps = preferences.fps,
@@ -1322,6 +1332,7 @@ class NovaLibraryActivity : NovaActivity() {
                     streamMode = launchMode,
                     encoderBackend = encoderBackend,
                     faceButtonLayout = NovaFaceButtonLayoutOverrides.load(this@NovaLibraryActivity, game).orEmpty(),
+                    launchProfileUuid = oneLaunchProfile,
                 )
             } catch (e: CancellationException) {
                 throw e

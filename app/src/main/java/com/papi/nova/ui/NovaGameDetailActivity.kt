@@ -178,6 +178,7 @@ class NovaGameDetailActivity : NovaActivity() {
                         // default without turning it into streamMode authority.
                         .put(RESULT_KEY_PRESENTATION_MODE, presentationMode)
                         .put(RESULT_KEY_PREFLIGHT, preflight ?: JSONObject.NULL)
+                        .put(RESULT_KEY_LAUNCH_PROFILE, networkLaunchChoice()?.profileUuid ?: JSONObject.NULL)
                         .toString(),
                 )
                     .putExtra(EXTRA_RESULT_LAUNCH_GAME, PolarisGameJson.encode(game))
@@ -241,6 +242,22 @@ class NovaGameDetailActivity : NovaActivity() {
      * and the header pill does the same by touch.
      */
     private var playSetupScope by mutableStateOf(NovaPlaySetupScope.THIS_GAME)
+
+    /** The host's last answer about this device's control connection; null until one arrives. */
+    private var hostConnectionObservation by mutableStateOf<com.papi.nova.network.HostConnectionObservation?>(null)
+    private var hostConnectionJob: Job? = null
+
+    /**
+     * A saved profile picked in Play Setup for the next launch only, or
+     * [com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE]; never persisted.
+     */
+    private var launchProfileOverride by mutableStateOf<String?>(null)
+
+    /** Whether the game on screen opens in a Space; assigned once the detail's game exists. */
+    private var detailRunsInSpace: () -> Boolean = { false }
+
+    /** This host's network rules; read again when this window returns from editing them. */
+    private var hostNetworkRules by mutableStateOf(com.papi.nova.network.HostNetworkRules.NONE)
 
     /**
      * Play Setup's pages, in a panel at the end edge of this window: Root, and Where It Runs or the
@@ -361,6 +378,7 @@ class NovaGameDetailActivity : NovaActivity() {
         // Where this game can play changes while the window is away (a Space started or
         // stopped, a switch made in the library), so the answer is refreshed on return.
         if (resumedOnce) refreshPlayDestinations()
+        hostNetworkRules = com.papi.nova.network.NetworkProfileRuleStore(this).load(serverUuid)
         resumedOnce = true
     }
 
@@ -452,6 +470,123 @@ class NovaGameDetailActivity : NovaActivity() {
         if (playSetupPanel.depth != 1 || playSetupPanel.top?.key != root.key) {
             playSetupPanel.open(root, NovaEdge.End, NovaFocusReturn.Compose(returnTo))
         }
+    }
+
+    /** Network rules apply to ordinary launches only: a Space keeps its worker's accepted settings. */
+    private fun networkRulesApply(): Boolean =
+        spaceGame == null && !detailRunsInSpace() && !serverUuid.isNullOrBlank()
+
+    /** Ask the host again how this device reaches it; an old host answers unknown without a request. */
+    private fun refreshHostConnection() {
+        if (!networkRulesApply()) return
+        hostConnectionJob?.cancel()
+        hostConnectionJob = lifecycleScope.launch {
+            val observation = withContext(Dispatchers.IO) {
+                apiClient.getNetworkConnection(apiClient.getLaunchCapabilities())
+            }
+            hostConnectionObservation = observation
+        }
+    }
+
+    /** The host's answer as it stands now: an answer that has aged past its window is unknown. */
+    private fun hostConnectionEvidence(): com.papi.nova.network.HostConnectionEvidence? =
+        hostConnectionObservation?.evaluate(System.currentTimeMillis())
+
+    /**
+     * Which saved settings the next launch uses and why, or null where rules never apply. Read by
+     * Play Setup, the preflight and the launch result alike, so all three say the same thing.
+     */
+    private fun networkLaunchChoice(): com.papi.nova.network.NetworkLaunchProfileChoice? {
+        if (!networkRulesApply()) return null
+        val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
+        val hostStatus = hostConnectionEvidence()?.status ?: com.papi.nova.network.HostConnectionEvidence.Status.UNKNOWN
+        return com.papi.nova.network.NetworkLaunchProfileChoice.resolve(
+            rules = hostNetworkRules,
+            snapshot = com.papi.nova.network.NetworkSnapshot.read(this, hostStatus),
+            overrideUuid = launchProfileOverride,
+            profileExists = { profiles.getProfile(it) != null },
+        )
+    }
+
+    /** Play Setup's Host connection fact: informational, never a fault or a bitrate decision. */
+    private fun hostConnectionFacts(): List<NovaPlaySetupFact> {
+        if (!networkRulesApply()) return emptyList()
+        val evidence = hostConnectionEvidence()
+        return listOf(
+            NovaPlaySetupFact(
+                key = getString(R.string.nova_host_connection_key),
+                value = NovaNetworkProfileCopy.hostConnectionValue(this, evidence),
+                detail = NovaNetworkProfileCopy.hostConnectionDetail(this, evidence),
+            ),
+        )
+    }
+
+    /**
+     * The settings profile this launch uses, with what chose it, and a one-launch choice of any
+     * saved profile. Shown only where there is something to choose or a rule to explain.
+     */
+    private fun launchProfileRow(): NovaPlaySetupRowState? {
+        val choice = networkLaunchChoice() ?: return null
+        val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
+        val saved = profiles.getProfiles().sortedBy { it.getName().lowercase() }
+        val rules = hostNetworkRules
+        if (saved.isEmpty() && !rules.enabled) return null
+        val activeName = profiles.getActiveName().ifBlank { getString(R.string.nova_launch_profile_default_settings) }
+        val chosenName = choice.profileUuid?.let { profiles.getProfile(it)?.getName() } ?: activeName
+        val caption = when (choice.source) {
+            com.papi.nova.network.NetworkLaunchProfileChoice.Source.RULE -> choice.match?.let { match ->
+                getString(R.string.nova_launch_profile_caption_rule, match.index + 1,
+                    NovaNetworkProfileCopy.ruleSummary(this, match.rule))
+            }.orEmpty()
+            com.papi.nova.network.NetworkLaunchProfileChoice.Source.OVERRIDE,
+            com.papi.nova.network.NetworkLaunchProfileChoice.Source.OVERRIDE_ACTIVE ->
+                getString(R.string.nova_launch_profile_caption_override)
+            com.papi.nova.network.NetworkLaunchProfileChoice.Source.ACTIVE -> getString(
+                if (rules.enabled) R.string.nova_launch_profile_caption_active else R.string.nova_launch_profile_caption_rules_off)
+        }
+        val activeUuid = profiles.getActive()?.getUuid()?.toString()
+        val options = buildList {
+            add(NovaPlaySetupOption(
+                label = getString(R.string.nova_launch_profile_automatic),
+                consequence = getString(R.string.nova_launch_profile_automatic_consequence),
+                current = launchProfileOverride == null,
+                onSelect = { launchProfileOverride = null },
+            ))
+            add(NovaPlaySetupOption(
+                label = activeName,
+                consequence = getString(R.string.nova_launch_profile_active_consequence),
+                current = launchProfileOverride == com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE,
+                onSelect = { launchProfileOverride = com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE },
+            ))
+            saved.filter { it.getUuid().toString() != activeUuid }.forEach { profile ->
+                val uuid = profile.getUuid().toString()
+                add(NovaPlaySetupOption(
+                    label = profile.getName(),
+                    consequence = getString(R.string.nova_launch_profile_saved_consequence),
+                    current = launchProfileOverride == uuid,
+                    onSelect = { launchProfileOverride = uuid },
+                ))
+            }
+            add(NovaPlaySetupOption(
+                label = getString(R.string.nova_launch_profile_edit_rules),
+                consequence = getString(R.string.nova_launch_profile_edit_rules_consequence),
+                onSelect = { openNetworkRules() },
+            ))
+        }
+        return NovaPlaySetupRowState(
+            row = NovaPlaySetupRow.SETTINGS_PROFILE,
+            label = getString(R.string.nova_launch_profile_row),
+            caption = caption,
+            value = chosenName,
+            options = options,
+            overridden = launchProfileOverride != null,
+            opensPage = true,
+        )
+    }
+
+    private fun openNetworkRules() {
+        val uuid = serverUuid?.takeIf { it.isNotBlank() } ?: return
+        startActivity(NovaNetworkRulesActivity.newIntent(this, uuid, serverName))
     }
 
     /** Leaves Play Setup for the Overview, whichever way it was left: B at its root, Start, the scrim. */
@@ -571,6 +706,7 @@ class NovaGameDetailActivity : NovaActivity() {
                 steamLaunch = game.steamLaunch?.copy(mode = retainedSteamLaunchMode),
             ),
         )
+        detailRunsInSpace = { currentGame.space != null }
         var profilePreference by mutableStateOf(loadProfilePreference(currentGame))
         var uiState by mutableStateOf(buildUiState(currentGame, profilePreference))
         var mangoHudEnabled by mutableStateOf(game.mangohud)
@@ -1025,7 +1161,16 @@ class NovaGameDetailActivity : NovaActivity() {
                     val opt = withContext(Dispatchers.IO) {
                         // A fresh answer belongs to this paired API and this fenced preflight.
                         observedCapabilities = apiClient.getCapabilities()
-                        val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity)
+                        // Fresh evidence for the rule this launch is about to apply, and the
+                        // settings it chooses, so the host plans for what will be sent.
+                        if (networkRulesApply()) {
+                            hostConnectionObservation = apiClient.getNetworkConnection(observedCapabilities)
+                        }
+                        val launchPrefs = PreferenceConfiguration.readPreferences(this@NovaGameDetailActivity,
+                            networkLaunchChoice()?.profileUuid?.let {
+                                com.papi.nova.profiles.ProfilesManager.getInstance()
+                                    .getOverlayingSharedPreferences(this@NovaGameDetailActivity, it)
+                            })
                         val metered = StreamSyncManager.isMeteredNetwork(this@NovaGameDetailActivity)
                         val spaceRequest = if (spaceGame != null) NovaSpaceUiState.request(
                             chosenResolution, chosenFps, launchPrefs.width, launchPrefs.height, launchPrefs.fps,
@@ -1096,6 +1241,7 @@ class NovaGameDetailActivity : NovaActivity() {
             hostCopyLine = null
         }
         onPlaySetupOpened = {
+            refreshHostConnection()
             if (hostCopyAbandoned) {
                 hostCopyAbandoned = false
                 loadOptimization(profilePreference)
@@ -1931,6 +2077,8 @@ class NovaGameDetailActivity : NovaActivity() {
                 )
             }
 
+            launchProfileRow()?.let { rows += it }
+
             rows += NovaPlaySetupRowState(
                 row = NovaPlaySetupRow.TUNING,
                 label = getString(R.string.nova_play_setup_tuning),
@@ -2329,6 +2477,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     },
                     hostPlaySetupNotice = hostSyncNotice.takeIf { playSetupScope == NovaPlaySetupScope.EVERY_GAME },
                     hostCopyRecovery = hostCopyRecovery(launchPreview.streamSource),
+                    networkFacts = hostConnectionFacts(),
                     playSetupBitrateShortfallMbps = planShortfallMbps(),
                     playSetupPanel = playSetupPanel,
                     playLabel = if (environmentChanging) {
@@ -2389,7 +2538,8 @@ class NovaGameDetailActivity : NovaActivity() {
                                     } else {
                                         advancePlaySetupRow(row)
                                     }
-                                NovaPlaySetupRow.RESOLUTION, NovaPlaySetupRow.VIDEO_CODEC ->
+                                NovaPlaySetupRow.RESOLUTION, NovaPlaySetupRow.VIDEO_CODEC,
+                                NovaPlaySetupRow.SETTINGS_PROFILE ->
                                     optionsPage(row)?.let { playSetupPanel.push(it) }
                                 else -> advancePlaySetupRow(row)
                             }
@@ -3225,6 +3375,8 @@ class NovaGameDetailActivity : NovaActivity() {
         const val RESULT_KEY_ENCODER_BACKEND = "encoderBackend"
         const val RESULT_KEY_PRESENTATION_MODE = "presentationDisplayMode"
         const val RESULT_KEY_PREFLIGHT = "preflightOptimization"
+        /** A saved profile's UUID for this launch only, from a network rule or its override. */
+        const val RESULT_KEY_LAUNCH_PROFILE = "launchProfileUuid"
 
         private const val DEFAULT_HTTPS_PORT = 47984
 
