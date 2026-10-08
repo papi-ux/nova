@@ -74,6 +74,15 @@ class NovaMomentReportTest {
         assertTrue(json.getJSONArray("not_included").toString().contains("control_channel_loss"))
     }
 
+    @Test fun cumulativeFrameCountersDoNotReplaceTheWindowPercentage() {
+        val decoder = NovaMomentReport.toJson(capture(sample(lossPct = 25.0))).getJSONObject("client_decoder")
+        assertEquals("decoder_session_cumulative", decoder.getString("counter_scope"))
+        assertEquals(12_000L, decoder.getLong("frames_expected"))
+        assertEquals(150L, decoder.getLong("frames_lost"))
+        assertEquals(25.0, decoder.getDouble("frame_loss_pct"), 0.0)
+        assertTrue(NovaMomentReport.render(capture(), NovaMomentLog.Tail.EMPTY).contains("cumulative decoder-session counters"))
+    }
+
     @Test fun staleFutureAndMissingSamplesAreNeverPromotedToCurrent() {
         val stale = capture(sample(at = now - NovaMomentReport.SAMPLE_FRESH_MS - 1))
         assertEquals(Readings.STALE, stale.readings)
@@ -120,7 +129,7 @@ class NovaMomentReportTest {
         assertEquals(setOf("active_on_this_device", "role"), json.getJSONObject("stream").keys().asSequence().toSet())
         assertEquals(setOf("width", "height", "fps", "bitrate_kbps", "codec_preference"), json.getJSONObject("requested_settings").keys().asSequence().toSet())
         assertEquals(setOf("readings", "sample_age_ms", "codec", "decoder", "width", "height", "rendered_fps", "received_fps",
-            "decode_time_ms", "host_processing_latency_ms", "frame_loss_pct", "frame_loss_scope", "frames_expected", "frames_lost"),
+            "decode_time_ms", "host_processing_latency_ms", "frame_loss_pct", "frame_loss_scope", "counter_scope", "frames_expected", "frames_lost"),
             json.getJSONObject("client_decoder").keys().asSequence().toSet())
         assertEquals(setOf("rtt_ms", "rtt_variance_ms", "scope"), json.getJSONObject("control_channel").keys().asSequence().toSet())
         assertEquals(NovaMomentReport.KIND, json.getString("kind"))

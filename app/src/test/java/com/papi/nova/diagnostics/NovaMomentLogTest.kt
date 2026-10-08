@@ -183,6 +183,17 @@ class NovaMomentLogTest {
         assertEquals(NovaMomentLog.Tail.EMPTY, marked.read())
     }
 
+    @Test fun callersCannotGrowTheTailBudgetOrTheConfiguredLogRing() {
+        log("nova.log.0", "current\n")
+        log("nova.log.1", "previous\n")
+        log("nova.log.2", "outside configured ring\n")
+        NovaMomentLog.mark(folder.root).use { marked ->
+            assertEquals("previous\ncurrent\n", marked.read().text)
+            val failure = runCatching { marked.read(maxBytes = NovaMomentLog.MAX_BYTES + 1) }.exceptionOrNull()
+            assertTrue(failure is IllegalArgumentException)
+        }
+    }
+
     @Test fun anEmptyOrMissingLogIsEmpty() {
         assertEquals(NovaMomentLog.Tail.EMPTY, markAndRead())
         log("nova.log.0", "")

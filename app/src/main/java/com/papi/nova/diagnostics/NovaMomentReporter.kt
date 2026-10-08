@@ -26,6 +26,7 @@ internal class NovaMomentReporter(
     private val saved: (Saved) -> Unit,
     private val offer: (File) -> NovaMomentShare.Result,
     private val feedback: (Outcome) -> Unit,
+    private val isActive: () -> Boolean = { true },
 ) {
     /** Everything the report says, fixed at the press. [log] is held open until read or retired. */
     class Frozen(
@@ -44,6 +45,13 @@ internal class NovaMomentReporter(
 
     /** Main thread, from the user's press. Saves; never opens another app. */
     fun report() {
+        if (!isActive()) {
+            feedback(Outcome.NOT_ACTIVE)
+            return
+        }
+        // A new mark owns publication and releases any older held descriptors,
+        // including IO work that was cancelled before entering its body.
+        retire()
         val frozen = freeze()
         if (frozen == null) {
             feedback(Outcome.NOT_ACTIVE)
@@ -62,7 +70,7 @@ internal class NovaMomentReporter(
             }
             runtime.onMain {
                 // A newer press, or teardown, retired this handoff; its file stays unshared.
-                if (mine != generation) return@onMain
+                if (mine != generation || !isActive()) return@onMain
                 if (file == null) feedback(Outcome.STORAGE_FAILED) else saved(Saved(file, frozen.snapshot.markedAtUtc))
             }
         }
@@ -70,6 +78,10 @@ internal class NovaMomentReporter(
 
     /** Main thread, from the confirmation's explicit Share. Shares the saved bytes as they are. */
     fun share(saved: Saved) {
+        if (!isActive()) {
+            feedback(Outcome.NOT_ACTIVE)
+            return
+        }
         feedback(
             when (val result = offer(saved.file)) {
                 is NovaMomentShare.Result.Offered -> Outcome.OFFERED
