@@ -123,7 +123,7 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         context = rule.activity,
         flow = flow,
         feedback = { outcomes += it },
-        reopen = { page -> if (state.contains(page.key)) state.replaceTop(page) },
+        reopen = { page -> if (state.top?.key == page.key) state.replaceTop(page) },
         redraw = { redraws++ },
     )
 
@@ -325,6 +325,20 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         runIo()
         assertEquals(listOf(Outcome.CLEARED), outcomes)
         assertEquals(NovaWorkingBaselineStore.Loaded.None, flow.state().loaded)
+    }
+
+    @Test fun aReopenedPageRefreshesAfterTheRetiredWriteWithoutItsOldFeedback() {
+        flow.save { outcomes += it }
+        flow.retire()
+        state.open(Root())
+        state.push(pages().menu())
+        val pending = state.top as NovaCommonPage.Menu
+        assertTrue((pending.items.single { it.key == NovaWorkingBaselinePages.SAVE } as NovaMenuItem.Action).disabledReason != null)
+        runIo()
+        assertTrue(outcomes.isEmpty())
+        val refreshed = state.top as NovaCommonPage.Menu
+        assertTrue(refreshed.items.single { it.key == NovaWorkingBaselinePages.SAVE } is NovaMenuItem.Opens)
+        assertTrue(refreshed.items.single { it.key == NovaWorkingBaselinePages.COMPARE } is NovaMenuItem.Opens)
     }
 
     @Test fun theMenuSaysTheGroupingIsNotProofOfTheSameSceneHostOrPath() {

@@ -46,7 +46,7 @@ internal class NovaWorkingBaselineFlow(
     ) {
         val saved: NovaWorkingBaseline.Baseline? get() = (loaded as? NovaWorkingBaselineStore.Loaded.Found)?.baseline
         val canSave: Boolean get() = hasEntry && active && !busy
-        val canCompare: Boolean get() = hasEntry && active && saved != null
+        val canCompare: Boolean get() = hasEntry && active && saved != null && !busy
         val canClear: Boolean get() = hasEntry && !busy && loaded != NovaWorkingBaselineStore.Loaded.None
     }
 
@@ -69,6 +69,9 @@ internal class NovaWorkingBaselineFlow(
     private val pending = AtomicBoolean(false)
 
     val busy: Boolean get() = pending.get()
+
+    /** Refresh-only listener for the currently open page; never receives a retired outcome. */
+    var onWriteFinished: (() -> Unit)? = null
 
     fun state(): State {
         val requested = entry() ?: return State(hasEntry = false, active = isActive(), loaded = NovaWorkingBaselineStore.Loaded.None, busy = busy)
@@ -123,6 +126,7 @@ internal class NovaWorkingBaselineFlow(
      */
     fun retire() {
         generation++
+        onWriteFinished = null
     }
 
     private sealed interface Prepared {
@@ -153,7 +157,7 @@ internal class NovaWorkingBaselineFlow(
                 pending.set(false)
             }
             runtime.onMain {
-                if (mine == generation) done(outcome)
+                if (mine == generation) done(outcome) else onWriteFinished?.invoke()
             }
         }
     }

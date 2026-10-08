@@ -161,6 +161,31 @@ class NovaWorkingBaselineFlowTest {
         assertEquals(20.0, savedFps(), 0.0)
     }
 
+    @Test fun aRetiredWriteRefreshesOnlyTheNewOpeningAndNeverItsOldOutcome() {
+        var oldRefresh = 0
+        var newRefresh = 0
+        flow.onWriteFinished = { oldRefresh++ }
+        flow.save { outcomes += it }
+        flow.retire()
+        flow.onWriteFinished = { newRefresh++ }
+        runtime.runIo()
+        assertEquals(0, oldRefresh)
+        assertEquals(1, newRefresh)
+        assertTrue(outcomes.isEmpty())
+        assertFalse(flow.busy)
+    }
+
+    @Test fun anotherClosedOpeningReceivesNoRefreshFromTheRetiredWrite() {
+        var refresh = 0
+        flow.save { outcomes += it }
+        flow.retire()
+        flow.onWriteFinished = { refresh++ }
+        flow.retire()
+        runtime.runIo()
+        assertEquals(0, refresh)
+        assertTrue(outcomes.isEmpty())
+    }
+
     @Test fun storageThatThrowsIsAStorageFailureNotACrash() {
         val broken = object : android.content.SharedPreferences by prefs {
             override fun edit(): android.content.SharedPreferences.Editor = throw IllegalStateException("disk")
