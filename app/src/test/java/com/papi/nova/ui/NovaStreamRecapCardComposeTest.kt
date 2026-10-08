@@ -3,10 +3,8 @@ package com.papi.nova.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.papi.nova.R
@@ -70,8 +68,8 @@ class NovaStreamRecapCardComposeTest {
         show(published())
         val card = rule.onNodeWithTag(NOVA_STREAM_RECAP_CARD_TAG, useUnmergedTree = true)
         card.assertExists()
-        rule.onAllNodesWithTag(NOVA_STREAM_RECAP_VIEW_TAG).filter(isFocused()).assertCountEquals(0)
-        rule.onAllNodesWithTag(NOVA_STREAM_RECAP_DISMISS_TAG).filter(isFocused()).assertCountEquals(0)
+        rule.onNodeWithTag(NOVA_STREAM_RECAP_VIEW_TAG).assertIsNotFocused()
+        rule.onNodeWithTag(NOVA_STREAM_RECAP_DISMISS_TAG).assertIsNotFocused()
         val description = rule.onNodeWithTag(NOVA_STREAM_RECAP_VIEW_TAG).fetchSemanticsNode()
             .config[SemanticsProperties.ContentDescription].joinToString()
         val activity = rule.activity
