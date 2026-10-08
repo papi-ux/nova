@@ -93,6 +93,20 @@ class NovaQuickMenu(
         },
     )
 
+    /**
+     * Working Baseline: the user's own confirmed statement that a stream works well, kept on this
+     * device to set beside a later stream. Reading it never writes; only Save and Clear do.
+     */
+    private val workingBaseline by lazy {
+        com.papi.nova.diagnostics.NovaWorkingBaselineFlow(
+            store = com.papi.nova.diagnostics.NovaWorkingBaselineStore(
+                game.getSharedPreferences(com.papi.nova.diagnostics.NovaWorkingBaselineStore.FILE, android.content.Context.MODE_PRIVATE)),
+            entry = game::workingBaselineEntry,
+            isActive = game::canReportMoment,
+            snapshot = game::captureMomentSnapshot,
+        )
+    }
+
     init {
         // A stream going away retires any report still being saved and closes the log it holds.
         game.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
@@ -119,6 +133,29 @@ class NovaQuickMenu(
             destructive = false,
             onConfirm = { momentReporter.share(report) },
         )
+
+    private fun workingBaselineRow(): NovaWorkingBaselineRow = workingBaseline.state().let { state ->
+        NovaWorkingBaselineRow(
+            hasEntry = state.hasEntry,
+            savedAtUtc = state.saved?.markedAtUtc,
+            unreadable = state.loaded == com.papi.nova.diagnostics.NovaWorkingBaselineStore.Loaded.Unreadable,
+        )
+    }
+
+    /** Working Baseline's pages for this opening; after a Save or Clear they are read again in place. */
+    private fun workingBaselinePages(menu: MenuSession, redraw: () -> Unit) = NovaWorkingBaselinePages(
+        context = game,
+        flow = workingBaseline,
+        feedback = { outcome -> workingBaselineFeedback(menu, outcome) },
+        reopen = { page -> if (surfaces.panel.contains(page.key)) surfaces.panel.replaceTop(page) },
+        redraw = redraw,
+    )
+
+    private fun workingBaselineFeedback(menu: MenuSession, outcome: com.papi.nova.diagnostics.NovaWorkingBaselineFlow.Outcome) {
+        val text = NovaWorkingBaselineText.outcome(game, outcome)
+        if (NovaWorkingBaselineText.succeeded(outcome)) NovaSnackbar.show(game, text, anchor = menu.anchor)
+        else NovaSnackbar.showError(game, text, anchor = menu.anchor)
+    }
 
     /**
      * One opening of the Command Center: the controller that opened it, for More Controls, and
@@ -530,6 +567,7 @@ class NovaQuickMenu(
                 lastStatus = host.last,
                 commandKeysAllowed = game.canSendCommandKeys(),
                 momentReportAvailable = game.canReportMoment(),
+                workingBaseline = workingBaselineRow(),
                 apiAvailable = apiClient != null,
                 spaceSession = game.isSpaceSession(),
                 hostStateUnavailable = host.unavailable,
@@ -1210,6 +1248,10 @@ class NovaQuickMenu(
                         NovaQuickMenuActionId.REPORT_MOMENT -> {
                             // Frozen here, at the press, before anything is read or written.
                             momentReporter.report()
+                        }
+                        NovaQuickMenuActionId.WORKING_BASELINE -> {
+                            // Its own page, pushed in this panel; B comes back here.
+                            surfaces.panel.push(workingBaselinePages(menu) { uiState.value = buildState() }.menu())
                         }
                         else -> Unit
                     }
