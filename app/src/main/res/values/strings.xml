@@ -1924,12 +1924,12 @@
     <string name="nova_host_connection_tailscale_derp">Tailscale · DERP relay</string>
     <string name="nova_host_connection_tailscale_peer_relay">Tailscale · peer relay</string>
     <string name="nova_host_connection_tailscale_route_unknown">Tailscale · route unknown</string>
-    <string name="nova_host_connection_scope">Reported by the host for Nova's connection to it. The stream's video and audio can take a different path.</string>
-    <string name="nova_host_connection_unknown_unsupported">This host doesn't report it.</string>
-    <string name="nova_host_connection_unknown_unavailable">The host couldn't check Tailscale just now.</string>
-    <string name="nova_host_connection_unknown_unconfirmed">The host couldn't confirm this connection.</string>
-    <string name="nova_host_connection_unknown_stale">The host's answer was too old to rely on.</string>
-    <string name="nova_host_connection_unknown_unreadable">The host's answer couldn't be read.</string>
+    <string name="nova_host_connection_scope">Reported by the host for Nova\'s connection to it. The stream\'s video and audio can take a different path.</string>
+    <string name="nova_host_connection_unknown_unsupported">This host doesn\'t report it.</string>
+    <string name="nova_host_connection_unknown_unavailable">The host couldn\'t check Tailscale just now.</string>
+    <string name="nova_host_connection_unknown_unconfirmed">The host couldn\'t confirm this connection.</string>
+    <string name="nova_host_connection_unknown_stale">The host\'s answer was too old to rely on.</string>
+    <string name="nova_host_connection_unknown_unreadable">The host\'s answer couldn\'t be read.</string>
 
     <!-- Settings profile for one launch, chosen by a network rule or by hand. -->
     <string name="nova_launch_profile_row">Settings Profile</string>
@@ -1950,7 +1950,7 @@
     <string name="nova_network_rules_title">Network Rules</string>
     <string name="nova_network_rules_subtitle">For %1$s</string>
     <string name="nova_network_rules_enabled">Use network rules for this host</string>
-    <string name="nova_network_rules_explainer">Before each launch to this host, the first rule that matches picks a saved profile. Nothing changes during a stream, your active profile isn't changed, and Play Setup shows the match so you can choose differently for one launch. Unknown network details never match.</string>
+    <string name="nova_network_rules_explainer">Before each launch to this host, the first rule that matches picks a saved profile. Nothing changes during a stream, your active profile isn\'t changed, and Play Setup shows the match so you can choose differently for one launch. Unknown network details never match.</string>
     <string name="nova_network_rules_no_profiles">Save a settings profile first; rules choose between saved profiles.</string>
     <string name="nova_network_rules_empty">No rules yet.</string>
     <string name="nova_network_rules_add">Add rule</string>
@@ -1979,8 +1979,8 @@
 
     <!-- Reaching a host over Tailscale, from the manual host entry. -->
     <string name="nova_tailscale_setup_title">Connecting over Tailscale</string>
-    <string name="nova_tailscale_setup_body">With Tailscale on both this device and the host, enter the host's MagicDNS name or Tailscale address above, then pair as usual.</string>
-    <string name="nova_tailscale_setup_checks">If it doesn't connect, check: Tailscale is connected on both devices; the name resolves (try the Tailscale address instead); your tailnet's access rules allow this device to reach the host; Nova isn't excluded by split tunnelling; and, for a host reached through a subnet router, that the router's routes are approved and accepted on this device.</string>
+    <string name="nova_tailscale_setup_body">With Tailscale on both this device and the host, enter the host\'s MagicDNS name or Tailscale address above, then pair as usual.</string>
+    <string name="nova_tailscale_setup_checks">If it doesn\'t connect, check: Tailscale is connected on both devices; the name resolves (try the Tailscale address instead); your tailnet\'s access rules allow this device to reach the host; Nova isn\'t excluded by split tunnelling; and, for a host reached through a subnet router, that the router\'s routes are approved and accepted on this device.</string>
     <string name="nova_tailscale_open">Open Tailscale</string>
     <string name="nova_tailscale_help">Tailscale Help</string>
     <string name="nova_tailscale_help_url" translatable="false">https://tailscale.com/kb/1017/install</string>
