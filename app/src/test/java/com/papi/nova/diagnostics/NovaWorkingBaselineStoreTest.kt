@@ -132,6 +132,83 @@ class NovaWorkingBaselineStoreTest {
         assertEquals(Loaded.None, store.load(entry))
     }
 
+    @Test fun aMultibyteOversizedOtherEntryMakesTheFileUnreadableUntilAnExplicitSave() {
+        store.save(entry, snapshot())
+        // 1100 characters, under the character bound, but 2200 UTF-8 bytes.
+        val other = NovaWorkingBaselineStore.ENTRY_PREFIX + "b".repeat(64)
+        prefs.real.edit().putString(other, "é".repeat(1_100)).commit()
+        val before = prefs.all
+        val edits = prefs.edits
+        assertEquals(Loaded.Unreadable, store.load(entry))
+        assertTrue(store.inspect(entry).unrecoverableOthers)
+        assertEquals(edits, prefs.edits)
+        assertEquals(before, prefs.all)
+        assertEquals(Saved.REPLACED, store.save(entry, snapshot()))
+        assertFalse(other in prefs.all)
+        assertTrue(store.load(entry) is Loaded.Found)
+    }
+
+    @Test fun inspectionSaysBeforehandWhatASaveOrClearWouldAlsoRemove() {
+        assertEquals(NovaWorkingBaselineStore.Inspection(Loaded.None, unrecoverableOthers = false, saveEvictsOldest = false),
+            store.inspect(entry))
+        (1..12).forEach { store.save(entry("app-$it"), snapshot(markedAtUtc = "2026-10-%02dT10:00:00Z".format(it))) }
+        val full = store.inspect(entry)
+        assertTrue(full.saveEvictsOldest)
+        assertFalse(full.unrecoverableOthers)
+        assertFalse("replacing one of the twelve evicts nothing", store.inspect(entry("app-3")).saveEvictsOldest)
+        prefs.real.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "lost").commit()
+        val keyless = store.inspect(entry("app-3"))
+        assertEquals(Loaded.Unreadable, keyless.loaded)
+        assertTrue("with no usable key, every stored baseline is unrecoverable", keyless.unrecoverableOthers)
+    }
+
+    @Test fun clearWithAUsableKeyAlsoRemovesUnreadableRecordsButKeepsReadableOnes() {
+        store.save(entry("keep"), snapshot())
+        store.save(entry, snapshot())
+        val junk = NovaWorkingBaselineStore.ENTRY_PREFIX + "c".repeat(64)
+        prefs.real.edit().putString(junk, "{}").commit()
+        assertTrue(store.inspect(entry).unrecoverableOthers)
+        assertTrue(store.clear(entry))
+        assertFalse(junk in prefs.all)
+        assertEquals(Loaded.None, store.load(entry))
+        assertTrue(store.load(entry("keep")) is Loaded.Found)
+        assertFalse(store.inspect(entry).unrecoverableOthers)
+    }
+
+    @Test fun clearOnAnOverCapacityFileKeepsEveryOtherReadableBaseline() {
+        (1..12).forEach { store.save(entry("app-$it"), snapshot(markedAtUtc = "2026-10-%02dT10:00:00Z".format(it))) }
+        // A thirteenth readable entry, written past the store as only a damaged or edited file could hold.
+        val key = NovaWorkingBaseline.unhex(prefs.all[NovaWorkingBaselineStore.LOCAL_KEY] as String)
+        val scope = NovaWorkingBaseline.scope(key, entry("app-13"))!!
+        val extra = NovaWorkingBaseline.fromSnapshot(scope, snapshot(markedAtUtc = "2026-10-13T10:00:00Z"))!!
+        prefs.real.edit().putString(NovaWorkingBaselineStore.ENTRY_PREFIX + scope, NovaWorkingBaseline.encode(extra)).commit()
+        assertEquals("over the bound, reads are unavailable", Loaded.Unreadable, store.load(entry("app-5")))
+        assertFalse(store.inspect(entry("app-5")).unrecoverableOthers)
+        assertTrue(store.clear(entry("app-5")))
+        assertEquals(Loaded.None, store.load(entry("app-5")))
+        (1..13).filter { it != 5 }.forEach { assertTrue("app-$it", store.load(entry("app-$it")) is Loaded.Found) }
+    }
+
+    @Test fun clearWithNoUsableKeyRemovesEveryStoredBaselineAsItsNoteWarns() {
+        store.save(entry("other"), snapshot())
+        store.save(entry, snapshot())
+        prefs.real.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "lost").commit()
+        assertTrue(store.inspect(entry).unrecoverableOthers)
+        assertTrue(store.clear(entry))
+        assertTrue(prefs.all.keys.none { it.startsWith(NovaWorkingBaselineStore.ENTRY_PREFIX) })
+        assertEquals("Clear made no key", 1, keysMade)
+    }
+
+    @Test fun aCorruptedTimestampCannotSortAsTheNewestBaselineForever() {
+        store.save(entry("bent"), snapshot(markedAtUtc = "2026-10-01T10:00:00Z"))
+        val bent = prefs.all.keys.single { it.startsWith(NovaWorkingBaselineStore.ENTRY_PREFIX) }
+        prefs.real.edit().putString(bent, (prefs.all[bent] as String).replace("2026-10-01T10:00:00Z", "2026-19-45T99:00:00Z")).commit()
+        assertEquals(Loaded.Unreadable, store.load(entry("bent")))
+        assertTrue(store.inspect(entry).unrecoverableOthers)
+        store.save(entry, snapshot())
+        assertFalse("an unreadable record is removed, not kept as newest", bent in prefs.all)
+    }
+
     @Test fun aStaleSampleIsNotSavedAndNothingIsWritten() {
         assertEquals(Saved.READINGS_UNAVAILABLE, store.save(entry, snapshot(sampleAt = 1_000L)))
         assertEquals(Saved.READINGS_UNAVAILABLE, store.save(entry, snapshot(sample = false)))

@@ -1195,6 +1195,11 @@
     <string name="nova_working_baseline_clear_confirm">Clear</string>
     <string name="nova_working_baseline_keep">Keep</string>
     <string name="nova_working_baseline_clear_consequence">Removes the saved baseline for this PC and app entry. Nothing else changes.</string>
+    <string name="nova_working_baseline_clear_consequence_unrecoverable">Removes the saved baseline for this PC and app entry. Saved baselines on this device that can no longer be read may also be removed. No setting changes.</string>
+    <string name="nova_working_baseline_busy">Finishing the last change to the baseline…</string>
+    <string name="nova_working_baseline_confirm_unreadable_note">The stored baseline can\'t be read, so saving replaces whatever is stored for this PC and app entry.</string>
+    <string name="nova_working_baseline_confirm_unrecoverable_note">Saved baselines on this device that can no longer be read may also be removed.</string>
+    <string name="nova_working_baseline_confirm_evicts_note">This device keeps 12 baselines, so the oldest saved one will be removed.</string>
     <string name="nova_working_baseline_confirm_save_title">Save as Working Baseline?</string>
     <string name="nova_working_baseline_confirm_replace_title">Replace Working Baseline?</string>
     <string name="nova_working_baseline_confirm_message">Save only if picture, audio and controls work well for you right now. Nova keeps this device\'s client readings from the moment you press Save, for this PC and app entry. Nova doesn\'t judge them, and no setting changes.</string>

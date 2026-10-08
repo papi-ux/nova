@@ -95,26 +95,38 @@ class NovaQuickMenu(
 
     /**
      * Working Baseline: the user's own confirmed statement that a stream works well, kept on this
-     * device to set beside a later stream. Reading it never writes; only Save and Clear do.
+     * device to set beside a later stream. Reading it never writes; only Save and Clear do, off the
+     * main thread, after freezing what they need at the press.
      */
-    private val workingBaseline by lazy {
+    private val workingBaselineFlow = lazy {
         com.papi.nova.diagnostics.NovaWorkingBaselineFlow(
             store = com.papi.nova.diagnostics.NovaWorkingBaselineStore(
                 game.getSharedPreferences(com.papi.nova.diagnostics.NovaWorkingBaselineStore.FILE, android.content.Context.MODE_PRIVATE)),
+            runtime = runtime,
             entry = game::workingBaselineEntry,
             isActive = game::canReportMoment,
             snapshot = game::captureMomentSnapshot,
         )
+    }
+    private val workingBaseline by workingBaselineFlow
+
+    /** The opening that asked is gone: a Save or Clear still being written answers no one. */
+    private fun retireWorkingBaseline() {
+        if (workingBaselineFlow.isInitialized()) workingBaseline.retire()
     }
 
     init {
         // A stream going away retires any report still being saved and closes the log it holds.
         game.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                retireWorkingBaseline()
                 momentReporter.retire()
                 game.cancelRuntimeTask(com.papi.nova.diagnostics.NovaMomentReporter.TASK)
             }
-            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) = momentReporter.retire()
+            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
+                retireWorkingBaseline()
+                momentReporter.retire()
+            }
         })
     }
 
@@ -200,6 +212,7 @@ class NovaQuickMenu(
         game.setNovaHudCovered(true)
         fun onMenuClosed() {
             menu.bitrateJob?.cancel()
+            retireWorkingBaseline()
             game.setNovaHudCovered(false)
             game.cancelRuntimeTask("NovaQuickMenuLiveTuning")
             if (doctorMenuRefreshRegistry.close(menuValidationGeneration)) {

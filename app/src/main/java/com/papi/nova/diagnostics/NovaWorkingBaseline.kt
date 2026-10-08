@@ -159,7 +159,7 @@ object NovaWorkingBaseline {
         } catch (_: JSONException) {
             return null
         }
-        if (text.toByteArray(StandardCharsets.UTF_8).size > MAX_ENTRY_BYTES) return null
+        if (!fitsEntry(text)) return null
         return text.takeIf { parse(it, baseline.scope) == baseline }
     }
 
@@ -222,8 +222,7 @@ object NovaWorkingBaseline {
      */
     @JvmStatic
     fun parse(text: String?, expectedScope: String): Baseline? {
-        if (text == null || text.length > MAX_ENTRY_BYTES ||
-            text.toByteArray(StandardCharsets.UTF_8).size > MAX_ENTRY_BYTES) return null
+        if (text == null || !fitsEntry(text)) return null
         return try {
             read(JSONObject(text), expectedScope)
         } catch (_: JSONException) {
@@ -248,7 +247,7 @@ object NovaWorkingBaseline {
         val role = NovaMomentReport.StreamRole.entries.firstOrNull { it.wire == json.word("role") } ?: throw Invalid()
         return Baseline(
             scope = scope,
-            markedAtUtc = json.text("marked_at_utc", UTC),
+            markedAtUtc = json.text("marked_at_utc", UTC).takeIf(::isCalendarUtc) ?: throw Invalid(),
             client = Client(
                 version = client.text("version", VERSION),
                 buildType = client.text("build_type", WORD),
@@ -417,4 +416,35 @@ object NovaWorkingBaseline {
     }
 
     internal fun isScope(text: String): Boolean = SCOPE.matches(text)
+
+    /**
+     * Whether [value] fits one stored entry: at most [MAX_ENTRY_BYTES] UTF-8 bytes. The character
+     * count is checked first, since no string longer than that in characters can fit.
+     */
+    @JvmStatic
+    fun fitsEntry(value: String): Boolean =
+        value.length <= MAX_ENTRY_BYTES && value.toByteArray(StandardCharsets.UTF_8).size <= MAX_ENTRY_BYTES
+
+    /**
+     * A real calendar instant in the stored shape: month, day (with leap years), hour, minute and
+     * second all in range. A corrupted time such as 2026-19-45T99:00:00Z is refused rather than
+     * sorted as the newest baseline. No clock is consulted: past and future dates stay as written.
+     */
+    internal fun isCalendarUtc(text: String): Boolean {
+        if (!UTC.matches(text)) return false
+        val year = text.substring(0, 4).toInt()
+        val month = text.substring(5, 7).toInt()
+        val day = text.substring(8, 10).toInt()
+        val hour = text.substring(11, 13).toInt()
+        val minute = text.substring(14, 16).toInt()
+        val second = text.substring(17, 19).toInt()
+        if (year < 1 || month !in 1..12 || hour > 23 || minute > 59 || second > 59) return false
+        val leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        val days = when (month) {
+            2 -> if (leap) 29 else 28
+            4, 6, 9, 11 -> 30
+            else -> 31
+        }
+        return day in 1..days
+    }
 }
