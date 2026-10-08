@@ -150,10 +150,14 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.PASTE_CLIPBOARD,
             NovaQuickMenuActionId.ROTATE_SCREEN,
             NovaQuickMenuActionId.MORE_KEYS,
-            NovaQuickMenuActionId.MORE_CONTROLS -> onSessionAction(action.id)
+            NovaQuickMenuActionId.MORE_CONTROLS,
+            NovaQuickMenuActionId.REPORT_MOMENT -> onSessionAction(action.id)
         }
     }
 }
+
+/** Report This Moment's row, for tests and accessibility tooling. */
+internal const val REPORT_MOMENT_TAG = "nova-cc-report-moment"
 
 /** Rows that push a page of their own, and so carry the page mark. */
 private val OpensPage = setOf(
@@ -907,7 +911,13 @@ private fun NovaPageScope.NovaQuickMenuRows(
             )
         } else {
             // A row that pushed a page is where focus lands when that page pops.
-            NovaQuickMenuRow(row, callbacks, novaPlaceFocus(row.id), opens = row.id in OpensPage)
+            val place = novaPlaceFocus(row.id)
+            NovaQuickMenuRow(
+                row,
+                callbacks,
+                if (row.id == NovaQuickMenuActionId.REPORT_MOMENT) place.testTag(REPORT_MOMENT_TAG) else place,
+                opens = row.id in OpensPage,
+            )
         }
     }
 }

@@ -43,7 +43,8 @@ enum class NovaQuickMenuActionId {
     PASTE_CLIPBOARD,
     ROTATE_SCREEN,
     MORE_KEYS,
-    MORE_CONTROLS
+    MORE_CONTROLS,
+    REPORT_MOMENT
 }
 
 data class NovaQuickMenuChip(
@@ -269,6 +270,11 @@ data class NovaQuickMenuUiState(
             quickKeys: List<NovaQuickMenuAction> = quickKeyActions(context),
             /** The stream retains its input restriction even when this opening has no reading. */
             commandKeysAllowed: Boolean = true,
+            /**
+             * A stream is actually up on this device, so this moment can be reported. Needs no host
+             * command ownership: a viewer can report what it sees.
+             */
+            momentReportAvailable: Boolean = true,
         ): NovaQuickMenuUiState {
             val viewerSession = status?.isViewer == true
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
@@ -524,6 +530,15 @@ data class NovaQuickMenuUiState(
                 )
             )
             val sessionRows = listOf(
+                NovaQuickMenuAction(
+                    id = NovaQuickMenuActionId.REPORT_MOMENT,
+                    label = context.getString(R.string.nova_moment_report_action),
+                    caption = context.getString(
+                        if (momentReportAvailable) R.string.nova_moment_report_caption
+                        else R.string.nova_moment_report_unavailable_caption
+                    ),
+                    enabled = momentReportAvailable
+                ),
                 NovaQuickMenuAction(
                     id = NovaQuickMenuActionId.PASTE_CLIPBOARD,
                     label = context.getString(R.string.nova_quick_menu_paste_clipboard),
