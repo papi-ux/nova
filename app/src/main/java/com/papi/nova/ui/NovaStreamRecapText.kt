@@ -56,7 +56,11 @@ internal object NovaStreamRecapText {
             if (recap.dimensionsChanged) appendLine(context.getString(R.string.nova_recap_dimensions_changed))
             recap.last?.let { last ->
                 appendLine()
-                appendLine(context.getString(R.string.nova_recap_last, duration(last.ageAtEndMs), lastSample(context, last, unknown)))
+                val age = last.ageAtEndMs
+                appendLine(
+                    if (age != null) context.getString(R.string.nova_recap_last, duration(age), lastSample(context, last, unknown))
+                    else context.getString(R.string.nova_recap_last_age_unknown, lastSample(context, last, unknown))
+                )
             }
         }
         appendLine()
