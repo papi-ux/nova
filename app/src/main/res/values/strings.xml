@@ -1300,6 +1300,17 @@
     <string name="nova_recap_not_measured">Not measured or compared: video throughput, host-side readings, the game or scene that ran, picture, audio and control quality, and the network path. This is no health grade.</string>
     <string name="nova_recap_lifetime">Kept only in memory on this device until a newer stream ends, you dismiss it, or Nova closes. Nothing was saved, logged or sent. Export isn\'t available yet.</string>
     <string name="nova_recap_unknown">unknown</string>
+    <string name="nova_recap_save_report">Save Report</string>
+    <string name="nova_recap_report_saved_title">Report Saved</string>
+    <string name="nova_recap_report_saved_message">The recap of the stream that ended %1$s (UTC) is saved on this device. Nothing has been sent. Share Report opens another app, where you choose where it goes.</string>
+    <string name="nova_recap_report_done">Done</string>
+    <string name="nova_recap_report_share">Share Report</string>
+    <string name="nova_recap_report_subject">Nova stream recap report</string>
+    <string name="nova_recap_report_share_title">Share Nova stream recap report</string>
+    <string name="nova_recap_report_problem_title">Stream Recap Report</string>
+    <string name="nova_recap_report_invalid">This recap can\'t be saved as a report.</string>
+    <string name="nova_recap_report_storage_failed">Couldn\'t save the stream recap report. Check this device\'s storage and try again.</string>
+    <string name="nova_recap_report_no_share_target">No app here can receive the report. Install an app that shares files, then try again.</string>
     <string name="nova_quick_menu_hud_diagnostics_copied">Nova HUD diagnostics copied</string>
     <string name="nova_conn_reconnect">Reconnect</string>
     <string name="nova_quick_menu_close">Close</string>

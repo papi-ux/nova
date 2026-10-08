@@ -804,6 +804,7 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun onStop() {
+        if (streamRecapReporterLazy.isInitialized()) streamRecapReporter.retire()
         activeSessionRefreshGate.invalidateForStop()
         activeSessionImmediateRefreshJob?.cancel()
         activeSessionImmediateRefreshJob = null
@@ -1472,7 +1473,10 @@ class NovaLibraryActivity : NovaActivity() {
 
     /** The recap's read-only page, in the library's end panel, pushed when one is open. */
     private fun viewStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {
-        val page = NovaStreamRecapPages.page(this, recap)
+        showLibraryEndPage(NovaStreamRecapPages.page(this, recap, onSaveReport = { streamRecapReporter.report(recap) }))
+    }
+
+    private fun showLibraryEndPage(page: com.papi.nova.ui.panel.NovaPage) {
         val surfaces = novaSurfaces
         if (surfaces.panel.isOpen) {
             surfaces.panel.push(page)
@@ -1480,6 +1484,45 @@ class NovaLibraryActivity : NovaActivity() {
             surfaces.open(page, NovaEdge.End) { shown -> LibraryPanelPage(shown) }
         }
     }
+
+    /** Where the recap report's work runs: off the main thread, and back on it while this screen stands. */
+    private val libraryRuntime = object : NovaCommandCenterRuntime {
+        override fun launchIo(name: String, block: suspend () -> Unit) {
+            lifecycleScope.launch(Dispatchers.IO) { block() }
+        }
+        override suspend fun onMain(block: () -> Unit) = withContext(Dispatchers.Main) {
+            if (!isFinishing && !isDestroyed) block()
+        }
+        override fun postDelayed(delayMs: Long, block: () -> Unit) {
+            window.decorView.postDelayed(block, delayMs)
+        }
+    }
+
+    /**
+     * Save Report from the recap's page, then Share from the saved confirmation. Leaving this
+     * screen retires a save still under way, so its confirmation never appears later.
+     */
+    private val streamRecapReporterLazy = lazy {
+        com.papi.nova.diagnostics.NovaStreamRecapReporter(
+            runtime = libraryRuntime,
+            render = { recap ->
+                com.papi.nova.diagnostics.NovaStreamRecapReport.render(recap, com.papi.nova.BuildConfig.VERSION_NAME, com.papi.nova.BuildConfig.BUILD_TYPE)
+            },
+            write = { endedAtUtc, bytes ->
+                com.papi.nova.diagnostics.NovaStreamRecapExport.write(
+                    com.papi.nova.diagnostics.NovaStreamRecapExport.directory(this), endedAtUtc, bytes)
+            },
+            saved = { report -> showLibraryEndPage(NovaStreamRecapPages.saved(this, report) { streamRecapReporter.share(report) }) },
+            offer = { file -> com.papi.nova.diagnostics.NovaStreamRecapExport.offer(this, file) },
+            // Said in place, as the Library's results are; an open chooser needs no word of its own.
+            feedback = { outcome -> NovaStreamRecapPages.problem(this, outcome)?.let(::showLibraryEndPage) },
+            canShare = {
+                !isFinishing && !isDestroyed &&
+                    lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+            },
+        )
+    }
+    private val streamRecapReporter by streamRecapReporterLazy
 
     /** Dismisses that recap only; a newer one, should one have arrived, stays. */
     private fun dismissStreamRecap(recap: com.papi.nova.diagnostics.NovaStreamRecap.Recap) {

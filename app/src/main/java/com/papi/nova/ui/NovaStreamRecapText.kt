@@ -142,13 +142,53 @@ internal object NovaStreamRecapText {
     private fun pct(value: Double) = String.format(Locale.ROOT, "%.2f%%", value)
 }
 
-/** The recap's read-only page. Leaving it changes nothing. */
+/** The recap's pages: the read-only recap, and the saved report's confirmation. */
 internal object NovaStreamRecapPages {
-    fun page(context: Context, recap: NovaStreamRecap.Recap) = com.papi.nova.ui.panel.NovaCommonPage.Notice(
-        key = "nova-last-stream-${recap.generation}",
-        title = context.getString(R.string.nova_recap_page_title),
-        message = NovaStreamRecapText.page(context, recap),
-        closeLabel = context.getString(R.string.nova_recap_close),
-        monospace = true,
-    )
+    /**
+     * The recap itself. Leaving it changes nothing. With [onSaveReport], Save Report is its one
+     * action: the explicit choice that saves a report file. Viewing, Close and B never do.
+     */
+    fun page(context: Context, recap: NovaStreamRecap.Recap, onSaveReport: (() -> Unit)? = null) =
+        com.papi.nova.ui.panel.NovaCommonPage.Notice(
+            key = "nova-last-stream-${recap.generation}",
+            title = context.getString(R.string.nova_recap_page_title),
+            message = NovaStreamRecapText.page(context, recap),
+            primary = onSaveReport?.let { com.papi.nova.ui.panel.NovaAction(context.getString(R.string.nova_recap_save_report), run = it) },
+            closeLabel = context.getString(R.string.nova_recap_close),
+            monospace = true,
+        )
+
+    /**
+     * The saved report, confirmed. Done is focused and is what B does; Share Report is the
+     * separate, explicit choice that opens the chooser.
+     */
+    fun saved(context: Context, report: com.papi.nova.diagnostics.NovaStreamRecapReporter.Saved, onShare: () -> Unit) =
+        com.papi.nova.ui.panel.NovaCommonPage.Confirm(
+            key = "nova-stream-recap-saved-${report.file.name}",
+            title = context.getString(R.string.nova_recap_report_saved_title),
+            message = androidx.compose.ui.text.AnnotatedString(
+                context.getString(R.string.nova_recap_report_saved_message, report.endedAtUtc)),
+            stayLabel = context.getString(R.string.nova_recap_report_done),
+            actionLabel = context.getString(R.string.nova_recap_report_share),
+            destructive = false,
+            onConfirm = onShare,
+        )
+
+    /**
+     * What went wrong with a save or share, as a Notice in place; null for an opened chooser, which
+     * is its own answer and says nothing about delivery.
+     */
+    fun problem(context: Context, outcome: com.papi.nova.diagnostics.NovaStreamRecapReporter.Outcome) = when (outcome) {
+        com.papi.nova.diagnostics.NovaStreamRecapReporter.Outcome.OFFERED -> null
+        com.papi.nova.diagnostics.NovaStreamRecapReporter.Outcome.INVALID -> R.string.nova_recap_report_invalid
+        com.papi.nova.diagnostics.NovaStreamRecapReporter.Outcome.STORAGE_FAILED -> R.string.nova_recap_report_storage_failed
+        com.papi.nova.diagnostics.NovaStreamRecapReporter.Outcome.NO_SHARE_TARGET -> R.string.nova_recap_report_no_share_target
+    }?.let { message ->
+        com.papi.nova.ui.panel.NovaCommonPage.Notice(
+            key = "nova-stream-recap-report-${outcome.name.lowercase()}",
+            title = context.getString(R.string.nova_recap_report_problem_title),
+            message = context.getString(message),
+            closeLabel = context.getString(R.string.nova_recap_close),
+        )
+    }
 }
