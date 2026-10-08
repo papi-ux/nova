@@ -63,26 +63,43 @@ object NovaMomentShare {
         reports.filter { it != keep }.drop(MAX_RETAINED - 1).forEach { it.delete() }
     }
 
-    /** The share intent for [uri]: one attachment, read-only grant, a user-chosen recipient. */
+    /**
+     * The share intent for [uri]: one attachment, read-only grant, a user-chosen recipient.
+     * [subject] defaults to the moment report's; another report kind passes its own.
+     */
     @JvmStatic
-    fun sendIntent(context: Context, uri: Uri): Intent = Intent(Intent.ACTION_SEND).apply {
+    @JvmOverloads
+    fun sendIntent(
+        context: Context,
+        uri: Uri,
+        subject: String = context.getString(R.string.nova_moment_report_subject),
+    ): Intent = Intent(Intent.ACTION_SEND).apply {
         type = MIME_TYPE
         putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.nova_moment_report_subject))
+        putExtra(Intent.EXTRA_SUBJECT, subject)
         // ClipData carries the grant through the chooser to whichever app the user picks.
-        clipData = ClipData.newUri(context.contentResolver, context.getString(R.string.nova_moment_report_subject), uri)
+        clipData = ClipData.newUri(context.contentResolver, subject, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
-    /** Open the chooser for an already written report. Only ever called from a user's press. */
+    /**
+     * Open the chooser for an already written report. Only ever called from a user's press.
+     * [subject] and [title] default to the moment report's.
+     */
     @JvmStatic
-    fun offer(activity: Activity, file: File): Result {
+    @JvmOverloads
+    fun offer(
+        activity: Activity,
+        file: File,
+        subject: String = activity.getString(R.string.nova_moment_report_subject),
+        title: String = activity.getString(R.string.nova_moment_report_share_title),
+    ): Result {
         val uri = try {
             FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
         } catch (error: Exception) {
             return Result.Failed(Reason.STORAGE)
         }
-        val chooser = Intent.createChooser(sendIntent(activity, uri), activity.getString(R.string.nova_moment_report_share_title))
+        val chooser = Intent.createChooser(sendIntent(activity, uri, subject), title)
         return try {
             activity.startActivity(chooser)
             Result.Offered(file)
