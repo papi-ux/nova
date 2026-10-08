@@ -1287,7 +1287,7 @@
     <string name="nova_recap_rendered_fps">Rendered fps</string>
     <string name="nova_recap_received_fps">Received fps</string>
     <string name="nova_recap_decode_time">Decode time</string>
-    <string name="nova_recap_host_processing">Host processing latency</string>
+    <string name="nova_recap_host_processing">Processing latency reported by the host</string>
     <string name="nova_recap_control_rtt">Control-channel round trip (not video latency)</string>
     <string name="nova_recap_loss_between">Video frames missing between client samples: %1$s of %2$d expected, over %3$d intervals.</string>
     <string name="nova_recap_loss_between_unavailable">Video frames missing between client samples: unavailable.</string>
@@ -1297,8 +1297,8 @@
     <string name="nova_recap_dimensions_changed">The decoded size changed during this connection; the readings above mix sizes.</string>
     <string name="nova_recap_last">Last client sample, %1$s before the end: %2$s.</string>
     <string name="nova_recap_last_age_unknown">Last client sample (how long before the end isn\'t known): %1$s.</string>
-    <string name="nova_recap_not_measured">Not measured or compared: video throughput, host-side readings, the game or scene that ran, picture, audio and control quality, and the network path. This is no health grade.</string>
-    <string name="nova_recap_lifetime">Kept only in memory on this device until a newer stream ends, you dismiss it, or Nova closes. Nothing was saved, logged or sent. Export isn\'t available yet.</string>
+    <string name="nova_recap_not_measured">Not measured or compared: video throughput, host diagnostics, the game or scene that ran, picture, audio and control quality, and the network path. This is no health grade.</string>
+    <string name="nova_recap_lifetime">Kept in memory on this device until a newer stream ends, you dismiss it, or Nova closes. Viewing it saves or sends nothing. Choose Save Report for a local copy, then Share Report to choose where to send it.</string>
     <string name="nova_recap_unknown">unknown</string>
     <string name="nova_recap_save_report">Save Report</string>
     <string name="nova_recap_report_saved_title">Report Saved</string>

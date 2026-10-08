@@ -45,6 +45,10 @@ class NovaStreamRecapTextTest {
         assertTrue(page, page.contains("${text(R.string.nova_recap_rendered_fps)}: 60.0 (2 · 60.0 to 60.0)"))
         assertTrue(page, page.contains(text(R.string.nova_recap_not_measured)))
         assertTrue(page, page.contains(text(R.string.nova_recap_lifetime)))
+        assertTrue(page, page.contains("Viewing it saves or sends nothing"))
+        assertTrue(page, page.contains("Choose Save Report for a local copy"))
+        assertFalse(page, page.contains("Export isn't available yet"))
+        assertTrue(page, page.contains("Processing latency reported by the host"))
         assertTrue(page, page.contains("Requested bitrate isn't measured throughput"))
         assertTrue(page, page.contains("not the host app's session"))
         verdicts.forEach { assertFalse("$it in $page", Regex("\\b${Regex.escape(it)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(page)) }

@@ -164,6 +164,8 @@ class NovaStreamRecapReportTest {
         assertTrue(text.startsWith("# Nova stream recap report"))
         assertTrue(text.contains("Nothing was sent automatically"))
         assertTrue(text.contains("not measured throughput"))
+        assertTrue(text.contains("reported by the host through frame metadata received by this client"))
+        assertFalse(text.contains("No host-side readings"))
         NovaStreamRecapReport.NOT_INCLUDED.forEach { assertTrue(it, text.contains(it)) }
         listOf("healthy", "regression", "excellent", "poor", "score").forEach {
             assertFalse(it, Regex("\\b$it\\b", RegexOption.IGNORE_CASE).containsMatchIn(text))
