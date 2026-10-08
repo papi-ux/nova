@@ -280,6 +280,12 @@ class NovaGameDetailActivity : NovaActivity() {
     private var networkChangeCallback: android.net.ConnectivityManager.NetworkCallback? = null
     private val launchProfilesListener =
         com.papi.nova.profiles.ProfilesManager.ProfileChangeListener { revalidateLaunchProfile() }
+    private var launchBasePreferences: android.content.SharedPreferences? = null
+    private val launchBasePreferencesListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        // Every Game and inherited profile values can change without a profile-manager event.
+        // Update the shown choice before a new preflight or Play press uses those values.
+        runOnUiThread { if (launchBasePreferences != null) revalidateLaunchProfile() }
+    }
 
     /**
      * Play Setup's pages, in a panel at the end edge of this window: Root, and Where It Runs or the
@@ -405,12 +411,14 @@ class NovaGameDetailActivity : NovaActivity() {
         // Anything that can change the chosen profile is watched while this window is in front,
         // and checked once on return for whatever changed while it was not.
         com.papi.nova.profiles.ProfilesManager.getInstance().addListener(launchProfilesListener)
+        registerLaunchBasePreferences()
         registerNetworkChangeCallback()
         revalidateLaunchProfile()
     }
 
     override fun onPause() {
         com.papi.nova.profiles.ProfilesManager.getInstance().removeListener(launchProfilesListener)
+        unregisterLaunchBasePreferences()
         unregisterNetworkChangeCallback()
         hostConnectionFreshnessJob?.cancel()
         hostConnectionFreshnessJob = null
@@ -556,6 +564,18 @@ class NovaGameDetailActivity : NovaActivity() {
             delay((freshFor - refreshAfter).coerceAtLeast(0L))
             revalidateLaunchProfile()
         }
+    }
+
+    private fun registerLaunchBasePreferences() {
+        if (launchBasePreferences != null) return
+        launchBasePreferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this).also {
+            it.registerOnSharedPreferenceChangeListener(launchBasePreferencesListener)
+        }
+    }
+
+    private fun unregisterLaunchBasePreferences() {
+        launchBasePreferences?.unregisterOnSharedPreferenceChangeListener(launchBasePreferencesListener)
+        launchBasePreferences = null
     }
 
     /** Nova's own default network changing (Wi-Fi, cellular, a VPN) can change which rule matches. */
