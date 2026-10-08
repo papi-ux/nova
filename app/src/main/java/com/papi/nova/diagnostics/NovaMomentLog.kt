@@ -57,10 +57,27 @@ object NovaMomentLog {
      */
     class Marked internal constructor(private var held: List<Held>?) : java.io.Closeable {
         /** Read, scrub and bound the newest lines up to where the moment froze them. */
-        @Synchronized
         fun read(known: Map<String, String> = emptyMap(), maxBytes: Int = MAX_BYTES): Tail {
             require(maxBytes in 1..MAX_BYTES)
-            val files = held ?: return Tail.EMPTY
+            val copied = synchronized(this) { copyRaw(maxBytes) }
+            val raw = copied.bytes
+            if (raw.isEmpty()) return Tail.EMPTY.copy(changedSinceMoment = copied.changed)
+
+            // Redaction owns only this bounded copy, so main-thread retirement
+            // can close the descriptors while this work continues on IO.
+            var text = decode(raw)
+            if (copied.truncated) text = text.substringAfter('\n', "")
+            val (bounded, trimmed) = boundUtf8(scrub(text, known), maxBytes)
+            val size = bounded.toByteArray(StandardCharsets.UTF_8).size
+            val lines = if (bounded.isEmpty()) 0 else bounded.trimEnd('\n').count { it == '\n' } + 1
+            return Tail(bounded, size, lines, copied.truncated || trimmed, raw.size, copied.changed)
+        }
+
+        private data class Copied(val bytes: ByteArray, val truncated: Boolean, val changed: Boolean)
+
+        /** Called only under the descriptor monitor; performs bounded reads. */
+        private fun copyRaw(maxBytes: Int): Copied {
+            val files = held ?: return Copied(ByteArray(0), false, false)
             var need = maxBytes.toLong()
             var cutSomething = false
             var changed = false
@@ -95,15 +112,7 @@ object NovaMomentLog {
                     at += chunk.size
                 }
             }
-            if (raw.isEmpty()) return Tail.EMPTY.copy(changedSinceMoment = changed)
-
-            var text = decode(raw)
-            // A cut through the oldest file leaves half a line (and maybe half a character): drop it.
-            if (cutSomething) text = text.substringAfter('\n', "")
-            val (bounded, trimmed) = boundUtf8(scrub(text, known), maxBytes)
-            val size = bounded.toByteArray(StandardCharsets.UTF_8).size
-            val lines = if (bounded.isEmpty()) 0 else bounded.trimEnd('\n').count { it == '\n' } + 1
-            return Tail(bounded, size, lines, cutSomething || trimmed, raw.size, changed)
+            return Copied(raw, cutSomething, changed)
         }
 
         /** Idempotent; a read running on another thread finishes first. */

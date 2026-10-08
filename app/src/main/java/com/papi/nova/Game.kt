@@ -7249,9 +7249,12 @@ decoderRenderer?.setPerfTextWanted(::prefConfig.isInitialized && prefConfig!!.en
  * log must not show, and where each log file ended. Null unless a stream is actually up on this
  * device; watching and Spaces are reported as such, and nothing here claims host ownership.
  */
+internal fun canReportMoment():Boolean =
+    com.papi.nova.diagnostics.NovaMomentReport.canCapture(isStreamActive, connected, isFinishing, isDestroyed) &&
+        ::prefConfig.isInitialized
+
 internal fun freezeMomentReport():com.papi.nova.diagnostics.NovaMomentReporter.Frozen? {
-if (!com.papi.nova.diagnostics.NovaMomentReport.canCapture(isStreamActive, connected, isFinishing, isDestroyed) ||
-    !::prefConfig.isInitialized) return null
+if (!canReportMoment()) return null
 // The anchor a reader finds in the log tail, written before the log's ends are frozen.
 LimeLog.info("Nova: Report This Moment marked")
 val sample = lastCompanionPerfSample?.let {

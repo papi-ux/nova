@@ -171,6 +171,11 @@ class NovaMomentReportTest {
             assertNull(masquerade, capture(sample(codec = masquerade)).observed!!.decoder)
     }
 
+    @Test fun nonFiniteFrameRatesCannotConfirmAHealthyLossWindow() {
+        val invalid = sample(lossPct = 0.0).copy(receivedFps = Double.POSITIVE_INFINITY, renderedFps = Double.NaN)
+        assertNull(capture(invalid).observed!!.decoderFrameLossPct)
+    }
+
     @Test fun freeTextInputsCannotCarryIdentityIntoTheSchema() {
         // A decoder "name" or version that is really free text is dropped, not passed through.
         val hostile = capture(sample(codec = "gaming-pc 192.168.1.20 app_session_id=s3cr3t"), version = "1.4 (from 10.0.0.5)")

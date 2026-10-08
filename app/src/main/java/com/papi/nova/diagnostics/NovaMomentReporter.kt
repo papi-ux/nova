@@ -27,6 +27,7 @@ internal class NovaMomentReporter(
     private val offer: (File) -> NovaMomentShare.Result,
     private val feedback: (Outcome) -> Unit,
     private val isActive: () -> Boolean = { true },
+    private val canShare: () -> Boolean = isActive,
 ) {
     /** Everything the report says, fixed at the press. [log] is held open until read or retired. */
     class Frozen(
@@ -78,10 +79,7 @@ internal class NovaMomentReporter(
 
     /** Main thread, from the confirmation's explicit Share. Shares the saved bytes as they are. */
     fun share(saved: Saved) {
-        if (!isActive()) {
-            feedback(Outcome.NOT_ACTIVE)
-            return
-        }
+        if (!canShare()) return
         feedback(
             when (val result = offer(saved.file)) {
                 is NovaMomentShare.Result.Offered -> Outcome.OFFERED
