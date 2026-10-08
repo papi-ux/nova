@@ -516,16 +516,16 @@ class PreferenceConfiguration {
         }
 
         @JvmStatic
-        fun getDefaultBitrate(context: Context): Int {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        fun getDefaultBitrate(context: Context): Int = getDefaultBitrate(ProfilesManager.getInstance().getOverlayingSharedPreferences(context))
+
+        private fun getDefaultBitrate(prefs: SharedPreferences): Int {
             return getDefaultBitrate(
                 prefs.getString(RESOLUTION_PREF_STRING, DEFAULT_RESOLUTION) ?: DEFAULT_RESOLUTION,
                 prefs.getString(FPS_PREF_STRING, DEFAULT_FPS) ?: DEFAULT_FPS,
             )
         }
 
-        private fun getVideoFormatValue(context: Context): FormatOption {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        private fun getVideoFormatValue(prefs: SharedPreferences): FormatOption {
             return when (prefs.getString(VIDEO_FORMAT_PREF_STRING, DEFAULT_VIDEO_FORMAT)) {
                 "forceav1" -> FormatOption.FORCE_AV1
                 "forceh265" -> FormatOption.FORCE_HEVC
@@ -539,8 +539,7 @@ class PreferenceConfiguration {
             }
         }
 
-        private fun getVideoScaleMode(context: Context): ScaleMode {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        private fun getVideoScaleMode(prefs: SharedPreferences): ScaleMode {
             return when (prefs.getString(VIDEO_SCALE_MODE_PREF_STRING, DEFAULT_VIDEO_SCALE_MODE)) {
                 "fill" -> ScaleMode.FILL
                 "stretch" -> ScaleMode.STRETCH
@@ -549,19 +548,21 @@ class PreferenceConfiguration {
         }
 
         @JvmStatic
-        fun getSelectedFramePacingName(context: Context): String {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        fun getSelectedFramePacingName(context: Context): String = getSelectedFramePacingName(ProfilesManager.getInstance().getOverlayingSharedPreferences(context))
+
+        @JvmStatic
+        fun getSelectedFramePacingName(prefs: SharedPreferences): String {
             return prefs.getString(FRAME_PACING_PREF_STRING, DEFAULT_FRAME_PACING) ?: DEFAULT_FRAME_PACING
         }
 
         @JvmStatic
-        fun getPreferLowerDelays(context: Context): Boolean {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        fun getPreferLowerDelays(context: Context): Boolean = getPreferLowerDelays(ProfilesManager.getInstance().getOverlayingSharedPreferences(context))
+
+        private fun getPreferLowerDelays(prefs: SharedPreferences): Boolean {
             return prefs.getBoolean(LOW_LATENCY_FRAME_BALANCE_PREF_STRING, false)
         }
 
-        private fun getFramePacingValue(context: Context): Int {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        private fun getFramePacingValue(prefs: SharedPreferences): Int {
             if (prefs.contains(LEGACY_DISABLE_FRAME_DROP_PREF_STRING)) {
                 val legacyNeverDropFrames = prefs.getBoolean(LEGACY_DISABLE_FRAME_DROP_PREF_STRING, false)
                 prefs.edit()
@@ -578,8 +579,7 @@ class PreferenceConfiguration {
             }
         }
 
-        private fun getAnalogStickForScrollingValue(context: Context): AnalogStickForScrolling {
-            val prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context)
+        private fun getAnalogStickForScrollingValue(prefs: SharedPreferences): AnalogStickForScrolling {
             return when (prefs.getString(ANALOG_SCROLLING_PREF_STRING, DEFAULT_ANALOG_STICK_FOR_SCROLLING)) {
                 "right" -> AnalogStickForScrolling.RIGHT
                 "left" -> AnalogStickForScrolling.LEFT
@@ -830,7 +830,7 @@ class PreferenceConfiguration {
 
             config.bitrate = prefs.getInt(BITRATE_PREF_STRING, prefs.getInt(BITRATE_PREF_OLD_STRING, 0) * 1000)
             if (config.bitrate == 0) {
-                config.bitrate = getDefaultBitrate(context)
+                config.bitrate = getDefaultBitrate(prefs)
             }
 
             config.meteredBitrate = prefs.getInt(METERED_BITRATE_PREF_STRING, 0)
@@ -845,17 +845,19 @@ class PreferenceConfiguration {
                 else -> MoonBridge.AUDIO_CONFIGURATION_STEREO
             }
 
-            config.videoScaleMode = getVideoScaleMode(context)
-            config.videoFormat = getVideoFormatValue(context)
-            config.framePacing = getFramePacingValue(context)
-            config.preferLowerDelays = getPreferLowerDelays(context)
+            // These read the same preferences as the rest of this method, so a launch-scoped or
+            // edited profile is not mixed with the active profile's codec, scaling or pacing.
+            config.videoScaleMode = getVideoScaleMode(prefs)
+            config.videoFormat = getVideoFormatValue(prefs)
+            config.framePacing = getFramePacingValue(prefs)
+            config.preferLowerDelays = getPreferLowerDelays(prefs)
 
             when (prefs.getString(FRAME_PACING_PREF_STRING, "")) {
                 "warp" -> config.framePacingWarpFactor = 2
                 "warp2" -> config.framePacingWarpFactor = 4
             }
 
-            config.analogStickForScrolling = getAnalogStickForScrollingValue(context)
+            config.analogStickForScrolling = getAnalogStickForScrollingValue(prefs)
             config.deadzonePercentage = prefs.getInt(DEADZONE_PREF_STRING, DEFAULT_DEADZONE)
             config.oscOpacity = prefs.getInt(OSC_OPACITY_PREF_STRING, DEFAULT_OPACITY)
             config.language = prefs.getString(LANGUAGE_PREF_STRING, DEFAULT_LANGUAGE)

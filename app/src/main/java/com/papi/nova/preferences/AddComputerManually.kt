@@ -371,6 +371,8 @@ class AddComputerManually : NovaActivity() {
             handleDoneEvent()
         }
 
+        bindTailscaleSetup()
+
         serviceBound = bindService(
             Intent(this, ComputerManagerService::class.java),
             serviceConnection,
@@ -399,6 +401,36 @@ class AddComputerManually : NovaActivity() {
             // A link has no button to split, so it asks on a Confirm page at the right edge, with
             // Cancel focused. Pairing is not destructive.
             novaSurfaces.present(novaPairLinkConfirmPage(this, hostName) { computersToAdd.add("$server?$query") })
+        }
+    }
+
+    /**
+     * Tailscale help beside the address field. Open Tailscale appears only when that app's own
+     * exported launch activity is what would open; otherwise the official help page is offered.
+     * Nothing here reads or reports a tailnet: the address is whatever the person types above.
+     */
+    private fun bindTailscaleSetup() {
+        val open = findViewById<View>(R.id.openTailscaleButton)
+        val launch = com.papi.nova.network.NovaTailscaleApp.launchIntent(packageManager)
+        open.visibility = if (launch != null) View.VISIBLE else View.GONE
+        open.setOnClickListener {
+            com.papi.nova.network.NovaTailscaleApp.launchIntent(packageManager)?.let { intent ->
+                try {
+                    startActivity(intent)
+                } catch (e: android.content.ActivityNotFoundException) {
+                    open.visibility = View.GONE
+                } catch (e: SecurityException) {
+                    open.visibility = View.GONE
+                }
+            } ?: run { open.visibility = View.GONE }
+        }
+        findViewById<View>(R.id.tailscaleHelpButton).setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.nova_tailscale_help_url))))
+            } catch (e: android.content.ActivityNotFoundException) {
+                addressError.text = getString(R.string.nova_tailscale_help_unavailable)
+                addressError.visibility = View.VISIBLE
+            }
         }
     }
 

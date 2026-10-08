@@ -33,7 +33,9 @@ data class PolarisCapabilities(
         val pyrowaveAdviceV1: Boolean = false,
         val bitrateUnitsV1: Boolean = false,
         /** Numeric host limit, independent of automatic advice and scoped-write authority. */
-        val manualBitrateMaxKbps: Int = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS
+        val manualBitrateMaxKbps: Int = com.papi.nova.preferences.NovaBitrateAdvice.LEGACY_MANUAL_MAX_KBPS,
+        /** The host answers `GET /network/connection` (schema 1) about this client's control connection. */
+        val networkConnectionV1: Boolean = false
     ) {
         constructor(
             aiOptimizer: Boolean,

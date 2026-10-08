@@ -1155,6 +1155,8 @@ internal enum class NovaPlaySetupRow {
     VIDEO_CODEC,
     ENCODER,
     FACE_BUTTONS,
+    /** Which saved settings profile this launch uses: a network rule's, or one picked once. */
+    SETTINGS_PROFILE,
     TUNING,
     STEAM_LAUNCH,
     STEAM_LIFETIME,

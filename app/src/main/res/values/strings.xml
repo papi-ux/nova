@@ -1914,4 +1914,74 @@
     <string name="nova_pyrowave_feature_timeline">timeline semaphores</string>
     <string name="nova_pyrowave_feature_subgroup_size">subgroup size control</string>
     <string name="nova_pyrowave_feature_full_subgroups">full compute subgroups</string>
+
+    <!-- Host connection: what the paired host reports about this device's control connection. Never the video path. -->
+    <string name="nova_host_connection_key">Host connection</string>
+    <string name="nova_host_connection_unknown">Unknown</string>
+    <string name="nova_host_connection_checking">Checking…</string>
+    <string name="nova_host_connection_not_tailscale">Not Tailscale</string>
+    <string name="nova_host_connection_tailscale_direct">Tailscale · direct</string>
+    <string name="nova_host_connection_tailscale_derp">Tailscale · DERP relay</string>
+    <string name="nova_host_connection_tailscale_peer_relay">Tailscale · peer relay</string>
+    <string name="nova_host_connection_tailscale_route_unknown">Tailscale · route unknown</string>
+    <string name="nova_host_connection_scope">Reported by the host for Nova's connection to it. The stream's video and audio can take a different path.</string>
+    <string name="nova_host_connection_unknown_unsupported">This host doesn't report it.</string>
+    <string name="nova_host_connection_unknown_unavailable">The host couldn't check Tailscale just now.</string>
+    <string name="nova_host_connection_unknown_unconfirmed">The host couldn't confirm this connection.</string>
+    <string name="nova_host_connection_unknown_stale">The host's answer was too old to rely on.</string>
+    <string name="nova_host_connection_unknown_unreadable">The host's answer couldn't be read.</string>
+
+    <!-- Settings profile for one launch, chosen by a network rule or by hand. -->
+    <string name="nova_launch_profile_row">Settings Profile</string>
+    <string name="nova_launch_profile_default_settings">Default settings</string>
+    <string name="nova_launch_profile_automatic">Automatic</string>
+    <string name="nova_launch_profile_automatic_consequence">Use the first network rule that matches, or your active profile.</string>
+    <string name="nova_launch_profile_active_consequence">Your active profile, for this launch only.</string>
+    <string name="nova_launch_profile_saved_consequence">This saved profile, for this launch only. Your active profile stays as it is.</string>
+    <string name="nova_launch_profile_caption_active">No network rule matched; using your active profile.</string>
+    <string name="nova_launch_profile_caption_rules_off">Network rules are off for this host.</string>
+    <string name="nova_launch_profile_caption_rule">Rule %1$d matched: %2$s</string>
+    <string name="nova_launch_profile_caption_override">Chosen for this launch only.</string>
+    <string name="nova_launch_profile_edit_rules">Network Rules…</string>
+    <string name="nova_launch_profile_edit_rules_consequence">Choose saved profiles by network for this host.</string>
+
+    <!-- Network rules for one host. -->
+    <string name="nova_network_rules_title">Network Rules</string>
+    <string name="nova_network_rules_subtitle">For %1$s</string>
+    <string name="nova_network_rules_enabled">Use network rules for this host</string>
+    <string name="nova_network_rules_explainer">Before each launch to this host, the first rule that matches picks a saved profile. Nothing changes during a stream, your active profile isn't changed, and Play Setup shows the match so you can choose differently for one launch. Unknown network details never match.</string>
+    <string name="nova_network_rules_no_profiles">Save a settings profile first; rules choose between saved profiles.</string>
+    <string name="nova_network_rules_empty">No rules yet.</string>
+    <string name="nova_network_rules_add">Add rule</string>
+    <string name="nova_network_rules_rule_title">Rule %1$d</string>
+    <string name="nova_network_rules_profile">Profile</string>
+    <string name="nova_network_rules_transport">Network</string>
+    <string name="nova_network_rules_metered">Metered</string>
+    <string name="nova_network_rules_vpn">Nova through a VPN</string>
+    <string name="nova_network_rules_host_connection">Host connection</string>
+    <string name="nova_network_rules_move_up">Move rule %1$d up</string>
+    <string name="nova_network_rules_move_down">Move rule %1$d down</string>
+    <string name="nova_network_rules_delete">Delete rule %1$d</string>
+    <string name="nova_network_rules_missing_profile">Missing profile (skipped)</string>
+    <string name="nova_network_rules_any">Any</string>
+    <string name="nova_network_rules_yes">Yes</string>
+    <string name="nova_network_rules_no">No</string>
+    <string name="nova_network_rules_wifi">Wi-Fi</string>
+    <string name="nova_network_rules_ethernet">Ethernet</string>
+    <string name="nova_network_rules_cellular">Cellular</string>
+    <string name="nova_network_rules_tailscale_confirmed">Tailscale (host confirmed)</string>
+    <string name="nova_network_rules_summary_any">any network</string>
+    <string name="nova_network_rules_summary_metered">metered</string>
+    <string name="nova_network_rules_summary_unmetered">not metered</string>
+    <string name="nova_network_rules_summary_vpn">through a VPN</string>
+    <string name="nova_network_rules_summary_no_vpn">no VPN</string>
+
+    <!-- Reaching a host over Tailscale, from the manual host entry. -->
+    <string name="nova_tailscale_setup_title">Connecting over Tailscale</string>
+    <string name="nova_tailscale_setup_body">With Tailscale on both this device and the host, enter the host's MagicDNS name or Tailscale address above, then pair as usual.</string>
+    <string name="nova_tailscale_setup_checks">If it doesn't connect, check: Tailscale is connected on both devices; the name resolves (try the Tailscale address instead); your tailnet's access rules allow this device to reach the host; Nova isn't excluded by split tunnelling; and, for a host reached through a subnet router, that the router's routes are approved and accepted on this device.</string>
+    <string name="nova_tailscale_open">Open Tailscale</string>
+    <string name="nova_tailscale_help">Tailscale Help</string>
+    <string name="nova_tailscale_help_url" translatable="false">https://tailscale.com/kb/1017/install</string>
+    <string name="nova_tailscale_help_unavailable">No app can open the Tailscale help page.</string>
 </resources>

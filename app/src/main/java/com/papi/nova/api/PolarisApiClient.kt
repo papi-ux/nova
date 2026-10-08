@@ -1233,7 +1233,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     pyrowaveAdviceV1 = strictBoolean(features, "pyrowave_advice_v1"),
                     bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1"),
                     manualBitrateMaxKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
-                        strictIntOrNull(features, "manual_bitrate_max_kbps"))
+                        strictIntOrNull(features, "manual_bitrate_max_kbps")),
+                    networkConnectionV1 = strictBoolean(features, "network_connection_v1")
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -2401,6 +2402,37 @@ class PolarisApiClient @JvmOverloads constructor(
         } catch (e: Exception) {
             LimeLog.warning("Nova: Capabilities probe failed: ${errorMessage(e)}")
             null
+        }
+    }
+
+    /**
+     * Ask the host how this client's control connection reaches it. Only a host that declares
+     * `network_connection_v1` is asked; any other host, a 404 or a failure is a supported unknown.
+     * The raw body is kept for [com.papi.nova.network.HostConnectionObservation] and is never
+     * logged: it is about a tailnet, and failures log a fixed message without the exception text.
+     */
+    fun getNetworkConnection(capabilities: PolarisCapabilities?): com.papi.nova.network.HostConnectionObservation {
+        if (capabilities?.features?.networkConnectionV1 != true) {
+            return com.papi.nova.network.HostConnectionObservation(body = null, supported = false)
+        }
+        return try {
+            val request = Request.Builder().url("$baseUrl/network/connection").build()
+            executeGetWithRetry(request).use { response ->
+                when (response.code) {
+                    200 -> com.papi.nova.network.HostConnectionObservation(
+                        body = response.body?.let { body ->
+                            val declared = body.contentLength()
+                            if (declared > com.papi.nova.network.HostConnectionEvidence.MAX_BODY_CHARS) null else body.string()
+                        },
+                        supported = true
+                    )
+                    404 -> com.papi.nova.network.HostConnectionObservation(body = null, supported = false)
+                    else -> com.papi.nova.network.HostConnectionObservation(body = null, supported = true)
+                }
+            }
+        } catch (e: Exception) {
+            LimeLog.warning("Nova: host connection evidence unavailable")
+            com.papi.nova.network.HostConnectionObservation(body = null, supported = true)
         }
     }
 
