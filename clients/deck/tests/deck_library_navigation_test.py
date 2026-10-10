@@ -1230,7 +1230,7 @@ def wake_pc_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: not s.get("systemOpen") and s.get("focus") == "library-system")
 
 
-def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
+def host_power_navigation(wait, keys, state, fixtures, save_capture, window, settle):
     def power_phase(value):
         return lambda s: s.get("hostPower", {}).get("phase") == value
     def open_power():
@@ -1238,8 +1238,19 @@ def host_power_navigation(wait, keys, state, fixtures, save_capture, window):
         wait(lambda s: s.get("hostPowerOpen") and power_phase("ready")(s) and s.get("focus") == "host-power-hold")
     def hold():
         command("xdotool", "keydown", "Return")
-        wait(power_phase("countdown"))
+        # A controller phase alone does not prove the UI is ready for Cancel.
+        # Require the real focused action, and observe the raw key release before
+        # sending another press, just as keys() does for ordinary taps.
+        countdown = lambda s: s.get("hostPowerOpen") and power_phase("countdown")(s) and s.get("focus") == "host-power-cancel"
+        before = wait(countdown)
+        print("NOVA_DECK_HOST_POWER_HOLD_V1 " + json.dumps({"stage": "before-keyup", "phase": before["hostPower"]["phase"],
+              "focus": before.get("focus"), "opened": before.get("hostPowerOpen")}), flush=True)
         command("xdotool", "keyup", "Return")
+        settle()
+        after = state()
+        print("NOVA_DECK_HOST_POWER_HOLD_V1 " + json.dumps({"stage": "after-keyup-observed", "phase": after.get("hostPower", {}).get("phase"),
+              "focus": after.get("focus"), "opened": after.get("hostPowerOpen")}), flush=True)
+        wait(countdown)
     a = fixtures["a"]
     keys("Up", "Up", "Up", "Right", "Return")
     for _ in range(12):
@@ -2376,7 +2387,8 @@ def main():
             elif args.wake_pc:
                 wake_pc_navigation(wait, keys, state, save_capture, window)
             elif args.host_power:
-                host_power_navigation(wait, keys, state, fixtures, save_capture, window)
+                host_power_navigation(wait, keys, state, fixtures, save_capture, window,
+                                      lambda: wait_for_ui_observations(observation, app))
             elif args.appearance:
                 appearance_navigation(wait, keys, state, save_capture, window)
             elif args.audio_settings:
