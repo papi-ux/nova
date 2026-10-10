@@ -21,6 +21,7 @@
 #include <QWheelEvent>
 #include <QElapsedTimer>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <atomic>
@@ -31,6 +32,7 @@
 #include <thread>
 #include <tuple>
 #include <stdexcept>
+#include <sys/stat.h>
 
 using namespace nova::deck::runtime;
 using namespace nova::deck::stream;
@@ -1398,6 +1400,130 @@ void testWorkingBaselineBoundary() {
     require(!QFileInfo::exists(deckSupportReportDirectory()), "baseline action wrote a support report");
 }
 
+// A separate isolated mode exercises the production controller, not a QML mock.
+void testReportMomentBoundary() {
+    const auto directory = DeckMomentStore::defaultDirectory();
+    require(directory.startsWith(qEnvironmentVariable("XDG_CONFIG_HOME") + "/"), "moment storage not isolated");
+    const auto files = [&] { return QDir(directory).entryList({"nova-moment-*.json"}, QDir::Files, QDir::Name); };
+    const auto read = [&](const QString& name) {
+        QFile f(QDir(directory).filePath(name)); require(f.open(QIODevice::ReadOnly), "moment readback failed"); return f.readAll();
+    };
+    Host host; Driver driver; InputRecorder input(driver); host.driver = &driver; host.appUuid = "game";
+    // Deliberately no stable baseline scope: marking a moment does not claim one.
+    DeckNativeSessionController controller(true,host.resolver(),driver,input.sender());
+    const auto local = [&](auto action) {
+        const int requests = host.requests, launches = host.launches, cancels = host.cancels, starts = driver.starts, stops = driver.stops;
+        const auto result = action();
+        require(host.requests == requests && host.launches == launches && host.cancels == cancels && driver.starts == starts && driver.stops == stops,
+            "moment action acquired host/network/lifecycle authority");
+        return result;
+    };
+    const auto mark = [&] { return local([&] { return controller.markMoment(); }); };
+    const auto save = [&](const QString& token) { return local([&] { return controller.saveMoment(token); }); };
+    const auto discard = [&](const QString& token) { return local([&] { return controller.discardMoment(token); }); };
+    const auto wait = [&](auto predicate,const char* stage,int timeout = 6000) {
+        QElapsedTimer deadline; deadline.start();
+        while (!predicate() && deadline.elapsed() < timeout) { QCoreApplication::processEvents(); QThread::msleep(1); }
+        if (!predicate()) std::cerr << "Moment " << stage << ": phase=" << phase(controller).toStdString()
+            << " fresh=" << controller.hud().value("fresh").toBool() << " rtt=" << controller.hud().value("rtt").toString().toStdString() << '\n';
+        require(predicate(),stage);
+    };
+    const QVariantMap configured{{"width",1280},{"height",800},{"fps",60},{"bitrateKbps",20000},{"videoCodec","h264"}};
+    require(mark()["status"] == "inactive" && !controller.canSaveMoment() && !QFileInfo::exists(directory), "idle mark allowed/wrote storage");
+    controller.setInputFocus(true); controller.updateController({},true);
+    require(controller.startConfigured("host","game",configured), "moment stream did not start");
+    wait([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool() && controller.hud().value("rtt") == "17ms"; },"first fresh readings");
+    int notifications = 0;
+    QObject::connect(&controller,&DeckNativeSessionController::momentChanged,&controller,[&] { ++notifications; });
+    const int beforeRepeatedFocus = notifications;
+    for (int i = 0; i < 50; ++i) controller.setInputFocus(true);
+    require(notifications == beforeRepeatedFocus, "repeated gamepad focus notified moment changes");
+    const auto frozen = mark(); const auto token = frozen["token"].toString();
+    require(frozen["status"] == "marked" && frozen["state"] == "current" && frozen["entries"].toInt() >= 2 && controller.canSaveMoment() &&
+        !QFileInfo::exists(directory), "mark did not freeze current history or wrote files");
+    const int beforeLostFocus = notifications;
+    controller.setInputFocus(false);
+    require(!controller.canSaveMoment() && save(token)["status"] == "inactive" && !QFileInfo::exists(directory), "focus loss discarded/allowed/wrote moment");
+    require(notifications == beforeLostFocus + 1, "focus loss did not notify exactly once");
+    controller.setInputFocus(true); require(controller.canSaveMoment() && notifications == beforeLostFocus + 2, "focus return lost pending moment/notification");
+    driver.rttValue = 41;
+    wait([&] { return controller.hud().value("fresh").toBool() && controller.hud().value("rtt") == "41ms"; },"new readings after mark");
+    const auto saved = save(token); require(saved["status"] == "saved" && files().size() == 1, "frozen save failed");
+    const auto firstBytes = read(saved["fileName"].toString());
+    const auto first = QJsonDocument::fromJson(firstBytes).object();
+    require(first["snapshot"].toObject()["readings"].toObject()["network"].toObject()["rtt_ms"] == 17 && first["requested"].toObject()["video_codec"] == "h264",
+        "Save refreshed the frozen snapshot or invented requested settings");
+    const auto firstEntries = first["window"].toObject()["entries"].toArray();
+    require(firstEntries.size() >= 2 && firstEntries.first().toObject()["state_at_receipt"] == "unavailable" && firstEntries.first().toObject()["readings"].isNull(),
+        "initial unprimed HUD sample inherited current fields");
+    double previousAge = 10001;
+    for (const auto& e : firstEntries) {
+        const auto age = e.toObject()["received_age_ms"].toDouble(); require(age >= 0 && age <= 10000 && age < previousAge,"history age/order wrong"); previousAge = age;
+    }
+    require(save(token)["status"] == "no_pending" && discard(token)["status"] == "no_pending" && files().size() == 1 && read(saved["fileName"].toString()) == firstBytes,
+        "repeated Save/close duplicated or changed report");
+    const auto storagePending = mark();
+    const auto storageToken = storagePending["token"].toString();
+    require(::chmod(QFile::encodeName(directory).constData(),0755) == 0, "storage refusal fixture chmod failed");
+    const auto filesBeforeRefusal = files();
+    require(save(storageToken)["status"] == "storage_unsafe" && controller.canSaveMoment() && files() == filesBeforeRefusal,
+        "storage refusal lost pending bytes or wrote a report");
+    require(::chmod(QFile::encodeName(directory).constData(),0700) == 0, "storage refusal fixture restoration failed");
+    driver.rttValue = 67;
+    wait([&] { return controller.hud().value("fresh").toBool() && controller.hud().value("rtt") == "67ms"; },"new readings during storage refusal");
+    const auto retrySaved = save(storageToken); require(retrySaved["status"] == "saved", "explicit same-token storage retry failed");
+    require(QJsonDocument::fromJson(read(retrySaved["fileName"].toString())).object()["snapshot"].toObject()["readings"].toObject()["network"].toObject()["rtt_ms"] == 41,
+        "storage retry refreshed frozen evidence");
+    driver.holdRtt = true;
+    wait([&] { return !controller.hud().value("fresh").toBool(); },"ordinary live HUD staleness");
+    const auto stale = mark(); require(stale["status"] == "marked" && stale["state"] == "stale" && stale["entries"].toInt() >= 3,"stale mark lost prior history");
+    const auto staleSaved = save(stale["token"].toString()); require(staleSaved["status"] == "saved", "stale evidence cannot be saved");
+    const auto staleReport = QJsonDocument::fromJson(read(staleSaved["fileName"].toString())).object();
+    require(staleReport["snapshot"].toObject()["readings"].isNull(), "stale snapshot leaked readings");
+    int earlierCurrent = 0;
+    for (const auto& e : staleReport["window"].toObject()["entries"].toArray()) if (e.toObject()["state_at_receipt"] == "current") ++earlierCurrent;
+    require(earlierCurrent >= 2, "stale HUD reset erased earlier current samples");
+    const int beforeRecovery = driver.rttReads;
+    driver.holdRtt = false;
+    wait([&] { return driver.rttReads > beforeRecovery; },"receipt after stale reset");
+    QVariantMap recoveredMark;
+    wait([&] {
+        recoveredMark = mark();
+        return recoveredMark["status"] == "marked" && recoveredMark["state"] == "stale" && recoveredMark["entries"].toInt() > stale["entries"].toInt();
+    },"new unprimed client receipt after stale reset");
+    const auto recoveredSave = save(recoveredMark["token"].toString());
+    require(recoveredSave["status"] == "saved", "recovery evidence save failed");
+    bool unavailableRecovery = false;
+    for (const auto& e : QJsonDocument::fromJson(read(recoveredSave["fileName"].toString())).object()["window"].toObject()["entries"].toArray()) {
+        const auto sample = e.toObject();
+        if (sample["received_age_ms"].toDouble() < 1500 && sample["state_at_receipt"] == "unavailable" && sample["readings"].isNull()) unavailableRecovery = true;
+    }
+    require(unavailableRecovery, "new recovered unprimed sample inherited current readings");
+    wait([&] { return controller.hud().value("fresh").toBool(); },"fresh recovery");
+    const auto ended = mark(); const auto endedToken = ended["token"].toString(); const int filesBeforeStop = files().size();
+    controller.stop(); settled(controller);
+    require(!controller.canSaveMoment(), "ended run left Save enabled");
+    require(save(endedToken)["status"] == "stream_changed" && discard(endedToken)["status"] == "stream_changed" && files().size() == filesBeforeStop,
+        "ended-run token allowed save or redundant close rewrote its reason");
+    driver.rttValue = 99;
+    require(controller.startConfigured("host","game",configured), "moment restart did not start");
+    wait([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); },"new run readings");
+    require(save(endedToken)["status"] == "stream_changed" && files().size() == filesBeforeStop, "old token escaped restart fence");
+    const auto newRun = mark(), newSaved = save(newRun["token"].toString()); require(newSaved["status"] == "saved", "new run mark save failed");
+    for (const auto& e : QJsonDocument::fromJson(read(newSaved["fileName"].toString())).object()["window"].toObject()["entries"].toArray())
+        if (!e.toObject()["readings"].isNull()) require(e.toObject()["readings"].toObject()["network"].toObject()["rtt_ms"] == 99, "old-run history escaped reset");
+    const auto hidden = mark(); controller.resumeInput();
+    require(save(hidden["token"].toString())["status"] == "no_pending" && mark()["status"] == "inactive", "hidden controls kept/allowed pending report");
+    controller.showControls(); const auto afterCancel = mark();
+    require(afterCancel["entries"].toInt() >= hidden["entries"].toInt(), "hiding Command Center erased live history");
+    const auto beforeDiscard = files(); require(discard(afterCancel["token"].toString())["status"] == "discarded" && files() == beforeDiscard &&
+        read(saved["fileName"].toString()) == firstBytes, "discard wrote files/changed previous report");
+    require(!QFileInfo::exists(DeckWorkingBaselineStore::defaultDirectory()) &&
+        QDir(directory).entryList({"nova-report-*.json"},QDir::Files).isEmpty(), "moment changed baseline/Doctor storage");
+    controller.stop(); settled(controller);
+    std::cout << "moment controller freeze/focus/history/run-fence/local-authority checks passed; files=" << files().size() << '\n';
+}
+
 void testDoctorActionBoundary() {
     using namespace nova::deck::polaris;
     Host host; Driver driver; InputRecorder input(driver); host.appUuid = "private-game";
@@ -2717,6 +2843,14 @@ int main(int argc, char** argv) {
         QSettings::setDefaultFormat(QSettings::IniFormat);
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
         testWorkingBaselineBoundary(); return 0;
+    }
+    if (app.arguments().contains("--report-moment")) {
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+        // The production writer anchors an existing Documents parent; marking
+        // itself must still create no Nova reports directory or file.
+        require(QDir().mkpath(settingsDirectory.path()+"/Documents"), "moment Documents parent fixture failed");
+        testReportMomentBoundary(); return 0;
     }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();

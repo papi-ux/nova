@@ -7,6 +7,7 @@
 #include "runtime/deck_reconnect_policy.h"
 #include "runtime/deck_hud_metrics.h"
 #include "runtime/deck_working_baseline.h"
+#include "runtime/deck_moment_report.h"
 #include "stream/deck_controller_input.h"
 #include "stream/deck_desktop_input.h"
 
@@ -34,6 +35,7 @@ class DeckNativeSessionController final : public QObject {
     Q_PROPERTY(bool controlsVisible READ controlsVisible NOTIFY controlsChanged)
     Q_PROPERTY(QString controllerHint READ controllerHint NOTIFY controlsChanged)
     Q_PROPERTY(QVariantMap hud READ hud NOTIFY hudChanged)
+    Q_PROPERTY(bool canSaveMoment READ canSaveMoment NOTIFY momentChanged)
 public:
     // GUI thread only; each running worker keeps its original resolver.
     bool setTargetResolver(DeckNativeTargetResolver resolver);
@@ -83,6 +85,11 @@ public:
     Q_INVOKABLE QVariantMap saveWorkingBaseline(const QString& generation);
     Q_INVOKABLE QVariantMap clearWorkingBaseline(const QString& generation);
     Q_INVOKABLE QVariantMap compareWorkingBaseline() const;
+    // Mark freezes bounded local bytes; only a later explicit Save writes them.
+    bool canSaveMoment() const;
+    Q_INVOKABLE QVariantMap markMoment();
+    Q_INVOKABLE QVariantMap saveMoment(const QString& token);
+    Q_INVOKABLE QVariantMap discardMoment(const QString& token);
     Q_INVOKABLE bool applyDoctorFix();
     Q_INVOKABLE bool undoDoctorFix();
     Q_INVOKABLE bool checkDoctorResult();
@@ -101,6 +108,7 @@ signals:
     void stateChanged();
     void pyrowaveSupportRefused();
     void hudChanged();
+    void momentChanged();
     void inputSessionStarted(bool reusePlayers);
     void controlsChanged();
     void sleepPreparationFinished();
@@ -122,6 +130,10 @@ private:
     struct BaselineContext { QString scope; std::optional<DeckWorkingBaselineRequest> request; };
     std::optional<BaselineContext> baselineContext(QString& reason) const;
     std::optional<QJsonObject> freshBaselineRecord(const BaselineContext& context, const QDateTime& nowUtc) const;
+    bool activeMoment(std::optional<DeckWorkingBaselineRequest>* request = nullptr) const;
+    QString absentMomentStatus(const QString& token) const;
+    void discardPendingMoment(bool runEnded = false);
+    void endMomentRun();
     void routeController(stream::DeckControllerRoute route, unsigned player = 0);
     void syncRumble();
     void releaseDesktopInput();
@@ -147,6 +159,11 @@ private:
     DeckHudMetrics hudMetrics_;
     qint64 hudSampleMs_ = -1, hudReceivedMs_ = -1;
     std::uint64_t runGeneration_ = 0;
+    struct PendingMoment { QString token; std::uint64_t generation; QByteArray bytes; QDateTime markedUtc; };
+    struct MomentTombstone { QString token; std::uint64_t generation; bool runEnded; };
+    std::optional<PendingMoment> pendingMoment_;
+    std::optional<MomentTombstone> momentTombstone_;
+    DeckMomentHistory momentHistory_;
     QTimer timer_;
     QTimer reconnectTimer_;
     DeckReconnectPolicy reconnectPolicy_;
