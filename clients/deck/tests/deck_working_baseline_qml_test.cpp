@@ -1,4 +1,5 @@
 #include "runtime/deck_play_settings.h"
+#include "runtime/deck_host_settings.h"
 #include "stream/deck_stream_media_adapters.h"
 #include "deck_preview_fixture.h"
 #include <QDir>
@@ -28,6 +29,9 @@ int main(int argc, char** argv) {
     PreviewSession session; PreviewPlayers players(session);
     nova::deck::runtime::DeckPlaySettings settings(directory.filePath("play.ini"));
     settings.setVideoDecodeSupport({.h264 = {4096, 4096}, .hevc = {4096, 4096}});
+    // The real controller supplies the enabled-row contract without a target,
+    // resolver or open request. This fixture never performs host operations.
+    nova::deck::runtime::DeckHostSettingsController syncController;
     session.startConfigured("fixture-host", "fixture-game", {});
     session.transition("active", true, "Your game is connected.");
     QQmlEngine engine;
@@ -63,9 +67,23 @@ ApplicationWindow {
         press(Qt::Key_Return); require(opened("working-baseline-popup"), "baseline popup did not open");
     };
 
-    // The row sits after Polaris Sync, so existing Doctor → Sync navigation is unchanged.
-    item("native-polaris-sync")->forceActiveFocus(); QTest::qWait(50); press(Qt::Key_Down);
-    require(focusName() == "native-working-baseline", "D-pad cannot reach the baseline row");
+    auto* preview = root->findChild<QObject*>("native-stream-preview"); require(preview, "preview missing");
+    // Without a host controller, navigation skips the disabled Sync row in
+    // both directions. Never force focus onto a disabled item to test routing.
+    require(!item("native-polaris-sync")->isEnabled(), "Sync should be disabled without a host controller");
+    item("native-doctor")->forceActiveFocus(); QTest::qWait(50); press(Qt::Key_Down);
+    require(focusName() == "native-working-baseline", "D-pad did not skip unavailable Sync to reach baseline");
+    press(Qt::Key_Up); require(focusName() == "native-doctor", "baseline Up did not skip unavailable Sync");
+
+    // With a controller, preserve Doctor → Sync and verify Sync ↔ baseline.
+    require(preview->setProperty("hostSettingsController", QVariant::fromValue(static_cast<QObject*>(&syncController))),
+        "cannot attach host controller fixture");
+    QTest::qWait(50); require(item("native-polaris-sync")->isEnabled(), "Sync did not enable with its controller");
+    press(Qt::Key_Down); require(focusName() == "native-polaris-sync", "Doctor Down no longer reaches available Sync");
+    press(Qt::Key_Down); require(focusName() == "native-working-baseline", "Sync Down cannot reach the baseline row");
+    press(Qt::Key_Up); require(focusName() == "native-polaris-sync", "baseline Up cannot reach available Sync");
+    press(Qt::Key_Down); require(focusName() == "native-working-baseline", "Sync Down lost baseline focus");
+    require(!opened("native-polaris-sync-view"), "navigation opened host operations");
 
     openBaseline();
     require(focusName() == "working-baseline-save", "Save was not the first focused action");
@@ -85,7 +103,6 @@ ApplicationWindow {
     require(opened("working-baseline-popup"), "outside press on the confirmation also closed the baseline page");
     // Physical B routes through leave(): it cancels only the confirmation.
     item("working-baseline-save")->forceActiveFocus(); press(Qt::Key_Return);
-    auto* preview = root->findChild<QObject*>("native-stream-preview"); require(preview, "preview missing");
     require(QMetaObject::invokeMethod(preview, "leave"), "cannot route controller Back"); QTest::qWait(80);
     require(!opened("working-baseline-save-confirmation") && opened("working-baseline-popup") && session.baselineSaves == 0,
         "controller Back saved or closed the baseline page");
