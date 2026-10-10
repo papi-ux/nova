@@ -752,6 +752,10 @@ if(BUILD_TESTING)
     add_test(NAME nova_deck_frontend_smoke_route_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_frontend_smoke_test.py
     )
+    add_test(NAME nova_deck_ui_input_settling_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_ui_input_test.py
+    )
+    set_tests_properties(nova_deck_ui_input_settling_test PROPERTIES TIMEOUT 20)
     # These fixtures use <cassert>; Release must execute their checks/setup.
     # QtTest and explicit require/check fixtures retain their existing policy.
     foreach(assertion_test IN ITEMS

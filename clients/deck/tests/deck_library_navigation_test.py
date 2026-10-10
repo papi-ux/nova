@@ -16,7 +16,7 @@ import time
 from urllib.parse import urlsplit, parse_qs
 from xml.sax.saxutils import escape
 from deck_artwork_fixture import artwork_png
-from deck_ui_input import wait_for_ui_observations
+from deck_ui_input import attach_settling_failure_note, wait_for_ui_observations
 
 # One compact JSON record per app phase, on stdout, so CTest keeps it in LastTest.log and
 # JUnit output even when the test passes. Measurement only: nothing here waits, decides or
@@ -2329,7 +2329,13 @@ def main():
         def keys(*values):
             for value in values:
                 command("xdotool", "key", "--clearmodifiers", value)
-                wait_for_ui_observations(observation, app)
+                try:
+                    wait_for_ui_observations(observation, app)
+                except AssertionError as error:
+                    # Retain bounded closed state and app-log tail before the fixture directory is removed;
+                    # the original exception, message and traceback are re-raised unchanged.
+                    attach_settling_failure_note(error, state, log)
+                    raise
 
         def save_capture(name):
             if args.capture_dir:
