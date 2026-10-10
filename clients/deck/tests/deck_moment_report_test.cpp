@@ -104,7 +104,7 @@ void snapshotAndPrivacy() {
     std::cout << "snapshot/schema/privacy boundaries passed\n";
 }
 void historyAndBounds() {
-    const auto r = report()["snapshot"].toObject()["readings"];
+    const QJsonValue r = report().value("snapshot").toObject().value("readings");
     const QList<DeckMomentSample> candidates{{500, 1, r}, {7000, 1, r}, {8000, 1, QJsonValue::Null},
         {8000, 1, r}, {6000, 1, r}, {10001, 1, r}, {-1, 1, r}, {0, 2, r}, {0, 1, r}};
     const auto w = selectMomentWindow(candidates, 10000, 1);
@@ -151,7 +151,7 @@ void historyAndBounds() {
     for (const auto* key : {"appliedBitrate", "requestedBitrate", "qualityLimit"}) maximum[key] = "299.999M";
     QCoreApplication::setApplicationVersion("999.999.999.999");
     DeckMomentHistory maxHistory; QList<DeckMomentSample> maxCandidates;
-    const auto maxReading = report(maximum)["snapshot"].toObject()["readings"];
+    const QJsonValue maxReading = report(maximum).value("snapshot").toObject().value("readings");
     for (int i = 0; i < 10; ++i) { const qint64 at = 2000 + i * 1000; maxHistory.append(maximum, at, 1); maxCandidates.append({at, 1, maxReading}); }
     const auto trimmed = selectMomentWindow(maxCandidates, 12000, 1, {}, 2400); const auto trimmedEntries = trimmed["entries"].toArray();
     require(!trimmedEntries.isEmpty() && trimmedEntries.size() < 10 && QJsonDocument(trimmedEntries).toJson(QJsonDocument::Compact).size() <= 2400 &&
