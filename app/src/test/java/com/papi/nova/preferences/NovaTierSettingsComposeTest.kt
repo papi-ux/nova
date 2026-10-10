@@ -58,10 +58,12 @@ class NovaTierSettingsComposeTest {
     }
     private fun awaitRecommended(vm:NovaSettingsViewModel) {
         val deadline=System.nanoTime()+5_000_000_000L
-        while(vm.pictureTier!=NovaTier.RECOMMENDED && System.nanoTime()<deadline) {
+        // pictureTier is the optimistic projection; the row stays disabled until the real save settles.
+        while((vm.pictureTier!=NovaTier.RECOMMENDED || vm.uiState.value.tierSavePending) && System.nanoTime()<deadline) {
             shadowOf(Looper.getMainLooper()).idle();rule.frames(1);Thread.sleep(5)
         }
         assertEquals(NovaTier.RECOMMENDED,vm.pictureTier)
+        assertFalse("the real tier save must settle",vm.uiState.value.tierSavePending)
         rule.frames(4)
     }
     @Test fun aThenAChoosesRecommendedWhileTheOriginalCustomPinSurvives() {
@@ -84,6 +86,7 @@ class NovaTierSettingsComposeTest {
         awaitRecommended(vm)
         rule.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused()
         keys.press(NovaTestKeys.CENTER);rule.frames(8)
+        rule.onNodeWithText("Recommended",substring=false).assertIsFocused()
         keys.back();rule.frames(8)
         rule.onNodeWithTag("nova-settings-row-nova_stream_preset").assertIsFocused()
     }
