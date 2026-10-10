@@ -487,6 +487,8 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_native_session_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_native_session_test COMMAND nova_deck_native_session_test)
     set_tests_properties(nova_deck_native_session_test PROPERTIES TIMEOUT 60)
+    add_test(NAME nova_deck_working_baseline_controller_test COMMAND nova_deck_native_session_test --working-baseline)
+    set_tests_properties(nova_deck_working_baseline_controller_test PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
     add_test(NAME nova_deck_native_launch_cancel_test COMMAND nova_deck_native_session_test --launch-cancel)
     # Run the bounded launch regressions early in parallel full-inventory CI.
     # COST controls scheduling priority here; it is not a measured duration.
