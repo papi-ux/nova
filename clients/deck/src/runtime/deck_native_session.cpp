@@ -5,6 +5,9 @@
 #include "runtime/deck_support_report.h"
 #include "runtime/deck_working_baseline.h"
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QUuid>
 #include "runtime/deck_rumble.h"
 #include <QDebug>
 #include <QScopeGuard>
@@ -177,6 +180,11 @@ DeckNativeSessionController::DeckNativeSessionController(bool enabled, DeckNativ
     inputClock_.start();
     timer_.setInterval(16);
     connect(&timer_, &QTimer::timeout, this, &DeckNativeSessionController::poll);
+    connect(this, &DeckNativeSessionController::stateChanged, this, &DeckNativeSessionController::momentChanged);
+    connect(this, &DeckNativeSessionController::controlsChanged, this, [this] {
+        if (!controlsVisible_) discardPendingMoment();
+        emit momentChanged();
+    });
     reconnectTimer_.setSingleShot(true);
     reconnectTimer_.setTimerType(Qt::PreciseTimer);
     connect(&reconnectTimer_, &QTimer::timeout, this, [this] {
@@ -192,6 +200,7 @@ DeckNativeSessionController::DeckNativeSessionController(bool enabled, DeckNativ
 }
 
 DeckNativeSessionController::~DeckNativeSessionController() {
+    endMomentRun();
     emit rumbleRequested(0, 0);
     for (unsigned player = 0; player < 16; ++player) emit playerRumbleRequested(player, 0, 0);
     closeSession();
@@ -357,11 +366,14 @@ void DeckNativeSessionController::updatePlayerController(unsigned player, DeckCo
 }
 
 void DeckNativeSessionController::setInputFocus(bool focused) {
+    const bool changed = inputFocused_ != focused;
     inputFocused_ = focused;
     if (!focused) {
         showControls();
         if (reconnectPending_ || state_.value("automaticReconnect").toBool()) stop();
     }
+    // This method is called for every gamepad event. Notify only a focus transition.
+    if (changed) emit momentChanged();
 }
 
 void DeckNativeSessionController::showControls() {
@@ -375,6 +387,7 @@ void DeckNativeSessionController::showControls() {
 
 void DeckNativeSessionController::resumeInput() {
     if (sleeping_ || !busy() || state_.value("phase") != "active" || !inputFocused_) return;
+    discardPendingMoment(); // Cancelling the popup does not end this run's history.
     controlsVisible_ = false;
     for (unsigned player = 0; player < 16; ++player)
         if (controllerMask_ & (1u << player)) routeController(controllerRouters_[player].capture(true, inputClock_.elapsed()), player);
@@ -404,6 +417,7 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     }
     showControls();
     resumeTicket_.reset();
+    endMomentRun();
     shared_ = std::make_shared<Shared>();
     ++runGeneration_; // invalidates every open baseline confirmation, even for the same game
     if (configuration) shared_->baselineRequest = DeckWorkingBaselineRequest{configuration->width, configuration->height,
@@ -531,6 +545,7 @@ bool DeckNativeSessionController::requestStop(bool keepHostRunning) {
         shared_->endGameRequested = !keepHostRunning && shared_->state.value("phase") == "active";
         shared_->cancelled = true;
     }
+    endMomentRun();
     showControls();
     if (frameDelivery_) frameDelivery_->close();
     shared_->wake.notify_all();
@@ -641,6 +656,59 @@ QVariantMap DeckNativeSessionController::compareWorkingBaseline() const {
     return compareWorkingBaselines(*read.baseline, freshBaselineRecord(*context, now));
 }
 
+bool DeckNativeSessionController::activeMoment(std::optional<DeckWorkingBaselineRequest>* request) const {
+    if (!shared_ || !worker_ || !inputFocused_ || sleeping_ || !controlsVisible_ || state_.value("phase") != "active") return false;
+    const std::lock_guard lock(shared_->mutex);
+    if (shared_->cancelled || shared_->done || shared_->finishing) return false;
+    if (request) *request = shared_->baselineRequest;
+    return true;
+}
+bool DeckNativeSessionController::canSaveMoment() const {
+    return pendingMoment_ && pendingMoment_->generation == runGeneration_ && activeMoment();
+}
+QString DeckNativeSessionController::absentMomentStatus(const QString& token) const {
+    return momentTombstone_ && token == momentTombstone_->token &&
+        (momentTombstone_->generation != runGeneration_ || momentTombstone_->runEnded) ? "stream_changed" : "no_pending";
+}
+void DeckNativeSessionController::discardPendingMoment(bool runEnded) {
+    if (!pendingMoment_) return; // A redundant popup close cannot rewrite a consumed/ended token.
+    momentTombstone_ = MomentTombstone{pendingMoment_->token, pendingMoment_->generation, runEnded};
+    pendingMoment_.reset(); emit momentChanged();
+}
+void DeckNativeSessionController::endMomentRun() {
+    discardPendingMoment(true); momentHistory_.clear();
+}
+QVariantMap DeckNativeSessionController::markMoment() {
+    std::optional<DeckWorkingBaselineRequest> request;
+    if (!activeMoment(&request)) return {{"status", "inactive"}};
+    const auto markedUtc = QDateTime::currentDateTimeUtc();
+    const auto bytes = buildMomentReport(hud_, hudReceivedMs_, inputClock_.elapsed(), runGeneration_, request, momentHistory_, markedUtc);
+    if (bytes.isEmpty()) return {{"status", "too_large"}};
+    discardPendingMoment();
+    const auto token = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    pendingMoment_ = PendingMoment{token, runGeneration_, bytes, markedUtc};
+    const auto report = QJsonDocument::fromJson(bytes).object(), window = report["window"].toObject();
+    emit momentChanged();
+    return {{"status", "marked"}, {"token", token}, {"markedAtUtc", report["marked_at_utc"].toString()},
+        {"state", report["snapshot"].toObject()["state"].toString()}, {"entries", window["entries"].toArray().size()},
+        {"spanMs", window["span_ms"].toVariant()}};
+}
+QVariantMap DeckNativeSessionController::saveMoment(const QString& token) {
+    if (!pendingMoment_ || token != pendingMoment_->token) return {{"status", absentMomentStatus(token)}};
+    if (pendingMoment_->generation != runGeneration_) { discardPendingMoment(true); return {{"status", "stream_changed"}}; }
+    // Recheck the actual worker under its mutex even if the advisory UI property
+    // was true. A finishing worker refuses; focus loss keeps the frozen pending bytes.
+    if (!activeMoment()) return {{"status", "inactive"}};
+    const auto saved = DeckMomentStore(DeckMomentStore::defaultDocumentsDirectory()).save(pendingMoment_->bytes, pendingMoment_->markedUtc);
+    if (saved.value("status") == "saved" || saved.value("status") == "saved_durability_unknown") discardPendingMoment();
+    return saved;
+}
+QVariantMap DeckNativeSessionController::discardMoment(const QString& token) {
+    if (!pendingMoment_ || token != pendingMoment_->token) return {{"status", absentMomentStatus(token)}};
+    if (pendingMoment_->generation != runGeneration_) { discardPendingMoment(true); return {{"status", "stream_changed"}}; }
+    discardPendingMoment(); return {{"status", "discarded"}};
+}
+
 bool DeckNativeSessionController::applyDoctorFix() {
     if (!shared_ || !worker_ || !inputFocused_ || sleeping_ || !controlsVisible_ || state_.value("phase") != "active") return false;
     const std::lock_guard lock(shared_->mutex);
@@ -729,6 +797,7 @@ void DeckNativeSessionController::poll() {
         else reconnectPolicy_.sample(frames, inputClock_.elapsed());
     }
     auto nextHud = hud_;
+    bool newMomentSample = false;
     if (!finished && !shared_->cancelled && next.value("phase") == "active" && hudSample) {
         if (hudSample->atMs != hudSampleMs_) {
             hudSampleMs_ = hudSample->atMs;
@@ -744,6 +813,7 @@ void DeckNativeSessionController::poll() {
                 hudSample->deliveryQueueDepth = delivery.queued;
             }
             nextHud = hudMetrics_.sample(*hudSample);
+            newMomentSample = true;
             appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
@@ -757,6 +827,10 @@ void DeckNativeSessionController::poll() {
         nextHud["suggestedBitrateKbps"] = std::min(nextHud.value("maximumBitrateKbps",300000).toInt(),
             polaris::bitrateAdvice(hudSample->width,hudSample->height,hudSample->targetFps).value("kbps").toInt());
     }
+    // One append per new client sample, after host merge, using the receipt clock
+    // above. Host-only changes and repeated/stale HUD resets do not add samples.
+    if (newMomentSample) momentHistory_.append(nextHud, hudReceivedMs_, runGeneration_);
+    if (finished || next.value("phase") != "active") endMomentRun();
     if (nextHud != hud_) { hud_ = std::move(nextHud); emit hudChanged(); }
     if (next != state_) {
         state_ = next;

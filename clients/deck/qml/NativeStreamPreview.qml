@@ -68,6 +68,7 @@ Popup {
     function leave() {
         if (videoScaling.opened) { videoScaling.close(); return }
         if (polarisSync.opened) { polarisSync.back(); return }
+        if (momentReport.opened) { momentReport.back(); return }
         if (workingBaseline.opened || workingBaseline.confirming) { workingBaseline.back(); return }
         if (doctor.opened) { doctor.close(); return }
         if (liveBitrate.opened) { liveBitrate.close(); return }
@@ -126,16 +127,16 @@ Popup {
         target: session
         function onStateChanged() {
             resumeError = "";
-            if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); polarisSync.close(); videoScaling.close() }
+            if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close() }
             if (nativePreview.opened && !nativePlaying) Qt.callLater(function() {
                 if (nativePreview.opened) nativePreviewAction.forceActiveFocus()
             })
         }
         function onControlsChanged() {
-            if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); polarisSync.close(); videoScaling.close() }
+            if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close() }
             if (!nativePreview.opened) return
             Qt.callLater(function() {
-                if (!nativePreview.opened || endConfirmation.opened || liveBitrate.opened || doctor.opened || workingBaseline.opened || workingBaseline.confirming || polarisSync.opened || videoScaling.opened) return
+                if (!nativePreview.opened || endConfirmation.opened || liveBitrate.opened || doctor.opened || workingBaseline.opened || workingBaseline.confirming || momentReport.opened || polarisSync.opened || videoScaling.opened) return
                 if (session.controlsVisible) nativePreviewAction.forceActiveFocus()
                 else nativeStreamContent.forceActiveFocus()
             })
@@ -161,6 +162,7 @@ Popup {
     onClosed: {
         videoScaling.close()
         polarisSync.close()
+        momentReport.closeAll()
         if (gameTools) gameTools.close()
         playSetup.closeHostDefaults()
         if (presentationBridge) presentationBridge.detach()
@@ -586,7 +588,24 @@ Popup {
                     text: "Working baseline · Save or compare"
                     onClicked: workingBaseline.open()
                     Keys.onUpPressed: syncAction.enabled ? syncAction.forceActiveFocus() : doctorAction.forceActiveFocus()
+                    Keys.onDownPressed: momentAction.forceActiveFocus()
+                }
+                NovaButton {
+                    id: momentAction
+                    objectName: "native-report-moment"
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Report this moment"
+                    enabled: nativePlaying
+                    onClicked: momentReport.open()
+                    Keys.onUpPressed: baselineAction.forceActiveFocus()
                     Keys.onDownPressed: nativePreviewAction.forceActiveFocus()
+                }
+                Label {
+                    objectName: "native-moment-mark-error"
+                    Layout.fillWidth: true
+                    visible: momentReport.markError.length > 0
+                    text: momentReport.markError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.warning; font.pixelSize: 17 * nativePreview.unit * NovaTheme.fontScale
                 }
             }
         }
@@ -631,6 +650,14 @@ Popup {
             onClosed: Qt.callLater(function() {
                 if (!workingBaseline.opened && !workingBaseline.confirming && nativePlaying && session.controlsVisible)
                     baselineAction.forceActiveFocus()
+            })
+        }
+        MomentReport {
+            id: momentReport
+            session: nativePreview.session
+            unit: nativePreview.unit
+            onClosed: Qt.callLater(function() {
+                if (!momentReport.opened && nativePlaying && session.controlsVisible) momentAction.forceActiveFocus()
             })
         }
         SteamControls { id: streamSteamSheet; controller: nativePreview.steamController; unit: nativePreview.unit; onClosed: streamSteam.forceActiveFocus() }
