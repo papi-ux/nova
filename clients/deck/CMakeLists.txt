@@ -138,6 +138,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_doctor_receipts.cpp
     src/runtime/deck_support_report.cpp
     src/runtime/deck_working_baseline.cpp
+    src/runtime/deck_moment_report.cpp
     src/polaris/deck_session_events.cpp
     src/runtime/deck_library_controller.cpp
     src/runtime/deck_library_artwork.cpp
@@ -413,6 +414,10 @@ if(BUILD_TESTING)
     target_link_libraries(nova_deck_working_baseline_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_working_baseline_test COMMAND nova_deck_working_baseline_test)
     set_tests_properties(nova_deck_working_baseline_test PROPERTIES TIMEOUT 20)
+    add_executable(nova_deck_moment_report_test tests/deck_moment_report_test.cpp)
+    target_link_libraries(nova_deck_moment_report_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_moment_report_test COMMAND nova_deck_moment_report_test)
+    set_tests_properties(nova_deck_moment_report_test PROPERTIES TIMEOUT 20)
     add_executable(nova_deck_doctor_receipts_test tests/deck_doctor_receipts_test.cpp)
     target_link_libraries(nova_deck_doctor_receipts_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_doctor_receipts_test COMMAND nova_deck_doctor_receipts_test)
@@ -489,6 +494,8 @@ if(BUILD_TESTING)
     set_tests_properties(nova_deck_native_session_test PROPERTIES TIMEOUT 60)
     add_test(NAME nova_deck_working_baseline_controller_test COMMAND nova_deck_native_session_test --working-baseline)
     set_tests_properties(nova_deck_working_baseline_controller_test PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    add_test(NAME nova_deck_report_moment_controller_test COMMAND nova_deck_native_session_test --report-moment)
+    set_tests_properties(nova_deck_report_moment_controller_test PROPERTIES TIMEOUT 30 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
     add_test(NAME nova_deck_native_launch_cancel_test COMMAND nova_deck_native_session_test --launch-cancel)
     # Run the bounded launch regressions early in parallel full-inventory CI.
     # COST controls scheduling priority here; it is not a measured duration.
@@ -816,6 +823,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/LiveBitrate.qml
                 qml/Doctor.qml
                 qml/WorkingBaseline.qml
+                qml/MomentReport.qml
                 qml/NovaButton.qml
                 qml/NovaScrollColumn.qml
                 qml/SteamControls.qml
@@ -1166,6 +1174,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_compile_definitions(nova_deck_working_baseline_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_working_baseline_qml_test COMMAND nova_deck_working_baseline_qml_test)
             set_tests_properties(nova_deck_working_baseline_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+            add_executable(nova_deck_moment_report_qml_test tests/deck_moment_report_qml_test.cpp tests/deck_preview_fixture.h)
+            target_link_libraries(nova_deck_moment_report_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
+            target_compile_definitions(nova_deck_moment_report_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_moment_report_qml_test COMMAND nova_deck_moment_report_qml_test)
+            set_tests_properties(nova_deck_moment_report_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
             add_executable(nova_deck_native_preview_qml_test tests/deck_native_preview_qml_test.cpp tests/deck_preview_fixture.h)
             target_link_libraries(nova_deck_native_preview_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_native_preview_qml_test PRIVATE

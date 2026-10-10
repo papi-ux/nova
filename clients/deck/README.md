@@ -452,6 +452,45 @@ backwards clock change makes later-dated entries unreadable until the clock catc
 up; explicit replacement or Clear and malformed-entry retention still apply.
 Physical Deck and real stream acceptance remain open.
 
+## Report this moment (Linux parity, source preview)
+
+During an active stream, Command Center → **Report this moment** freezes the
+current client snapshot and a short sampled history. Marking creates no report
+folder or file. **Keep playing** is focused first; Escape, B and an outside press
+discard the pending moment. **Save moment report** is a separate explicit action
+that writes exactly those frozen bytes to **Documents → Nova reports**. Nothing
+is uploaded, and the action does not change the host, stream, Doctor or settings.
+Focus loss keeps the moment and disables Save until focus returns. Hiding Command
+Center discards the pending moment while preserving the live run's history;
+stopping or starting another run clears that history and refuses an old token.
+
+Every observed snapshot field is unavailable together when the sample is stale
+(older than 2.5 seconds) or missing. The original reviewed request is labelled
+separately and is unknown for an unconfigured start. History retains up to ten
+client HUD samples received within ten seconds, with each sample's own receipt
+age and state. It is sampled data, not a continuous recording; ordinary HUD
+staleness keeps earlier samples. Host processing is host-reported latency carried
+in video, and host telemetry is separately labelled. Logs, identities, host
+records and Doctor verdicts are excluded. Picture, audio and physical controls
+are not judged by the report.
+
+Reports are limited to 32 KiB each, with a 24 KiB history-entry cap and at most 32
+matching local moment files. Nova does not delete reports or overwrite a final
+name. A storage refusal keeps the frozen moment for a later explicit retry.
+After publication, a cleanup or directory-sync failure instead reports that the
+file was saved with unconfirmed durability, consumes the pending moment and
+offers Done; retrying that token cannot create a second copy.
+
+Storage follows the user's Documents ancestors and anchors subsequent operations
+to a private, owned reports directory. An unsafe leaf or lock is refused without
+permission repair. The filesystem must support the POSIX lock, hard link and
+directory sync operations; restrictive owner-bit umasks can cause a refusal.
+The file cap coordinates Nova writers; another process under the same user can
+replace the lock or change the directory. A leftover temporary name from a
+post-publication cleanup failure is left alone by later saves. Foreign ownership
+is checked in source but not induced by the ordinary-user fixture. Source, native
+UI qualification and physical Deck acceptance are separate gates.
+
 ## Current preview smoke scope
 
 The explicit test-only `--fixture` offline smoke validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and controller routing. It does not load an identity or start a stream.
