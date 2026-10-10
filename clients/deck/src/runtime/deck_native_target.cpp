@@ -1,6 +1,7 @@
 #include "runtime/deck_native_target.h"
 #include "stream/deck_pyrowave_probe.h"
 #include "runtime/deck_doctor_receipts.h"
+#include "runtime/deck_working_baseline.h"
 #include <QSslCertificate>
 #include "stream/deck_gamestream_library.h"
 
@@ -56,6 +57,13 @@ DeckNativeTargetResolver nativeTargetResolver(
 #endif
         // Cached app ids are local identifiers, not Polaris app UUIDs.
         if (!game->id.starts_with("moonlight-app-") && !standardHost) target.appUuid = game->id;
+        // Working-baseline grouping for this pairing and stable Polaris app only. A
+        // missing or unreadable certificate leaves it empty: no fallback scope.
+        if (!target.appUuid.empty())
+            target.workingBaselineScope = workingBaselineScope(
+                QSslCertificate(QByteArray::fromStdString(host->serverCertificatePem)).toDer(),
+                QSslCertificate(QByteArray::fromStdString(identity->clientCertificatePem)).toDer(),
+                QString::fromStdString(target.appUuid)).toStdString();
         target.serverAddress = host->preferredAddress();
         const auto clientId = identity->clientCertificateFingerprintSha256();
         target.fetchWithCancellation = [client, standardHost, clientId, destination](const std::string& path,

@@ -415,6 +415,38 @@ real-host/physical acceptance remain open. The full
 
 </details>
 
+## Working baseline (Linux parity, source preview)
+
+Command Center → **Working baseline** keeps one user-marked baseline per paired
+PC and stable Polaris game, stored locally on this device. Saving needs an explicit
+confirmation that picture, audio and controls work; Keep playing is focused, and
+Escape, B or an outside press cancels. The press freezes fresh client readings
+(no older than 2.5 s) and the original reviewed stream request. While the page is
+open it follows the HUD, so Save enables when current readings arrive and shows a
+waiting reason until then; an unconfigured
+start keeps the request unknown. A confirmation opened before a stop, restart,
+resume or reconnect is refused. Compare is read-only and descriptive: matching
+context reads same/different/unknown and the page names the specific differing and
+unknown fields without an overall like-for-like verdict; "unavailable" and
+"local-preview" count as unknown even when both sides match. Readings show both
+values with their scope, and there is no score. Game scene, host build and driver, host-side readings,
+network route and panel timing are not compared.
+
+Grouping is a pseudonymous SHA-256 of the paired PC certificate, this install's
+client certificate and the Polaris app UUID. Anyone who can read Nova's local files
+can recompute it for a known host and app. Standard Moonlight hosts and cached
+`moonlight-app-*` games have no stable identity and get no baseline. Every
+baseline lives in one owner-only `index.json` inside Nova's owner-only local data
+folder (`working-baselines`); Nova makes no claim that desktop backups exclude it.
+The index holds at most 12 entries of 2 KiB each under a 26 KiB total cap. Opening
+the page and Compare only read it. Save and Clear take a lock, read the index
+strictly and replace it with one atomic commit, so a failed write leaves the old
+index and a crash leaves either the complete old or new one. A 13th scope first
+retires another scope's malformed entry, then the oldest by marked time. An unsafe
+or unreadable index is refused and left untouched rather than reset; a single
+malformed entry reads as unreadable for that game and can be replaced or cleared.
+Physical Deck and real stream acceptance remain open.
+
 ## Current preview smoke scope
 
 The explicit test-only `--fixture` offline smoke validates the native window, 1280x800 controller-first layout, fake host list states, an inert launch preview, local clipboard copy feedback, and controller routing. It does not load an identity or start a stream.

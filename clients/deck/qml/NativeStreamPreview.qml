@@ -68,6 +68,7 @@ Popup {
     function leave() {
         if (videoScaling.opened) { videoScaling.close(); return }
         if (polarisSync.opened) { polarisSync.back(); return }
+        if (workingBaseline.opened || workingBaseline.confirming) { workingBaseline.back(); return }
         if (doctor.opened) { doctor.close(); return }
         if (liveBitrate.opened) { liveBitrate.close(); return }
         if (hudSettings.opened) { hudSettings.close(); return }
@@ -125,16 +126,16 @@ Popup {
         target: session
         function onStateChanged() {
             resumeError = "";
-            if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); polarisSync.close(); videoScaling.close() }
+            if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); polarisSync.close(); videoScaling.close() }
             if (nativePreview.opened && !nativePlaying) Qt.callLater(function() {
                 if (nativePreview.opened) nativePreviewAction.forceActiveFocus()
             })
         }
         function onControlsChanged() {
-            if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); polarisSync.close(); videoScaling.close() }
+            if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); polarisSync.close(); videoScaling.close() }
             if (!nativePreview.opened) return
             Qt.callLater(function() {
-                if (!nativePreview.opened || endConfirmation.opened || liveBitrate.opened || doctor.opened || polarisSync.opened || videoScaling.opened) return
+                if (!nativePreview.opened || endConfirmation.opened || liveBitrate.opened || doctor.opened || workingBaseline.opened || workingBaseline.confirming || polarisSync.opened || videoScaling.opened) return
                 if (session.controlsVisible) nativePreviewAction.forceActiveFocus()
                 else nativeStreamContent.forceActiveFocus()
             })
@@ -566,7 +567,7 @@ Popup {
                     onClicked: doctor.open()
                     Keys.onUpPressed: liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus()
                         : liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : inGameHud.forceActiveFocus()
-                    Keys.onDownPressed: syncAction.enabled ? syncAction.forceActiveFocus() : nativePreviewAction.forceActiveFocus()
+                    Keys.onDownPressed: syncAction.enabled ? syncAction.forceActiveFocus() : baselineAction.forceActiveFocus()
                 }
                 NovaButton {
                     id: syncAction
@@ -576,6 +577,15 @@ Popup {
                     enabled: nativePlaying && nativePreview.hostSettingsController !== null
                     onClicked: polarisSync.open()
                     Keys.onUpPressed: doctorAction.forceActiveFocus()
+                    Keys.onDownPressed: baselineAction.forceActiveFocus()
+                }
+                NovaButton {
+                    id: baselineAction
+                    objectName: "native-working-baseline"
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Working baseline · Save or compare"
+                    onClicked: workingBaseline.open()
+                    Keys.onUpPressed: syncAction.enabled ? syncAction.forceActiveFocus() : doctorAction.forceActiveFocus()
                     Keys.onDownPressed: nativePreviewAction.forceActiveFocus()
                 }
             }
@@ -613,6 +623,15 @@ Popup {
             session: nativePreview.session
             unit: nativePreview.unit
             onClosed: if (nativePlaying && session.controlsVisible) doctorAction.forceActiveFocus()
+        }
+        WorkingBaseline {
+            id: workingBaseline
+            session: nativePreview.session
+            unit: nativePreview.unit
+            onClosed: Qt.callLater(function() {
+                if (!workingBaseline.opened && !workingBaseline.confirming && nativePlaying && session.controlsVisible)
+                    baselineAction.forceActiveFocus()
+            })
         }
         SteamControls { id: streamSteamSheet; controller: nativePreview.steamController; unit: nativePreview.unit; onClosed: streamSteam.forceActiveFocus() }
         HudSettings {

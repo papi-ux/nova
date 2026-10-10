@@ -3,6 +3,8 @@
 #include "runtime/deck_session_failure_message.h"
 #include "runtime/deck_native_failure_message.h"
 #include "runtime/deck_support_report.h"
+#include "runtime/deck_working_baseline.h"
+#include <QDateTime>
 #include "runtime/deck_rumble.h"
 #include <QDebug>
 #include <QScopeGuard>
@@ -64,6 +66,11 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::function<bool(int)> setBitrate;
     std::function<bool(const QString&, int, bool, const QVariantMap&)> setSync;
     QString syncHostId;
+    // Working baseline context for this run only, under mutex. The scope comes from
+    // this run's freshly resolved target; the request is the original reviewed
+    // configuration (absent for an unconfigured start). Never read from tickets.
+    QString baselineScope;
+    std::optional<DeckWorkingBaselineRequest> baselineRequest;
     std::function<bool()> refreshDiagnostics;
     std::function<bool()> applyDoctorFix, undoDoctorFix, checkDoctorResult;
     DeckFrameDelivery::Publisher deliverFrame;
@@ -398,6 +405,9 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     showControls();
     resumeTicket_.reset();
     shared_ = std::make_shared<Shared>();
+    ++runGeneration_; // invalidates every open baseline confirmation, even for the same game
+    if (configuration) shared_->baselineRequest = DeckWorkingBaselineRequest{configuration->width, configuration->height,
+        configuration->fps, configuration->bitrateKbps, configuration->videoCodec, configuration->profilePreference, configuration->launchMode};
     desktopVideo_ = {}; desktopPixelAspect_ = 1;
     hudMetrics_.reset(); hudSampleMs_ = hudReceivedMs_ = -1;
     hud_ = DeckHudMetrics::empty(); emit hudChanged();
@@ -564,6 +574,71 @@ QVariantMap DeckNativeSessionController::exportSupportReport() {
     { const std::lock_guard lock(shared_->mutex);
       if (shared_->cancelled || shared_->done || shared_->finishing) return unavailable; }
     return saveDeckSupportReport(hud_, deckSupportReportDirectory());
+}
+
+std::optional<DeckNativeSessionController::BaselineContext> DeckNativeSessionController::baselineContext(QString& reason) const {
+    // The same active-run gate as the support report: focused, awake, controls
+    // shown, active and not finishing. Freshness is checked by the caller.
+    if (!shared_ || !worker_ || !inputFocused_ || sleeping_ || !controlsVisible_ || state_.value("phase") != "active") {
+        reason = "inactive"; return {};
+    }
+    const std::lock_guard lock(shared_->mutex);
+    if (shared_->cancelled || shared_->done || shared_->finishing) { reason = "inactive"; return {}; }
+    if (!validWorkingBaselineScope(shared_->baselineScope)) { reason = "no_scope"; return {}; }
+    return BaselineContext{shared_->baselineScope, shared_->baselineRequest};
+}
+
+std::optional<QJsonObject> DeckNativeSessionController::freshBaselineRecord(const BaselineContext& context, const QDateTime& nowUtc) const {
+    const auto nowMs = inputClock_.elapsed();
+    if (!workingBaselineSampleFresh(hud_.value("fresh").toBool(), hudReceivedMs_, nowMs)) return {};
+    return workingBaselineRecord(context.scope, deckSupportReport(hud_), context.request, nowUtc, nowMs - hudReceivedMs_);
+}
+
+QVariantMap DeckNativeSessionController::workingBaselineStatus() const {
+    QString reason;
+    const auto context = baselineContext(reason);
+    QVariantMap status{{"generation", QString::number(runGeneration_)}, {"available", false}, {"reason", reason},
+        {"hasBaseline", false}, {"markedAtUtc", QVariant()}, {"canSave", false}};
+    if (!context) return status;
+    status["available"] = true;
+    status["canSave"] = workingBaselineSampleFresh(hud_.value("fresh").toBool(), hudReceivedMs_, inputClock_.elapsed());
+    const auto read = DeckWorkingBaselineStore(DeckWorkingBaselineStore::defaultDirectory())
+        .load(context->scope, QDateTime::currentDateTimeUtc());
+    status["reason"] = read.status;
+    status["hasBaseline"] = read.baseline.has_value();
+    if (read.baseline) status["markedAtUtc"] = read.baseline->value("marked_at_utc").toString();
+    return status;
+}
+
+QVariantMap DeckNativeSessionController::saveWorkingBaseline(const QString& generation) {
+    if (generation != QString::number(runGeneration_)) return {{"result", "stream_changed"}};
+    QString reason;
+    const auto context = baselineContext(reason);
+    if (!context) return {{"result", reason == "no_scope" ? "no_scope" : "stream_changed"}};
+    // Freeze a new sample at this press; never a value captured before the confirmation.
+    const auto now = QDateTime::currentDateTimeUtc();
+    const auto record = freshBaselineRecord(*context, now);
+    if (!record) return {{"result", "stale_readings"}};
+    return {{"result", DeckWorkingBaselineStore(DeckWorkingBaselineStore::defaultDirectory()).save(context->scope, *record, now)}};
+}
+
+QVariantMap DeckNativeSessionController::clearWorkingBaseline(const QString& generation) {
+    if (generation != QString::number(runGeneration_)) return {{"result", "stream_changed"}};
+    QString reason;
+    const auto context = baselineContext(reason);
+    if (!context) return {{"result", reason == "no_scope" ? "no_scope" : "stream_changed"}};
+    // Explicit maintenance within this identified run; no fresh sample needed.
+    return {{"result", DeckWorkingBaselineStore(DeckWorkingBaselineStore::defaultDirectory()).clear(context->scope)}};
+}
+
+QVariantMap DeckNativeSessionController::compareWorkingBaseline() const {
+    QString reason;
+    const auto context = baselineContext(reason);
+    if (!context) return {{"status", reason}};
+    const auto now = QDateTime::currentDateTimeUtc();
+    const auto read = DeckWorkingBaselineStore(DeckWorkingBaselineStore::defaultDirectory()).load(context->scope, now);
+    if (!read.baseline) return {{"status", read.status}};
+    return compareWorkingBaselines(*read.baseline, freshBaselineRecord(*context, now));
 }
 
 bool DeckNativeSessionController::applyDoctorFix() {
@@ -780,6 +855,10 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             finish("failed", "This game changed in the library. Return and review it again before playing.");
             return;
         }
+        // Before any active publication, so the GUI never sees an active run with
+        // another run's scope. Independent of host telemetry availability.
+        { const std::lock_guard lock(shared->mutex);
+          shared->baselineScope = QString::fromStdString(target->workingBaselineScope); }
         if (shared->automaticAttempt && !target->automaticReconnect) {
             finish("failed", "Automatic reconnect is no longer available for this PC. Return to the library and review it again.");
             return;
