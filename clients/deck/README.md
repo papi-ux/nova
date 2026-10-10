@@ -445,6 +445,11 @@ index and a crash leaves either the complete old or new one. A 13th scope first
 retires another scope's malformed entry, then the oldest by marked time. An unsafe
 or unreadable index is refused and left untouched rather than reset; a single
 malformed entry reads as unreadable for that game and can be replaced or cleared.
+Save is disabled for a known unsafe or unreadable index, with its storage reason
+shown; an individual malformed entry still offers Clear without fresh readings.
+The timestamp check allows five minutes of future clock difference. A larger
+backwards clock change makes later-dated entries unreadable until the clock catches
+up; explicit replacement or Clear and malformed-entry retention still apply.
 Physical Deck and real stream acceptance remain open.
 
 ## Current preview smoke scope

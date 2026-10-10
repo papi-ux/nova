@@ -68,11 +68,11 @@ public:
     // Working baseline fixture: counts every call and models the run generation.
     int baselineGeneration = 1, baselineStatusReads = 0, baselineSaves = 0, baselineClears = 0, baselineCompares = 0;
     bool baselineAvailable = true, baselineFresh = true, baselineStored = false;
-    QString baselineSavedGeneration, baselineClearedGeneration;
+    QString baselineSavedGeneration, baselineClearedGeneration, baselineReason;
     Q_INVOKABLE QVariantMap workingBaselineStatus() {
         ++baselineStatusReads;
         return {{"generation", QString::number(baselineGeneration)}, {"available", baselineAvailable},
-            {"reason", !baselineAvailable ? "no_scope" : baselineStored ? "ready" : "no_baseline"},
+            {"reason", !baselineAvailable ? QString("no_scope") : !baselineReason.isEmpty() ? baselineReason : baselineStored ? QString("ready") : QString("no_baseline")},
             {"hasBaseline", baselineAvailable && baselineStored}, {"canSave", baselineAvailable && baselineFresh},
             {"markedAtUtc", baselineStored ? QVariant("2026-10-10T12:00:00.000Z") : QVariant()}};
     }
