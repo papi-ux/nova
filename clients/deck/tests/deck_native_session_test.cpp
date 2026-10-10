@@ -7,6 +7,7 @@
 #endif
 #include <QDir>
 #include "runtime/deck_support_report.h"
+#include "runtime/deck_working_baseline.h"
 #include "runtime/deck_native_session.h"
 #include "runtime/deck_desktop_input_bridge.h"
 #include "runtime/deck_window_controller.h"
@@ -28,6 +29,7 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <tuple>
 #include <stdexcept>
 
 using namespace nova::deck::runtime;
@@ -68,9 +70,14 @@ struct Driver final : DeckMoonlightConnectionDriver {
     std::atomic<RumbleCallback> feedback{nullptr};
     std::atomic<int> starts{0}, stops{0}, interrupts{0};
     std::atomic<int> rttReads{0};
+    // Baseline fixtures: a changed RTT makes a new, different HUD sample; holding the
+    // read pauses the worker's 1 s sampling so the HUD becomes stale while active.
+    std::atomic<unsigned> rttValue{17};
+    std::atomic<bool> holdRtt{false};
     bool estimatedRtt(std::uint32_t& rtt, std::uint32_t& variation) override {
         require(QThread::currentThread() == startThread && starts > stops, "RTT read outside owning active worker");
-        ++rttReads; rtt = 17; variation = 3; return true;
+        for (int waited = 0; holdRtt && waited < 10000; waited += 5) std::this_thread::sleep_for(5ms);
+        ++rttReads; rtt = rttValue; variation = 3; return true;
     }
     STREAM_CONFIGURATION receivedConfiguration{};
     bool blockStart = false, blockStop = false;
@@ -134,6 +141,7 @@ struct Host {
     std::string launchRequest, resumeRequest, serverInfoOverride, refusalResponse;
     int appId = 17;
     std::string appUuid;
+    std::string baselineScope;
     std::string launchToken = "private-token";
     bool rejectResolve = false;
     bool automaticReconnect = false, transientServerFailure = false, transientCapabilities = false;
@@ -158,6 +166,7 @@ struct Host {
             target.request = {.hostId = "host", .gameId = game.toStdString()};
             target.appId = appId;
             target.appUuid = appUuid;
+            target.workingBaselineScope = baselineScope;
             target.authorizeSetup = authorizeSetup;
             target.authorizeLaunchMode = authorizeMode;
             target.resolveLaunchTopology = resolveTopology;
@@ -1238,6 +1247,125 @@ void testDiagnosticsRefreshBoundary() {
     QElapsedTimer elapsed; elapsed.start(); controller.stop(); settled(controller);
     require(cancelled && elapsed.elapsed() < 600 && !controller.refreshDiagnostics() && controller.hud() == DeckHudMetrics::empty(),
         "pending diagnostics blocked teardown or survived stop");
+}
+
+// Working baseline (#282 Linux): the controller freezes the HUD at the Save press,
+// fences confirmations by run, refuses outside the identified active run and never
+// touches the host, network, Doctor, tuning or settings.
+void testWorkingBaselineBoundary() {
+    const auto directory = DeckWorkingBaselineStore::defaultDirectory();
+    require(!directory.isEmpty() && directory.startsWith(qEnvironmentVariable("XDG_DATA_HOME") + "/"), "baseline storage is not isolated");
+    // The pure bounds must equal the play configuration's closed choices.
+    for (const auto* mode : {"default", "headless_stream", "host_virtual_display", "desktop_display", "desktop_takeover",
+            "windowed_stream", "gamescope_stream", "headless", "virtual_display", "headless_dongle", "gpu_native"}) {
+        const QVariantMap values{{"width", 1280}, {"height", 800}, {"fps", 60}, {"bitrateKbps", 20000}, {"launchMode", mode}};
+        require(DeckPlayConfiguration::fromMap(values).has_value() ==
+            validWorkingBaselineRequest({1280, 800, 60, 20000, "h264", "auto", mode}), "baseline launch modes differ from the play configuration");
+    }
+    for (const auto* codec : {"h264", "hevc", "auto", "pyrowave", "av1"})
+        require(DeckPlayConfiguration::fromMap({{"width", 1280}, {"height", 800}, {"fps", 60}, {"bitrateKbps", 20000}, {"videoCodec", codec}}).has_value() ==
+            validWorkingBaselineRequest({1280, 800, 60, 20000, codec, "auto", "default"}), "baseline codecs differ from the play configuration");
+    for (const auto& [width, height, fps, bitrate] : std::initializer_list<std::tuple<int, int, int, int>>{
+            {320, 240, 15, 1000}, {4096, 4096, 240, 500000}, {318, 240, 15, 1000}, {4098, 800, 60, 20000}, {1280, 801, 60, 20000},
+            {1280, 800, 14, 20000}, {1280, 800, 241, 20000}, {1280, 800, 60, 999}, {1280, 800, 60, 500001}})
+        require(DeckPlayConfiguration::fromMap({{"width", width}, {"height", height}, {"fps", fps}, {"bitrateKbps", bitrate}}).has_value() ==
+            validWorkingBaselineRequest({width, height, fps, bitrate, "h264", "auto", "default"}), "baseline bounds differ from the play configuration");
+
+    const auto scope = workingBaselineScope("host-der", "client-der", "game");
+    const auto indexFile = directory + "/index.json";
+    const auto readFile = [&] { QFile f(indexFile); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray{}; };
+    const auto entries = [&] { return QJsonDocument::fromJson(readFile()).object().value("entries").toObject(); };
+    Host host; Driver driver; host.driver = &driver; host.appUuid = "game"; host.baselineScope = scope.toStdString();
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    const QVariantMap configured{{"width", 1280}, {"height", 800}, {"fps", 60}, {"bitrateKbps", 20000},
+        {"videoCodec", "hevc"}, {"profilePreference", "quality"}, {"launchMode", "host_virtual_display"}};
+    const auto idle = controller.workingBaselineStatus();
+    require(!idle.value("available").toBool() && idle.value("reason") == "inactive" &&
+        controller.saveWorkingBaseline(idle.value("generation").toString()).value("result") == "stream_changed" &&
+        controller.compareWorkingBaseline().value("status") == "inactive" && !QFileInfo::exists(directory),
+        "idle baseline action was allowed or created storage");
+    controller.setInputFocus(true); controller.updateController({}, true);
+    require(controller.startConfigured("host", "game", configured), "baseline fixture did not start");
+    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    const auto ready = controller.workingBaselineStatus();
+    require(ready.value("available").toBool() && ready.value("canSave").toBool() && ready.value("reason") == "no_baseline" &&
+        controller.compareWorkingBaseline().value("status") == "no_baseline" && !QFileInfo::exists(directory),
+        "status or Compare created storage before an explicit save");
+    const int requests = host.requests, launches = host.launches, cancels = host.cancels;
+
+    // Hidden controls or lost focus refuse, even with the current generation.
+    controller.resumeInput();
+    require(controller.saveWorkingBaseline(ready.value("generation").toString()).value("result") == "stream_changed", "hidden-controls save allowed");
+    controller.showControls(); controller.setInputFocus(false);
+    require(controller.saveWorkingBaseline(ready.value("generation").toString()).value("result") == "stream_changed", "unfocused save allowed");
+    controller.setInputFocus(true);
+    require(!QFileInfo::exists(indexFile), "a refused save wrote a baseline");
+
+    // Freeze at the press: the confirmation opened (status read above) while RTT was
+    // 17 ms; a new, different sample arrives before Save, and Save stores that one.
+    require(ready.value("generation").toString().size() > 0 && controller.hud().value("rtt") == "17ms", "open-time sample fixture differs");
+    driver.rttValue = 41;
+    until([&] { return controller.hud().value("rtt") == "41ms" && controller.hud().value("fresh").toBool(); }, 4000);
+    const auto pressHud = controller.hud();
+    const auto saved = controller.saveWorkingBaseline(ready.value("generation").toString());
+    require(saved.value("result") == "saved", "fresh active save failed");
+    const auto stored = entries().value(scope).toObject();
+    require(stored.value("readings").toObject().value("rtt_ms") == 41, "save stored the open-time sample instead of the press-time sample");
+    const auto expected = workingBaselineRecord(scope, deckSupportReport(pressHud),
+        DeckWorkingBaselineRequest{1280, 800, 60, 20000, "hevc", "quality", "host_virtual_display"},
+        QDateTime::fromString(stored.value("marked_at_utc").toString(), Qt::ISODateWithMs), 0);
+    require(expected && stored.value("readings") == expected->value("readings") && stored.value("observed") == expected->value("observed") &&
+        stored.value("requested") == expected->value("requested"), "save did not freeze the readings and original request at the press");
+    require(!readFile().contains("private-token") && !readFile().contains("192.0.2.10") && !readFile().contains("\"host\""),
+        "baseline stored a token, address or raw identity");
+    const auto compared = controller.compareWorkingBaseline();
+    const auto savedBytes = readFile();
+    require(compared.value("status") == "ready" && compared.value("context").toList().size() == 14 && readFile() == savedBytes &&
+        entries().size() == 1, "Compare failed or changed the stored baseline");
+    require(host.requests == requests && host.launches == launches && host.cancels == cancels && phase(controller) == "active",
+        "a baseline action reached the host or changed the stream lifecycle");
+
+    // A stale sample during the same active run: Save refuses, Clear (maintenance) still works.
+    const auto staleGeneration = controller.workingBaselineStatus().value("generation").toString();
+    driver.holdRtt = true;
+    until([&] { return !controller.hud().value("fresh").toBool(); }, 6000);
+    require(phase(controller) == "active" && !controller.workingBaselineStatus().value("canSave").toBool(), "stale fixture left the run or Save enabled");
+    require(controller.saveWorkingBaseline(staleGeneration).value("result") == "stale_readings" && readFile() == savedBytes,
+        "stale readings were saved or changed the index");
+    require(controller.compareWorkingBaseline().value("currentFresh") == false, "Compare used stale current readings");
+    require(controller.clearWorkingBaseline(staleGeneration).value("result") == "cleared" && !entries().contains(scope),
+        "Clear required a fresh sample");
+    driver.holdRtt = false;
+    until([&] { return controller.hud().value("fresh").toBool(); }, 6000);
+    require(controller.saveWorkingBaseline(staleGeneration).value("result") == "saved" && entries().contains(scope), "save after recovery failed");
+
+    // A confirmation opened before a restart of the same game is refused afterwards.
+    const auto before = controller.workingBaselineStatus().value("generation").toString();
+    const auto firstBytes = readFile();
+    controller.stop(); settled(controller);
+    require(controller.clearWorkingBaseline(before).value("result") == "stream_changed", "clear allowed after the stream stopped");
+    require(controller.startConfigured("host", "game", configured), "baseline restart did not start");
+    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    require(controller.saveWorkingBaseline(before).value("result") == "stream_changed" && readFile() == firstBytes,
+        "stale confirmation saved into a restarted run");
+    const auto current = controller.workingBaselineStatus();
+    require(current.value("generation") != before && current.value("hasBaseline").toBool(), "restart kept the generation or lost the baseline");
+    require(controller.clearWorkingBaseline(current.value("generation").toString()).value("result") == "cleared" && !entries().contains(scope),
+        "explicit clear failed");
+    require(controller.clearWorkingBaseline(current.value("generation").toString()).value("result") == "no_baseline", "repeat clear misreported");
+    controller.stop(); settled(controller);
+
+    // A run without a stable app identity has no scope and no fallback.
+    host.baselineScope.clear();
+    require(controller.startConfigured("host", "game", configured), "no-scope fixture did not start");
+    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    const auto noScope = controller.workingBaselineStatus();
+    require(!noScope.value("available").toBool() && noScope.value("reason") == "no_scope" &&
+        controller.saveWorkingBaseline(noScope.value("generation").toString()).value("result") == "no_scope" &&
+        entries().isEmpty(), "unscoped run saved a baseline");
+    controller.stop(); settled(controller);
+    // No support report, settings or host request came from baseline actions.
+    require(!QFileInfo::exists(deckSupportReportDirectory()), "baseline action wrote a support report");
 }
 
 void testDoctorActionBoundary() {
@@ -2532,6 +2660,7 @@ int main(int argc, char** argv) {
     QTemporaryDir settingsDirectory;
     require(settingsDirectory.isValid(), "missing isolated settings directory");
     qputenv("XDG_CONFIG_HOME",settingsDirectory.path().toUtf8());
+    qputenv("XDG_DATA_HOME",(settingsDirectory.path()+"/data").toUtf8());
     QFile userDirs(settingsDirectory.path()+"/user-dirs.dirs");
     require(userDirs.open(QIODevice::WriteOnly), "missing user directories fixture");
     userDirs.write("XDG_DOCUMENTS_DIR=\""+settingsDirectory.path().toUtf8()+"/Documents\"\n"); userDirs.close();
@@ -2565,6 +2694,7 @@ int main(int argc, char** argv) {
     if (app.arguments().contains("--pyrowave-review-cancelled")) { testPyrowaveReviewCancellation(); return 0; }
 #endif
     testNoAutomaticStartOrInvalidSelection();
+    testWorkingBaselineBoundary();
     testPresentationLifetime();
     testReviewedConfiguration();
     testRevalidatedPresetAndEncoder();

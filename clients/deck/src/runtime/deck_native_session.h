@@ -6,6 +6,7 @@
 #include "runtime/deck_frame_delivery.h"
 #include "runtime/deck_reconnect_policy.h"
 #include "runtime/deck_hud_metrics.h"
+#include "runtime/deck_working_baseline.h"
 #include "stream/deck_controller_input.h"
 #include "stream/deck_desktop_input.h"
 
@@ -76,6 +77,12 @@ public:
     Q_INVOKABLE bool setSyncProfile(const QString& hostId, const QString& display, int bitrateKbps, bool clear, const QVariantMap& reviewed);
     Q_INVOKABLE bool refreshDiagnostics();
     Q_INVOKABLE QVariantMap exportSupportReport();
+    // Working baseline (#282 Linux). Status, Save and Clear carry an opaque run
+    // generation string, held only in memory by the confirmation that read it.
+    Q_INVOKABLE QVariantMap workingBaselineStatus() const;
+    Q_INVOKABLE QVariantMap saveWorkingBaseline(const QString& generation);
+    Q_INVOKABLE QVariantMap clearWorkingBaseline(const QString& generation);
+    Q_INVOKABLE QVariantMap compareWorkingBaseline() const;
     Q_INVOKABLE bool applyDoctorFix();
     Q_INVOKABLE bool undoDoctorFix();
     Q_INVOKABLE bool checkDoctorResult();
@@ -112,6 +119,9 @@ private:
         stream::DeckMoonlightConnectionDriver& driver,
         const stream::DeckControllerSend& sendController, const stream::DeckDesktopSend& sendDesktop);
     void poll();
+    struct BaselineContext { QString scope; std::optional<DeckWorkingBaselineRequest> request; };
+    std::optional<BaselineContext> baselineContext(QString& reason) const;
+    std::optional<QJsonObject> freshBaselineRecord(const BaselineContext& context, const QDateTime& nowUtc) const;
     void routeController(stream::DeckControllerRoute route, unsigned player = 0);
     void syncRumble();
     void releaseDesktopInput();
@@ -136,6 +146,7 @@ private:
     QVariantMap hud_ = DeckHudMetrics::empty();
     DeckHudMetrics hudMetrics_;
     qint64 hudSampleMs_ = -1, hudReceivedMs_ = -1;
+    std::uint64_t runGeneration_ = 0;
     QTimer timer_;
     QTimer reconnectTimer_;
     DeckReconnectPolicy reconnectPolicy_;
