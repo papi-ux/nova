@@ -1276,6 +1276,8 @@ void testWorkingBaselineBoundary() {
     const auto readFile = [&] { QFile f(indexFile); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray{}; };
     const auto entries = [&] { return QJsonDocument::fromJson(readFile()).object().value("entries").toObject(); };
     Host host; Driver driver; host.driver = &driver; host.appUuid = "game"; host.baselineScope = scope.toStdString();
+    host.serverInfoOverride = "<root status_code=\"200\"><appversion>7.1</appversion>"
+        "<ServerCodecModeSupport>257</ServerCodecModeSupport></root>"; // H.264 and 8-bit HEVC
     // This nondefault request must pass the same reviewed codec/preset/mode
     // admissions as a real launch; do not weaken production authority for a fixture.
     host.verifyStream = [](const auto& cancelled) -> std::optional<nova::deck::DeckStreamCapabilities> {

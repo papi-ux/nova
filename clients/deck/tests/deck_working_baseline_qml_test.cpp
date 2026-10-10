@@ -176,7 +176,11 @@ ApplicationWindow {
                 "known storage refusal offered Save or a misleading readings wait");
             emit session.hudChanged(); QTest::qWait(80);
             require(!item("working-baseline-save")->isEnabled(), "fresh HUD enabled Save on refused storage");
+            session.baselineFresh = false; emit session.hudChanged(); QTest::qWait(80);
+            require(!item("working-baseline-save")->isEnabled() && !item("working-baseline-waiting")->isVisible(),
+                "refused storage suggested that waiting for readings could fix it");
             press(Qt::Key_Escape);
+            session.baselineFresh = true;
         }
         session.baselineReason = "baseline_unreadable"; session.baselineFresh = false;
         openBaseline();
