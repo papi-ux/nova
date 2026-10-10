@@ -97,9 +97,11 @@ class RouteTimings:
 
 
 # Nova #276: the eight audited single-flag routes end on an observed, requested clean exit
-# instead of their long fixed idle tail. Every other route keeps its watchdog-timed exit.
+# instead of their long fixed idle tail. The artwork route joins them: it already ends on an
+# asserted browsing focus with automatic refresh, which readability exercises on this path.
+# Every other route keeps its watchdog-timed exit.
 OBSERVED_EXIT_ROUTES = ("filters", "readability", "spaces", "setup_parity", "host_scope", "profile_sync",
-                        "keep_in_step", "polish")
+                        "keep_in_step", "polish", "artwork")
 SMOKE_QUIT_ACCEPTED = "NOVA_DECK_SMOKE_QUIT_ACCEPTED "
 APP_LOG_ERRORS = ("ReferenceError", "TypeError", "failed to load", "is not a type", "Cannot assign")
 
