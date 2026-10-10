@@ -1275,7 +1275,8 @@ void testWorkingBaselineBoundary() {
     const auto indexFile = directory + "/index.json";
     const auto readFile = [&] { QFile f(indexFile); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray{}; };
     const auto entries = [&] { return QJsonDocument::fromJson(readFile()).object().value("entries").toObject(); };
-    Host host; Driver driver; host.driver = &driver; host.appUuid = "game"; host.baselineScope = scope.toStdString();
+    Host host; Driver driver; InputRecorder input(driver);
+    host.driver = &driver; host.appUuid = "game"; host.baselineScope = scope.toStdString();
     host.serverInfoOverride = "<root status_code=\"200\"><appversion>7.1</appversion>"
         "<ServerCodecModeSupport>257</ServerCodecModeSupport></root>"; // H.264 and 8-bit HEVC
     // This nondefault request must pass the same reviewed codec/preset/mode
@@ -1294,9 +1295,20 @@ void testWorkingBaselineBoundary() {
         require(mode == "host_virtual_display", "baseline fixture changed its reviewed launch mode");
         return !cancelled();
     };
-    DeckNativeSessionController controller(true, host.resolver(), driver);
+    DeckNativeSessionController controller(true, host.resolver(), driver, input.sender());
     const QVariantMap configured{{"width", 1280}, {"height", 800}, {"fps", 60}, {"bitrateKbps", 20000},
         {"videoCodec", "hevc"}, {"profilePreference", "quality"}, {"launchMode", "host_virtual_display"}};
+    const auto waitForBaseline = [&](auto predicate, int timeoutMs, const char* stage) {
+        QElapsedTimer deadline; deadline.start();
+        while (!predicate() && deadline.elapsed() < timeoutMs) {
+            QCoreApplication::processEvents(); QThread::msleep(1);
+        }
+        if (!predicate()) std::cerr << "Baseline " << stage << ": phase=" << phase(controller).toStdString()
+            << ", copy=" << controller.state().value("copy").toString().toStdString()
+            << ", rtt=" << controller.hud().value("rtt").toString().toStdString()
+            << ", fresh=" << controller.hud().value("fresh").toBool() << ", RTT reads=" << driver.rttReads.load() << '\n';
+        require(predicate(), stage);
+    };
     const auto idle = controller.workingBaselineStatus();
     require(!idle.value("available").toBool() && idle.value("reason") == "inactive" &&
         controller.saveWorkingBaseline(idle.value("generation").toString()).value("result") == "stream_changed" &&
@@ -1304,7 +1316,7 @@ void testWorkingBaselineBoundary() {
         "idle baseline action was allowed or created storage");
     controller.setInputFocus(true); controller.updateController({}, true);
     require(controller.startConfigured("host", "game", configured), "baseline fixture did not start");
-    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    waitForBaseline([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000, "initial active readings");
     const auto ready = controller.workingBaselineStatus();
     require(ready.value("available").toBool() && ready.value("canSave").toBool() && ready.value("reason") == "no_baseline" &&
         controller.compareWorkingBaseline().value("status") == "no_baseline" && !QFileInfo::exists(directory),
@@ -1323,7 +1335,7 @@ void testWorkingBaselineBoundary() {
     // 17 ms; a new, different sample arrives before Save, and Save stores that one.
     require(ready.value("generation").toString().size() > 0 && controller.hud().value("rtt") == "17ms", "open-time sample fixture differs");
     driver.rttValue = 41;
-    until([&] { return controller.hud().value("rtt") == "41ms" && controller.hud().value("fresh").toBool(); }, 4000);
+    waitForBaseline([&] { return controller.hud().value("rtt") == "41ms" && controller.hud().value("fresh").toBool(); }, 4000, "changed press-time readings");
     const auto pressHud = controller.hud();
     const auto saved = controller.saveWorkingBaseline(ready.value("generation").toString());
     require(saved.value("result") == "saved", "fresh active save failed");
@@ -1346,7 +1358,7 @@ void testWorkingBaselineBoundary() {
     // A stale sample during the same active run: Save refuses, Clear (maintenance) still works.
     const auto staleGeneration = controller.workingBaselineStatus().value("generation").toString();
     driver.holdRtt = true;
-    until([&] { return !controller.hud().value("fresh").toBool(); }, 6000);
+    waitForBaseline([&] { return !controller.hud().value("fresh").toBool(); }, 6000, "stale readings during active run");
     require(phase(controller) == "active" && !controller.workingBaselineStatus().value("canSave").toBool(), "stale fixture left the run or Save enabled");
     require(controller.saveWorkingBaseline(staleGeneration).value("result") == "stale_readings" && readFile() == savedBytes,
         "stale readings were saved or changed the index");
@@ -1354,7 +1366,7 @@ void testWorkingBaselineBoundary() {
     require(controller.clearWorkingBaseline(staleGeneration).value("result") == "cleared" && !entries().contains(scope),
         "Clear required a fresh sample");
     driver.holdRtt = false;
-    until([&] { return controller.hud().value("fresh").toBool(); }, 6000);
+    waitForBaseline([&] { return controller.hud().value("fresh").toBool(); }, 6000, "readings recovery");
     require(controller.saveWorkingBaseline(staleGeneration).value("result") == "saved" && entries().contains(scope), "save after recovery failed");
 
     // A confirmation opened before a restart of the same game is refused afterwards.
@@ -1363,7 +1375,7 @@ void testWorkingBaselineBoundary() {
     controller.stop(); settled(controller);
     require(controller.clearWorkingBaseline(before).value("result") == "stream_changed", "clear allowed after the stream stopped");
     require(controller.startConfigured("host", "game", configured), "baseline restart did not start");
-    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    waitForBaseline([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000, "restarted active readings");
     require(controller.saveWorkingBaseline(before).value("result") == "stream_changed" && readFile() == firstBytes,
         "stale confirmation saved into a restarted run");
     const auto current = controller.workingBaselineStatus();
@@ -1376,7 +1388,7 @@ void testWorkingBaselineBoundary() {
     // A run without a stable app identity has no scope and no fallback.
     host.baselineScope.clear();
     require(controller.startConfigured("host", "game", configured), "no-scope fixture did not start");
-    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    waitForBaseline([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000, "unscoped active readings");
     const auto noScope = controller.workingBaselineStatus();
     require(!noScope.value("available").toBool() && noScope.value("reason") == "no_scope" &&
         controller.saveWorkingBaseline(noScope.value("generation").toString()).value("result") == "no_scope" &&
@@ -2701,6 +2713,11 @@ int main(int argc, char** argv) {
     }
     if (app.arguments().contains("--desktop-only")) { testDesktopWindowRouting(); return 0; }
     if (app.arguments().contains("--launch-cancel")) { testCancellableLaunchFetch(); return 0; }
+    if (app.arguments().contains("--working-baseline")) {
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+        testWorkingBaselineBoundary(); return 0;
+    }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();
     QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -2712,7 +2729,6 @@ int main(int argc, char** argv) {
     if (app.arguments().contains("--pyrowave-review-cancelled")) { testPyrowaveReviewCancellation(); return 0; }
 #endif
     testNoAutomaticStartOrInvalidSelection();
-    testWorkingBaselineBoundary();
     testPresentationLifetime();
     testReviewedConfiguration();
     testRevalidatedPresetAndEncoder();
