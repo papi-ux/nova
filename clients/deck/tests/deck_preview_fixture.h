@@ -11,7 +11,15 @@ class PreviewSession : public QObject {
     Q_PROPERTY(bool controlsVisible READ controlsVisible NOTIFY controlsChanged)
     Q_PROPERTY(QString controllerHint READ controllerHint NOTIFY controlsChanged)
     Q_PROPERTY(QVariantMap hud READ hud NOTIFY hudChanged)
+    Q_PROPERTY(bool canSaveMoment READ canSaveMoment NOTIFY momentChanged)
 public:
+    PreviewSession() {
+        connect(this, &PreviewSession::stateChanged, this, &PreviewSession::momentChanged);
+        connect(this, &PreviewSession::controlsChanged, this, [this] {
+            if (!controls_) momentPending = false;
+            emit momentChanged();
+        });
+    }
     QVariantMap hud() const { auto value = tuning; value.insert("fps", "59.8"); value.insert("rtt", "17ms"); value.insert("target", "/ 60 target"); return value; }
     QVariantMap tuning;
     int diagnosticsRefreshes = 0, reportExports = 0;
@@ -100,6 +108,34 @@ public:
             {"context", context}, {"readings", readings},
             {"notCompared", QStringList{"Game scene", "Host build and driver"}}};
     }
+    // Moment fixture: local calls only. Focus emits its dedicated notification;
+    // production showControls does not emit when controls are already visible.
+    int momentMarks = 0, momentSaves = 0, momentDiscards = 0;
+    bool momentFocused = true, momentPending = false;
+    QString momentState = "current", momentToken, momentSavedToken, momentSaveResult = "saved", momentMarkResult = "marked";
+    bool canSaveMoment() const { return momentPending && momentFocused && controls_ && !sleeping && state_.value("phase") == "active"; }
+    void setMomentFocus(bool focused) { if (momentFocused == focused) return; momentFocused = focused; emit momentChanged(); }
+    Q_INVOKABLE QVariantMap markMoment() {
+        ++momentMarks;
+        if (momentMarkResult != "marked") return {{"status", momentMarkResult}};
+        if (!momentFocused || !controls_ || sleeping || state_.value("phase") != "active") return {{"status", "inactive"}};
+        momentPending = true; momentToken = "fixture-moment-" + QString::number(momentMarks); emit momentChanged();
+        return {{"status", "marked"}, {"token", momentToken}, {"markedAtUtc", "2026-10-10T15:00:00.123Z"},
+            {"state", momentState}, {"entries", 3}, {"spanMs", 4200}};
+    }
+    Q_INVOKABLE QVariantMap saveMoment(const QString& token) {
+        ++momentSaves; momentSavedToken = token;
+        if (!momentPending || token != momentToken) return {{"status", "no_pending"}};
+        if (!canSaveMoment()) return {{"status", "inactive"}};
+        if (momentSaveResult == "saved" || momentSaveResult == "saved_durability_unknown" ||
+            momentSaveResult == "stream_changed" || momentSaveResult == "no_pending") momentPending = false;
+        emit momentChanged(); return {{"status", momentSaveResult}};
+    }
+    Q_INVOKABLE QVariantMap discardMoment(const QString& token) {
+        ++momentDiscards;
+        if (!momentPending || token != momentToken) return {{"status", "no_pending"}};
+        momentPending = false; emit momentChanged(); return {{"status", "discarded"}};
+    }
     QVariantMap state() const { return state_; }
     bool controlsVisible() const { return controls_; }
     QString controllerHint() const { return inputNotice; }
@@ -153,6 +189,7 @@ signals:
     void hudChanged();
     void stateChanged();
     void controlsChanged();
+    void momentChanged();
 private:
     bool controls_ = true;
     QVariantMap state_{{"phase", "idle"}, {"busy", false}, {"copy", "Ready"}};

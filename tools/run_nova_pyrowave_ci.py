@@ -16,6 +16,8 @@ MANDATORY_TESTS = {
     'nova_deck_working_baseline_test', 'nova_deck_working_baseline_qml_test',
     'nova_deck_working_baseline_controller_test',
     'nova_deck_ui_input_settling_test',
+    'nova_deck_moment_report_test', 'nova_deck_report_moment_controller_test',
+    'nova_deck_moment_report_qml_test',
 }
 ASSERTION_TARGETS = {
     'nova_deck_test_assertions_test', 'nova_deck_backend_interfaces_test',
