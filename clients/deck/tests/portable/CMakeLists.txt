@@ -27,6 +27,7 @@ add_library(portable_library STATIC
     ${DECK}/src/runtime/deck_doctor_actions.cpp
     ${DECK}/src/stream/deck_gamestream_session_builder.cpp
     ${DECK}/src/runtime/deck_native_target.cpp
+    ${DECK}/src/runtime/deck_working_baseline.cpp
     ${DECK}/src/runtime/deck_library_controller.cpp)
 set_target_properties(portable_library PROPERTIES AUTOMOC ON)
 target_include_directories(portable_library PUBLIC "${DECK}/src" "${NOVA_ROOT}/app/src/main/jni/moonlight-core/moonlight-common-c/src")
