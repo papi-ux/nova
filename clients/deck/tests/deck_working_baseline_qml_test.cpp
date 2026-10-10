@@ -162,6 +162,35 @@ ApplicationWindow {
         session.baselineStored = false; session.baselineFresh = true;
     }
 
+    // Known storage refusals disable Save and explain storage, rather than suggesting
+    // that fresh readings could fix an unreadable or unsafe index. A malformed entry
+    // in an otherwise readable index still offers explicit Clear without freshness.
+    {
+        const int saves = session.baselineSaves, clears = session.baselineClears, compares = session.baselineCompares;
+        for (const char* reason : {"index_unreadable", "storage_unsafe", "storage_unavailable"}) {
+            session.baselineReason = reason;
+            openBaseline();
+            require(!item("working-baseline-save")->isEnabled() && !item("working-baseline-compare")->isEnabled() &&
+                !item("working-baseline-clear")->isEnabled() && !item("working-baseline-waiting")->isVisible() &&
+                !item("working-baseline-status")->property("text").toString().isEmpty() && focusName() == "working-baseline-back",
+                "known storage refusal offered Save or a misleading readings wait");
+            emit session.hudChanged(); QTest::qWait(80);
+            require(!item("working-baseline-save")->isEnabled(), "fresh HUD enabled Save on refused storage");
+            press(Qt::Key_Escape);
+        }
+        session.baselineReason = "baseline_unreadable"; session.baselineFresh = false;
+        openBaseline();
+        require(!item("working-baseline-save")->isEnabled() && !item("working-baseline-compare")->isEnabled() &&
+            item("working-baseline-clear")->isEnabled(), "malformed entry could not be cleared without fresh readings");
+        item("working-baseline-clear")->forceActiveFocus(); press(Qt::Key_Return);
+        require(opened("working-baseline-clear-confirmation") && focusName() == "working-baseline-keep",
+            "malformed entry clear lost safe confirmation focus");
+        press(Qt::Key_Escape); press(Qt::Key_Escape);
+        require(session.baselineSaves == saves && session.baselineClears == clears && session.baselineCompares == compares && untouched(),
+            "storage status or cancelled maintenance wrote or called another authority");
+        session.baselineReason.clear(); session.baselineFresh = true;
+    }
+
     // Hidden controls and a stopped stream close every baseline popup.
     openBaseline(); press(Qt::Key_Return); require(opened("working-baseline-save-confirmation"), "confirmation fixture failed");
     session.resumeInput(); QTest::qWait(120);

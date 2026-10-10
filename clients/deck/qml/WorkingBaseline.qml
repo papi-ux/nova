@@ -33,7 +33,8 @@ Item {
         property string message: ""
         // Opaque run generation read when a confirmation opens; memory only.
         property string confirmationGeneration: ""
-        readonly property bool canSave: status.available === true && status.canSave === true
+        readonly property bool writable: ["ready", "no_baseline", "baseline_unreadable"].indexOf(status.reason) >= 0
+        readonly property bool canSave: status.available === true && writable && status.canSave === true
         readonly property bool hasBaseline: status.available === true && status.hasBaseline === true
         anchors.centerIn: Overlay.overlay
         width: Math.min(820 * unit, (Overlay.overlay ? Overlay.overlay.width : 1280) - 32)
@@ -90,7 +91,7 @@ Item {
             }
             Copy {
                 objectName: "working-baseline-waiting"
-                visible: baseline.status.available === true && baseline.status.canSave !== true
+                visible: baseline.status.available === true && baseline.writable && baseline.status.canSave !== true
                 color: NovaTheme.secondary
                 text: "Waiting for current readings. Save becomes available when they arrive."
             }

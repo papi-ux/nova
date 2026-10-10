@@ -1276,6 +1276,22 @@ void testWorkingBaselineBoundary() {
     const auto readFile = [&] { QFile f(indexFile); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray{}; };
     const auto entries = [&] { return QJsonDocument::fromJson(readFile()).object().value("entries").toObject(); };
     Host host; Driver driver; host.driver = &driver; host.appUuid = "game"; host.baselineScope = scope.toStdString();
+    // This nondefault request must pass the same reviewed codec/preset/mode
+    // admissions as a real launch; do not weaken production authority for a fixture.
+    host.verifyStream = [](const auto& cancelled) -> std::optional<nova::deck::DeckStreamCapabilities> {
+        if (cancelled()) return {};
+        nova::deck::DeckStreamCapabilities capabilities;
+        capabilities.hevc = true;
+        return capabilities;
+    };
+    host.authorizeSetup = [](const QString& preset, const QString& encoder, const auto& cancelled) {
+        require(preset == "quality" && encoder.isEmpty(), "baseline fixture changed its reviewed preset");
+        return !cancelled();
+    };
+    host.authorizeMode = [](const std::string& mode, const auto& cancelled) {
+        require(mode == "host_virtual_display", "baseline fixture changed its reviewed launch mode");
+        return !cancelled();
+    };
     DeckNativeSessionController controller(true, host.resolver(), driver);
     const QVariantMap configured{{"width", 1280}, {"height", 800}, {"fps", 60}, {"bitrateKbps", 20000},
         {"videoCodec", "hevc"}, {"profilePreference", "quality"}, {"launchMode", "host_virtual_display"}};
