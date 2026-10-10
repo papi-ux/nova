@@ -16,6 +16,8 @@ struct DeckNativeLaunchTarget {
     stream::DeckStreamRequest request;
     int appId = 0;
     std::string appUuid;
+    // Pseudonymous local working-baseline scope (64 hex) or empty; never a raw identity.
+    std::string workingBaselineScope;
     std::string serverAddress;
     stream::DeckHttpFetcher fetch;
     // Fresh pinned catalog and game-contract check, only for explicit modes.

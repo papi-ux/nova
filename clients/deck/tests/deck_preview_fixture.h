@@ -3,6 +3,7 @@
 #include "runtime/deck_support_report.h"
 #include <QVariantMap>
 #include <QVariantList>
+#include <QStringList>
 
 class PreviewSession : public QObject {
     Q_OBJECT
@@ -64,12 +65,47 @@ public:
         tuning["bitrateCopy"] = "Requested 21 Mbps. Waiting for the encoder…";
         emit hudChanged(); return true;
     }
+    // Working baseline fixture: counts every call and models the run generation.
+    int baselineGeneration = 1, baselineStatusReads = 0, baselineSaves = 0, baselineClears = 0, baselineCompares = 0;
+    bool baselineAvailable = true, baselineFresh = true, baselineStored = false;
+    QString baselineSavedGeneration, baselineClearedGeneration, baselineReason;
+    Q_INVOKABLE QVariantMap workingBaselineStatus() {
+        ++baselineStatusReads;
+        return {{"generation", QString::number(baselineGeneration)}, {"available", baselineAvailable},
+            {"reason", !baselineAvailable ? QString("no_scope") : !baselineReason.isEmpty() ? baselineReason : baselineStored ? QString("ready") : QString("no_baseline")},
+            {"hasBaseline", baselineAvailable && baselineStored}, {"canSave", baselineAvailable && baselineFresh},
+            {"markedAtUtc", baselineStored ? QVariant("2026-10-10T12:00:00.000Z") : QVariant()}};
+    }
+    Q_INVOKABLE QVariantMap saveWorkingBaseline(const QString& generation) {
+        ++baselineSaves; baselineSavedGeneration = generation;
+        if (generation != QString::number(baselineGeneration)) return {{"result", "stream_changed"}};
+        if (!baselineFresh) return {{"result", "stale_readings"}};
+        baselineStored = true; return {{"result", "saved"}};
+    }
+    Q_INVOKABLE QVariantMap clearWorkingBaseline(const QString& generation) {
+        ++baselineClears; baselineClearedGeneration = generation;
+        if (generation != QString::number(baselineGeneration)) return {{"result", "stream_changed"}};
+        const bool had = baselineStored; baselineStored = false;
+        return {{"result", had ? "cleared" : "no_baseline"}};
+    }
+    Q_INVOKABLE QVariantMap compareWorkingBaseline() {
+        ++baselineCompares;
+        if (!baselineStored) return {{"status", "no_baseline"}};
+        const QVariantList context{QVariantMap{{"key", "observed.codec"}, {"label", "Video codec"}, {"baseline", "HEVC"}, {"now", "H.264"}, {"state", "different"}}};
+        const QVariantList readings{QVariantMap{{"key", "composed_fps"}, {"label", "Frames drawn"}, {"scope", "app draws, not panel presentation"},
+            {"baseline", "59.8 fps"}, {"now", baselineFresh ? "58.1 fps" : "unknown"}, {"state", baselineFresh ? "reading" : "unknown"}}};
+        return {{"status", "ready"}, {"markedAtUtc", "2026-10-10T12:00:00.000Z"}, {"sampleReceivedUtc", "2026-10-10T11:59:59.600Z"},
+            {"currentFresh", baselineFresh}, {"currentSampleReceivedUtc", baselineFresh ? "2026-10-10T12:05:00.000Z" : ""},
+            {"contextState", "different"}, {"differentFields", QStringList{"Video codec"}}, {"unknownFields", QStringList{"Nova version"}},
+            {"context", context}, {"readings", readings},
+            {"notCompared", QStringList{"Game scene", "Host build and driver"}}};
+    }
     QVariantMap state() const { return state_; }
     bool controlsVisible() const { return controls_; }
     QString controllerHint() const { return inputNotice; }
     QString inputNotice;
     Q_INVOKABLE bool startConfigured(const QString& host, const QString& game, const QVariantMap& configuration) {
-        ++starts;
+        ++starts; ++baselineGeneration;
         selectedHost = host;
         selectedGame = game;
         selectedConfiguration = configuration;
@@ -83,14 +119,14 @@ public:
     }
     Q_INVOKABLE bool resumeDisconnected(const QString& host, const QString& game) {
         if (rejectResume || !state_.value("canResume").toBool() || host != selectedHost || game != selectedGame) return false;
-        ++resumes;
+        ++resumes; ++baselineGeneration;
         showControls();
         transition("starting", true, "Resuming your game…");
         return true;
     }
     Q_INVOKABLE bool reconnect(const QString& host, const QString& game) {
         if (rejectResume || !state_.value("canReconnect").toBool() || host != selectedHost || game != selectedGame) return false;
-        ++reconnects;
+        ++reconnects; ++baselineGeneration;
         showControls();
         transition("starting", true, "Checking your existing game…");
         return true;

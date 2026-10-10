@@ -13,6 +13,8 @@ MANDATORY_TESTS = {
     'nova_deck_game_tools_route_test', 'nova_deck_test_assertions_test',
     'nova_deck_v4l2_decoder_test', 'nova_deck_v4l2_upload_test',
     'nova_deck_frame_qualification_trace_test',
+    'nova_deck_working_baseline_test', 'nova_deck_working_baseline_qml_test',
+    'nova_deck_working_baseline_controller_test',
 }
 ASSERTION_TARGETS = {
     'nova_deck_test_assertions_test', 'nova_deck_backend_interfaces_test',
