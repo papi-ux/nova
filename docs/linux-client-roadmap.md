@@ -210,7 +210,7 @@ HDR10+ at 240 fps research goal is not implied by separate SDR240 and HDR10 work
 These additions supplement, rather than replace, the remaining P01-P28 work:
 
 - Main10/HDR negotiation and actual HDR90 presentation, media pacing and A/V sync.
-- Remaining QR/Wake-on-LAN, resume/watch/Spaces and standard-host compatibility.
+- Remaining QR pairing, resume/watch/Spaces and standard-host compatibility.
 - Touch/trackpad, text entry, virtual controls, gyro and advanced feedback.
 - Remaining library/artwork refresh and offline behavior, Stage actions and full
   Space artwork editing where the host API permits it.

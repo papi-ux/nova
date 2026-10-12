@@ -20,7 +20,9 @@ Alpha client; a successful build does not validate every Linux configuration.
 ## Find your next step
 
 - [Install the Flatpak and configure Steam Input](packaging/flatpak/README.md).
-- [Current interface](#what-changes-in-150), [window controls](#linux-window-controls),
+- [Current interface](#what-changes-in-150), [Steam controls](../../docs/steam-controls.md),
+  [Working baseline](#working-baseline), [Report this moment](#report-this-moment),
+  [window controls](#linux-window-controls),
   [PC discovery](#local-pc-search), and [frame rates and bitrate](#linux-frame-rates-and-bitrate).
 - [PyroWave and older-bundle migration](docs/pyrowave.md).
 - [Experimental Steam Frame development](docs/steam-frame.md).
@@ -36,7 +38,7 @@ Continue row. Stage uses Regular in a taller window and remembers the landscape
 choice. This is a window adaptation, not a requirement to use Linux in portrait.
 
 **System → Appearance** separates Compact, Standard and Large controls from
-text size. Text supports 80–130 percent in one-percent steps; new installations
+text size. Text supports 80 to 130 percent in one-percent steps; new installations
 start at 80 percent and existing saved sizes stay intact. Opened text and opacity
 editors keep a draft until Save. The six Linux themes now include
 `< Congratulations, Director >`, with crimson surfaces, warm white text and
@@ -54,6 +56,13 @@ offers **Add Nova to Steam** and **Wake PC** after you save that PC's MAC addres
 A sent wake packet is not proof that a PC is awake. Decoder and launch failures
 name a cause and a next step; End Session distinguishes an accepted request from
 verified game shutdown.
+
+Command Center adds **Steam** (Open Steam, Open Big Picture and Quit Steam on
+the PC, with a Polaris 1.5.0 beta.2 host), a **Working baseline** to compare a
+stream with one you marked good, and **Report this moment**, which saves the
+stream's readings to Documents, Nova reports. A launch waits up to two minutes
+for a host that is switching a Steam Deck out of Game Mode, and Cancel really
+cancels ([launch deadlines](docs/launch-deadlines.md)).
 
 The standard x86_64 bundle includes experimental PyroWave with a device check
 that runs only when the codec is selected. H.264, HEVC and Auto skip that check.
@@ -116,7 +125,7 @@ unavailable. The Flatpak manifest permits the Avahi system-bus calls.
 Play Setup offers 120, 144, 165 and 240 fps when the PC advertises support and the
 current display can accommodate them. Standard fractional display refresh rates
 retain their nominal choices (for example, 239.76 Hz permits 240 fps). Custom
-whole-number rates follow the current Polaris profile contract, 15–240 fps.
+whole-number rates follow the current Polaris profile contract, 15 to 240 fps.
 
 The old 100 Mbps numeric-parser limit and 150 Mbps host-plan request limit are
 removed. Decimal custom bitrates now reach storage, defaults, Sync, host planning,
@@ -345,7 +354,7 @@ bitrate. The switch saves a host preference even when the current encoder cannot
 adjust live; it does not claim an immediate encoder change. Legacy status without
 canonical revisions remains observational.
 
-Command Center → Live bitrate now provides a 1–300 Mbps picker with touch,
+Command Center → Live bitrate now provides a 1 to 300 Mbps picker with touch,
 controller steps and an explicit Apply action. Editing or backing out sends no
 request. The single session-scoped host request turns Live Tuning off and replaces
 pending Doctor bitrate adjustments; Play Setup stays unchanged. Fresh permission,
@@ -415,7 +424,7 @@ real-host/physical acceptance remain open. The full
 
 </details>
 
-## Working baseline (Linux parity, source preview)
+## Working baseline
 
 Command Center → **Working baseline** keeps one user-marked baseline per paired
 PC and stable Polaris game, stored locally on this device. Saving needs an explicit
@@ -452,7 +461,7 @@ backwards clock change makes later-dated entries unreadable until the clock catc
 up; explicit replacement or Clear and malformed-entry retention still apply.
 Physical Deck and real stream acceptance remain open.
 
-## Report this moment (Linux parity, source preview)
+## Report this moment
 
 During an active stream, Command Center → **Report this moment** freezes the
 current client snapshot and a short sampled history. Marking creates no report
@@ -1708,8 +1717,8 @@ acceptance. Development and tests remain local.
 ### Custom stream profiles and PC resume timeout (local development)
 
 Choose **Custom…** in Play Setup's Resolution, Frame rate or Bitrate picker. The
-numeric form accepts even sizes from 320–4096 × 240–4096, whole-number 15–240 fps,
-and 1–300 Mbps, including decimal Mbps. Save affects only that game's selected
+numeric form accepts even sizes from 320 to 4096 by 240 to 4096, whole-number 15 to 240 fps,
+and 1 to 300 Mbps, including decimal Mbps. Save affects only that game's selected
 field; Cancel leaves its preferences unchanged. Available host recommendations
 include safe advanced sizes. Codec/decoder, host and current-display checks still
 control whether the reviewed stream can start. Saving a larger profile does not
@@ -1734,7 +1743,7 @@ The running Deck preview has not been replaced by this local development slice.
 
 Open a game's **Artwork → Logo placement** to adjust its existing logo. Smaller,
 Larger and direction buttons work with touch or D-pad. The preview supports
-25–400% size and horizontal/vertical positioning; **Reset layout** returns the
+25 to 400% size and horizontal/vertical positioning; **Reset layout** returns the
 draft to centered 100% size. **Save** updates game details and persists the layout;
 **Cancel** or Back discards the draft. Save/Cancel stay visible at 130% text.
 

@@ -61,8 +61,8 @@ PyroWave playback on the emulator: its GPU lacks required codec features.
 Android checks the actual Vulkan feature set before offering PyroWave. Missing
 8-bit storage or timeline semaphores, as on Shield, produce an unavailable reason
 instead of a choice that will fail on launch. Other codecs remain available.
-Older beta.2/beta.3 builds could show PyroWave even when their library could not
-load; use a current aligned beta rather than treating that choice as support.
+The older 1.4.13-beta.2 and 1.4.13-beta.3 builds could show PyroWave even when their
+library could not load; use a current aligned beta rather than treating that choice as support.
 
 ## Packaging and compatibility
 
