@@ -100,8 +100,8 @@ class NovaWorkingBaselineStore(
 
     /**
      * The user's confirmed Clear for this entry, off the main thread: removes its baseline,
-     * readable or not, and whatever else can no longer be read or attributed. Never creates a key.
-     * Returns false if storage refused or threw.
+     * readable or not, and whatever else can no longer be read or attributed, a stored key that
+     * isn't usable included. Never creates a key. Returns false if storage refused or threw.
      */
     @Synchronized
     fun clear(entry: NovaWorkingBaseline.RequestedEntry): Boolean = try {
@@ -115,8 +115,10 @@ class NovaWorkingBaselineStore(
         val key = NovaWorkingBaseline.unhex(stored[LOCAL_KEY] as? String)
         val scope = key?.let { NovaWorkingBaseline.scope(it, entry) }
         val remove = if (scope == null) {
-            // Nothing stored can be matched to an entry without a usable key.
-            stored.keys.filter { it != LOCAL_KEY }
+            // Nothing stored can be matched to an entry without a usable key, and a key that is
+            // present but can't be read is itself unrecoverable: it goes with them, so the file
+            // reads as empty afterwards rather than as unreadable until a Save. No key is made.
+            stored.keys.toList()
         } else {
             // Every other readable baseline stays, however many there are: Clear never evicts.
             val keep = readableOthers(stored, ENTRY_PREFIX + scope).map { it.first }.toSet()
