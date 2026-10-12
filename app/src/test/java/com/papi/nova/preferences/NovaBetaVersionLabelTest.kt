@@ -50,7 +50,7 @@ class NovaBetaVersionLabelTest {
     // The evidence-only Gradle init hook supplies fixed independent expectations for numbered
     // suffix/release runs. Normal Debug and unnumbered Beta runs need no override.
     private val expectedName: String get() = System.getProperty("nova.expected.versionName")
-        ?: if (BuildConfig.BUILD_TYPE == "preRelease") "1.4.14-beta" else "1.4.14"
+        ?: if (BuildConfig.BUILD_TYPE == "preRelease") "1.5.0-beta" else "1.5.0"
     private val expectedCode: Int get() = System.getProperty("nova.expected.versionCode")?.toInt()
         ?: if (BuildConfig.BUILD_TYPE == "preRelease") 5500 else 55
     private val expectedLabel: String get() = "Nova $expectedName ($expectedCode)"

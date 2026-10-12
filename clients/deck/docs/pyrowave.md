@@ -17,7 +17,7 @@ add it to Moonlight.
 
 Nova Linux supports Linux desktops, laptops and handhelds, including Steam Deck.
 
-1. For 1.4.14 and later, install the standard **`Nova-Linux-x86_64-alpha.flatpak`**
+1. For 1.5.0 and later, install the standard **`Nova-Linux-x86_64-alpha.flatpak`**
    and verify its checksum. It includes PyroWave; no separate codec bundle is needed.
    Version 1.4.13 used a separate PyroWave bundle. See the
    [installation steps below](#packaging-and-compatibility).
@@ -52,7 +52,7 @@ back silently to another codec.
    input. Selecting the codec does not establish that the GPU and host capture
    path can sustain it.
 
-**The 1.4.14 beta fixes native-library and APK alignment for 16 KB memory pages.**
+**The 1.5.0 beta fixes native-library and APK alignment for 16 KB memory pages.**
 The current signed app installed, started and loaded both streaming libraries
 on an enforcing 16 KB emulator. The older v1.4.13-beta.3 PyroWave library was
 refused there specifically for its 4 KB program alignment. This does not prove
@@ -66,7 +66,7 @@ load; use a current aligned beta rather than treating that choice as support.
 
 ## Packaging and compatibility
 
-Starting with 1.4.14, the standard Flatpak includes the pinned PyroWave decoder
+Starting with 1.5.0, the standard Flatpak includes the pinned PyroWave decoder
 and a separate device-check helper. The app ID stays `com.papi_ux.Nova`, so an
 upgrade from either older bundle retains pairing and preferences.
 
@@ -91,9 +91,9 @@ settings stay. Keep app data; do not uninstall with `--delete-data`.
 ## Limits and troubleshooting
 
 - **Missing or disabled choice:** check the package first. The standard Linux
-  Flatpak before 1.4.14 and the stable Android app do not provide this experimental path. On
+  Flatpak before 1.5.0 and the stable Android app do not provide this experimental path. On
   Linux, Play Setup also explains incompatible host support, unavailable Vulkan
-  decoding or an unsupported stream size. Use Nova Linux 1.4.14 or later, a
+  decoding or an unsupported stream size. Use Nova Linux 1.5.0 or later, a
   compatible host/device and a supported size; selecting Auto does not enable PyroWave.
 - **A session starts but receives no video:** inspect the host's capture log.
   PyroWave cannot read FP16 DMA-BUF capture, including `ABGR16161616F` (`AB4H`)
