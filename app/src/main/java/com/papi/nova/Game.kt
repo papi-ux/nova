@@ -7289,7 +7289,11 @@ internal fun canReportMoment():Boolean =
 /**
  * The client snapshot of this instant, on the main thread, and nothing else: no log is marked or
  * read, no file written, no host asked and no preference changed. Null unless a stream is up here.
- * Report This Moment and Working Baseline both freeze through it.
+ * Report This Moment and Working Baseline both freeze through it. The requested bitrate is this
+ * stream's launch request, the same value the recap reports: the metered or home preference after
+ * the host's manual ceiling and any Auto Safe replacement, not the saved preference on its own. A
+ * bitrate changed mid-stream through Live Tuning is not reflected here, and nothing here says what
+ * the host applied.
  */
 internal fun captureMomentSnapshot():com.papi.nova.diagnostics.NovaMomentReport.Snapshot? {
 if (!canReportMoment()) return null
@@ -7314,7 +7318,7 @@ return com.papi.nova.diagnostics.NovaMomentReport.capture(
     requestedWidth = prefConfig.width,
     requestedHeight = prefConfig.height,
     requestedFps = prefConfig.fps,
-    requestedBitrateKbps = prefConfig.bitrate,
+    requestedBitrateKbps = configuredStreamBitrateKbps,
     requestedCodec = prefConfig.videoFormat?.name ?: "",
     sample = sample)
 }
