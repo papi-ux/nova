@@ -76,7 +76,7 @@ It still wants a fast local network. The advice now distinguishes a screen held 
 The Linux interface gets the same attention as the Android one: a quieter Library, controls that fit an 800p handheld, and preferences you can adjust without committing each step.
 
 - Hosts, Settings, Library and Play Setup fit landscape handhelds and desktop windows. Smaller resized windows keep actions reachable; Stage uses Regular when the window is taller than it is wide, while retaining the landscape choice. Back clears a Settings search before leaving.
-- Appearance offers Compact, Standard and Large controls, the Director theme, and 80–130 percent text in one-percent steps. New installations start at 80 percent; existing saved sizes stay intact. Text and menu-opacity previews apply after Save.
+- Appearance offers Compact, Standard and Large controls, the Director theme, and 80 to 130 percent text in one-percent steps. New installations start at 80 percent; existing saved sizes stay intact. Text and menu-opacity previews apply after Save.
 - Command Center has its own background-opacity control and stacks its session actions in narrow windows. HUD text remains readable over video, with debug groups that wrap.
 - The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device when you choose that codec. H.264, HEVC and Auto do not run the PyroWave check. The separate PyroWave bundle is retired; install the standard bundle over it, keeping app data, pairing and preferences.
 - Linux PyroWave supports SDR 8-bit 4:2:0. HDR, 4:4:4 and Spaces remain outside this route, and Auto does not select it. Play Setup names an incompatible build, GPU, host or size before launch.

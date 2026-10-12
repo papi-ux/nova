@@ -22,7 +22,7 @@ already merged in the audited staging source.
 - Hosts, Settings, Library and Play Setup have a landscape/desktop sizing pass.
   Regular and Compact remove the duplicate Continue row; Stage keeps its
   landscape choice when a taller window uses Regular. Six native themes,
-  Compact/Standard/Large controls, 80–130 percent text and separate Command
+  Compact/Standard/Large controls, 80 to 130 percent text and separate Command
   Center opacity are implemented. Saved appearance preferences survive updates.
 - Wake PC, reviewed Steam registration, first-run pairing and named startup
   failures are implemented. A sent wake packet and an accepted end-session
@@ -32,6 +32,10 @@ already merged in the audited staging source.
   live controls respect the PC's advertised limit, defaulting to 300 Mbps and
   allowing up to 500 Mbps where advertised. Play Setup's preset list still ends
   at 300 Mbps; it retains an allowed saved custom value.
+- Second beta: Command Center adds Steam controls, a Working baseline and
+  Report this moment (readings only, saved under Documents, Nova reports), and a
+  launch waits up to two minutes for a host's SteamOS session switch. The
+  Tailscale readout, per-host profile rules and Last Stream are Android only.
 - An experimental ARM64 Steam Frame route adds a pinned provider, bounded V4L2
   buffer ownership and shared startup/Play Setup discovery. Real pictures with
   all three codecs are recorded; sustained 1080p/90 performance, color/clarity

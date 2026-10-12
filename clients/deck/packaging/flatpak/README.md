@@ -4,8 +4,10 @@
 
 The 1.5.0 candidate adds landscape/desktop Library and Settings polish, six
 Linux themes including `< Congratulations, Director >`, separate control sizes,
-80–130 percent text, and Command Center background opacity. See the
-[client guide](../../README.md#what-changes-in-1414) for the interface changes.
+80 to 130 percent text, and Command Center background opacity. Its second beta
+adds Steam controls, a Working baseline and Report this moment to Command
+Center. See the [client guide](../../README.md#what-changes-in-150) for the
+interface changes.
 
 The [Steam Frame development guide](../../docs/steam-frame.md) describes a
 separate experimental ARM64 build and launcher. The x86_64 release filename is
@@ -20,7 +22,7 @@ publication and migration from an existing bundle.
 
 Release workflows derive Nova's reported version from the exact tag, including
 the numbered beta or rc suffix. Native prerelease builds can set
-`-DNOVA_DECK_VERSION_SUFFIX=-beta.1`; an omitted suffix keeps the numeric version.
+`-DNOVA_DECK_VERSION_SUFFIX=-beta.2`; an omitted suffix keeps the numeric version.
 
 ## Download and install
 
@@ -54,7 +56,7 @@ Install and run it from a Linux desktop (Desktop Mode on Steam Deck):
 
 ## Permissions and media backends
 
-Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
+Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode; a create-only Documents/Nova reports folder where Report this moment saves; `org.freedesktop.login1` on the system bus to notice the device going to sleep; and the gamescope socket under `xdg-run/gamescope-0` for Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
 
 The native streaming path uses `xdg-run/pipewire-0` for direct
 PipeWire audio output. This exposes the default PipeWire socket, not the whole
