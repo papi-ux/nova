@@ -56,7 +56,7 @@ Install and run it from a Linux desktop (Desktop Mode on Steam Deck):
 
 ## Permissions and media backends
 
-Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode; a create-only Documents/Nova reports folder where Report this moment saves; `org.freedesktop.login1` on the system bus to notice the device going to sleep; and the gamescope socket under `xdg-run/gamescope-0` for Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
+Permissions, and why: network for paired hosts and local service discovery; `org.freedesktop.Avahi` on the system bus for explicit Find PCs searches; display sockets and dri for the shell; `input` for game controllers; read-only access to Moonlight's config and `org.freedesktop.Flatpak` for the explicit legacy `--live` route; the Steam userdata directories so `--register-steam-shortcut` can add Nova to Game Mode; read and write access to the Documents/Nova reports folder only, created if it is missing, where Report this moment saves; `org.freedesktop.login1` on the system bus to notice the device going to sleep; and the gamescope socket under `xdg-run/gamescope-0` for Game Mode. Standalone mode stores its own pairing and never falls back to Moonlight's identity.
 
 The native streaming path uses `xdg-run/pipewire-0` for direct
 PipeWire audio output. This exposes the default PipeWire socket, not the whole
