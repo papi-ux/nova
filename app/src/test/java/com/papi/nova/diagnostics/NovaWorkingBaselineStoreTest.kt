@@ -215,4 +215,78 @@ class NovaWorkingBaselineStoreTest {
         assertEquals(0, prefs.edits)
         assertTrue(prefs.all.isEmpty())
     }
+
+    @Test fun clearWithANonHexKeyRemovesThatKeyTooSoTheNextReadIsNoneAndClearIsOver() {
+        store.save(entry("other"), snapshot())
+        store.save(entry, snapshot())
+        prefs.real.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "not-a-key").commit()
+        assertEquals(Loaded.Unreadable, store.load(entry))
+        assertTrue(store.clear(entry))
+        assertFalse("the key that can't be read is removed with what it orphaned", NovaWorkingBaselineStore.LOCAL_KEY in prefs.all)
+        assertTrue(prefs.all.isEmpty())
+        assertEquals(NovaWorkingBaselineStore.Inspection(Loaded.None, unrecoverableOthers = false, saveEvictsOldest = false),
+            store.inspect(entry))
+        assertEquals(Loaded.None, store.load(entry("other")))
+        assertEquals("Clear made no key", 1, keysMade)
+        // Nothing is left for a second Clear to do, and it still makes no key.
+        val edits = prefs.edits
+        assertTrue(store.clear(entry))
+        assertEquals(edits, prefs.edits)
+        assertEquals(1, keysMade)
+        assertTrue(prefs.all.isEmpty())
+    }
+
+    @Test fun clearWithAWrongLengthHexKeyRemovesThatKeyToo() {
+        store.save(entry, snapshot())
+        // Lowercase hex, but one byte short of a key: not something this store ever wrote.
+        prefs.real.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "ab".repeat(NovaWorkingBaseline.KEY_BYTES - 1)).commit()
+        assertEquals(Loaded.Unreadable, store.load(entry))
+        assertTrue(store.clear(entry))
+        assertTrue(prefs.all.isEmpty())
+        assertEquals(NovaWorkingBaselineStore.Inspection(Loaded.None, unrecoverableOthers = false, saveEvictsOldest = false),
+            store.inspect(entry))
+        assertEquals(1, keysMade)
+    }
+
+    @Test fun clearWithOnlyAnUnusableKeyLeftDoesNotDeadEndOnUnreadable() {
+        prefs.real.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "zz").commit()
+        assertEquals(Loaded.Unreadable, store.load(entry))
+        assertTrue(store.clear(entry))
+        assertEquals(Loaded.None, store.load(entry))
+        assertTrue(prefs.all.isEmpty())
+        assertEquals(0, keysMade)
+        // A later Save starts afresh with a new key, as it always did.
+        assertEquals(Saved.SAVED, store.save(entry, snapshot()))
+        assertEquals(1, keysMade)
+        assertTrue(store.load(entry) is Loaded.Found)
+    }
+
+    @Test fun anOrdinaryScopedClearKeepsTheUsableKeyAndEveryOtherReadableBaseline() {
+        store.save(entry("keep"), snapshot())
+        store.save(entry, snapshot())
+        val key = prefs.all[NovaWorkingBaselineStore.LOCAL_KEY]
+        assertTrue(store.clear(entry))
+        assertEquals("a usable key is not what Clear removes", key, prefs.all[NovaWorkingBaselineStore.LOCAL_KEY])
+        assertEquals(Loaded.None, store.load(entry))
+        assertTrue(store.load(entry("keep")) is Loaded.Found)
+        assertEquals(2, prefs.all.size)
+        assertEquals(1, keysMade)
+    }
+
+    @Test fun clearWithAnUnusableKeyThatStorageRefusesChangesNothingAndReportsFailure() {
+        store.save(entry, snapshot())
+        prefs.real.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "not-a-key").commit()
+        val before = prefs.all
+        val refusing = object : SharedPreferences by prefs.real {
+            override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor by prefs.real.edit() {
+                override fun commit(): Boolean = false
+            }
+        }
+        var refusedKeys = 0
+        val refusingStore = NovaWorkingBaselineStore(refusing) { refusedKeys++; ByteArray(NovaWorkingBaseline.KEY_BYTES) }
+        assertFalse(refusingStore.clear(entry))
+        assertEquals(before, prefs.all)
+        assertEquals(Loaded.Unreadable, refusingStore.load(entry))
+        assertEquals(0, refusedKeys)
+    }
 }

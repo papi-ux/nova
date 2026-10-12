@@ -267,4 +267,30 @@ class NovaWorkingBaselineFlowTest {
         assertEquals(before, files())
         assertFalse(File(app.cacheDir, "moment-reports").exists())
     }
+
+    @Test fun aConfirmedClearWithAnUnusableKeyLeavesNothingToClearAndMakesNoKey() {
+        saveNow()
+        prefs.edit().putString(NovaWorkingBaselineStore.LOCAL_KEY, "not-a-key").commit()
+        val before = flow.state()
+        assertEquals(NovaWorkingBaselineStore.Loaded.Unreadable, before.loaded)
+        assertTrue("the row still offers Clear for what can't be read", before.canClear)
+        flow.clear { outcomes += it }
+        runtime.runIo()
+        assertEquals(Outcome.CLEARED, outcomes.last())
+        val after = flow.state()
+        assertEquals(NovaWorkingBaselineStore.Loaded.None, after.loaded)
+        assertFalse("nothing is left to clear, so Clear is not offered again", after.canClear)
+        assertFalse(after.unrecoverableOthers)
+        assertTrue(after.canSave)
+        assertFalse(NovaWorkingBaselineStore.LOCAL_KEY in prefs.all)
+        assertTrue("Clear made no key and left no record", prefs.all.isEmpty())
+        // Reading and Compare after it stay read-only: still no key, still nothing stored.
+        assertEquals(Compared.NoBaseline, flow.compare())
+        assertTrue(prefs.all.isEmpty())
+        assertTrue(runtime.io.isEmpty())
+        // Only a later confirmed Save starts over with a fresh key.
+        assertEquals(Outcome.SAVED, saveNow())
+        assertTrue(NovaWorkingBaselineStore.LOCAL_KEY in prefs.all)
+        assertTrue(flow.state().canClear)
+    }
 }
