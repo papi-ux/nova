@@ -21,9 +21,10 @@ does not switch Nova to a beta, and a Nova beta does not update Polaris.
    `com.papi.nova.pre` and installs beside stable Nova (`com.papi.nova`). Pair your
    host in the beta app; the two apps keep separate settings and pairing data.
 
-**Known beta.2 and beta.3 limitation:** their PyroWave library lacks the native
-alignment required by Android devices using 16 KB memory pages and may not load
-there. PyroWave still appears in Settings; if the library cannot load, a PyroWave
+**Known limitation of 1.4.13-beta.2 and 1.4.13-beta.3:** their PyroWave library
+lacks the native alignment required by Android devices using 16 KB memory pages
+and may not load there. Betas from 1.4.14-beta.1 on, including 1.5.0-beta.2,
+carry the aligned library. PyroWave still appears in Settings; if the library cannot load, a PyroWave
 stream fails during startup. Other codecs are unaffected. This has not been
 validated on a 16 KB device and does not establish an APK installation failure.
 Use a later beta whose release notes confirm the fix.
