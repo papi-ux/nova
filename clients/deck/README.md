@@ -20,7 +20,7 @@ Alpha client; a successful build does not validate every Linux configuration.
 ## Find your next step
 
 - [Install the Flatpak and configure Steam Input](packaging/flatpak/README.md).
-- [Current interface](#what-changes-in-1414), [window controls](#linux-window-controls),
+- [Current interface](#what-changes-in-150), [window controls](#linux-window-controls),
   [PC discovery](#local-pc-search), and [frame rates and bitrate](#linux-frame-rates-and-bitrate).
 - [PyroWave and older-bundle migration](docs/pyrowave.md).
 - [Experimental Steam Frame development](docs/steam-frame.md).
