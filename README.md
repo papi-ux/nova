@@ -54,8 +54,11 @@ path:
   ([appearance capture](docs/screenshots/nova-android-director-appearance-v1.4.14-beta.1.webp)).
 - **Doctor uses current evidence.** Command Center separates client, network and
   host findings; Auto Fix requires a reversible, verifiable same-stream action.
-- **Secondary tools stay secondary.** Pin to Home Screen and Artwork Studio use
-  matching compact buttons beside the main game actions.
+- **Steam from the couch.** Open or quit Steam on the PC from Command Center,
+  with a Polaris 1.5.0 beta.2 host ([Steam controls](docs/steam-controls.md)).
+- **Keep evidence, send nothing.** Report This Moment and a Working baseline keep
+  a stream's readings on the device ([reports](docs/stream-reports.md)); Android
+  adds Last Stream and a Tailscale readout ([connection](docs/network-profiles.md)).
 - **Host state stays bound to the game.** Stale launch contracts fail closed.
   Spaces name their launcher; Watch follows the running stream's own mode.
 
@@ -67,7 +70,7 @@ validation record.
 Standard Moonlight-compatible hosts support pairing, app browsing, Wake-on-LAN,
 launch, input and streaming. Polaris adds library artwork and sources, launch
 health, session ownership, Spaces, Watch, per-session choices, Polaris Sync,
-Doctor and tuning provenance. Compatible host metadata enables these surfaces;
+Doctor and tuning provenance, Steam controls and the Tailscale readout. Compatible host metadata enables these surfaces;
 Nova keeps the standard path when it is absent.
 
 ## Browse, decide, control
@@ -98,12 +101,10 @@ a controller-first drawer.
 
 ![Nova Polaris Aurora Command Center over a live private stream, showing the resolved encoder, Live Tuning, and Doctor guidance](docs/screenshots/nova-command-center-live-aurora-v1.4.9.webp)
 
-The new game-page and Play Setup captures come from the **1.4.14-beta.1
-candidate**, with exact source and image hashes in the
-[screenshot manifest](docs/screenshots/beta1-readme-provenance.json). The Command
-Center image remains a **1.4.9 reference**. Earlier website images retain their
-[original provenance manifest](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json);
-a screenshot is not evidence that a beta has been published.
+The game-page and Play Setup captures come from the **1.4.14-beta.1
+candidate** ([screenshot manifest](docs/screenshots/beta1-readme-provenance.json));
+the Command Center image is a **1.4.9 reference**, and earlier website images keep
+their [original provenance manifest](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json).
 
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
@@ -156,7 +157,7 @@ flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
 flatpak run com.papi_ux.Nova --standalone
 ```
 
-The standard 1.5.0 bundle includes experimental SDR PyroWave. Selecting it runs
+The standard bundle includes experimental SDR PyroWave from 1.5.0, now in beta. Selecting it runs
 a device check; Auto, H.264 and HEVC skip that check. Players using an older
 separate PyroWave bundle should follow the
 [migration guide](clients/deck/docs/pyrowave.md#packaging-and-compatibility).
