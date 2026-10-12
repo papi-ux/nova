@@ -109,7 +109,7 @@ the decoder to those clients.
   Older builds, including v1.4.13-beta.3, do not have this Play Setup row: use
   **Settings → Client Stream Defaults → Change codec settings → PyroWave (experimental)**.
   Auto does not select PyroWave, and stable Android builds do not expose it.
-- **Nova Linux:** starting with 1.4.14, the standard Linux package includes
+- **Nova Linux:** starting with 1.5.0, the standard Linux package includes
   PyroWave with a lazy, isolated device check. Version 1.4.13 attached a separate
   codec bundle; install the new standard bundle over it to keep pairing and settings.
   The ordinary v1.4.13-beta.3 bundle does not include PyroWave. The separate
