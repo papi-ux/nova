@@ -27,7 +27,7 @@ Alpha client; a successful build does not validate every Linux configuration.
 - [Build and smoke routes](#runnable-smoke-paths) and
   [dependency notes](#fedora-or-steamos-dependency-notes) for contributors.
 
-## What changes in 1.4.14
+## What changes in 1.5.0
 
 The Library, Hosts, Settings and Play Setup now fit landscape handhelds and
 resized desktop windows more comfortably. Stage keeps the selected game's art
@@ -141,7 +141,7 @@ Tests cover 240 FPS transport configuration, recovery, bounded frame delivery,
 ## Historical Android v1.4.11 parity checkpoint
 
 This section retains the earlier implementation and test record. Use the
-1.4.14 summary above for current appearance and release behavior. The five-theme
+1.5.0 summary above for current appearance and release behavior. The five-theme
 and discrete text-size descriptions below refer to that earlier checkpoint.
 
 The standalone library now shares theme colors and focus controls across pairing,

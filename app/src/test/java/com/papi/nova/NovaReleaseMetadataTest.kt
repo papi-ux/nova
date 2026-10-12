@@ -117,16 +117,16 @@ class NovaReleaseMetadataTest {
         )
         val storeNotesBody = if (storeNotes.isFile) storeNotes.readText().trimEnd() else ""
 
-        assertTrue(build.contains("versionName \"1.4.14\""))
+        assertTrue(build.contains("versionName \"1.5.0\""))
         // The Deck bundle reports the same version in its support report and its AppStream data.
-        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.4.14 "))
+        assertTrue(File(root, "clients/deck/CMakeLists.txt").readText().contains("project(NovaDeck VERSION 1.5.0 "))
         assertTrue(
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
                 .contains("<release version=\"1.4.13\" date=\"2026-09-24\"/>")
         )
         assertTrue(
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
-                .contains("<release version=\"1.4.14\" type=\"development\" date=\"2026-09-27\"/>"),
+                .contains("<release version=\"1.5.0\" type=\"development\" date=\"2026-10-12\"/>"),
         )
         // Development builds advance to code 55. Keep 1.4.13's store notes under 54
         // until the next release's notes are prepared.

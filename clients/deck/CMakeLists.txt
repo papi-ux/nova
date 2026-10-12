@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # The release version, kept equal to versionName in app/build.gradle by NovaReleaseMetadataTest.
-project(NovaDeck VERSION 1.4.14 LANGUAGES C CXX)
+project(NovaDeck VERSION 1.5.0 LANGUAGES C CXX)
 include(cmake/NovaReleaseVersion.cmake)
 include(cmake/NovaAppStream.cmake)
 

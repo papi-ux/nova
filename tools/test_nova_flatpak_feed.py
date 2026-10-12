@@ -18,7 +18,7 @@ class FeedTests(unittest.TestCase):
             root = Path(directory)
             output = root / "com.papi_ux.Nova.metainfo.xml"
             script = root / "metadata.cmake"
-            script.write_text('set(PROJECT_VERSION "1.4.14")\ninclude("' + str(project / "cmake/NovaReleaseVersion.cmake") + '")\n'
+            script.write_text('set(PROJECT_VERSION "1.5.0")\ninclude("' + str(project / "cmake/NovaReleaseVersion.cmake") + '")\n'
                               'include("' + str(project / "cmake/NovaAppStream.cmake") + '")\n'
                               'nova_deck_configure_appstream("' + str(source) + '" "' + str(output) + '")\n')
             for suffix in ["", "-beta.1", "-rc.2"]:
@@ -26,17 +26,17 @@ class FeedTests(unittest.TestCase):
                     subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], check=True, capture_output=True, text=True)
                     metadata = ET.fromstring(output.read_bytes())
                     releases = metadata.findall("./releases/release")
-                    self.assertEqual(releases[0].attrib["version"], "1.4.14" + suffix)
+                    self.assertEqual(releases[0].attrib["version"], "1.5.0" + suffix)
                     self.assertEqual(releases[0].attrib["type"], "development")
                     self.assertEqual(releases[1].attrib["version"], "1.4.13")
-                    self.assertEqual(output.read_bytes(), original.replace(b'version="1.4.14"', ('version="1.4.14' + suffix + '"').encode(), 1))
+                    self.assertEqual(output.read_bytes(), original.replace(b'version="1.5.0"', ('version="1.5.0' + suffix + '"').encode(), 1))
             self.assertEqual(source.read_bytes(), original)
 
     def test_release_manifest_preserves_the_numbered_tag_without_enabling_updates(self):
         root = Path(__file__).resolve().parents[1]
         source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
         source["modules"][-1]["config-opts"].append("-DNOVA_DECK_VERSION_SUFFIX=-beta.99")
-        for tag, suffix in [(None, ""), ("v1.4.14", ""), ("v1.4.14-beta.1", "-beta.1"), ("v1.4.14-rc.2", "-rc.2")]:
+        for tag, suffix in [(None, ""), ("v1.5.0", ""), ("v1.5.0-beta.1", "-beta.1"), ("v1.5.0-rc.2", "-rc.2")]:
             with self.subTest(tag=tag):
                 result = feed.prepare_release(source, tag)
                 opts = result["modules"][-1]["config-opts"]
@@ -49,10 +49,10 @@ class FeedTests(unittest.TestCase):
     def test_feed_build_requires_the_exact_release_channel_and_number(self):
         root = Path(__file__).resolve().parents[1]
         source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
-        for channel, tag, suffix in [("stable", "v1.4.14", ""), ("beta", "v1.4.14-beta.1", "-beta.1"), ("beta", "v1.4.14-rc.2", "-rc.2")]:
+        for channel, tag, suffix in [("stable", "v1.5.0", ""), ("beta", "v1.5.0-beta.1", "-beta.1"), ("beta", "v1.5.0-rc.2", "-rc.2")]:
             result = feed.prepare(source, channel, "https://example.org/nova", tag)
             self.assertIn("-DNOVA_DECK_VERSION_SUFFIX=" + suffix, result["modules"][-1]["config-opts"])
-        for channel, tag in [("stable", "v1.4.14-beta.1"), ("beta", "v1.4.14"), ("beta", "v1.4.14-beta"), ("beta", "v1.4.14-beta.0")]:
+        for channel, tag in [("stable", "v1.5.0-beta.1"), ("beta", "v1.5.0"), ("beta", "v1.5.0-beta"), ("beta", "v1.5.0-beta.0")]:
             with self.subTest(channel=channel, tag=tag), self.assertRaises(ValueError):
                 feed.prepare(source, channel, "https://example.org/nova", tag)
 
@@ -61,12 +61,12 @@ class FeedTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             script = root / "version.cmake"
-            script.write_text('set(PROJECT_VERSION "1.4.14")\ninclude("' + str(module) + '")\n'
+            script.write_text('set(PROJECT_VERSION "1.5.0")\ninclude("' + str(module) + '")\n'
                               'file(WRITE "' + str(root / "version.txt") + '" "${NOVA_DECK_FULL_VERSION}")\n')
             for suffix in ["", "-beta.1", "-beta.12", "-rc.2"]:
                 with self.subTest(suffix=suffix):
                     subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], check=True, capture_output=True, text=True)
-                    self.assertEqual((root / "version.txt").read_text(), "1.4.14" + suffix)
+                    self.assertEqual((root / "version.txt").read_text(), "1.5.0" + suffix)
             for suffix in ["beta.1", "-beta", "-beta.0", "-rc.0", "-beta.1.2", "-alpha.1", "-beta.1\n", '-beta.1";x']:
                 with self.subTest(suffix=suffix):
                     result = subprocess.run(["cmake", "-DNOVA_DECK_VERSION_SUFFIX=" + suffix, "-P", str(script)], capture_output=True, text=True)
@@ -89,7 +89,7 @@ class FeedTests(unittest.TestCase):
         for channel in feed.CHANNELS:
             name = "com.papi_ux.Nova.json"
             source = json.loads((root / name).read_text())
-            tag = "v1.4.14" if channel == "stable" else "v1.4.14-beta.1"
+            tag = "v1.5.0" if channel == "stable" else "v1.5.0-beta.1"
             result = feed.prepare(source, channel, "https://example.org/nova/", tag)
             self.assertEqual(result["branch"], channel)
             self.assertNotIn("branch", source)
@@ -137,18 +137,18 @@ class FeedTests(unittest.TestCase):
 
 
     def test_arm_catalog_matches_only_the_canonical_selected_architecture(self):
-        expected = {"appId": feed.APP, "channel": "beta", "arch": "aarch64", "commit": "a" * 64, "version": "v1.4.14-beta.1"}
-        self.assertEqual(feed.catalog("beta", "a" * 64, "v1.4.14-beta.1", "aarch64"), expected)
+        expected = {"appId": feed.APP, "channel": "beta", "arch": "aarch64", "commit": "a" * 64, "version": "v1.5.0-beta.1"}
+        self.assertEqual(feed.catalog("beta", "a" * 64, "v1.5.0-beta.1", "aarch64"), expected)
         for arch in ["", "arm64", "arm", "riscv64", "aarch64\n", "../aarch64"]:
             with self.subTest(arch=arch), self.assertRaises(ValueError):
-                feed.catalog("beta", "a" * 64, "v1.4.14-beta.1", arch)
+                feed.catalog("beta", "a" * 64, "v1.5.0-beta.1", arch)
 
     def test_arm_site_never_substitutes_an_x86_ref_with_the_same_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(feed.subprocess, "check_output", side_effect=[f"app/{feed.APP}/x86_64/beta\n", "a" * 64 + "\n"]):
                 with self.assertRaises(ValueError):
-                    feed.write_site(root / "repo", root / "site", root / "previous", "beta", "v1.4.14-beta.1",
+                    feed.write_site(root / "repo", root / "site", root / "previous", "beta", "v1.5.0-beta.1",
                                     "https://example.org/nova", b"public fixture", "aarch64")
 
     def test_mixed_refs_preserve_both_legacy_x86_catalogs_and_the_other_arm_channel(self):
@@ -168,11 +168,11 @@ class FeedTests(unittest.TestCase):
                 if args[-1] == "refs": return "\n".join(refs) + "\n"
                 queried.append(args[-1]); return refs[args[-1]] + "\n"
             with patch.object(feed.subprocess, "check_output", side_effect=ostree):
-                feed.write_site(root / "repo", root / "site", previous, "beta", "v1.4.14-beta.1",
+                feed.write_site(root / "repo", root / "site", previous, "beta", "v1.5.0-beta.1",
                                 "https://example.org/nova", b"public fixture", "aarch64")
             for path, encoded in old_catalogs.items(): self.assertEqual((root / "site" / path).read_text(), encoded)
             self.assertEqual(json.loads((root / "site/aarch64/beta.json").read_text()),
-                             {"appId": feed.APP, "channel": "beta", "arch": "aarch64", "commit": "d" * 64, "version": "v1.4.14-beta.1"})
+                             {"appId": feed.APP, "channel": "beta", "arch": "aarch64", "commit": "d" * 64, "version": "v1.5.0-beta.1"})
             self.assertEqual(set(queried), set(refs))
             repo, ref = feed.descriptors("https://example.org/nova", b"public fixture", "beta")
             self.assertEqual((root / "site/nova.flatpakrepo").read_text(), repo)
@@ -186,7 +186,7 @@ class FeedTests(unittest.TestCase):
             refs = f"app/{feed.APP}/x86_64/beta\napp/{feed.APP}/aarch64/beta\n"
             with patch.object(feed.subprocess, "check_output", side_effect=lambda args, **kwargs: refs if args[-1] == "refs" else "a" * 64 + "\n"):
                 with self.assertRaises(ValueError):
-                    feed.write_site(root / "repo", root / "site", previous, "beta", "v1.4.14-beta.1",
+                    feed.write_site(root / "repo", root / "site", previous, "beta", "v1.5.0-beta.1",
                                     "https://example.org/nova", b"public fixture")
 
     def test_unsupported_site_architecture_fails_before_ostree(self):
@@ -194,7 +194,7 @@ class FeedTests(unittest.TestCase):
             root = Path(directory)
             with patch.object(feed.subprocess, "check_output") as query:
                 with self.assertRaises(ValueError):
-                    feed.write_site(root / "repo", root / "site", root / "previous", "beta", "v1.4.14-beta.1",
+                    feed.write_site(root / "repo", root / "site", root / "previous", "beta", "v1.5.0-beta.1",
                                     "https://example.org/nova", b"public fixture", "arm64")
                 query.assert_not_called()
 
