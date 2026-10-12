@@ -20,7 +20,7 @@ permissions must be completed in the system software manager.
 The publication workflow defines **stable** and **beta** channels.
 Use the bundles attached to the selected release until a signed channel installer
 is announced. A channel defined in the workflow is not evidence that its public
-feed exists. Starting with 1.4.14, both channels include PyroWave with a lazy
+feed exists. Starting with 1.5.0, both channels include PyroWave with a lazy
 device check; the separate codec channel is retired. Regular downloaded bundles and native
 builds show installation guidance instead of claiming that a feed is configured.
 
@@ -32,7 +32,7 @@ development package with its own qualification record. ARM-aware updater tests
 do not establish an available ARM64 public feed, installer or supported release.
 Do not install an x86_64 bundle as a Frame update.
 
-For the 1.4.14 candidate, the app uses the production feed address and retains
+For the 1.5.0 candidate, the app uses the production feed address and retains
 Retry after a failed check. An ordinary private or downloaded bundle can still
 show installation guidance because no signed channel was configured for it.
 Preparing source or a private rehearsal does not publish a feed.
@@ -42,7 +42,7 @@ Preparing source or a private rehearsal does not publish a feed.
 The implementation and workflow do not make the feed live by themselves. Before
 the first public channel is available:
 
-1. Merge the updater and publish a reviewed release containing it, version 1.4.14
+1. Merge the updater and publish a reviewed release containing it, version 1.5.0
    or later. Feed preparation requires the standard package with PyroWave, so
    1.4.13 is not eligible for the first feed publication. Use an
    explicitly marked prerelease for beta. Before tagging, include

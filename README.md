@@ -156,7 +156,7 @@ flatpak install --user ./Nova-Linux-x86_64-alpha.flatpak
 flatpak run com.papi_ux.Nova --standalone
 ```
 
-The standard 1.4.14 bundle includes experimental SDR PyroWave. Selecting it runs
+The standard 1.5.0 bundle includes experimental SDR PyroWave. Selecting it runs
 a device check; Auto, H.264 and HEVC skip that check. Players using an older
 separate PyroWave bundle should follow the
 [migration guide](clients/deck/docs/pyrowave.md#packaging-and-compatibility).

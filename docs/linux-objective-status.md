@@ -1,7 +1,7 @@
 # Nova Linux objective status
 
 Original source audit: 2026-09-26, Nova staging
-`78e9593ab9fcf0f8b4a2ebe86fd7e47d9d8adc2f`. Updated for the 1.4.14 candidate
+`78e9593ab9fcf0f8b4a2ebe86fd7e47d9d8adc2f`. Updated for the 1.5.0 candidate
 on 2026-10-03; the checkpoint below supersedes the older implementation status
 where named. This is an execution map for the [Linux roadmap](linux-client-roadmap.md)
 and the [frozen parity requirements](deck-release-parity.md). September 17
@@ -14,7 +14,7 @@ Nightly `DECK-01`–`DECK-07` IDs remain stable identifiers; they do not limit t
 product to Steam Deck. Gitea branding PR #1 and Tuning correction PR #2 are
 already merged in the audited staging source.
 
-## 1.4.14 candidate checkpoint
+## 1.5.0 candidate checkpoint
 
 - The standard x86_64 bundle includes experimental PyroWave and an isolated
   device check on explicit selection. H.264, HEVC and Auto bypass that probe.
@@ -82,7 +82,7 @@ acceptance; none of the P01–P28 acceptance issues closes from this audit alone
 | L05 / #19 | `deck_desktop_input_bridge.*`, direct pointer and X11/Wayland relative capture/release | Physical game aiming, focus transitions, hotplug and sandbox/compositor compatibility. Android Mouse Mode PR #86 is a separate platform fix. |
 | L06 / #20 | `NovaTheme.qml` removes Material You and migrates saved selection to Polaris Aurora | Installed upgrade/accessibility acceptance; preserve other themes and preferences. Do not port Android Material You back into Linux. |
 | L07 / #21 | `deck_host_discovery.*` and `PairHost.qml`: bounded explicit Avahi search, selection, cancellation, manual entry, existing PIN/Trusted Pair | Installed/network compatibility, unavailable Avahi and routed/multicast-blocked networks. Discovery never grants trust. |
-| L08 / #22 | Video & Stream plus the 1.4.14 landscape, copy, density and text/opacity draft-editor pass | Wider interface copy, small-window and large-text audit. Product wording is Nova Linux. |
+| L08 / #22 | Video & Stream plus the 1.5.0 landscape, copy, density and text/opacity draft-editor pass | Wider interface copy, small-window and large-text audit. Product wording is Nova Linux. |
 
 Paths in this table are under `clients/deck/src/` or `clients/deck/qml/`.
 The [roadmap checkpoints](linux-client-roadmap.md#implementation-status) retain

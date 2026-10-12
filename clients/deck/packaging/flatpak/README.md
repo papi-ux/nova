@@ -2,7 +2,7 @@
 
 `com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This Alpha targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Steam is optional. Codec, HDR and frame-rate availability depends on the device, drivers, display and host; device acceptance remains tracked in the Linux roadmap and Deck parity checklist.
 
-The 1.4.14 candidate adds landscape/desktop Library and Settings polish, six
+The 1.5.0 candidate adds landscape/desktop Library and Settings polish, six
 Linux themes including `< Congratulations, Director >`, separate control sizes,
 80–130 percent text, and Command Center background opacity. See the
 [client guide](../../README.md#what-changes-in-1414) for the interface changes.
@@ -61,7 +61,7 @@ PipeWire audio output. This exposes the default PipeWire socket, not the whole
 runtime directory. Packaging this audio backend does not establish standalone
 Deck release readiness.
 
-Starting with 1.4.14, the standard bundle includes PyroWave. Selecting it starts
+Starting with 1.5.0, the standard bundle includes PyroWave. Selecting it starts
 an isolated device check; H.264, HEVC and Auto never run that check. The separate
 PyroWave bundle is retired. See the [PyroWave installation guide](../../docs/pyrowave.md#packaging-and-compatibility)
 for compatibility and upgrades from older bundles.

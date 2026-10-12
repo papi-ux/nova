@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.4.14 - 2026-10-01
+## 1.5.0 - 2026-10-12
 
 A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. This release brings the Android interface together, gives PyroWave advice that starts from the screen in your hands, and makes the controls easier to use with touch or a controller. Existing pairings, saved setups and artwork stay yours.
 
@@ -10,7 +10,7 @@ A Library built around the game you are about to play, stream choices that fit y
 
 Steam from the couch, a readout that knows how you are connected, and three ways to keep evidence of a stream without sending anything anywhere.
 
-- The selected PC menu and Command Center have **Steam**: Open Steam, Open Big Picture and Quit Steam on the paired PC, on Android and Linux. Quit asks again while a game is running. Play Setup shows the chosen mode's Steam policy. Needs a Polaris 1.4.14 beta.2 host; an older host says so.
+- The selected PC menu and Command Center have **Steam**: Open Steam, Open Big Picture and Quit Steam on the paired PC, on Android and Linux. Quit asks again while a game is running. Play Setup shows the chosen mode's Steam policy. Needs a Polaris 1.5.0 beta.2 host; an older host says so.
 - Play Setup can say how you reach the host, direct, through a relay or unknown, from the host's own Tailscale daemon and never from an address, a hostname or an installed app, and offers Tailscale setup. Per-host rules pick a saved Settings Profile for a launch, name the rule that matched, and take a one-launch override. Your active profile and the host's saved settings stay as they are.
 - Command Center has **Report This Moment**. It freezes the current client readings and a short redacted log tail into a local report. On Android only Share Report opens the share sheet, and it says sharing may pause playback; on Linux, Save writes to Documents, Nova reports. Nothing is sent on its own.
 - Mark a stream you know is good as a **Working baseline**, then Compare a later stream against it for the same PC and game. It is a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it. Streaming moments record the bitrate the launch really asked for, after metered-network limits, host ceilings and AutoSafe.
@@ -97,12 +97,13 @@ The Linux interface gets the same attention as the Android one: a quieter Librar
 **Before you update**
 
 - Keep in Step starts on for new pairings.
-- Android beta APKs are named `Nova-Beta-Android-<abi>.apk`, install beside stable Nova, and follow the beta update channel. Numbered builds identify themselves as `1.4.14-beta.1`. New pairings use Beta instead of Pre; an existing host-stored pairing name changes only after pairing again.
+- Android beta APKs are named `Nova-Beta-Android-<abi>.apk`, install beside stable Nova, and follow the beta update channel. Numbered builds identify themselves as `1.5.0-beta.2`. New pairings use Beta instead of Pre; an existing host-stored pairing name changes only after pairing again.
 - Linux uses the same app ID when replacing an older bundle. Keep its app data and do not uninstall with `--delete-data`.
 - A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games; full per-game shutdown is a separate follow-up.
 - Nova Linux remains an Alpha, and the Frame route is experimental. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
 - Steam controls, the Tailscale readout, Report This Moment, Working baseline and the Last Stream card are in beta.2 with CI and source checks; their controller, TalkBack and real-stream passes on the RP6, Deck and Shield are part of the beta.2 device checks.
-- The Steam controls and the Tailscale readout need a Polaris 1.4.14 beta.2 host. An older host shows a reason instead.
+- The Steam controls and the Tailscale readout need a Polaris 1.5.0 beta.2 host. An older host shows a reason instead.
+- This release was called 1.4.14 while beta.1 was out. It is 1.5.0 now, for how much it carries since 1.4.13, and 1.5.0-beta.2 is the next build of the same train: it installs over Nova Beta 1.4.14-beta.1 and the beta update channel offers it.
 
 ## 1.4.13 - 2026-09-24
 
