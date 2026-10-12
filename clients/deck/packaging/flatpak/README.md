@@ -5,7 +5,7 @@
 The 1.5.0 candidate adds landscape/desktop Library and Settings polish, six
 Linux themes including `< Congratulations, Director >`, separate control sizes,
 80–130 percent text, and Command Center background opacity. See the
-[client guide](../../README.md#what-changes-in-1414) for the interface changes.
+[client guide](../../README.md#what-changes-in-150) for the interface changes.
 
 The [Steam Frame development guide](../../docs/steam-frame.md) describes a
 separate experimental ARM64 build and launcher. The x86_64 release filename is
