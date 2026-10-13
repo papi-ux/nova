@@ -122,6 +122,30 @@ class PyroWaveLatencyProvenanceTest {
         assertEquals(3.5, stats.summary()["decode_latency_ms"])
     }
 
+    @Test fun normalizedLiveHudCodecKeepsPresentationRequestProvenance() {
+        val label = NovaHudUiState.normalizeCodecLabel("PyroWave")
+        assertEquals("PYRO", label)
+        val hud = NovaHudUiState.from(
+            mode = NovaHudMode.DEBUG, fps = 50.0, targetFps = 60.0, latencyMs = 4,
+            codec = label, bitrateKbps = 20_000, width = 1920, height = 1080,
+            status = null, sparklineSamples = emptyList(), decodeTimeMs = 7.0,
+            incomingFps = 60.0, renderedFps = 50.0, mediaFresh = true,
+        )
+        assertEquals("SUBMIT", hud.outputRateCaption)
+        assertEquals("SUBMIT GAP", hud.outputGapCaption)
+        assertEquals("Submit rate below receive", hud.healthReasonLabel)
+        assertEquals("--", hud.decodeTimeLabel)
+        val stats = NovaHudSessionStats()
+        stats.recordPerfSample(sample(decodeMs = 7.0))
+        stats.setLastCodec(label)
+        val summary = stats.summary()
+        assertEquals("present_request", summary["frame_output_source"])
+        assertEquals(false, summary["decode_latency_available"])
+        val diagnostic = NovaHudDiagnosticReport.format(summary)
+        assertTrue(diagnostic.contains("98 submitted"))
+        assertTrue(diagnostic.contains("GPU completion and scanout are unmeasured"))
+    }
+
     private fun recap(vararg samples: PerfOverlaySample): NovaStreamRecap.Recap =
         NovaStreamRecap.Accumulator(1).apply {
             launch(NovaStreamRecapTest.launch())
