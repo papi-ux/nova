@@ -680,14 +680,15 @@ class NovaCommandCenterSourceGuardTest {
         )
 
         assertTrue(
-            "Debug answers 'how long does my panel take to decode', graded against the frame budget rather than a fixed number",
+            "Debug binds the model's measured-or-unavailable decode reading and its frame-budget tone",
             debugHud.contains("HudFact(\"DECODE\", state.decodeTimeLabel, state.decodeTone)")
         )
         assertTrue(
-            "Debug shows host encode latency and incoming against rendered fps, the legacy text's remaining facts, so the legacy overlay can retire later",
+            "Debug shows host encode latency and incoming against output, using the model's rendered-or-submitted caption",
             debugHud.contains("HudFact(\"ENCODE\", state.hostLatencyLabel)") &&
                 debugHud.contains("HudFact(\"IN\", state.incomingFpsLabel)") &&
-                debugHud.contains("HudFact(\"OUT\", state.renderedFpsLabel)")
+                debugHud.contains("HudFact(state.outputRateCaption, state.renderedFpsLabel)") &&
+                debugHud.contains("HudFact(state.outputGapCaption, state.renderGapLabel)")
         )
         assertTrue(
             "Debug keeps the network's facts: loss in the current window graded so zero is the only green, round-trip jitter, and the session's lost-frame count",

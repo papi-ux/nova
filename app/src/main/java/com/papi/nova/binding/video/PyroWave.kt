@@ -264,7 +264,7 @@ object PyroWave {
         return nativeCreateRenderer(surface, width, height, chroma444, hdr)
     }
 
-    /** One whole frame, decoded on the GPU and drawn. */
+    /** Request GPU decode and presentation; true means API acceptance, not GPU completion or scanout. */
     fun decodeAndPresent(handle: Long, frame: ByteArray, length: Int): Boolean {
         if (!loaded || handle == 0L) return false
         return nativeDecodeAndPresent(handle, frame, length)

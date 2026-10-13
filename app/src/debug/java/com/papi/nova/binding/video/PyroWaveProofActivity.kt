@@ -8,7 +8,7 @@ import android.widget.Toast
 import com.papi.nova.LimeLog
 
 /**
- * Draws one decoded frame and says whether it worked.
+ * Requests presentation of one decoded frame and reports API acceptance.
  *
  * A debug build only screen, with no way to reach it from the app: it is started with
  * `adb shell am start -n <package>/com.papi.nova.binding.video.PyroWaveProofActivity`. It exists
@@ -40,7 +40,7 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
             val session = driveSessionRenderer(holder.surface)
             val message = when {
                 decoded == null || uploaded == null -> "PyroWave: no native library"
-                decoded == 0 && uploaded == 0 && session -> "PyroWave: all three paths drew"
+                decoded == 0 && uploaded == 0 && session -> "PyroWave: all three paths accepted present requests"
                 else -> "PyroWave: GPU $decoded, upload $uploaded, session $session"
             }
             LimeLog.info(message)
@@ -64,7 +64,7 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
             return false
         }
 
-        // A listener that drops what it is given: this drives the renderer to check it draws, and
+        // A listener that drops what it is given: this drives the renderer to check admission, and
         // the HUD it would normally feed is not on screen.
         val renderer = PyroWaveDecoderRenderer(object : PerfOverlayListener {
             override fun onPerfUpdate(text: String) = Unit
@@ -80,15 +80,14 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
         // it has already decoded, so pushing these bytes twice tests that it says no.
         val outcome = renderer.submitDecodeUnit(
             bitstream, bitstream.size, 0, 0, 2, 0.toChar(), 0L, 0L)
-        val shown = renderer.framesShown
+        val submitted = renderer.framesSubmitted
         val refused = renderer.framesRefused
         renderer.stop()
         renderer.cleanup()
 
-        // The counts, not the return value. A frame that does not reach the screen is counted rather
-        // than refused, because refusing asks the library for a keyframe and every frame of this
-        // codec already is one, so the submit returns DR_OK either way.
-        return outcome == com.papi.nova.nvstream.jni.MoonBridge.DR_OK && shown == 1L && refused == 0L
+        // DR_OK is returned even for a refused present request, because every next frame is already
+        // a keyframe. The count proves request acceptance; the player's observation proves a picture.
+        return outcome == com.papi.nova.nvstream.jni.MoonBridge.DR_OK && submitted == 1L && refused == 0L
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit

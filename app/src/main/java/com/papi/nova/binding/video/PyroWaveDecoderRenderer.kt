@@ -264,17 +264,18 @@ class PyroWaveDecoderRenderer(
     // The window the HUD reads, reset every time it is reported.
     private var windowStartedMs: Long = 0
     private var windowFrames: Long = 0
-    private var windowDrawn: Long = 0
-    private var windowDecodeNs: Long = 0
-    private var totalDecodeNs: Long = 0
+    private var windowSubmitted: Long = 0
 
     // What the host says it spent capturing and encoding each frame, in tenths of a millisecond,
     // which is the unit the frame header carries it in.
     private var windowHostLatency: Long = 0
     private var windowHostLatencyFrames: Long = 0
-    /** Frames that reached the screen, and frames that did not. Readable for a proof or a HUD. */
-    var framesShown: Long = 0
+    /** Accepted present requests, not GPU-completed frames or observed display scanout. */
+    var framesSubmitted: Long = 0
         private set
+    /** Compatibility name for the existing request count; it never proved scanout. */
+    val framesShown: Long
+        get() = framesSubmitted
     var framesRefused: Long = 0
         private set
 
@@ -330,7 +331,7 @@ class PyroWaveDecoderRenderer(
     }
 
     override fun start() {
-        windowStartedMs = SystemClock.elapsedRealtime()
+        resetWindow(SystemClock.elapsedRealtime())
     }
 
     override fun stop() = Unit
@@ -370,27 +371,23 @@ class PyroWaveDecoderRenderer(
             windowHostLatencyFrames++
         }
 
-        val startedNs = System.nanoTime()
-        val drew = renderer.useOrNull { handle ->
+        val submitted = renderer.useOrNull { handle ->
             PyroWave.decodeAndPresent(handle, decodeUnitData, decodeUnitLength)
         } ?: return MoonBridge.DR_NEED_IDR
-        val elapsedNs = System.nanoTime() - startedNs
 
-        // Decode and present together, because that is what the call does: the compute work and the
-        // draw that reads it are one submit under one fence, and timing half of it would be timing
-        // nothing anyone waits for.
+        // The synchronous API returns after queue submit/present acceptance. Its CPU wall time can
+        // include waiting for the previous frame, and does not measure this frame's GPU completion
+        // or scanout. Optional native timestamp diagnostics retain their own measured provenance.
         windowFrames++
-        windowDecodeNs += elapsedNs
-        totalDecodeNs += elapsedNs
 
-        if (drew) {
-            framesShown++
-            windowDrawn++
+        if (submitted) {
+            framesSubmitted++
+            windowSubmitted++
         }
         else {
             framesRefused++
             if (framesRefused == 1L || framesRefused % 60L == 0L) {
-                LimeLog.warning("PyroWave: $framesRefused frames did not reach the screen")
+                LimeLog.warning("PyroWave: $framesRefused present requests refused")
             }
         }
 
@@ -402,7 +399,7 @@ class PyroWaveDecoderRenderer(
      * Hand the HUD a second's worth of measurements, once a second.
      *
      * Counted here rather than sampled on a timer, because this is the only thread that knows a
-     * frame happened and there is no queue between it and the screen to ask instead.
+     * presentation was requested. This does not observe completion or display scanout.
      */
     private fun reportIfWindowElapsed() {
         val now = SystemClock.elapsedRealtime()
@@ -412,12 +409,6 @@ class PyroWaveDecoderRenderer(
         }
 
         val seconds = elapsedMs.toDouble() / 1000.0
-        val decodeMs = if (windowFrames > 0) {
-            windowDecodeNs.toDouble() / windowFrames.toDouble() / 1_000_000.0
-        }
-        else {
-            0.0
-        }
         val rttInfo = try {
             MoonBridge.getEstimatedRttInfo()
         } catch (e: Throwable) {
@@ -426,15 +417,15 @@ class PyroWaveDecoderRenderer(
 
         perfListener.onPerfSample(
             PerfOverlaySample(
-                fps = windowDrawn.toDouble() / seconds,
+                fps = windowSubmitted.toDouble() / seconds,
                 incomingFps = windowFrames.toDouble() / seconds,
-                renderedFps = windowDrawn.toDouble() / seconds,
+                renderedFps = windowSubmitted.toDouble() / seconds,
                 width = width,
                 height = height,
                 codec = "PyroWave",
                 rttMs = (rttInfo shr 32).toInt(),
                 rttVarianceMs = rttInfo.toInt(),
-                decodeTimeMs = decodeMs,
+                decodeTimeMs = Double.NaN,
                 // Sequence gaps count missing VIDEO FRAMES, not lost transport packets.
                 // Keep the existing feedback field/contract; the HUD names the observation.
                 packetLossPct = if (windowFrames + windowMissing > 0) {
@@ -444,9 +435,11 @@ class PyroWaveDecoderRenderer(
                     0.0
                 },
                 monotonicTimestampMs = now,
-                framesExpected = framesShown + framesRefused + framesMissing,
-                framesReceived = framesShown + framesRefused,
-                framesRendered = framesShown,
+                // Preserve the feedback counters: framesRendered is the legacy field for accepted
+                // present requests on this renderer, not a new completion/scanout measurement.
+                framesExpected = framesSubmitted + framesRefused + framesMissing,
+                framesReceived = framesSubmitted + framesRefused,
+                framesRendered = framesSubmitted,
                 framesLost = framesMissing,
                 hostProcessingLatencyMs = windowHostLatencyFrames
                     .takeIf { it > 0 }
@@ -454,11 +447,14 @@ class PyroWaveDecoderRenderer(
             )
         )
 
+        resetWindow(now)
+    }
+
+    private fun resetWindow(now: Long) {
         windowStartedMs = now
         windowFrames = 0
         windowMissing = 0
-        windowDrawn = 0
-        windowDecodeNs = 0
+        windowSubmitted = 0
         windowHostLatency = 0
         windowHostLatencyFrames = 0
     }
@@ -466,7 +462,7 @@ class PyroWaveDecoderRenderer(
     override fun cleanup() {
         renderer.close()
         LimeLog.info(
-            "PyroWave: $framesShown frames shown, $framesRefused refused, $framesMissing never arrived",
+            "PyroWave: $framesSubmitted present requests accepted, $framesRefused refused, $framesMissing never arrived",
         )
     }
 
@@ -525,28 +521,19 @@ class PyroWaveDecoderRenderer(
 
     // How the session is going.
 
-    // Decode and present, which for this renderer is the whole of it: there is no queue between
-    // the frame arriving and the picture appearing, so the two numbers are the same measurement.
-    override fun getAverageEndToEndLatency(): Int = averageDecodeMs()
+    // Game treats a non-positive latency as unavailable. Neither GPU completion timing nor
+    // end-to-end/scanout timing is supplied by this API; CPU return time cannot stand in for it.
+    override fun getAverageEndToEndLatency(): Int = 0
 
-    override fun getAverageDecoderLatency(): Int = averageDecodeMs()
+    override fun getAverageDecoderLatency(): Int = 0
 
-    private fun averageDecodeMs(): Int {
-        val frames = framesShown + framesRefused
-        if (frames == 0L) {
-            return 0
-        }
-        return (totalDecodeNs / frames / 1_000_000L).toInt()
-    }
-
-    override fun performanceWasTracked(): Boolean = framesShown + framesRefused > 0
+    override fun performanceWasTracked(): Boolean = false
 
     override fun getMinDecoderLatency(): String = ""
 
     override fun getMinDecoderLatencyFullLog(): String = ""
 
-    // Knobs for a decoder that queues. This one does not: a frame is decoded and presented inside
-    // the call that delivers it, so there is no delay to prefer or threshold to tighten.
+    // These MediaCodec queue controls do not configure this renderer's native Vulkan queue.
 
     override fun setForceTightThresholds(v: Boolean) = Unit
 
