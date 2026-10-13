@@ -51,6 +51,10 @@ internal object NovaWorkingBaselineText {
                 (value(line.item, line.now) ?: unknown))
         }
         appendLine()
+        if (c.context.any { it.item == NovaWorkingBaseline.ContextItem.DECODER_CODEC &&
+                (it.baseline == "pyrowave" || it.now == "pyrowave") }) {
+            appendLine(context.getString(R.string.nova_pyrowave_output_provenance))
+        }
         append(context.getString(R.string.nova_working_baseline_not_compared))
     }
 

@@ -156,7 +156,10 @@ object NovaStreamRecap {
             renderedFps?.let(rendered::add)
             fps(sample.incomingFps)?.let(received::add)
             // A decode time means something only for a window that rendered frames.
-            if (renderedFps != null && renderedFps > 0.0) decodeTime(sample.decodeTimeMs)?.let(decode::add)
+            if (renderedFps != null && renderedFps > 0.0) {
+                PerfOverlaySample.measuredDecodeLatencyMs(sample.codec, sample.decodeTimeMs)
+                    ?.let(::decodeTime)?.let(decode::add)
+            }
             sample.hostProcessingLatencyMs?.let { latency(it) }?.let(hostLatency::add)
             controlRtt(sample.rttMs)?.let(rtt::add)
 
@@ -255,7 +258,9 @@ object NovaStreamRecap {
                         height = it.height.takeIf { h -> h in 1..16_384 },
                         renderedFps = fps(it.renderedFps),
                         receivedFps = fps(it.incomingFps),
-                        decodeTimeMs = if ((fps(it.renderedFps) ?: 0.0) > 0.0) decodeTime(it.decodeTimeMs) else null,
+                        decodeTimeMs = if ((fps(it.renderedFps) ?: 0.0) > 0.0) {
+                            PerfOverlaySample.measuredDecodeLatencyMs(it.codec, it.decodeTimeMs)?.let(::decodeTime)
+                        } else null,
                         controlRttMs = controlRtt(it.rttMs),
                     )
                 },

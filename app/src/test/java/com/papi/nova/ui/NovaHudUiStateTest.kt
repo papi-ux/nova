@@ -604,14 +604,15 @@ class NovaHudUiStateTest {
     }
 
     @Test
-    fun theClientDotFollowsThisDevicesOwnDecodeTime() {
-        // PyroWave at 4K120 on the RP6: DEC 15 ms against an 8.3 ms frame, and CLIENT stayed green.
-        fun client(decodeMs: Double) = NovaHudUiState.from(
+    fun theClientDotFollowsMeasuredDecodeTimeAndKeepsPyrowaveTimingUnavailable() {
+        // A measured hardware decode interval still grades against the 8.3 ms frame budget.
+        // Android PyroWave's old CPU API-return value does not measure GPU decode completion.
+        fun client(decodeMs: Double, codec: String = "HEVC") = NovaHudUiState.from(
             mode = NovaHudMode.PERFORMANCE,
             fps = 120.0,
             targetFps = 120.0,
             latencyMs = 8,
-            codec = "pyrowave",
+            codec = codec,
             bitrateKbps = 234_000,
             width = 3840,
             height = 2160,
@@ -622,6 +623,9 @@ class NovaHudUiStateTest {
         assertEquals(NovaHudTone.DANGER, client(15.0))
         assertEquals(NovaHudTone.STABLE, client(6.0))
         assertEquals(NovaHudTone.STABLE, client(2.0))
+        assertEquals(NovaHudTone.MUTED, client(15.0, "pyrowave"))
+        assertEquals(NovaHudTone.MUTED, client(6.0, "pyrowave"))
+        assertEquals(NovaHudTone.MUTED, client(2.0, "pyrowave"))
     }
 
     @Test

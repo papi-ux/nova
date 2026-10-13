@@ -1,5 +1,7 @@
 package com.papi.nova.diagnostics
 
+import com.papi.nova.binding.video.PerfOverlaySample
+
 import org.json.JSONObject
 
 /**
@@ -143,7 +145,8 @@ object NovaMomentReport {
                 height = sample.height.takeIf { it in 1..16384 },
                 renderedFps = finite(sample.renderedFps, 0.0, 1000.0),
                 receivedFps = finite(sample.receivedFps, 0.0, 1000.0),
-                decodeTimeMs = finite(sample.decodeTimeMs, 0.0, 10_000.0),
+                decodeTimeMs = PerfOverlaySample.measuredDecodeLatencyMs(sample.codec, sample.decodeTimeMs)
+                    ?.let { finite(it, 0.0, 10_000.0) },
                 // MoonBridge reports 0 before it has an estimate; that is "unknown", not 0 ms.
                 controlRttMs = sample.rttMs.takeIf { it in 1..60_000 }?.toDouble(),
                 controlRttVarianceMs = sample.rttVarianceMs.takeIf { sample.rttMs in 1..60_000 && it in 0..60_000 }?.toDouble(),
@@ -247,6 +250,7 @@ object NovaMomentReport {
         appendLine("- Requested settings are what Nova asked for; client decoder readings are what it measured.")
         appendLine("- Frame loss counts missing video frames in the decoder's sample window. It is not control-channel or packet loss.")
         appendLine("- Frames expected and lost are cumulative decoder-session counters, separate from that sample-window percentage.")
+        appendLine("- For Android PyroWave, rendered_fps counts accepted present requests. GPU completion, decode latency and scanout are unavailable.")
         appendLine("- Control-channel round trip is the stream connection's estimate. It is not video latency.")
         appendLine("- No host snapshot is included. For the host side, export the Polaris support bundle from the host's Troubleshooting screen and attach it too.")
         appendLine("- The version is the Nova build that is running; no source commit is claimed.")
