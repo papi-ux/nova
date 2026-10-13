@@ -257,6 +257,13 @@ class PyroWaveDecoderRenderer(
 
     private var surface: Surface? = null
     private val renderer = PyroWaveRendererLifetime(PyroWave::destroyRenderer)
+
+    /**
+     * Whether Game sized this session's buffer for SGSR 1 (#304). Set before the stream starts, and
+     * only after the surface was given the size it names; left as never asked otherwise.
+     */
+    @Volatile
+    var scalerDecision: PyroWaveScalerPolicy.Decision = PyroWaveScalerPolicy.Decision.notRequested()
     private var format: Int = 0
     private var width: Int = 0
     private var height: Int = 0
@@ -318,13 +325,16 @@ class PyroWaveDecoderRenderer(
         val hdr = (format and
             (MoonBridge.VIDEO_FORMAT_PYROWAVE_10BIT or MoonBridge.VIDEO_FORMAT_PYROWAVE_444_10BIT)) != 0
 
+        val decision = scalerDecision
         val handle = renderer.create {
-            PyroWave.createRenderer(target, width, height, chroma444, hdr)
+            PyroWave.createRenderer(target, width, height, chroma444, hdr, decision.request)
         }
         if (handle == 0L) {
             LimeLog.severe("PyroWave: could not make a ${width}x$height renderer")
             return -2
         }
+        // Through the lifetime, like every other call: the surface can go between here and there.
+        LimeLog.info(PyroWaveScalerPolicy.describe(decision, renderer.useOrNull(PyroWave::scalerState)))
 
         LimeLog.info("PyroWave: rendering ${width}x$height at $redrawRate")
         return 0

@@ -5,11 +5,14 @@
 
 #include "shaders/present_frag_spv.h"
 #include "shaders/present_vert_spv.h"
+#include "shaders/sgsr1_frag_spv.h"
 
 #include <android/log.h>
 #include <sys/system_properties.h>
 
 #include <chrono>
+#include <cmath>
+#include <cstddef>
 #include <cstring>
 
 #define LOG_TAG "PyroWave"
@@ -103,6 +106,25 @@ namespace nova_vk {
       if (start_ns) metric.add((monotonic_ns() - start_ns) / 1e6);
     }
 
+    const char *scaler_state_name(int32_t state) {
+      switch (state) {
+        case PYROWAVE_SCALER_SGSR1_ACTIVE: return "SGSR1_ACTIVE";
+        case PYROWAVE_SCALER_OUTPUT_BUFFER_BILINEAR: return "OUTPUT_BUFFER_BILINEAR";
+        default: return "DEFAULT";
+      }
+    }
+
+    const char *scaler_reason_name(int32_t reason) {
+      switch (reason) {
+        case PYROWAVE_SCALER_REASON_NONE: return "NONE";
+        case PYROWAVE_SCALER_REASON_HDR_OR_10BIT: return "HDR_OR_10BIT";
+        case PYROWAVE_SCALER_REASON_NOT_UPSCALING: return "NOT_UPSCALING";
+        case PYROWAVE_SCALER_REASON_ASPECT_MISMATCH: return "ASPECT_MISMATCH";
+        case PYROWAVE_SCALER_REASON_PIPELINE_FAILED: return "PIPELINE_FAILED";
+        default: return "NOT_REQUESTED";
+      }
+    }
+
   }  // namespace
 
   renderer_t::~renderer_t() {
@@ -121,7 +143,7 @@ namespace nova_vk {
   }
 
   bool renderer_t::create(ANativeWindow *native_window, uint32_t width, uint32_t height,
-                          bool chroma_444, bool stream_is_hdr) {
+                          bool chroma_444, bool stream_is_hdr, int32_t sgsr_request) {
     destroy();
 
     if (!native_window || width == 0 || height == 0) {
@@ -149,10 +171,72 @@ namespace nova_vk {
       return false;
     }
 
+    // Last, so that nothing about SGSR 1 can stop a renderer that would otherwise be made.
+    choose_scaler(sgsr_request);
+
     LOGI("renderer ready: %ux%u %s into a %ux%u surface", frame_width, frame_height,
          chroma_shift == 0 ? "4:4:4" : "4:2:0", swapchain_extent.width, swapchain_extent.height);
+    LOGI("scaler: %s (%s), frame %ux%u, buffer %ux%u", scaler_state_name(scaler_state),
+         scaler_reason_name(scaler_reason), frame_width, frame_height, swapchain_extent.width,
+         swapchain_extent.height);
     create_timing();
     return true;
+  }
+
+  pyrowave_scaler_info renderer_t::scaler_info() const {
+    pyrowave_scaler_info info = {};
+    info.state = scaler_state;
+    info.reason = scaler_reason;
+    info.frame_width = frame_width;
+    info.frame_height = frame_height;
+    info.buffer_width = swapchain_extent.width;
+    info.buffer_height = swapchain_extent.height;
+    return info;
+  }
+
+  void renderer_t::choose_scaler(int32_t request) {
+    scaler_state = PYROWAVE_SCALER_DEFAULT;
+    scaler_reason = PYROWAVE_SCALER_REASON_NOT_REQUESTED;
+    if (request != PYROWAVE_SGSR_REQUEST_FIT && request != PYROWAVE_SGSR_REQUEST_STRETCH) {
+      return;
+    }
+
+    // Kotlin sized the buffer for SGSR 1 before asking. From here a refusal is not the default:
+    // the present shader stretches the frame over the larger buffer with its LINEAR sampler, and
+    // the state says so with the sizes, rather than claiming a path this session is not on.
+    scaler_state = PYROWAVE_SCALER_OUTPUT_BUFFER_BILINEAR;
+    const uint32_t buffer_width = swapchain_extent.width;
+    const uint32_t buffer_height = swapchain_extent.height;
+    if (hdr) {
+      scaler_reason = PYROWAVE_SCALER_REASON_HDR_OR_10BIT;
+      return;
+    }
+    if (frame_width >= buffer_width || frame_height >= buffer_height) {
+      scaler_reason = PYROWAVE_SCALER_REASON_NOT_UPSCALING;
+      return;
+    }
+    if (request == PYROWAVE_SGSR_REQUEST_FIT) {
+      const double frame_aspect = static_cast<double>(frame_width) / frame_height;
+      const double buffer_aspect = static_cast<double>(buffer_width) / buffer_height;
+      if (std::fabs(frame_aspect / buffer_aspect - 1.0) > k_sgsr_aspect_tolerance) {
+        scaler_reason = PYROWAVE_SCALER_REASON_ASPECT_MISMATCH;
+        return;
+      }
+    }
+
+    // A debug property forces the failure path, so a device run can watch the fallback happen.
+    char value[PROP_VALUE_MAX] = {};
+    __system_property_get("debug.nova.pyrowave_sgsr_fail", value);
+    if (std::strcmp(value, "1") == 0 || !create_sgsr_pipeline()) {
+      if (sgsr_pipeline) vk.vkDestroyPipeline(device.device, sgsr_pipeline, nullptr);
+      if (sgsr_layout) vk.vkDestroyPipelineLayout(device.device, sgsr_layout, nullptr);
+      sgsr_pipeline = VK_NULL_HANDLE;
+      sgsr_layout = VK_NULL_HANDLE;
+      scaler_reason = PYROWAVE_SCALER_REASON_PIPELINE_FAILED;
+      return;
+    }
+    scaler_state = PYROWAVE_SCALER_SGSR1_ACTIVE;
+    scaler_reason = PYROWAVE_SCALER_REASON_NONE;
   }
 
   void renderer_t::create_timing() {
@@ -425,7 +509,7 @@ namespace nova_vk {
     colour.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colour.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colour.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colour.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colour.finalLayout = render_pass_final_layout;
 
     VkAttachmentReference reference = {};
     reference.attachment = 0;
@@ -776,6 +860,118 @@ namespace nova_vk {
     return result == VK_SUCCESS;
   }
 
+  bool renderer_t::create_sgsr_pipeline() {
+    static_assert(sizeof(sgsr_push_t) == 36, "sgsr1.frag's push block is 36 bytes");
+    static_assert(offsetof(sgsr_push_t, matrix) == 0, "sgsr1.frag reads the matrix at offset 0");
+    static_assert(offsetof(sgsr_push_t, viewport_info) == 16, "sgsr1.frag reads the viewport at offset 16");
+    static_assert(offsetof(sgsr_push_t, edge_sharpness) == 32, "sgsr1.frag reads the sharpness at offset 32");
+
+    const auto make_module = [&](const uint32_t *code, size_t bytes) {
+      VkShaderModuleCreateInfo info = {};
+      info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+      info.codeSize = bytes;
+      info.pCode = code;
+      VkShaderModule module = VK_NULL_HANDLE;
+      vk.vkCreateShaderModule(device.device, &info, nullptr, &module);
+      return module;
+    };
+
+    // The same vertex stage, descriptor set and sampler as the present pipeline, and the same fixed
+    // function state below. Only the fragment stage and its push range differ.
+    VkShaderModule vertex = make_module(present_vert_spv, sizeof(present_vert_spv));
+    VkShaderModule fragment = make_module(sgsr1_frag_spv, sizeof(sgsr1_frag_spv));
+    if (!vertex || !fragment) {
+      if (vertex) vk.vkDestroyShaderModule(device.device, vertex, nullptr);
+      if (fragment) vk.vkDestroyShaderModule(device.device, fragment, nullptr);
+      LOGW("the driver refused the SGSR 1 shader");
+      return false;
+    }
+
+    VkPipelineShaderStageCreateInfo stages[2] = {};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertex;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragment;
+    stages[1].pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vertex_input = {};
+    vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    VkPipelineInputAssemblyStateCreateInfo assembly = {};
+    assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo viewport = {};
+    viewport.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport.viewportCount = 1;
+    viewport.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo raster = {};
+    raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    raster.polygonMode = VK_POLYGON_MODE_FILL;
+    raster.cullMode = VK_CULL_MODE_NONE;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    raster.lineWidth = 1.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisample = {};
+    multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState blend_attachment = {};
+    blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo blend = {};
+    blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    blend.attachmentCount = 1;
+    blend.pAttachments = &blend_attachment;
+
+    const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamic = {};
+    dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic.dynamicStateCount = 2;
+    dynamic.pDynamicStates = dynamic_states;
+
+    VkPushConstantRange push_range = {};
+    push_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    push_range.offset = 0;
+    push_range.size = sizeof(sgsr_push_t);
+
+    VkPipelineLayoutCreateInfo layout = {};
+    layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layout.setLayoutCount = 1;
+    layout.pSetLayouts = &set_layout;
+    layout.pushConstantRangeCount = 1;
+    layout.pPushConstantRanges = &push_range;
+    if (vk.vkCreatePipelineLayout(device.device, &layout, nullptr, &sgsr_layout) != VK_SUCCESS) {
+      vk.vkDestroyShaderModule(device.device, vertex, nullptr);
+      vk.vkDestroyShaderModule(device.device, fragment, nullptr);
+      return false;
+    }
+
+    VkGraphicsPipelineCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    info.stageCount = 2;
+    info.pStages = stages;
+    info.pVertexInputState = &vertex_input;
+    info.pInputAssemblyState = &assembly;
+    info.pViewportState = &viewport;
+    info.pRasterizationState = &raster;
+    info.pMultisampleState = &multisample;
+    info.pColorBlendState = &blend;
+    info.pDynamicState = &dynamic;
+    info.layout = sgsr_layout;
+    info.renderPass = render_pass;
+
+    const auto result = vk.vkCreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1, &info, nullptr, &sgsr_pipeline);
+    vk.vkDestroyShaderModule(device.device, vertex, nullptr);
+    vk.vkDestroyShaderModule(device.device, fragment, nullptr);
+    return result == VK_SUCCESS;
+  }
+
   bool renderer_t::create_frame_resources() {
     VkCommandPoolCreateInfo pool = {};
     pool.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1084,13 +1280,7 @@ namespace nova_vk {
     scissor.extent = swapchain_extent;
     vk.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-    vk.vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    const auto matrix = colour_matrix();
-    vk.vkCmdPushConstants(command_buffer, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                          sizeof(matrix), &matrix);
-    vk.vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout,
-                               0, 1, &descriptor_set, 0, nullptr);
-    vk.vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    bind_and_draw(command_buffer);
     vk.vkCmdEndRenderPass(command_buffer);
     if (timing_queries) {
       vk.vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timing_queries, 2);
@@ -1138,6 +1328,222 @@ namespace nova_vk {
     return true;
   }
 
+  void renderer_t::bind_and_draw(VkCommandBuffer cmd) {
+    if (scaler_state == PYROWAVE_SCALER_SGSR1_ACTIVE) {
+      vk.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sgsr_pipeline);
+      sgsr_push_t push = {};
+      push.matrix = colour_matrix();
+      push.viewport_info[0] = 1.0f / static_cast<float>(frame_width);
+      push.viewport_info[1] = 1.0f / static_cast<float>(frame_height);
+      push.viewport_info[2] = static_cast<float>(frame_width);
+      push.viewport_info[3] = static_cast<float>(frame_height);
+      push.edge_sharpness = k_sgsr_edge_sharpness;
+      vk.vkCmdPushConstants(cmd, sgsr_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+      vk.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sgsr_layout,
+                                 0, 1, &descriptor_set, 0, nullptr);
+    } else {
+      vk.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+      const auto matrix = colour_matrix();
+      vk.vkCmdPushConstants(cmd, pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                            sizeof(matrix), &matrix);
+      vk.vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout,
+                                 0, 1, &descriptor_set, 0, nullptr);
+    }
+    vk.vkCmdDraw(cmd, 3, 1, 0, 0);
+  }
+
+  bool renderer_t::sgsr_readback(uint32_t width, uint32_t height, bool chroma_444,
+                                 const uint8_t *luma, const uint8_t *cb, const uint8_t *cr,
+                                 uint32_t output_width, uint32_t output_height, bool sgsr,
+                                 uint8_t *rgba) {
+    if (!luma || !cb || !cr || !rgba || width == 0 || height == 0 || output_width == 0 ||
+        output_height == 0) {
+      return false;
+    }
+    renderer_t renderer;
+    renderer.frame_width = width;
+    renderer.frame_height = height;
+    renderer.chroma_shift = chroma_444 ? 0 : 1;
+    renderer.hdr = false;
+    renderer.swapchain_format = VK_FORMAT_R8G8B8A8_UNORM;
+    renderer.swapchain_extent = {output_width, output_height};
+    renderer.render_pass_final_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    // The destructor tears down whatever was made, finished or not.
+    return renderer.readback_once(luma, cb, cr, sgsr, rgba);
+  }
+
+  bool renderer_t::create_offscreen_target() {
+    VkImageCreateInfo image = {};
+    image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image.imageType = VK_IMAGE_TYPE_2D;
+    image.format = swapchain_format;
+    image.extent = {swapchain_extent.width, swapchain_extent.height, 1};
+    image.mipLevels = 1;
+    image.arrayLayers = 1;
+    image.samples = VK_SAMPLE_COUNT_1_BIT;
+    image.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    image.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (vk.vkCreateImage(device.device, &image, nullptr, &offscreen_image) != VK_SUCCESS) {
+      return false;
+    }
+    VkMemoryRequirements requirements = {};
+    vk.vkGetImageMemoryRequirements(device.device, offscreen_image, &requirements);
+    VkMemoryAllocateInfo allocate = {};
+    allocate.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocate.allocationSize = requirements.size;
+    allocate.memoryTypeIndex = memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (allocate.memoryTypeIndex == UINT32_MAX ||
+        vk.vkAllocateMemory(device.device, &allocate, nullptr, &offscreen_memory) != VK_SUCCESS) {
+      return false;
+    }
+    vk.vkBindImageMemory(device.device, offscreen_image, offscreen_memory, 0);
+
+    VkImageViewCreateInfo view = {};
+    view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view.image = offscreen_image;
+    view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view.format = swapchain_format;
+    view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view.subresourceRange.levelCount = 1;
+    view.subresourceRange.layerCount = 1;
+    VkImageView image_view = VK_NULL_HANDLE;
+    if (vk.vkCreateImageView(device.device, &view, nullptr, &image_view) != VK_SUCCESS) {
+      return false;
+    }
+    // Stands in for the one swapchain image, so create_render_pass makes its framebuffer.
+    swapchain_views.push_back(image_view);
+
+    const VkDeviceSize bytes = static_cast<VkDeviceSize>(swapchain_extent.width) * swapchain_extent.height * 4;
+    VkBufferCreateInfo buffer = {};
+    buffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer.size = bytes;
+    buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    buffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vk.vkCreateBuffer(device.device, &buffer, nullptr, &readback_buffer) != VK_SUCCESS) {
+      return false;
+    }
+    vk.vkGetBufferMemoryRequirements(device.device, readback_buffer, &requirements);
+    allocate.allocationSize = requirements.size;
+    allocate.memoryTypeIndex = memory_type(
+      requirements.memoryTypeBits,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (allocate.memoryTypeIndex == UINT32_MAX ||
+        vk.vkAllocateMemory(device.device, &allocate, nullptr, &readback_memory) != VK_SUCCESS) {
+      return false;
+    }
+    vk.vkBindBufferMemory(device.device, readback_buffer, readback_memory, 0);
+    return vk.vkMapMemory(device.device, readback_memory, 0, bytes, 0, &readback_mapped) == VK_SUCCESS;
+  }
+
+  bool renderer_t::readback_once(const uint8_t *luma, const uint8_t *cb, const uint8_t *cr, bool sgsr,
+                                 uint8_t *rgba) {
+    if (!device.create(true) || !vk.resolve(device.get_instance_proc_addr(), device.instance, device.device)) {
+      return false;
+    }
+    const auto get_device_proc_addr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+      device.get_instance_proc_addr()(device.instance, "vkGetDeviceProcAddr"));
+    copy_image_to_buffer = get_device_proc_addr ? reinterpret_cast<PFN_vkCmdCopyImageToBuffer>(
+      get_device_proc_addr(device.device, "vkCmdCopyImageToBuffer")) : nullptr;
+    if (!copy_image_to_buffer) {
+      return false;
+    }
+
+    if (!create_offscreen_target() || !create_render_pass() || !create_planes() ||
+        !create_descriptors() || !create_pipeline() || (sgsr && !create_sgsr_pipeline()) ||
+        !create_frame_resources()) {
+      LOGW("SGSR 1 readback: could not make its resources");
+      return false;
+    }
+    scaler_state = sgsr ? PYROWAVE_SCALER_SGSR1_ACTIVE : PYROWAVE_SCALER_DEFAULT;
+    scaler_reason = sgsr ? PYROWAVE_SCALER_REASON_NONE : PYROWAVE_SCALER_REASON_NOT_REQUESTED;
+    upload(luma, cb, cr);
+
+    VkCommandBufferBeginInfo begin = {};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vk.vkBeginCommandBuffer(command_buffer, &begin);
+
+    // The planes go in exactly as present() puts them in.
+    barrier_planes(command_buffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                   VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+    for (int i = 0; i < 3; i++) {
+      VkBufferImageCopy copy = {};
+      copy.bufferOffset = planes[i].offset;
+      copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+      copy.imageExtent = {planes[i].width, planes[i].height, 1};
+      vk.vkCmdCopyBufferToImage(command_buffer, staging, planes[i].image, VK_IMAGE_LAYOUT_GENERAL, 1, &copy);
+    }
+    barrier_planes(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+    VkRenderPassBeginInfo pass = {};
+    pass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    pass.renderPass = render_pass;
+    pass.framebuffer = framebuffers[0];
+    pass.renderArea.extent = swapchain_extent;
+    vk.vkCmdBeginRenderPass(command_buffer, &pass, VK_SUBPASS_CONTENTS_INLINE);
+    VkViewport view = {};
+    view.width = static_cast<float>(swapchain_extent.width);
+    view.height = static_cast<float>(swapchain_extent.height);
+    view.maxDepth = 1.0f;
+    vk.vkCmdSetViewport(command_buffer, 0, 1, &view);
+    VkRect2D scissor = {};
+    scissor.extent = swapchain_extent;
+    vk.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+    bind_and_draw(command_buffer);
+    vk.vkCmdEndRenderPass(command_buffer);
+
+    // The render pass left the image in TRANSFER_SRC; its colour writes still have to reach the copy.
+    VkImageMemoryBarrier written = {};
+    written.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    written.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    written.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    written.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    written.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    written.image = offscreen_image;
+    written.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    written.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    written.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vk.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &written);
+
+    VkBufferImageCopy region = {};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {swapchain_extent.width, swapchain_extent.height, 1};
+    copy_image_to_buffer(command_buffer, offscreen_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         readback_buffer, 1, &region);
+
+    VkBufferMemoryBarrier host = {};
+    host.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    host.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    host.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    host.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    host.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    host.buffer = readback_buffer;
+    host.size = VK_WHOLE_SIZE;
+    vk.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                            0, 0, nullptr, 1, &host, 0, nullptr);
+    vk.vkEndCommandBuffer(command_buffer);
+
+    VkSubmitInfo submit = {};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &command_buffer;
+    vk.vkResetFences(device.device, 1, &in_flight);
+    if (vk.vkQueueSubmit(device.graphics_queue, 1, &submit, in_flight) != VK_SUCCESS) {
+      return false;
+    }
+    frame_submitted = true;
+    if (vk.vkWaitForFences(device.device, 1, &in_flight, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
+      return false;
+    }
+    std::memcpy(rgba, readback_mapped,
+                static_cast<size_t>(swapchain_extent.width) * swapchain_extent.height * 4);
+    return true;
+  }
+
   void renderer_t::destroy_swapchain() {
     for (auto framebuffer : framebuffers) {
       if (framebuffer) vk.vkDestroyFramebuffer(device.device, framebuffer, nullptr);
@@ -1179,8 +1585,12 @@ namespace nova_vk {
       if (rendered) vk.vkDestroySemaphore(device.device, rendered, nullptr);
       if (acquired) vk.vkDestroySemaphore(device.device, acquired, nullptr);
       if (command_pool) vk.vkDestroyCommandPool(device.device, command_pool, nullptr);
+      if (sgsr_pipeline) vk.vkDestroyPipeline(device.device, sgsr_pipeline, nullptr);
+      if (sgsr_layout) vk.vkDestroyPipelineLayout(device.device, sgsr_layout, nullptr);
       if (pipeline) vk.vkDestroyPipeline(device.device, pipeline, nullptr);
       if (pipeline_layout) vk.vkDestroyPipelineLayout(device.device, pipeline_layout, nullptr);
+      if (readback_buffer) vk.vkDestroyBuffer(device.device, readback_buffer, nullptr);
+      if (readback_memory) vk.vkFreeMemory(device.device, readback_memory, nullptr);
       if (descriptor_pool) vk.vkDestroyDescriptorPool(device.device, descriptor_pool, nullptr);
       if (set_layout) vk.vkDestroyDescriptorSetLayout(device.device, set_layout, nullptr);
       if (sampler) vk.vkDestroySampler(device.device, sampler, nullptr);
@@ -1193,6 +1603,8 @@ namespace nova_vk {
         plane = {};
       }
       destroy_swapchain();
+      if (offscreen_image) vk.vkDestroyImage(device.device, offscreen_image, nullptr);
+      if (offscreen_memory) vk.vkFreeMemory(device.device, offscreen_memory, nullptr);
       if (render_pass) vk.vkDestroyRenderPass(device.device, render_pass, nullptr);
     }
 
@@ -1211,6 +1623,17 @@ namespace nova_vk {
     command_buffer = VK_NULL_HANDLE;
     pipeline = VK_NULL_HANDLE;
     pipeline_layout = VK_NULL_HANDLE;
+    sgsr_pipeline = VK_NULL_HANDLE;
+    sgsr_layout = VK_NULL_HANDLE;
+    scaler_state = PYROWAVE_SCALER_DEFAULT;
+    scaler_reason = PYROWAVE_SCALER_REASON_NOT_REQUESTED;
+    offscreen_image = VK_NULL_HANDLE;
+    offscreen_memory = VK_NULL_HANDLE;
+    readback_buffer = VK_NULL_HANDLE;
+    readback_memory = VK_NULL_HANDLE;
+    readback_mapped = nullptr;
+    copy_image_to_buffer = nullptr;
+    render_pass_final_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     descriptor_pool = VK_NULL_HANDLE;
     descriptor_set = VK_NULL_HANDLE;
     set_layout = VK_NULL_HANDLE;
@@ -1230,9 +1653,9 @@ namespace nova_vk {
 }  // namespace nova_vk
 
 extern "C" void *pyrowave_renderer_create(ANativeWindow *window, uint32_t width, uint32_t height,
-                                          bool chroma_444, bool hdr) {
+                                          bool chroma_444, bool hdr, int32_t sgsr_request) {
   auto *renderer = new nova_vk::renderer_t();
-  if (!renderer->create(window, width, height, chroma_444, hdr)) {
+  if (!renderer->create(window, width, height, chroma_444, hdr, sgsr_request)) {
     delete renderer;
     return nullptr;
   }
@@ -1249,6 +1672,20 @@ extern "C" bool pyrowave_renderer_decode_and_present(void *handle, const uint8_t
 
 extern "C" uint64_t pyrowave_renderer_partial_frames(void *handle) {
   return handle ? static_cast<nova_vk::renderer_t *>(handle)->frames_decoded_partially() : 0;
+}
+
+extern "C" bool pyrowave_renderer_scaler_state(void *handle, pyrowave_scaler_info *info) {
+  if (!handle || !info) return false;
+  *info = static_cast<nova_vk::renderer_t *>(handle)->scaler_info();
+  return true;
+}
+
+extern "C" bool pyrowave_renderer_sgsr_readback(uint32_t frame_width, uint32_t frame_height, bool chroma_444,
+                                                const uint8_t *luma, const uint8_t *cb, const uint8_t *cr,
+                                                uint32_t output_width, uint32_t output_height, bool sgsr,
+                                                uint8_t *rgba) {
+  return nova_vk::renderer_t::sgsr_readback(frame_width, frame_height, chroma_444, luma, cb, cr,
+                                            output_width, output_height, sgsr, rgba);
 }
 
 extern "C" void pyrowave_renderer_destroy(void *handle) {

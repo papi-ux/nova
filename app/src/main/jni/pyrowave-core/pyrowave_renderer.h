@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include "pyrowave_device.h"
+#include "pyrowave_renderer_c.h"
 #include "pyrowave_timing.h"
 
 #include <android/native_window.h>
@@ -44,8 +45,27 @@ namespace nova_vk {
      *   because the bitstream carries neither the primaries nor the transfer function. Unlike the
      *   chroma nothing would refuse a mismatch, so getting it wrong is a picture that is merely wrong.
      *   Fails rather than falling back when the surface cannot present HDR10.
+     * @param sgsr_request One of PYROWAVE_SGSR_REQUEST_*. Kotlin asks for SGSR 1 only after sizing
+     *   the surface's buffer to the output instead of the stream, and this checks that again against
+     *   the swapchain it gets. A refusal never fails the renderer: the present shader draws instead,
+     *   and scaler_info() says which happened and why.
      */
-    bool create(ANativeWindow *window, uint32_t width, uint32_t height, bool chroma_444, bool hdr);
+    bool create(ANativeWindow *window, uint32_t width, uint32_t height, bool chroma_444, bool hdr,
+                int32_t sgsr_request = PYROWAVE_SGSR_REQUEST_NONE);
+
+    /** What this renderer chose for its buffer at creation, with the sizes that decided it. */
+    pyrowave_scaler_info scaler_info() const;
+
+    /**
+     * Debug self test: draw known planes offscreen at the output size and read the pixels back.
+     *
+     * Never part of a stream. It builds its own device, planes and pipelines, draws once with SGSR 1
+     * or with the present shader into an R8G8B8A8_UNORM image, copies it to host memory and tears
+     * everything down again, so a device run can compare the GPU's pixels with the CPU reference.
+     */
+    static bool sgsr_readback(uint32_t frame_width, uint32_t frame_height, bool chroma_444,
+                              const uint8_t *luma, const uint8_t *cb, const uint8_t *cr,
+                              uint32_t output_width, uint32_t output_height, bool sgsr, uint8_t *rgba);
 
     /**
      * Decode one complete frame's bitstream on the GPU and show it.
@@ -82,6 +102,7 @@ namespace nova_vk {
     bool create_render_pass();
     bool create_planes();
     bool create_pipeline();
+    bool create_sgsr_pipeline();
     bool create_descriptors();
     bool create_frame_resources();
     bool create_decoder();
@@ -99,6 +120,20 @@ namespace nova_vk {
 
     /** Record the decode of the pushed frame into the plane images. */
     bool record_decode(VkCommandBuffer cmd);
+
+    /**
+     * Decide the scaler once the swapchain's extent is known, and make the SGSR 1 pipeline if it is
+     * used. Leaves the default pipeline alone either way.
+     */
+    void choose_scaler(int32_t request);
+
+    /** Bind whichever pipeline the scaler chose, push its constants and draw the triangle. */
+    void bind_and_draw(VkCommandBuffer cmd);
+
+    /** The debug readback's body, on a renderer that has no surface. */
+    bool readback_once(const uint8_t *luma, const uint8_t *cb, const uint8_t *cr, bool sgsr,
+                       uint8_t *rgba);
+    bool create_offscreen_target();
 
     /** Wait for the last submitted frame, if there was one. */
     void await_last_frame();
@@ -180,6 +215,41 @@ namespace nova_vk {
     VkRenderPass render_pass = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
+
+    /// The layout a frame is left in by the render pass. PRESENT_SRC for a swapchain; the debug
+    /// readback's offscreen image is copied out instead.
+    VkImageLayout render_pass_final_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    /**
+     * @brief What SGSR 1 is pushed, 36 bytes, kept in step with the push block in sgsr1.frag.
+     *
+     * The colour matrix is the one the present shader gets. The viewport describes the luma plane:
+     * one over its width and height, then the width and height.
+     */
+    struct sgsr_push_t {
+      colour_matrix_t matrix;
+      float viewport_info[4];
+      float edge_sharpness;
+    };
+
+    /// Qualcomm's default edge sharpness. Fixed: there is no setting for it.
+    static constexpr float k_sgsr_edge_sharpness = 2.0f;
+
+    /// Frame and output aspects may differ by this fraction and still count as one aspect.
+    static constexpr double k_sgsr_aspect_tolerance = 0.005;
+
+    int32_t scaler_state = PYROWAVE_SCALER_DEFAULT;
+    int32_t scaler_reason = PYROWAVE_SCALER_REASON_NOT_REQUESTED;
+    VkPipelineLayout sgsr_layout = VK_NULL_HANDLE;
+    VkPipeline sgsr_pipeline = VK_NULL_HANDLE;
+
+    // Only the debug readback makes these.
+    VkImage offscreen_image = VK_NULL_HANDLE;
+    VkDeviceMemory offscreen_memory = VK_NULL_HANDLE;
+    VkBuffer readback_buffer = VK_NULL_HANDLE;
+    VkDeviceMemory readback_memory = VK_NULL_HANDLE;
+    void *readback_mapped = nullptr;
+    PFN_vkCmdCopyImageToBuffer copy_image_to_buffer = nullptr;
     VkDescriptorSetLayout set_layout = VK_NULL_HANDLE;
     VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
     VkDescriptorSet descriptor_set = VK_NULL_HANDLE;

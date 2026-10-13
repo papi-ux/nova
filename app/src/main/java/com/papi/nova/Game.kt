@@ -2030,9 +2030,21 @@ if (streamSurfaceView != null)
  // Avoid resizes/glitches that break the compositor
                 var vw:Int = if ((prefConfig != null && prefConfig!!.width > 0)) prefConfig!!.width else displayWidth
 var vh:Int = if ((prefConfig != null && prefConfig!!.height > 0)) prefConfig!!.height else displayHeight
+ // #304: SGSR 1 can only add pixels in a buffer the size of the output, so an eligible PyroWave
+                // stream asks for that size; every other session keeps the size above. A policy that
+                // cannot be read asks for nothing, so it can never skip the sizing below.
+                val sgsrScaler = runCatching {
+                    com.papi.nova.binding.video.PyroWaveScalerPolicy.forSession(this, prefConfig!!, willStreamHdr, displayWidth, displayHeight)
+                }.getOrDefault(com.papi.nova.binding.video.PyroWaveScalerPolicy.Decision.notRequested())
+if (sgsrScaler.requested)
+{
+vw = sgsrScaler.bufferWidth
+vh = sgsrScaler.bufferHeight
+}
 try
 {
 streamSurfaceView!!.getHolder().setFixedSize(vw, vh)
+(decoderRenderer as? com.papi.nova.binding.video.PyroWaveDecoderRenderer)?.scalerDecision = sgsrScaler
 }
 catch (ignored:Throwable) {}
 

@@ -82,6 +82,14 @@
             android:title="@string/title_enable_hdr"
             app:iconSpaceReserved="false" />
 
+        <!-- SGSR 1 for PyroWave SDR (#304). Hidden in builds without experimental codecs. -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="checkbox_pyrowave_sgsr1"
+            android:summary="@string/summary_pyrowave_sgsr1"
+            android:title="@string/title_pyrowave_sgsr1"
+            app:iconSpaceReserved="false" />
+
         <!-- Metered bitrate -->
         <com.papi.nova.preferences.SeekBarPreference
             android:dialogMessage="@string/summary_seekbar_metered_bitrate"

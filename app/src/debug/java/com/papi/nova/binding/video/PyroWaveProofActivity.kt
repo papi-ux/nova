@@ -44,6 +44,10 @@ class PyroWaveProofActivity : Activity(), SurfaceHolder.Callback {
                 else -> "PyroWave: GPU $decoded, upload $uploaded, session $session"
             }
             LimeLog.info(message)
+            // #304 L2, offscreen: no surface, so it can follow the three above on any device.
+            val readback = PyroWaveSgsrSelfTest.run()
+            val worst = readback.maxOfOrNull { it.maxError ?: Int.MAX_VALUE }
+            LimeLog.info("PyroWave SGSR 1 readback: ${readback.size} draws, worst error ${worst ?: "none run"}")
             runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
         }.start()
     }
