@@ -1,0 +1,50 @@
+Snapdragon Game Super Resolution 1 (SGSR 1)
+
+sgsr1.frag, and the SPIR-V compiled from it in sgsr1_frag_spv.h, are adapted from Qualcomm's SGSR 1
+mobile shader:
+https://github.com/SnapdragonGameStudios/snapdragon-gsr/blob/d926f074bcb9d714e179f1ce0fcb9ee2eeb5074e/sgsr/v1/include/glsl/sgsr1_shader_mobile.frag
+Upstream revision: d926f074bcb9d714e179f1ce0fcb9ee2eeb5074e
+Shader sha256: 93e8db987dc79f62e68805f968d63989e5d50daebe4d040e4c7104047ad49139
+Shader copyright: Copyright (c) 2025, Qualcomm Innovation Center, Inc. All rights reserved.
+
+The fused YCbCr form follows RubyLight's GPL-3.0 Vulkan port:
+https://github.com/RamazanKara/rubylight-android/blob/2293aa2705b42040780b97e4052739be1822043d/app/src/main/jni/pyrowave-renderer/shaders/sgsr.frag
+RubyLight revision: 2293aa2705b42040780b97e4052739be1822043d
+Port sha256: 2f4d7754d7801fd26ec972683154505f0e79d6b25e8227ab33a7a26b7ff79cf2
+
+Nova's changes are listed at the top of sgsr1.frag: edges on luma, Nova's own colour conversion and
+coordinates, fp32, a clamp before and after the delta, a filter whose weights sum to zero or less left
+unfiltered, and Qualcomm's default edge sharpness of 2.0, fixed.
+
+Upstream LICENSE (BSD-3-Clause), sha256 bc496633d3db8c6ca1362216ec382d361b69c7d5518acd6bbfd91503febfb3ef:
+https://github.com/SnapdragonGameStudios/snapdragon-gsr/blob/d926f074bcb9d714e179f1ce0fcb9ee2eeb5074e/LICENSE
+
+Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+SPDX-License-Identifier: BSD-3-Clause

@@ -117,3 +117,46 @@ resolution, FPS, host settings and network before drawing performance conclusion
 
 Portable checks: `python3 -m unittest tools.test_pyrowave_timing tools.test_native_optimization`.
 The latter needs initialized native submodules and the pinned NDK under `ANDROID_HOME`.
+
+## SGSR 1 upscaling (experimental, PyroWave SDR)
+
+`shaders/sgsr1.frag` is SGSR 1 (Snapdragon Game Super Resolution 1), Qualcomm's spatial, single pass
+filter, BSD-3-Clause, adapted after RubyLight's fused YCbCr Vulkan port. `shaders/LICENSE-SGSR1` has the
+provenance and the full notice, and the APK carries the same text as `assets/licenses/NOTICE-SGSR1.txt`.
+The shader's own header lists every change Nova made to the upstream conventions.
+
+It is off by default, behind **SGSR 1 upscaling (experimental, PyroWave SDR)**, which only builds with
+experimental codecs show. `PyroWaveScalerPolicy` decides at session start. Only an SDR stream in Fit or
+Stretch whose output is larger than the frame in both directions asks for it, and only then is the
+surface's buffer sized to the output instead of the stream. The renderer checks again against the
+swapchain it gets and logs one of three states, which `pyrowave_renderer_scaler_state` also returns:
+
+- `DEFAULT`: nothing was asked, and the frame is drawn as before into the stream-size buffer.
+- `SGSR1_ACTIVE`: SGSR 1 draws the frame into the output-size buffer.
+- `OUTPUT_BUFFER_BILINEAR`: SGSR 1 was asked for and refused here (`HDR_OR_10BIT`, `NOT_UPSCALING`,
+  `ASPECT_MISMATCH` or `PIPELINE_FAILED`), so the present shader stretches the frame over the larger
+  buffer with its LINEAR sampler. That is not the default: the upscale moved from the compositor into
+  the shader, and the log line gives both sizes.
+
+`adb shell setprop debug.nova.pyrowave_sgsr_fail 1` forces `PIPELINE_FAILED` at the next renderer.
+
+The present shaders and their headers are not regenerated for this. `shaders/sgsr1_frag_spv.h` records
+the sha256 of the `sgsr1.frag` it was compiled from, the SPIR-V's own sha256, and the compiler, which is
+the one that reproduces the vendored present headers byte for byte: Fedora's `/usr/bin/glslc` from
+`glslc-2026.1-1.fc44` (sha256 `85365a1f6e439c17cb9d71045d8306c018782359a466ae65c1806be4f7f0cd87`,
+shaderc v2026.1, glslang `301b4ede53d59b68bf55f95bb26412d9233c8187`) with
+`spirv-tools-libs-2026.1-1.fc44` (`libSPIRV-Tools-opt.so`
+`6508a8464b3e53b8c8a5f2aefbd382bb21c0be104286298bc682539cef6b9403`, `libSPIRV-Tools.so`
+`06897d4ed1051d4e95b1045288d54230564440064fd117965d742267e7f4834e`). The NDK's own glslc does not
+reproduce the present headers, so do not regenerate with it:
+
+```bash
+glslc -O shaders/sgsr1.frag -o /tmp/sgsr1.frag.spv
+python3 tools/spv_to_header.py sgsr1 /tmp/sgsr1.frag.spv "<compiler identity>"
+```
+
+`PyroWaveSgsrReference` is a CPU model of both shaders. The JVM tests hold the shader text to it, compare
+it with an independent model of Qualcomm's shader, and show that a wrong offset, flip, chroma centre,
+tap, threshold, divisor or edge column changes the result. `PyroWaveSgsrSelfTest` in the debug build
+draws the same pictures on the device's GPU offscreen, reads them back and compares; it runs only from
+`PyroWaveProofActivity`.

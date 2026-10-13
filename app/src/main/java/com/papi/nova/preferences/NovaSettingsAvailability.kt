@@ -91,6 +91,11 @@ object NovaSettingsAvailability {
             keys += "checkbox_enable_hdr"
         }
 
+        // SGSR 1 acts only on PyroWave, which only these builds offer.
+        if (!BuildConfig.EXPERIMENTAL_CODECS) {
+            keys += PreferenceConfiguration.PYROWAVE_SGSR1_PREF_STRING
+        }
+
         return keys
     }
 

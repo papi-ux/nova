@@ -262,7 +262,7 @@ Java_com_papi_nova_binding_video_PyroWave_nativePresentSelfTest(
             break;
         }
 
-        renderer = pyrowave_renderer_create(window, Width, Height, false, false);
+        renderer = pyrowave_renderer_create(window, Width, Height, false, false, PYROWAVE_SGSR_REQUEST_NONE);
         if (renderer == NULL) { outcome = -26; break; }
 
         // Twice, because the second frame is the one that proves the barriers are right: the first
@@ -309,7 +309,7 @@ typedef struct {
 JNIEXPORT jlong JNICALL
 Java_com_papi_nova_binding_video_PyroWave_nativeCreateRenderer(
         JNIEnv *env, jclass clazz, jobject surface, jint width, jint height, jboolean chroma444,
-        jboolean hdr) {
+        jboolean hdr, jint sgsrRequest) {
     (void) clazz;
 
     if (surface == NULL || width <= 0 || height <= 0) {
@@ -330,7 +330,7 @@ Java_com_papi_nova_binding_video_PyroWave_nativeCreateRenderer(
     const bool chroma_444 = chroma444 == JNI_TRUE;
     const bool stream_is_hdr = hdr == JNI_TRUE;
     session->renderer = pyrowave_renderer_create(session->window, (uint32_t) width, (uint32_t) height,
-                                                 chroma_444, stream_is_hdr);
+                                                 chroma_444, stream_is_hdr, (int32_t) sgsrRequest);
     if (session->renderer == NULL) {
         ANativeWindow_release(session->window);
         free(session);
@@ -339,6 +339,32 @@ Java_com_papi_nova_binding_video_PyroWave_nativeCreateRenderer(
 
     LOGI("renderer for a session: %dx%d %s", width, height, chroma_444 ? "4:4:4" : "4:2:0");
     return (jlong) (uintptr_t) session;
+}
+
+/**
+ * What the session's renderer chose for its buffer: state, reason, frame width and height, buffer
+ * width and height, in that order, or null for no session.
+ */
+JNIEXPORT jintArray JNICALL
+Java_com_papi_nova_binding_video_PyroWave_nativeScalerState(JNIEnv *env, jclass clazz, jlong handle) {
+    (void) clazz;
+
+    pyrowave_session *session = (pyrowave_session *) (uintptr_t) handle;
+    pyrowave_scaler_info info;
+    if (session == NULL || !pyrowave_renderer_scaler_state(session->renderer, &info)) {
+        return NULL;
+    }
+
+    const jint values[6] = {
+        (jint) info.state, (jint) info.reason,
+        (jint) info.frame_width, (jint) info.frame_height,
+        (jint) info.buffer_width, (jint) info.buffer_height,
+    };
+    jintArray out = (*env)->NewIntArray(env, 6);
+    if (out != NULL) {
+        (*env)->SetIntArrayRegion(env, out, 0, 6, values);
+    }
+    return out;
 }
 
 /**
@@ -434,7 +460,7 @@ Java_com_papi_nova_binding_video_PyroWave_nativeGpuDecodeSelfTest(
     }
 
     jint outcome = -1;
-    void *renderer = pyrowave_renderer_create(window, Width, Height, false, false);
+    void *renderer = pyrowave_renderer_create(window, Width, Height, false, false, PYROWAVE_SGSR_REQUEST_NONE);
 
     if (renderer == NULL) {
         outcome = -32;
@@ -459,4 +485,62 @@ Java_com_papi_nova_binding_video_PyroWave_nativeGpuDecodeSelfTest(
     (*env)->ReleaseByteArrayElements(env, bitstream, payload, JNI_ABORT);
     ANativeWindow_release(window);
     return outcome;
+}
+
+/**
+ * Debug only: draw three planes offscreen at the output size, with SGSR 1 or with the present
+ * shader, and hand back the pixels as RGBA, row by row from the top.
+ *
+ * Called by PyroWaveSgsrSelfTest in the debug source set, never by a stream. It makes its own Vulkan
+ * device and needs no surface.
+ *
+ * @return width * height * 4 bytes, or null when the planes do not match the sizes or the GPU work
+ *   could not be made or run.
+ */
+JNIEXPORT jbyteArray JNICALL
+Java_com_papi_nova_binding_video_PyroWaveSgsrSelfTest_nativeReadback(
+        JNIEnv *env, jclass clazz, jint frameWidth, jint frameHeight, jboolean chroma444,
+        jbyteArray luma, jbyteArray cb, jbyteArray cr, jint outputWidth, jint outputHeight,
+        jboolean sgsr) {
+    (void) clazz;
+
+    if (frameWidth <= 0 || frameHeight <= 0 || outputWidth <= 0 || outputHeight <= 0 ||
+        outputWidth > 8192 || outputHeight > 8192 || luma == NULL || cb == NULL || cr == NULL) {
+        return NULL;
+    }
+    const int shift = chroma444 == JNI_TRUE ? 0 : 1;
+    const jsize luma_size = frameWidth * frameHeight;
+    const jsize chroma_size = (frameWidth >> shift) * (frameHeight >> shift);
+    if ((*env)->GetArrayLength(env, luma) != luma_size ||
+        (*env)->GetArrayLength(env, cb) != chroma_size ||
+        (*env)->GetArrayLength(env, cr) != chroma_size) {
+        return NULL;
+    }
+
+    const size_t out_size = (size_t) outputWidth * (size_t) outputHeight * 4;
+    uint8_t *pixels = malloc(out_size);
+    jbyte *y = (*env)->GetByteArrayElements(env, luma, NULL);
+    jbyte *b = (*env)->GetByteArrayElements(env, cb, NULL);
+    jbyte *r = (*env)->GetByteArrayElements(env, cr, NULL);
+    bool drawn = false;
+    if (pixels != NULL && y != NULL && b != NULL && r != NULL) {
+        drawn = pyrowave_renderer_sgsr_readback((uint32_t) frameWidth, (uint32_t) frameHeight,
+                                                chroma444 == JNI_TRUE, (const uint8_t *) y,
+                                                (const uint8_t *) b, (const uint8_t *) r,
+                                                (uint32_t) outputWidth, (uint32_t) outputHeight,
+                                                sgsr == JNI_TRUE, pixels);
+    }
+    if (r != NULL) (*env)->ReleaseByteArrayElements(env, cr, r, JNI_ABORT);
+    if (b != NULL) (*env)->ReleaseByteArrayElements(env, cb, b, JNI_ABORT);
+    if (y != NULL) (*env)->ReleaseByteArrayElements(env, luma, y, JNI_ABORT);
+
+    jbyteArray out = NULL;
+    if (drawn) {
+        out = (*env)->NewByteArray(env, (jsize) out_size);
+        if (out != NULL) {
+            (*env)->SetByteArrayRegion(env, out, 0, (jsize) out_size, (const jbyte *) pixels);
+        }
+    }
+    free(pixels);
+    return out;
 }
