@@ -1769,7 +1769,9 @@ class PolarisApiClient @JvmOverloads constructor(
                 put("rendered_fps", sample.renderedFps)
                 put("target_fps", targetFps)
                 put("refresh_rate_hz", refreshRateHz)
-                put("decode_latency_ms", sample.decodeTimeMs)
+                put("decode_latency_ms", sample.wireDecodeLatencyMs)
+                put("decode_latency_available", sample.decodeLatencyAvailable)
+                put("frame_output_source", sample.frameOutputSource)
                 sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
                 put("width", sample.width)
                 put("height", sample.height)
