@@ -31,8 +31,15 @@ data class PerfOverlaySample(
         get() = measuredDecodeLatencyMs(codec, decodeTimeMs) ?: 0.0
 
     companion object {
-        fun frameOutputSource(codec: String): String =
-            if (codec.trim().equals("pyrowave", ignoreCase = true)) "present_request" else "renderer_output"
+        fun frameOutputSource(codec: String): String {
+            val label = codec.trim()
+            // The live HUD uses the canonical short label; saved samples use the full name.
+            return if (label.equals("pyrowave", ignoreCase = true) || label.equals("pyro", ignoreCase = true)) {
+                "present_request"
+            } else {
+                "renderer_output"
+            }
+        }
 
         // This renderer exposes no GPU-completion measurement, including in older saved samples
         // that mislabeled CPU API return time. Non-PyroWave measurements keep their existing meaning.
