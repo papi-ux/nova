@@ -1,5 +1,7 @@
 package com.papi.nova.diagnostics
 
+import com.papi.nova.binding.video.PerfOverlaySample
+
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import javax.crypto.Mac
@@ -188,7 +190,8 @@ object NovaWorkingBaseline {
             .put("height", b.readings.height ?: JSONObject.NULL)
             .put("rendered_fps", b.readings.renderedFps ?: JSONObject.NULL)
             .put("received_fps", b.readings.receivedFps ?: JSONObject.NULL)
-            .put("decode_time_ms", b.readings.decodeTimeMs ?: JSONObject.NULL)
+            .put("decode_time_ms", b.readings.decodeTimeMs
+                ?.let { PerfOverlaySample.measuredDecodeLatencyMs(b.readings.codec, it) } ?: JSONObject.NULL)
             .put("host_processing_latency_ms", b.readings.hostProcessingLatencyMs ?: JSONObject.NULL)
             .put("frame_loss_pct", b.readings.frameLossPct ?: JSONObject.NULL)
             .put("frame_loss_scope", FRAME_LOSS_SCOPE))
@@ -245,6 +248,7 @@ object NovaWorkingBaseline {
         val control = json.child("control_channel", CONTROL_KEYS)
         if (decoder.word("frame_loss_scope") != FRAME_LOSS_SCOPE || control.word("scope") != CONTROL_SCOPE) throw Invalid()
         val role = NovaMomentReport.StreamRole.entries.firstOrNull { it.wire == json.word("role") } ?: throw Invalid()
+        val codec = decoder.word("codec").takeIf { it in CODECS } ?: throw Invalid()
         return Baseline(
             scope = scope,
             markedAtUtc = json.text("marked_at_utc", UTC).takeIf(::isCalendarUtc) ?: throw Invalid(),
@@ -264,7 +268,7 @@ object NovaWorkingBaseline {
             ),
             readings = Readings(
                 sampleAgeMs = decoder.integer("sample_age_ms", 0, NovaMomentReport.SAMPLE_FRESH_MS) ?: throw Invalid(),
-                codec = decoder.word("codec").takeIf { it in CODECS } ?: throw Invalid(),
+                codec = codec,
                 decoder = decoder.optionalText("decoder", DECODER)?.also {
                     if (it.length > 96 || !it.contains("decoder", ignoreCase = true)) throw Invalid()
                 },
@@ -272,7 +276,8 @@ object NovaWorkingBaseline {
                 height = decoder.integer("height", 1, 16_384)?.toInt(),
                 renderedFps = decoder.number("rendered_fps", 0.0, 1000.0),
                 receivedFps = decoder.number("received_fps", 0.0, 1000.0),
-                decodeTimeMs = decoder.number("decode_time_ms", 0.0, 10_000.0),
+                decodeTimeMs = decoder.number("decode_time_ms", 0.0, 10_000.0)
+                    ?.let { PerfOverlaySample.measuredDecodeLatencyMs(codec, it) },
                 hostProcessingLatencyMs = decoder.number("host_processing_latency_ms", 0.0, 10_000.0),
                 frameLossPct = decoder.number("frame_loss_pct", 0.0, 100.0),
                 controlRttMs = control.number("rtt_ms", 1.0, 60_000.0),

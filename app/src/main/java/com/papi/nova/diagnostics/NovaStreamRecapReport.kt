@@ -129,6 +129,7 @@ object NovaStreamRecapReport {
         appendLine("## What this describes")
         appendLine("- One ended client connection, from samples this device received. Not the host app's whole session.")
         appendLine("- Readings are unweighted averages over accepted client samples, each with its own count, lowest and highest value. Unknown stays null.")
+        appendLine("- For Android PyroWave, rendered_fps counts accepted present requests. GPU completion, decode latency and scanout are unavailable.")
         appendLine("- Requested settings are what Nova asked for at launch. The requested bitrate is not measured throughput.")
         appendLine("- Video frames missing are counted from decoder counters between client samples, and over the whole connection only when those counters were unbroken.")
         appendLine("- Processing latency is reported by the host through frame metadata received by this client. No separate host diagnostics were requested.")

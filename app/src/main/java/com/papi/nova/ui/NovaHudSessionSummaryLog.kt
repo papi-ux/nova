@@ -25,6 +25,8 @@ internal object NovaHudSessionSummaryLog {
         "received_fps",
         "rendered_fps",
         "decode_latency_ms",
+        "decode_latency_available",
+        "frame_output_source",
         "host_processing_latency_ms",
         "session_generation"
     )
@@ -51,8 +53,10 @@ internal object NovaHudDiagnosticReport {
         lines += "Observed: ${formatFps(summary["avg_fps"])} / target ${formatFps(summary["target_fps"])}"
         lines += "Video: ${formatBitrate(summary["avg_bitrate_kbps"])} / ${safeString(summary["codec"], "unknown codec")}"
         lines += "Network: ${formatMs(summary["avg_latency_ms"])} RTT / ${formatPercent(summary["packet_loss_pct"])} frames missing"
+        val output = if (summary["frame_output_source"] == "present_request") "submitted" else "rendered"
         lines += "Counters: ${safeString(summary["frames_received"], "--")} received / " +
-            "${safeString(summary["frames_rendered"], "--")} rendered / ${safeString(summary["frames_lost"], "--")} lost"
+            "${safeString(summary["frames_rendered"], "--")} $output / ${safeString(summary["frames_lost"], "--")} lost"
+        if (output == "submitted") lines += "PyroWave counts accepted present requests; GPU completion and scanout are unmeasured."
         lines += "Observational only: no launch setting or action is derived by Nova"
         return lines.joinToString("\n")
     }
