@@ -145,7 +145,8 @@ run a 32-bit Android build. Beta APKs use `Nova-Beta-Android-<ABI>.apk` and inst
 as Nova Beta beside stable, with separate app data.
 
 Guides: [Quick start](https://papi-ux.com/docs/nova/quickstart/) ·
-[Updates and beta releases](docs/updates.md).
+[Updates and beta releases](docs/updates.md) ·
+[PyroWave](docs/pyrowave-android.md).
 
 ### Nova Linux (Alpha)
 
