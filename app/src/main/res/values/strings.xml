@@ -1285,6 +1285,8 @@
     <string name="nova_recap_stat">%1$s: %2$s (%3$d · %4$s to %5$s)</string>
     <string name="nova_recap_stat_unavailable">%1$s: unavailable</string>
     <string name="nova_recap_rendered_fps">Rendered fps</string>
+    <string name="nova_pyrowave_submitted_fps">Submitted fps</string>
+    <string name="nova_pyrowave_output_provenance">PyroWave output counts accepted present requests. GPU completion, decode latency and display scanout are unmeasured.</string>
     <string name="nova_recap_received_fps">Received fps</string>
     <string name="nova_recap_decode_time">Decode time</string>
     <string name="nova_recap_host_processing">Processing latency reported by the host</string>

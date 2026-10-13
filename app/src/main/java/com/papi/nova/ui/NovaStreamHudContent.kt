@@ -203,10 +203,10 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                 }
                 HudLayerColumn(client?.label ?: "CLIENT", client?.tone ?: NovaHudTone.MUTED, Modifier.width(columnWidth)) {
                     HudFact("DECODE", state.decodeTimeLabel, state.decodeTone)
-                    HudFact("OUT", state.renderedFpsLabel)
+                    HudFact(state.outputRateCaption, state.renderedFpsLabel)
                     HudFact("WINDOW MIN", state.lowOnePercentLabel)
                     // A rate gap can include intentional pacing. It is not a cumulative drop counter.
-                    HudFact("RENDER GAP", state.renderGapLabel)
+                    HudFact(state.outputGapCaption, state.renderGapLabel)
                 }
             }
             if (columns == 3) {
@@ -703,17 +703,19 @@ internal fun hudMetricDescription(label: String, value: String): String {
         "ENCODE" -> "Host processing time"
         "IN" -> "Received frame rate"
         "OUT" -> "Rendered frame rate"
+        "SUBMIT" -> "Accepted present requests per second"
         "WINDOW MIN" -> "Minimum of the last 60 FPS samples"
         "FRAME LOSS\nLAST SAMPLE" -> "Video frames missing in the latest sample window"
         "MISSING" -> "Video frames missing this session"
         "RENDER GAP" -> "Receive minus render rate, including intentional pacing"
+        "SUBMIT GAP" -> "Receive minus accepted present request rate"
         "BIT" -> "Bitrate"
         "RES" -> "Resolution"
         "CODEC" -> "Codec"
         else -> label
     }
     val reading = if (value.startsWith("--")) "unavailable" else when (label) {
-        "IN", "OUT", "WINDOW MIN" -> "$value frames per second"
+        "IN", "OUT", "SUBMIT", "WINDOW MIN" -> "$value frames per second"
         "BIT" -> value.replace("Mbps", "megabits per second").replace("M", " megabits per second")
         else -> value.replace("ms", " milliseconds").replace("%", " percent").replace("FPS", "frames per second")
     }

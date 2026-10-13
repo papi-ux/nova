@@ -41,7 +41,8 @@ internal object NovaStreamRecapText {
         if (recap.mediaSampled) {
             appendLine()
             appendLine(context.getString(R.string.nova_recap_averages))
-            stat(context, R.string.nova_recap_rendered_fps, recap.renderedFps, ::fps)
+            stat(context, if (recap.codecs == listOf("pyrowave")) R.string.nova_pyrowave_submitted_fps
+                else R.string.nova_recap_rendered_fps, recap.renderedFps, ::fps)
             stat(context, R.string.nova_recap_received_fps, recap.receivedFps, ::fps)
             stat(context, R.string.nova_recap_decode_time, recap.decodeTimeMs, ::ms)
             stat(context, R.string.nova_recap_host_processing, recap.hostProcessingLatencyMs, ::ms)
@@ -54,6 +55,7 @@ internal object NovaStreamRecapText {
             } ?: context.getString(R.string.nova_recap_loss_connection_unavailable))
             if (recap.codecs.size > 1) appendLine(context.getString(R.string.nova_recap_codecs_mixed, recap.codecs.joinToString(", ")))
             if (recap.dimensionsChanged) appendLine(context.getString(R.string.nova_recap_dimensions_changed))
+            if ("pyrowave" in recap.codecs) appendLine(context.getString(R.string.nova_pyrowave_output_provenance))
             recap.last?.let { last ->
                 appendLine()
                 val age = last.ageAtEndMs
@@ -118,7 +120,8 @@ internal object NovaStreamRecapText {
         return listOf(
             last.codec,
             size,
-            "${context.getString(R.string.nova_recap_rendered_fps)} ${last.renderedFps?.let(::fps) ?: unknown}",
+            "${context.getString(if (last.codec == "pyrowave") R.string.nova_pyrowave_submitted_fps
+                else R.string.nova_recap_rendered_fps)} ${last.renderedFps?.let(::fps) ?: unknown}",
             "${context.getString(R.string.nova_recap_received_fps)} ${last.receivedFps?.let(::fps) ?: unknown}",
             "${context.getString(R.string.nova_recap_decode_time)} ${last.decodeTimeMs?.let(::ms) ?: unknown}",
             "${context.getString(R.string.nova_recap_control_rtt)} ${last.controlRttMs?.let(::ms) ?: unknown}",

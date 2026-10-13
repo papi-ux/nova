@@ -96,7 +96,9 @@ data class NovaHudUiState(
     val packetLossTone: NovaHudTone = NovaHudTone.MUTED,
     val jitterLabel: String = "--",
     val framesLostLabel: String = "--",
-    val renderGapLabel: String = "--"
+    val renderGapLabel: String = "--",
+    val outputRateCaption: String = "OUT",
+    val outputGapCaption: String = "RENDER GAP"
 ) {
     companion object {
         private const val SPARKLINE_CAPACITY = 60
@@ -189,7 +191,9 @@ data class NovaHudUiState(
             // A live media feed and the independently polled host status age separately.
             val currentStatus = status.takeIf { hostFresh && it?.streamingActive == true }
             val autoQuality = AutoQualityUiState.from(currentStatus, targetFps)
-            val decodeTone = if (mediaFresh) toneForDecode(decodeTimeMs, targetFps) else NovaHudTone.MUTED
+            val presentRequests = PerfOverlaySample.frameOutputSource(codec) == "present_request"
+            val measuredDecodeMs = PerfOverlaySample.measuredDecodeLatencyMs(codec, decodeTimeMs) ?: Double.NaN
+            val decodeTone = if (mediaFresh) toneForDecode(measuredDecodeMs, targetFps) else NovaHudTone.MUTED
             val renderGap = mediaFresh && incomingFps.isFinite() && renderedFps.isFinite() &&
                 incomingFps > 0.0 && renderedFps >= 0.0 &&
                 incomingFps - renderedFps > maxOf(2.0, incomingFps * 0.1)
@@ -198,7 +202,7 @@ data class NovaHudUiState(
             val healthReason = when {
                 !mediaFresh -> (if (mediaStale) "Readings stale" else "Waiting for video") to NovaHudTone.MUTED
                 packetLossPct.isFinite() && packetLossPct > 0.0 -> "Video frames missing" to toneForPacketLoss(packetLossPct)
-                renderGap -> "Render rate below receive" to NovaHudTone.WARNING
+                renderGap -> (if (presentRequests) "Submit rate below receive" else "Render rate below receive") to NovaHudTone.WARNING
                 decodeTone == NovaHudTone.DANGER || decodeTone == NovaHudTone.WARNING -> "Decode over budget" to decodeTone
                 hostReason.second == NovaHudTone.WARNING || hostReason.second == NovaHudTone.DANGER -> hostReason
                 belowTarget -> "Below target" to NovaHudTone.INFO
@@ -241,7 +245,7 @@ data class NovaHudUiState(
                 } else {
                     sparklineSamples.takeLast(SPARKLINE_CAPACITY)
                 },
-                decodeTimeLabel = if (mediaFresh) formatMillis(decodeTimeMs) else "--",
+                decodeTimeLabel = if (mediaFresh) formatMillis(measuredDecodeMs) else "--",
                 decodeTone = decodeTone,
                 hostLatencyLabel = if (mediaFresh) formatMillis(hostProcessingLatencyMs ?: 0.0) else "--",
                 incomingFpsLabel = if (mediaFresh) formatFps(incomingFps) else "--",
@@ -252,7 +256,9 @@ data class NovaHudUiState(
                 jitterLabel = rttVarianceMs.takeIf { mediaFresh && it >= 0 && latencyMs > 0 }?.let { "${it}ms" } ?: "--",
                 framesLostLabel = framesLost.takeIf { mediaFresh && it >= 0L }?.toString() ?: "--",
                 renderGapLabel = if (mediaFresh && incomingFps.isFinite() && renderedFps.isFinite() &&
-                    incomingFps >= 0 && renderedFps >= 0) "${(incomingFps - renderedFps).coerceAtLeast(0.0).roundToInt()} FPS" else "--"
+                    incomingFps >= 0 && renderedFps >= 0) "${(incomingFps - renderedFps).coerceAtLeast(0.0).roundToInt()} FPS" else "--",
+                outputRateCaption = if (presentRequests) "SUBMIT" else "OUT",
+                outputGapCaption = if (presentRequests) "SUBMIT GAP" else "RENDER GAP"
             )
         }
 
@@ -538,8 +544,8 @@ data class NovaHudUiState(
                 else -> NovaHudTone.MUTED
             }
             val clientTone = when {
-                // This device's own decode time says the most about it. A PyroWave stream decoding
-                // in 15 ms against an 8.3 ms frame showed DEC in red beside a green CLIENT dot.
+                // A measured decoder time describes this device's work. API-return timing is
+                // unavailable here and must not be graded against a GPU decoder budget.
                 decodeTone == NovaHudTone.DANGER -> NovaHudTone.DANGER
                 decodeTone == NovaHudTone.WARNING || renderGap -> NovaHudTone.WARNING
                 normalizedPrimaryIssue.contains("decoder") || issues.any { it.contains("decoder") } ||
@@ -680,7 +686,7 @@ class NovaHudSessionStats {
     private var framesLost = 0L
     private var incomingFps = 0.0
     private var renderedFps = 0.0
-    private var decodeTimeMs = 0.0
+    private var decodeTimeMs = Double.NaN
     private var hostProcessingLatencyMs: Double? = null
     private var sessionGeneration = 0L
 
@@ -703,7 +709,7 @@ class NovaHudSessionStats {
         framesLost = 0L
         incomingFps = 0.0
         renderedFps = 0.0
-        decodeTimeMs = 0.0
+        decodeTimeMs = Double.NaN
         hostProcessingLatencyMs = null
         sessionGeneration = 0L
     }
@@ -779,7 +785,7 @@ class NovaHudSessionStats {
         framesLost = sample.framesLost
         incomingFps = sample.incomingFps
         renderedFps = sample.renderedFps
-        decodeTimeMs = sample.decodeTimeMs
+        decodeTimeMs = PerfOverlaySample.measuredDecodeLatencyMs(sample.codec, sample.decodeTimeMs) ?: Double.NaN
         hostProcessingLatencyMs = sample.hostProcessingLatencyMs
         sessionGeneration = sample.sessionGeneration
     }
@@ -827,7 +833,9 @@ class NovaHudSessionStats {
         summary["frames_lost"] = framesLost
         summary["received_fps"] = incomingFps
         summary["rendered_fps"] = renderedFps
-        summary["decode_latency_ms"] = decodeTimeMs
+        summary["decode_latency_ms"] = decodeTimeMs.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+        summary["decode_latency_available"] = decodeTimeMs.isFinite() && decodeTimeMs >= 0.0
+        summary["frame_output_source"] = PerfOverlaySample.frameOutputSource(lastCodec)
         summary["decoded_frames_available"] = false
         summary["duplicate_frames_available"] = false
         summary["transport_bytes_available"] = false
