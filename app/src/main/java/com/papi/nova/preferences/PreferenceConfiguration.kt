@@ -93,6 +93,9 @@ class PreferenceConfiguration {
     @JvmField var onlyL3R3 = false
     @JvmField var showGuideButton = false
     @JvmField var enableHdr = false
+
+    /** #304: SGSR 1 upscaling for PyroWave SDR. Read as off in builds without experimental codecs. */
+    @JvmField var pyrowaveSgsr1 = false
     @JvmField var enablePip = false
     @JvmField var enablePerfOverlay = false
     @JvmField var enablePerfLogging = false
@@ -218,6 +221,7 @@ class PreferenceConfiguration {
         private const val SHOW_GUIDE_BUTTON_PREF_STRING = "checkbox_show_guide_button"
         private const val LEGACY_DISABLE_FRAME_DROP_PREF_STRING = "checkbox_disable_frame_drop"
         private const val ENABLE_HDR_PREF_STRING = "checkbox_enable_hdr"
+        const val PYROWAVE_SGSR1_PREF_STRING = "checkbox_pyrowave_sgsr1"
         private const val ENABLE_PIP_PREF_STRING = "checkbox_enable_pip"
         // Public: Game persists the in-stream Stats Overlay toggle under this key.
         const val ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay"
@@ -317,6 +321,7 @@ class PreferenceConfiguration {
          * still be served.
          */
         private const val DEFAULT_ENABLE_HDR = false
+        const val DEFAULT_PYROWAVE_SGSR1 = false
         private const val DEFAULT_ENABLE_PIP = false
         private const val DEFAULT_ENABLE_PERF_OVERLAY = false
         private const val DEFAULT_ENABLE_PERF_LOGGING = false
@@ -911,6 +916,9 @@ class PreferenceConfiguration {
             config.showGuideButton = prefs.getBoolean(SHOW_GUIDE_BUTTON_PREF_STRING, SHOW_GUIDE_BUTTON_DEFAULT)
             config.enableHdr = prefs.getBoolean(ENABLE_HDR_PREF_STRING, DEFAULT_ENABLE_HDR) &&
                 !isShieldAtvFirmwareWithBrokenHdr()
+            // Ignored unless this build offers experimental codecs, the same rule as PyroWave itself.
+            config.pyrowaveSgsr1 = BuildConfig.EXPERIMENTAL_CODECS &&
+                prefs.getBoolean(PYROWAVE_SGSR1_PREF_STRING, DEFAULT_PYROWAVE_SGSR1)
             config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP)
             config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY)
             config.enablePerfLogging = prefs.getBoolean(ENABLE_PERF_LOGGING, DEFAULT_ENABLE_PERF_LOGGING)

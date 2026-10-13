@@ -963,6 +963,8 @@
     <string name="summary_video_format">Newer codecs can lower video bandwidth requirements if your device supports them. Codec selections may be ignored if not supported by the host software or GPU.</string>
     <string name="title_enable_hdr">Request HDR when host supports it</string>
     <string name="summary_enable_hdr">Asks Polaris for HDR/10-bit streaming when the game, host capture display, encoder, and client all support it. Private Stream may still run as 10-bit SDR and Command Center will explain why.</string>
+    <string name="title_pyrowave_sgsr1">SGSR 1 upscaling (experimental, PyroWave SDR)</string>
+    <string name="summary_pyrowave_sgsr1">A spatial filter that sharpens edges when the stream is smaller than the screen. Only for PyroWave SDR streams in Fit or Stretch; HDR, Fill and full-size streams keep the usual scaling. Applies from the next stream.</string>
     <string name="summary_enable_hdr_sdr_10bit">Request a 10-bit stream even on SDR displays. On handheld SDR panels Nova will prefer a 10-bit SDR stream when the host supports Main10.</string>
     <string name="badge_hdr">HDR</string>
     <string name="title_full_range">Force full range video (Experimental)</string>
