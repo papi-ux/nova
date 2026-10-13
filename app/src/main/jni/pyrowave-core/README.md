@@ -160,3 +160,12 @@ it with an independent model of Qualcomm's shader, and show that a wrong offset,
 tap, threshold, divisor or edge column changes the result. `PyroWaveSgsrSelfTest` in the debug build
 draws the same pictures on the device's GPU offscreen, reads them back and compares; it runs only from
 `PyroWaveProofActivity`.
+
+Its native half refuses a request out of contract before any memory or GPU work
+(`pyrowave_readback_guard.h`, checked by `tools/test_pyrowave_readback_guard.py`). It stops at the first
+failure among its own steps: binding its target and readback memory, beginning and ending its command
+buffer, resetting the fence, submitting and waiting. The plane setup it shares with streaming is
+unchanged, so a failed plane or staging bind there is still not caught.
+`tools/test_pyrowave_readback_failures.py` fails the two binds, the begin, the end and the fence reset
+in turn through a fake Vulkan loader. It needs Vulkan headers (`VULKAN_HEADERS_DIR`), skips without
+them, and is not in the CI list, so it is run by hand.
