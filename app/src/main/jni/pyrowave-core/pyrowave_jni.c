@@ -8,6 +8,7 @@
 #include "pyrowave_probe_features.h"
 #include "pyrowave_renderer_c.h"
 #include "pyrowave_packet_guard.h"
+#include "pyrowave_readback_guard.h"
 
 #include <android/native_window_jni.h>
 
@@ -494,8 +495,8 @@ Java_com_papi_nova_binding_video_PyroWave_nativeGpuDecodeSelfTest(
  * Called by PyroWaveSgsrSelfTest in the debug source set, never by a stream. It makes its own Vulkan
  * device and needs no surface.
  *
- * @return width * height * 4 bytes, or null when the planes do not match the sizes or the GPU work
- *   could not be made or run.
+ * @return width * height * 4 bytes, or null when the request is out of contract
+ *   (pyrowave_readback_guard.h) or the GPU work could not be made or run.
  */
 JNIEXPORT jbyteArray JNICALL
 Java_com_papi_nova_binding_video_PyroWaveSgsrSelfTest_nativeReadback(
@@ -504,20 +505,17 @@ Java_com_papi_nova_binding_video_PyroWaveSgsrSelfTest_nativeReadback(
         jboolean sgsr) {
     (void) clazz;
 
-    if (frameWidth <= 0 || frameHeight <= 0 || outputWidth <= 0 || outputHeight <= 0 ||
-        outputWidth > 8192 || outputHeight > 8192 || luma == NULL || cb == NULL || cr == NULL) {
+    if (luma == NULL || cb == NULL || cr == NULL) {
         return NULL;
     }
-    const int shift = chroma444 == JNI_TRUE ? 0 : 1;
-    const jsize luma_size = frameWidth * frameHeight;
-    const jsize chroma_size = (frameWidth >> shift) * (frameHeight >> shift);
-    if ((*env)->GetArrayLength(env, luma) != luma_size ||
-        (*env)->GetArrayLength(env, cb) != chroma_size ||
-        (*env)->GetArrayLength(env, cr) != chroma_size) {
+    size_t out_size = 0;
+    if (!pyrowave_readback_request_ok(frameWidth, frameHeight, chroma444 == JNI_TRUE, outputWidth,
+                                      outputHeight, (*env)->GetArrayLength(env, luma),
+                                      (*env)->GetArrayLength(env, cb), (*env)->GetArrayLength(env, cr),
+                                      &out_size)) {
         return NULL;
     }
 
-    const size_t out_size = (size_t) outputWidth * (size_t) outputHeight * 4;
     uint8_t *pixels = malloc(out_size);
     jbyte *y = (*env)->GetByteArrayElements(env, luma, NULL);
     jbyte *b = (*env)->GetByteArrayElements(env, cb, NULL);

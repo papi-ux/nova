@@ -1398,7 +1398,9 @@ namespace nova_vk {
         vk.vkAllocateMemory(device.device, &allocate, nullptr, &offscreen_memory) != VK_SUCCESS) {
       return false;
     }
-    vk.vkBindImageMemory(device.device, offscreen_image, offscreen_memory, 0);
+    if (vk.vkBindImageMemory(device.device, offscreen_image, offscreen_memory, 0) != VK_SUCCESS) {
+      return false;
+    }
 
     VkImageViewCreateInfo view = {};
     view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1433,7 +1435,9 @@ namespace nova_vk {
         vk.vkAllocateMemory(device.device, &allocate, nullptr, &readback_memory) != VK_SUCCESS) {
       return false;
     }
-    vk.vkBindBufferMemory(device.device, readback_buffer, readback_memory, 0);
+    if (vk.vkBindBufferMemory(device.device, readback_buffer, readback_memory, 0) != VK_SUCCESS) {
+      return false;
+    }
     return vk.vkMapMemory(device.device, readback_memory, 0, bytes, 0, &readback_mapped) == VK_SUCCESS;
   }
 
@@ -1463,7 +1467,10 @@ namespace nova_vk {
     VkCommandBufferBeginInfo begin = {};
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vk.vkBeginCommandBuffer(command_buffer, &begin);
+    // Each step below needs the one before it to have worked, so the first failure ends the readback.
+    if (vk.vkBeginCommandBuffer(command_buffer, &begin) != VK_SUCCESS) {
+      return false;
+    }
 
     // The planes go in exactly as present() puts them in.
     barrier_planes(command_buffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
@@ -1525,14 +1532,16 @@ namespace nova_vk {
     host.size = VK_WHOLE_SIZE;
     vk.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                             0, 0, nullptr, 1, &host, 0, nullptr);
-    vk.vkEndCommandBuffer(command_buffer);
+    if (vk.vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
+      return false;
+    }
 
     VkSubmitInfo submit = {};
     submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &command_buffer;
-    vk.vkResetFences(device.device, 1, &in_flight);
-    if (vk.vkQueueSubmit(device.graphics_queue, 1, &submit, in_flight) != VK_SUCCESS) {
+    if (vk.vkResetFences(device.device, 1, &in_flight) != VK_SUCCESS ||
+        vk.vkQueueSubmit(device.graphics_queue, 1, &submit, in_flight) != VK_SUCCESS) {
       return false;
     }
     frame_submitted = true;
