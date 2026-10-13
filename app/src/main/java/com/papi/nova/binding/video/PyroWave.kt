@@ -259,10 +259,25 @@ object PyroWave {
         height: Int,
         chroma444: Boolean,
         hdr: Boolean,
+        sgsrRequest: Int = PyroWaveScalerPolicy.REQUEST_NONE,
     ): Long {
         if (!loaded) return 0
-        return nativeCreateRenderer(surface, width, height, chroma444, hdr)
+        return nativeCreateRenderer(surface, width, height, chroma444, hdr, sgsrRequest)
     }
+
+    /**
+     * What a renderer chose for its buffer when it was made (#304), or null without one.
+     *
+     * For the log and for diagnostics only; nothing in a stream decides anything from it.
+     */
+    fun scalerState(handle: Long): PyroWaveScalerPolicy.Applied? {
+        if (!loaded || handle == 0L) return null
+        return PyroWaveScalerPolicy.applied(nativeScalerState(handle))
+    }
+
+    /** Whether the native library loaded, for the debug self tests that call it directly. */
+    internal val libraryLoaded: Boolean
+        get() = loaded
 
     /** Request GPU decode and presentation; true means API acceptance, not GPU completion or scanout. */
     fun decodeAndPresent(handle: Long, frame: ByteArray, length: Int): Boolean {
@@ -293,7 +308,11 @@ object PyroWave {
         height: Int,
         chroma444: Boolean,
         hdr: Boolean,
+        sgsrRequest: Int,
     ): Long
+
+    @JvmStatic
+    private external fun nativeScalerState(handle: Long): IntArray?
 
     @JvmStatic
     private external fun nativeDecodeAndPresent(handle: Long, frame: ByteArray, length: Int): Boolean
