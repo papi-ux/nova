@@ -401,8 +401,7 @@ int main(int argc, char** argv) {
     QMetaObject::invokeMethod(root.get(), "syncPreferences");
     QSettings persisted;
     wait([&] { persisted.sync(); return persisted.value("Library/layoutMode") == "stage"; });
-    // Reset returns the theme to the new-install default, Director.
-    check(persisted.value("Appearance/themeId") == "director" && persisted.value("Appearance/textScale").toDouble() == 1.3
+    check(persisted.value("Appearance/themeId") == "polaris" && persisted.value("Appearance/textScale").toDouble() == 1.3
           && persisted.value("Library/layoutMode") == "stage", "theme reset crossed scope or preferences did not persist");
     click("settings-category-ingame"); click("settings-row-hud"); click("settings-row-hudMode"); click("settings-choice-2");
     checkpoint("hud-preferences");
