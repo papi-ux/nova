@@ -1,6 +1,7 @@
 #include "runtime/deck_input_hub.h"
 #include "runtime/deck_desktop_input_bridge.h"
 #include "runtime/deck_window_controller.h"
+#include "runtime/deck_appearance_defaults.h"
 #include "deck_layout.h"
 #include "deck_gamepad.h"
 #include "polaris_game_fixture.h"
@@ -2150,6 +2151,9 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationVersion(QStringLiteral(NOVA_DECK_VERSION));
 #endif
     qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
+    // Before QML reads the store: an earlier installation keeps the theme it showed,
+    // and only a new one starts on Director.
+    nova::deck::runtime::recordStartingTheme();
     auto arguments = QCoreApplication::arguments();
     for (;;) {
         const int result = runDeck(app, arguments);
