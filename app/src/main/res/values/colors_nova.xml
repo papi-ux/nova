@@ -62,22 +62,30 @@
     <color name="nova_miami_water_accent_surface">#1A47F3FF</color>
     <color name="nova_miami_water_accent_glow">#7347F3FF</color>
 
-    <!-- Director — crimson surfaces, warm white copy, and black structural chrome. -->
-    <color name="nova_director_bg_window">#FF6E0B17</color>
-    <color name="nova_director_bg_card">#FF881525</color>
-    <color name="nova_director_bg_elevated">#FF9A1B2E</color>
-    <color name="nova_director_bg_input">#FF5E0A14</color>
-    <color name="nova_director_dialog_bg">#FF7B1020</color>
-    <color name="nova_director_badge_bg">#FF261015</color>
-    <color name="nova_director_structure">#FF12090B</color>
-    <color name="nova_director_divider">#FF12090B</color>
-    <color name="nova_director_text_primary">#FFFFF5E8</color>
-    <color name="nova_director_text_secondary">#FFF1D9CD</color>
-    <color name="nova_director_text_muted">#FFDEC0B5</color>
-    <color name="nova_director_accent">#FFFFF5E8</color>
-    <color name="nova_director_accent_surface">#14FFF5E8</color>
-    <color name="nova_director_error">#FFFFB7AC</color>
-    <color name="nova_tonal_pill_pressed_director">#33FFF5E8</color>
+    <!-- Director (the default) — Polaris's Director look: charcoal and near-black surfaces, warm
+         white copy, and red as a signal rather than a surface: focus, selection, toggles and
+         kickers. Ratios against the card: text 15.16, secondary 11.81, muted 7.49, accent 5.02,
+         error 8.79; the near-black label reads on the accent at 5.55. -->
+    <color name="nova_director_bg_window">#FF0B0A0A</color>
+    <color name="nova_director_bg_card">#FF191716</color>
+    <color name="nova_director_bg_elevated">#FF221F1E</color>
+    <color name="nova_director_bg_input">#FF0E0C0C</color>
+    <color name="nova_director_dialog_bg">#FF151312</color>
+    <!-- A control and the selected control: raised charcoal, never red. -->
+    <color name="nova_director_badge_bg">#FF292524</color>
+    <!-- The label on a red fill and the system bars: the near-black ground. -->
+    <color name="nova_director_structure">#FF0B0A0A</color>
+    <color name="nova_director_divider">#FF342E2B</color>
+    <color name="nova_director_text_primary">#FFF4EBE1</color>
+    <color name="nova_director_text_secondary">#FFDDD0C3</color>
+    <color name="nova_director_text_muted">#FFB5A598</color>
+    <color name="nova_director_accent">#FFF04E4B</color>
+    <!-- The low-emphasis accent ground, under a focused or active control, lifts toward the copy
+         as Polaris raises its active background, rather than taking a red tint. -->
+    <color name="nova_director_accent_surface">#14F4EBE1</color>
+    <!-- Salmon, lighter than the signal red, so an error never reads as focus. -->
+    <color name="nova_director_error">#FFFF9B8F</color>
+    <color name="nova_tonal_pill_pressed_director">#33F4EBE1</color>
 
     <!-- High Contrast — brighter copy, firm outlines, and blue focus for readability. -->
     <color name="nova_hc_bg_primary">#FF05070c</color>

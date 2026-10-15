@@ -686,7 +686,7 @@
             android:summary="Polaris Aurora, Console OLED, Miami Nebula, Portable Chrome, &lt; Congratulations, Director &gt;, High Contrast, or Material You"
             android:entries="@array/nova_theme_names"
             android:entryValues="@array/nova_theme_values"
-            android:defaultValue="polaris"
+            android:defaultValue="director"
             app:iconSpaceReserved="false" />
         <com.papi.nova.preferences.SeekBarPreference
             android:key="nova_ui_font_scale_percent"

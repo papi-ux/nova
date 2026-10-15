@@ -58,7 +58,7 @@ class NovaThemeManagerTest {
 
     @Test
     @Config(sdk = [30, 33])
-    fun directorXmlAndComposeShareRedSurfacesWhiteTextAndBlackStructure() {
+    fun directorXmlAndComposeShareCharcoalSurfacesWarmTextAndRedSignals() {
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
         for (style in listOf(R.style.AppTheme_Director, R.style.SettingsTheme_Director)) {
             val themed = ContextThemeWrapper(context, style)
@@ -82,13 +82,31 @@ class NovaThemeManagerTest {
                 val actual = if (value.resourceId != 0) themed.getColor(value.resourceId) else value.data
                 assertEquals(expected, actual)
             }
+            // Polaris's Director: charcoal and near-black dominate, the copy stays warm white, and
+            // red is a signal rather than a surface.
+            val surfaces = NovaThemeManager.fillSurfaces(themed) + listOf(colors.window, colors.badge).map { it.toArgb() } +
+                themed.getColor(R.color.nova_director_bg_elevated) + themed.getColor(R.color.nova_director_bg_input)
+            for (surface in surfaces) {
+                assertTrue("The surfaces are near-black", ColorUtils.calculateLuminance(surface) <= 0.02)
+                val channels = listOf(Color.red(surface), Color.green(surface), Color.blue(surface))
+                assertTrue("The surfaces are near-neutral, not red", channels.max() - channels.min() <= 12)
+                assertTrue("Red focus is distinct on charcoal", ColorUtils.calculateContrast(colors.accent.toArgb(), surface) >= 3.0)
+            }
             for (surface in NovaThemeManager.fillSurfaces(themed)) {
-                assertTrue("The main surfaces are red", Color.red(surface) > Color.green(surface) * 3)
                 for (ink in listOf(colors.textPrimary, colors.textSecondary, colors.textMuted, colors.destructive, colors.positive)) {
                     assertTrue("Director text and semantic status remain readable", ColorUtils.calculateContrast(ink.toArgb(), surface) >= 4.5)
                 }
-                assertTrue("Warm-white focus is distinct on red", ColorUtils.calculateContrast(colors.accent.toArgb(), surface) >= 3.0)
             }
+            for (ink in listOf(colors.textPrimary, colors.textSecondary, colors.textMuted)) {
+                assertTrue("The copy is warm", Color.red(ink.toArgb()) > Color.blue(ink.toArgb()))
+            }
+            val accent = colors.accent.toArgb()
+            assertTrue("The signal is clearly red", Color.red(accent) > Color.green(accent) * 2.5 && Color.red(accent) > Color.blue(accent) * 2.5)
+            assertTrue("A label on a red fill reads", ColorUtils.calculateContrast(colors.onAccent.toArgb(), accent) >= 4.5)
+            assertTrue(
+                "An error is lighter than the signal, so it never reads as focus",
+                ColorUtils.calculateLuminance(colors.destructive.toArgb()) >= ColorUtils.calculateLuminance(accent) * 1.5,
+            )
             assertTrue("Positive status remains green", Color.green(colors.positive.toArgb()) > Color.red(colors.positive.toArgb()))
             assertTrue("Destructive status remains a red hue", Color.red(colors.destructive.toArgb()) > Color.green(colors.destructive.toArgb()))
             assertNotEquals("Theme accent is not an error indicator", colors.accent, colors.destructive)
@@ -103,7 +121,7 @@ class NovaThemeManagerTest {
     }
 
     @Test
-    fun directorLibraryUsesRedPanelsAndBlackControlsWithoutChangingOpacityEndpoints() {
+    fun directorLibraryUsesCharcoalPanelsAndRaisedControlsWithoutChangingOpacityEndpoints() {
         NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
         val colors = com.papi.nova.ui.compose.novaComposeColors(ContextThemeWrapper(context, R.style.AppTheme_Director))
         val full = colors.librarySurfaces(NovaThemeManager.THEME_DIRECTOR)
@@ -112,9 +130,11 @@ class NovaThemeManagerTest {
         assertEquals(colors.dialog, full.panel)
         assertEquals(colors.card.copy(alpha = 0.90f), full.tile)
         assertEquals(colors.badge.copy(alpha = 0.94f), full.control)
+        assertEquals("the selected control is raised charcoal, never a red surface", colors.badge, full.selectedControl)
         assertEquals(colors.divider.copy(alpha = 0.90f), full.panelBorder)
         assertEquals(colors.accent, full.focusRing)
-        assertFalse("Director's structural red shell has no ambient particle field", full.particlesEnabled)
+        assertFalse("Director's charcoal stage has no ambient particle field", full.particlesEnabled)
+        assertEquals(0f, full.particleAlpha, 0f)
         assertEquals(1f, full.panel.alpha, 0.001f)
         // Compose sRGB alpha is ARGB8: 50% rounds to 128/255, not an exact 0.5.
         assertEquals(128f / 255f, half.panel.alpha, 0f)
@@ -125,10 +145,45 @@ class NovaThemeManagerTest {
     }
 
     @Test
-    fun unknownThemeFallsBackToPolaris() {
+    fun unknownThemeFallsBackToTheDefaultDirector() {
         NovaThemeManager.setTheme(context, "south_beach_laser_flamingo")
 
+        assertEquals(NovaThemeManager.THEME_DIRECTOR, NovaThemeManager.getTheme(context))
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun aNewInstallStartsOnDirectorAndItsFirstLaunchStoresIt() {
+        assertEquals(NovaThemeManager.THEME_DIRECTOR, NovaThemeManager.DEFAULT_THEME)
+        assertEquals("nothing stored yet: the first frame is already Director", NovaThemeManager.THEME_DIRECTOR, NovaThemeManager.getTheme(context))
+
+        // What PcView does on first launch: the Theme row's default is written with every other.
+        PreferenceManager.setDefaultValues(context, R.xml.preferences, false)
+        assertEquals(NovaThemeManager.THEME_DIRECTOR, PreferenceManager.getDefaultSharedPreferences(context).getString("nova_theme", null))
+        assertEquals(NovaThemeManager.THEME_DIRECTOR, NovaThemeManager.getTheme(context))
+    }
+
+    /**
+     * Every release since 1.0.0 wrote Polaris Aurora into the Theme row on its first launch, so an
+     * install that never chose a theme stores Polaris, and the new default cannot move it, nor a
+     * choice, even when the defaults are written again.
+     */
+    @Test
+    @Config(sdk = [33])
+    fun anExistingInstallKeepsThePolarisItsFirstLaunchStoredAndAChoiceStays() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit().putString("nova_theme", NovaThemeManager.THEME_POLARIS).commit()
+        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        assertEquals(NovaThemeManager.THEME_POLARIS, prefs.getString("nova_theme", null))
         assertEquals(NovaThemeManager.THEME_POLARIS, NovaThemeManager.getTheme(context))
+
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_MIAMI)
+        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        assertEquals(NovaThemeManager.THEME_MIAMI, NovaThemeManager.getTheme(context))
+
+        // A choice kept only in the legacy location still outranks the default.
+        prefs.edit().remove("nova_theme").commit()
+        assertEquals(NovaThemeManager.THEME_MIAMI, NovaThemeManager.getTheme(context))
     }
 
     @Test
@@ -563,12 +618,14 @@ class NovaThemeManagerTest {
             "OLED app" to R.style.AppTheme_OLED,
             "Miami app" to R.style.AppTheme_Miami,
             "High Contrast app" to R.style.AppTheme_HighContrast,
+            "Director app" to R.style.AppTheme_Director,
             "Material You app" to R.style.AppTheme_MaterialYou,
             "Polaris settings" to R.style.SettingsTheme,
             "Portable settings" to R.style.SettingsTheme_PortableChrome,
             "OLED settings" to R.style.SettingsTheme_OLED,
             "Miami settings" to R.style.SettingsTheme_Miami,
             "High Contrast settings" to R.style.SettingsTheme_HighContrast,
+            "Director settings" to R.style.SettingsTheme_Director,
             "Material You settings" to R.style.SettingsTheme_MaterialYou,
         )
 
