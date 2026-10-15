@@ -40,6 +40,8 @@
     <string name="nova_host_console_failed">The host\'s console did not load. Check that the host is awake and on this network, then try again.</string>
     <!-- A link the console opened that Nova cannot follow: for another client app, or a host or an app Nova does not know. -->
     <string name="nova_host_console_link_elsewhere">This link is for another app, so Nova cannot open it.</string>
+    <!-- The player tapped a link to a page elsewhere, and no browser on the device can open it. -->
+    <string name="nova_host_console_link_no_browser">No browser on this device can open that link.</string>
     <!-- The console asked Nova to pair with a host it is already paired with. -->
     <string name="nova_host_console_link_paired">Nova is already paired with this host, so there is nothing to pair.</string>
 
