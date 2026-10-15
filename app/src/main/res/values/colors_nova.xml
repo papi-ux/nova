@@ -62,7 +62,7 @@
     <color name="nova_miami_water_accent_surface">#1A47F3FF</color>
     <color name="nova_miami_water_accent_glow">#7347F3FF</color>
 
-    <!-- Director (the default) — Polaris's Director look: charcoal and near-black surfaces, warm
+    <!-- Director — Polaris's Director look: charcoal and near-black surfaces, warm
          white copy, and red as a signal rather than a surface: focus, selection, toggles and
          kickers. Ratios against the card: text 15.16, secondary 11.81, muted 7.49, accent 5.02,
          error 8.79; the near-black label reads on the accent at 5.55. -->

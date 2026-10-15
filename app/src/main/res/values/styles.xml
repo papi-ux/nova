@@ -111,7 +111,7 @@
         <item name="colorError">@color/nova_error</item>
     </style>
 
-    <!-- < Congratulations, Director > — the default: charcoal stage, warm white copy, red signals. -->
+    <!-- < Congratulations, Director >, chosen in Settings: charcoal stage, warm white copy, red signals. -->
     <style name="AppTheme.Director" parent="AppBaseTheme">
         <item name="android:colorBackground">@color/nova_director_bg_window</item>
         <item name="android:windowBackground">@color/nova_director_bg_window</item>

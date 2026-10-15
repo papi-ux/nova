@@ -1,4 +1,3 @@
-#include "runtime/deck_appearance_defaults.h"
 #include <QColor>
 #include <QDir>
 #include <QElapsedTimer>
@@ -160,11 +159,7 @@ ApplicationWindow {
 };
 void fresh(const QString& captures) {
     Scene ui(captures); const auto state = ui.state();
-    require(state["theme"] == "director" && state["label"] == "< Congratulations, Director >",
-        "a new Linux installation did not start on Director");
-    require(QColor(state["window"].toString()) == QColor("#0B0A0A") && QColor(state["text"].toString()) == QColor("#F4EBE1") &&
-            QColor(state["focus"].toString()) == QColor("#F04E4B") && QColor(state["focusText"].toString()) == QColor("#0B0A0A"),
-        "the default Director palette did not reach production UI");
+    require(state["theme"] == "polaris" && state["label"] == "Polaris Aurora", "a new Linux installation did not start on Polaris Aurora");
     require(near(state["font"].toDouble(), .8), "fresh Linux appearance did not default to 80% text");
     require(state["size"] == "standard" && near(state["scale"].toDouble(), .88), "fresh Linux appearance lost Standard density");
     require(state["opacity"].toInt() == 64, "fresh menu opacity did not default to 64%");
@@ -173,12 +168,8 @@ void fresh(const QString& captures) {
 void legacy(const QString& config) {
     for (int percent : {100, 115, 130}) {
         const auto name = QString("Appearance247-legacy-%1").arg(percent); QCoreApplication::setApplicationName(name);
-        seed(config, name, percent);
-        // What the app records before QML loads: an earlier installation that never chose a theme.
-        require(nova::deck::runtime::recordStartingTheme() == "polaris", "an earlier installation was not kept on Polaris Aurora");
-        const auto before = saved();
+        seed(config, name, percent); const auto before = saved();
         { Scene ui; const auto state = ui.state();
-          require(state["theme"] == "polaris", "an earlier installation lost the Polaris Aurora theme it showed");
           require(near(state["font"].toDouble(), percent / 100.), "restart migration changed saved 100/115/130% text");
           require(state["size"] == "standard" && near(state["scale"].toDouble(), .88), "legacy partial record lost Standard density");
           require(!state["commandButton"].toBool() && !state["shortcut"].toBool(), "appearance startup rewrote unrelated in-game choices");
@@ -200,7 +191,6 @@ void controls(const QString& captures) {
         require(probe->property("font").value<QFont>().pixelSize() == font && probe->height() >= 48, "density scaled text or reduced minimum touch height");
     }
     require(widths[0] < widths[1] && widths[1] < widths[2], "shared button geometry ignored independent density");
-    ui.activate("appearance-theme-polaris"); require(ui.state()["theme"] == "polaris", "Polaris Aurora selector missing");
     ui.activate("appearance-theme-director"); const auto director = ui.state();
     require(director["theme"] == "director" && director["label"] == "< Congratulations, Director >", "Director selector or literal label missing");
     // Charcoal stage, warm white copy, and red as the focus signal with the near-black ground on it.

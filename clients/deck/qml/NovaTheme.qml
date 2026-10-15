@@ -10,10 +10,9 @@ QtObject {
     // record, Settings can queue defaults for later properties before loading
     // their saved values (for example textScale when themeId is absent).
     property Settings preferences: Settings { category: "Appearance" }
-    // Director is the default for a new installation. Before QML loads, an earlier
-    // installation that never chose a theme has Polaris Aurora recorded instead
-    // (recordStartingTheme in deck_appearance_defaults.cpp).
-    readonly property string defaultTheme: "director"
+    // Polaris Aurora is the default, for a new installation and for an unknown id;
+    // every other theme, Director included, is the player's choice.
+    readonly property string defaultTheme: "polaris"
     property string selectedTheme: defaultTheme
     property real selectedTextScale: 0.8
     property string selectedControlSize: "standard"

@@ -105,14 +105,6 @@ object NovaThemeManager {
         NovaSystemBars.apply(activity)
     }
 
-    /**
-     * The theme of an install that has not chosen one, matching the Theme row's default in
-     * preferences.xml. Existing installs keep theirs: PcView writes every preferences.xml default
-     * on first launch, as it has since before 1.0.0, so each one already stores Polaris Aurora or
-     * its own choice, and only a new install starts on Director.
-     */
-    const val DEFAULT_THEME = THEME_DIRECTOR
-
     fun getTheme(context: Context): String {
         // Read from default SharedPreferences (where PreferenceFragment writes)
         val defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context)
@@ -122,7 +114,7 @@ object NovaThemeManager {
         // Fallback: check legacy nova_prefs location
         return normalizeTheme(
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_THEME, DEFAULT_THEME)
+                .getString(KEY_THEME, THEME_POLARIS)
         )
     }
 
@@ -130,7 +122,7 @@ object NovaThemeManager {
         return when (theme) {
             THEME_POLARIS, THEME_PORTABLE_CHROME, THEME_OLED, THEME_MIAMI, THEME_DIRECTOR, THEME_HIGH_CONTRAST, THEME_MATERIAL_YOU -> theme
             THEME_PSP -> THEME_PORTABLE_CHROME
-            else -> DEFAULT_THEME
+            else -> THEME_POLARIS
         }
     }
 
@@ -299,9 +291,29 @@ object NovaThemeManager {
      * theme's accent where it reads at 4.5:1 on the panel and a tile, each over the window, and
      * otherwise the accent mixed toward the text colour in tenths until it does. Polaris Aurora's
      * accent is 3.4:1 on its card, enough for an icon and a ring but not for a label.
+     *
+     * Director's red is a signal, not label ink. A primary label rests on a raised charcoal control
+     * and keeps its colour while the control is selected; the selected control is the badge itself,
+     * where the red reads at 4.26:1, short of the 4.5:1 a label needs. So Director's label is its
+     * warm white copy wherever the red falls short, never a lifted pink, and the red stays on focus
+     * rings, fills and markers.
      */
-    fun getAccentTextColor(context: Context): Int =
-        readableAccentFor(getAccentColor(context), getTextPrimaryColor(context), fillSurfaces(context))
+    fun getAccentTextColor(context: Context): Int {
+        val accent = getAccentColor(context)
+        val text = getTextPrimaryColor(context)
+        return if (isDirector(context)) {
+            signalOrCopyFor(accent, text, fillSurfaces(context) + getBadgeBackgroundColor(context))
+        } else {
+            readableAccentFor(accent, text, fillSurfaces(context))
+        }
+    }
+
+    /** [accent] where it reads at 4.5:1 on every one of [surfaces], otherwise [text]: never a tint between. */
+    internal fun signalOrCopyFor(accent: Int, text: Int, surfaces: List<Int>): Int {
+        val signal = ColorUtils.setAlphaComponent(accent, 255)
+        val reads = surfaces.all { ColorUtils.calculateContrast(signal, ColorUtils.setAlphaComponent(it, 255)) >= 4.5 }
+        return if (reads) signal else text
+    }
 
     /** [accent], or the first tenth of the way toward [text] that reads at 4.5:1 on every one of [surfaces]. */
     internal fun readableAccentFor(accent: Int, text: Int, surfaces: List<Int>): Int {

@@ -386,10 +386,7 @@ def polish_navigation(wait, keys, state, fixtures, save_capture, window):
 
 def appearance_navigation(wait, keys, state, save_capture, window):
     keys("Up", "Up", "Up", "Right", "Return", *(["Down"] * 6), "Return")
-    # A new installation starts on Director, so Appearance opens on it.
-    wait(lambda s: s.get("appearanceOpen") and s.get("theme") == "director" and s.get("focus") == "appearance-theme-director")
-    keys(*(["Up"] * 4))
-    wait(lambda s: s.get("focus") == "appearance-theme-polaris")
+    wait(lambda s: s.get("appearanceOpen") and s.get("focus") == "appearance-theme-polaris")
     for index, theme in enumerate(("polaris", "portable_chrome", "oled", "miami", "director", "high_contrast")):
         if index:
             keys("Down")
