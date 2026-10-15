@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris host that supports it, Play on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console now opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova. ([#310](https://gitea.centaur-frog.ts.net/papi-ux/nova/issues/310))
+
 ## 1.5.0 - 2026-10-12
 
 A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. This release brings the Android interface together, gives PyroWave advice that starts from the screen in your hands, and makes the controls easier to use with touch or a controller. Existing pairings, saved setups and artwork stay yours.
