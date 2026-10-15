@@ -41,8 +41,9 @@ choice. This is a window adaptation, not a requirement to use Linux in portrait.
 text size. Text supports 80 to 130 percent in one-percent steps; new installations
 start at 80 percent and existing saved sizes stay intact. Opened text and opacity
 editors keep a draft until Save. The six Linux themes now include
-`< Congratulations, Director >`, with crimson surfaces, warm white text and
-black controls. Command Center has its own background-opacity setting.
+`< Congratulations, Director >`, a charcoal stage with warm white copy and red
+signals. New installations start on Director; existing installations keep the
+theme they show. Command Center has its own background-opacity setting.
 
 ![Nova Linux 1.4.14-beta.1 candidate Appearance settings in the Director theme, with independent text, control size and library layout](../../docs/screenshots/nova-linux-director-appearance-v1.4.14-beta.1.webp)
 

@@ -111,6 +111,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_relative_pointer.cpp
     ${NOVA_DECK_POINTER_PROTOCOL_SOURCES}
     src/runtime/deck_window_controller.cpp
+    src/runtime/deck_appearance_defaults.cpp
     src/runtime/deck_rumble.cpp
     src/runtime/deck_rumble_linux.cpp
     src/runtime/deck_sleep_monitor.cpp
@@ -476,6 +477,10 @@ if(BUILD_TESTING)
     add_executable(nova_deck_window_controller_test tests/deck_window_controller_test.cpp)
     target_link_libraries(nova_deck_window_controller_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_window_controller_test COMMAND nova_deck_window_controller_test)
+    add_executable(nova_deck_appearance_defaults_test tests/deck_appearance_defaults_test.cpp)
+    target_link_libraries(nova_deck_appearance_defaults_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_appearance_defaults_test COMMAND nova_deck_appearance_defaults_test)
+    set_tests_properties(nova_deck_appearance_defaults_test PROPERTIES TIMEOUT 15)
     pkg_check_modules(NOVA_DECK_XTEST REQUIRED IMPORTED_TARGET xcb-xtest)
     add_executable(nova_deck_relative_pointer_test tests/deck_relative_pointer_test.cpp)
     target_link_libraries(nova_deck_relative_pointer_test PRIVATE nova_deck_core PkgConfig::NOVA_DECK_XTEST)
@@ -1118,7 +1123,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             add_test(NAME nova_deck_library_refresh_focus_qml_test COMMAND nova_deck_library_refresh_focus_qml_test)
             set_tests_properties(nova_deck_library_refresh_focus_qml_test PROPERTIES COST 1000 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 15)
             add_executable(nova_deck_appearance_qml_test tests/deck_appearance_qml_test.cpp)
-            target_link_libraries(nova_deck_appearance_qml_test PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Test)
+            target_link_libraries(nova_deck_appearance_qml_test PRIVATE nova_deck_core Qt6::Quick Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_appearance_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_appearance_qml_test COMMAND nova_deck_appearance_qml_test)
             set_tests_properties(nova_deck_appearance_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 45)
