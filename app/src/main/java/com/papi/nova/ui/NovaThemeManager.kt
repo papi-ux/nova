@@ -105,6 +105,14 @@ object NovaThemeManager {
         NovaSystemBars.apply(activity)
     }
 
+    /**
+     * The theme of an install that has not chosen one, matching the Theme row's default in
+     * preferences.xml. Existing installs keep theirs: PcView writes every preferences.xml default
+     * on first launch, as it has since before 1.0.0, so each one already stores Polaris Aurora or
+     * its own choice, and only a new install starts on Director.
+     */
+    const val DEFAULT_THEME = THEME_DIRECTOR
+
     fun getTheme(context: Context): String {
         // Read from default SharedPreferences (where PreferenceFragment writes)
         val defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context)
@@ -114,7 +122,7 @@ object NovaThemeManager {
         // Fallback: check legacy nova_prefs location
         return normalizeTheme(
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_THEME, THEME_POLARIS)
+                .getString(KEY_THEME, DEFAULT_THEME)
         )
     }
 
@@ -122,7 +130,7 @@ object NovaThemeManager {
         return when (theme) {
             THEME_POLARIS, THEME_PORTABLE_CHROME, THEME_OLED, THEME_MIAMI, THEME_DIRECTOR, THEME_HIGH_CONTRAST, THEME_MATERIAL_YOU -> theme
             THEME_PSP -> THEME_PORTABLE_CHROME
-            else -> THEME_POLARIS
+            else -> DEFAULT_THEME
         }
     }
 
