@@ -144,6 +144,13 @@ Popup {
             text: power.sending ? "Waiting for PC…" : power.status.phase === "countdown" || power.status.phase === "checking" ? "Cancel" : "Back"
             enabled: !power.sending
             onClicked: power.requestClose()
+            // A still-held activation key may repeat after countdown takes focus.
+            // Cancel requires a fresh press; its preceding release is not a click.
+            Keys.onSpacePressed: event => { if (!event.isAutoRepeat && enabled) clicked() }
+            Keys.onSelectPressed: event => { if (!event.isAutoRepeat && enabled) clicked() }
+            Keys.onReleased: event => {
+                if (event.key === Qt.Key_Space || event.key === Qt.Key_Select) event.accepted = true
+            }
             Keys.onUpPressed: { if (hold.visible) hold.forceActiveFocus(); else if (check.visible) check.forceActiveFocus() }
         }
     }
