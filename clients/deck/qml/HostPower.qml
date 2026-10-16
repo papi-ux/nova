@@ -25,6 +25,15 @@ Popup {
         }
         return { hold: center(hold), cancel: center(done) }
     }
+    function traceHostPowerKey(kind, event) {
+        if (Qt.application.arguments.indexOf("--frontend-smoke-library-state") < 0) return
+        console.info("NOVA_DECK_HOST_POWER_KEY_V1 " + JSON.stringify({
+            kind: kind, key: event.key, repeat: event.isAutoRepeat,
+            phase: power.status.phase, progress: power.status.progress,
+            focused: hold.activeFocus, opened: power.opened,
+            primaryHeld: power.gamepad ? power.gamepad.primaryHeld : null
+        }))
+    }
     function requestClose() { if (!sending) { controller.cancel(); close() } }
     onOpened: { controller.refresh(); done.forceActiveFocus() }
     onClosed: controller.cancel()
@@ -95,10 +104,14 @@ Popup {
             onReleased: power.controller.releaseHold()
             onCanceled: power.controller.releaseHold()
             onActiveFocusChanged: if (!activeFocus) power.controller.releaseHold()
-            Keys.onReturnPressed: event => { if (!event.isAutoRepeat) power.controller.beginHold() }
-            Keys.onEnterPressed: event => { if (!event.isAutoRepeat) power.controller.beginHold() }
+            Keys.onReturnPressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
+            Keys.onEnterPressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
+            Keys.onSpacePressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
+            Keys.onSelectPressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
             Keys.onReleased: event => {
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                power.traceHostPowerKey("release", event)
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter ||
+                        event.key === Qt.Key_Space || event.key === Qt.Key_Select) {
                     // The navigation bridge emits a tap to activate controls;
                     // the physical A release is observed separately below.
                     if (!event.isAutoRepeat && (!power.gamepad || power.gamepad.primaryHeld !== true)) power.controller.releaseHold()
@@ -131,6 +144,13 @@ Popup {
             text: power.sending ? "Waiting for PC…" : power.status.phase === "countdown" || power.status.phase === "checking" ? "Cancel" : "Back"
             enabled: !power.sending
             onClicked: power.requestClose()
+            // A still-held activation key may repeat after countdown takes focus.
+            // Cancel requires a fresh press; its preceding release is not a click.
+            Keys.onSpacePressed: event => { if (!event.isAutoRepeat && enabled) clicked() }
+            Keys.onSelectPressed: event => { if (!event.isAutoRepeat && enabled) clicked() }
+            Keys.onReleased: event => {
+                if (event.key === Qt.Key_Space || event.key === Qt.Key_Select) event.accepted = true
+            }
             Keys.onUpPressed: { if (hold.visible) hold.forceActiveFocus(); else if (check.visible) check.forceActiveFocus() }
         }
     }
