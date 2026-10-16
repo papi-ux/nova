@@ -25,6 +25,12 @@
     <string name="hosts_qr_unreachable">Nova could not reach %1$s. Check that the host is on and on this network, then scan again.</string>
     <string name="hosts_not_ready_title">Hosts Not Ready</string>
     <string name="nova_host_console_title">Host Console</string>
+    <!-- At the end of Host Console's header, for TalkBack: gives the console the whole window, or puts it back in its panel. -->
+    <string name="nova_host_console_expand">Expand console</string>
+    <string name="nova_host_console_collapse">Collapse console</string>
+    <!-- What Y does in Host Console, in the hint bar. -->
+    <string name="nova_host_console_expand_hint">Expand</string>
+    <string name="nova_host_console_collapse_hint">Collapse</string>
     <string name="nova_host_console_opening">Opening the host\'s console…</string>
     <string name="nova_host_console_refused">The console answered with a certificate Nova did not pair with, so Nova will not open it. If the host was set up again, pair with it again.</string>
     <!-- The first page of a host Nova has not paired with, over Back and Open Anyway. -->

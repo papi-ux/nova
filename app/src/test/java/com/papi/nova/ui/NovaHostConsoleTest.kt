@@ -7,6 +7,7 @@ import android.view.View
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import androidx.preference.PreferenceManager
 import com.papi.nova.ui.panel.NovaPanelWidth
 import java.io.ByteArrayInputStream
 import java.security.cert.CertificateFactory
@@ -22,6 +23,7 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -180,6 +182,28 @@ class NovaHostConsoleTest {
         `when`(main.isForMainFrame).thenReturn(true)
         client.onReceivedError(view, main, mock(android.webkit.WebResourceError::class.java))
         assertEquals(listOf(NovaHostConsoleState.Failed), states)
+    }
+
+    // Expand gives the console the whole window and Collapse puts it back in its panel (#317). It
+    // opens in its panel until the player chooses, and after that as they last left it here.
+    @Test
+    fun theConsoleOpensInItsPanelUntilThePlayerChoosesAndThenAsTheyLastLeftIt() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(RuntimeEnvironment.getApplication())
+        assertFalse(NovaHostConsoleLayout.expanded(prefs))
+        assertEquals(NovaPanelWidth.Wide, page.width)
+
+        page.toggleSize(prefs)
+        assertEquals("expanded, the whole window", NovaPanelWidth.Full, page.width)
+        assertTrue("kept for this device", NovaHostConsoleLayout.expanded(prefs))
+        val next = NovaHostConsolePage(
+            title = "Host Console", url = console, pinnedCertificate = paired.encoded,
+            expanded = NovaHostConsoleLayout.expanded(prefs),
+        )
+        assertEquals("the next visit opens as this one was left", NovaPanelWidth.Full, next.width)
+
+        next.toggleSize(prefs)
+        assertEquals(NovaPanelWidth.Wide, next.width)
+        assertFalse(NovaHostConsoleLayout.expanded(prefs))
     }
 
     private companion object {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -129,7 +130,8 @@ val LocalNovaStreamCover = compositionLocalOf<NovaStreamCover?> { null }
  * In landscape the panel is attached to [edge] at full height, [width] wide, rounded on its inner
  * edge only, with a hairline there and no shadow. When the window is portrait or narrower than
  * 480dp it becomes a full-width sheet attached to the bottom, rounded on top, wrapping its content
- * up to 88% of the height and animating its height as pages change.
+ * up to 88% of the height and animating its height as pages change. A [NovaPanelWidth.Full] page
+ * takes the whole window: the edge panel is the window's width, and the sheet its height.
  *
  * [open] drives the slide in and out on the Command Center's spring. A tap on the scrim, or a drag
  * toward the edge past [NovaPanelMetrics.DismissFraction], calls [onDismissRequest], except while
@@ -217,8 +219,10 @@ fun NovaPanelFrame(
         val surfaces = LocalNovaLibrarySurfaces.current
         CompositionLocalProvider(LocalNovaLibrarySurfaces provides surfaces) {
             if (NovaPanelMetrics.usesSheet(maxWidth, maxHeight)) {
+                val full = width == NovaPanelWidth.Full
                 NovaPanelSheet(
-                    maxHeight = maxHeight * NovaPanelMetrics.SheetMaxHeightFraction,
+                    maxHeight = if (full) maxHeight else maxHeight * NovaPanelMetrics.SheetMaxHeightFraction,
+                    full = full,
                     progress = { progress.value },
                     drag = drag,
                     tvSafe = tvSafe,
@@ -231,6 +235,7 @@ fun NovaPanelFrame(
                     NovaEdgePanel(
                         edge = edge,
                         width = panelWidth,
+                        full = width == NovaPanelWidth.Full,
                         progress = { progress.value },
                         drag = drag,
                         tvSafe = tvSafe,
@@ -296,6 +301,7 @@ private fun NovaPanelScrim(baseAlpha: Float, progress: () -> Float, onTap: () ->
 private fun BoxScope.NovaEdgePanel(
     edge: NovaEdge,
     width: Dp,
+    full: Boolean,
     progress: () -> Float,
     drag: PanelDrag,
     tvSafe: Boolean,
@@ -317,9 +323,10 @@ private fun BoxScope.NovaEdgePanel(
     }
     val outer = if (atStart) WindowInsetsSides.Start else WindowInsetsSides.End
     val tvPadding = if (tvSafe) {
+        // A Full page reaches the far edge of the screen as well, and keeps the margin there too.
         Modifier.padding(
-            start = if (atStart) NovaPanelMetrics.TvSafeHorizontal else 0.dp,
-            end = if (atStart) 0.dp else NovaPanelMetrics.TvSafeHorizontal,
+            start = if (atStart || full) NovaPanelMetrics.TvSafeHorizontal else 0.dp,
+            end = if (atStart && !full) 0.dp else NovaPanelMetrics.TvSafeHorizontal,
             top = NovaPanelMetrics.TvSafeVertical,
             bottom = NovaPanelMetrics.TvSafeVertical,
         )
@@ -364,6 +371,11 @@ private fun BoxScope.NovaEdgePanel(
                 )
             }
             .novaScreenInsets(outer + WindowInsetsSides.Vertical)
+            // Across the whole window, its inner edge meets the other side of the screen and its insets.
+            .then(if (full) Modifier.novaScreenInsets(if (atStart) WindowInsetsSides.End else WindowInsetsSides.Start) else Modifier)
+            // A Full page's content cannot step around a camera the way the frame's own controls
+            // do, so it keeps clear of the cutout on every edge, whether the bars show or not.
+            .then(if (full) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
             .imePadding()
             .then(tvPadding),
     ) {
@@ -374,6 +386,7 @@ private fun BoxScope.NovaEdgePanel(
 @Composable
 private fun BoxScope.NovaPanelSheet(
     maxHeight: Dp,
+    full: Boolean,
     progress: () -> Float,
     drag: PanelDrag,
     tvSafe: Boolean,
@@ -387,6 +400,8 @@ private fun BoxScope.NovaPanelSheet(
     val hairline = surfaces.panelBorder
     val tvPadding = if (tvSafe) {
         Modifier.padding(horizontal = NovaPanelMetrics.TvSafeHorizontal).padding(bottom = NovaPanelMetrics.TvSafeVertical)
+            // A Full page's sheet reaches the top of the screen, and keeps the margin there too.
+            .padding(top = if (full) NovaPanelMetrics.TvSafeVertical else 0.dp)
     } else {
         Modifier
     }
@@ -395,6 +410,8 @@ private fun BoxScope.NovaPanelSheet(
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             .heightIn(max = maxHeight)
+            // A Full page's sheet is the window's height, whatever its content asks for.
+            .then(if (full) Modifier.fillMaxHeight() else Modifier)
             .offset {
                 val height = heightPx.intValue.takeIf { it > 0 } ?: fallbackHeight
                 IntOffset(0, ((1f - progress()) * height).roundToInt())
@@ -424,6 +441,10 @@ private fun BoxScope.NovaPanelSheet(
                 )
             }
             .novaScreenInsets(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+            // Reaching the top of the window, a Full page's sheet keeps clear of the status bar there,
+            .then(if (full) Modifier.novaScreenInsets(WindowInsetsSides.Top) else Modifier)
+            // and of a camera on any edge, which its content cannot step around as the frame's controls do.
+            .then(if (full) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
             .imePadding()
             .then(tvPadding)
             .animateContentSize(),
