@@ -124,6 +124,10 @@ import java.util.UUID
  * one of its apps here. Nova follows the ones for it ([NovaHostConsoleLink]) through [onLink], and
  * says in the console's place, as it asks the console's questions, that any other is for another app.
  *
+ * The console is told it is in Nova, and Nova's theme, when it opens ([NovaHostConsoleHandoff]), so
+ * its Play streams here and it looks like Nova. A page elsewhere that the player taps opens outside
+ * Nova, in the browser; the console's own address never does.
+ *
  * Expand, at the end of its header, or Y gives the console the whole window, and Collapse puts it
  * back in its panel ([toggleSize]). It opens as the player last left it on this device.
  */
@@ -171,6 +175,28 @@ internal class NovaHostConsolePage(
 
     companion object {
         const val KEY = "host-console"
+    }
+}
+
+/**
+ * What Nova tells the console when it opens it (Polaris #414): that it is in Nova, so its Play and
+ * Launch stream to this device through Nova's launch link and its guide link is hidden, and which
+ * theme to show for the visit. Only the first load carries it; the console keeps it for the visit.
+ */
+internal object NovaHostConsoleHandoff {
+    /** [url] with `client=nova` and, when Polaris has Nova's theme, `theme=`, ahead of any `#` route. */
+    fun url(url: String, novaTheme: String?): String {
+        val uri = Uri.parse(url)
+        val builder = uri.buildUpon().appendQueryParameter("client", "nova")
+        if (uri.path.isNullOrEmpty()) builder.path("/")
+        polarisTheme(novaTheme)?.let { builder.appendQueryParameter("theme", it) }
+        return builder.build().toString()
+    }
+
+    /** Nova's theme as Polaris names it, with hyphens; none for Material You, which Polaris lacks. */
+    fun polarisTheme(novaTheme: String?): String? = when (novaTheme) {
+        null, "", NovaThemeManager.THEME_MATERIAL_YOU -> null
+        else -> novaTheme.replace('_', '-')
     }
 }
 
@@ -270,6 +296,13 @@ internal object NovaHostConsoleTrust {
     }
 
     private fun port(uri: Uri): Int = if (uri.port == -1) 443 else uri.port
+
+    /** Whether [url] is a secure page elsewhere, one the player may open outside Nova. */
+    fun isOutside(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val there = Uri.parse(url)
+        return "https".equals(there.scheme, ignoreCase = true) && !there.host.isNullOrBlank()
+    }
 }
 
 /**
@@ -492,6 +525,8 @@ internal class NovaHostConsoleClient(
     private val visit: NovaHostConsoleVisitPin? = null,
     private val certificateOf: (WebView) -> SslCertificate? = { it.certificate },
     private val onLink: (NovaHostConsoleLink) -> Unit = {},
+    /** Opens a secure page elsewhere that the player tapped, outside Nova. */
+    private val onOutside: (Uri) -> Unit = {},
 ) : WebViewClient() {
     private var stopped = false
 
@@ -526,19 +561,23 @@ internal class NovaHostConsoleClient(
     }
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-        overrides(request.url?.toString())
+        overrides(request.url?.toString(), tapped = request.hasGesture() && request.isForMainFrame)
 
+    // Older Android says nothing of a tap, so nothing opens outside from it.
     @Deprecated("Deprecated in Java")
-    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = overrides(url)
+    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = overrides(url, tapped = false)
 
-    // A client link is followed or said, and never loads; anything else loads only on the console.
-    private fun overrides(url: String?): Boolean {
+    // A client link is followed or said, and never loads. A secure page elsewhere the player tapped
+    // opens outside Nova. Anything else loads only on the console.
+    private fun overrides(url: String?, tapped: Boolean): Boolean {
         val link = NovaHostConsoleLink.of(url, page.hostUuid)
         if (link != null) {
             if (!stopped) onLink(link)
             return true
         }
-        return !NovaHostConsoleTrust.isConsole(page.url, url)
+        if (NovaHostConsoleTrust.isConsole(page.url, url)) return false
+        if (tapped && !stopped && NovaHostConsoleTrust.isOutside(url)) onOutside(Uri.parse(url))
+        return true
     }
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
@@ -735,6 +774,7 @@ internal fun NovaPageScope.NovaHostConsole(
     val live = state == NovaHostConsoleState.Loading || state == NovaHostConsoleState.Showing
     val leaveMessage = stringResource(R.string.nova_host_console_leave_page)
     val elsewhere = stringResource(R.string.nova_host_console_link_elsewhere)
+    val noBrowser = stringResource(R.string.nova_host_console_link_no_browser)
     val leave = { if (isTop && !panel.pop()) closeThen { } }
     val context = LocalContext.current
     val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
@@ -747,6 +787,19 @@ internal fun NovaPageScope.NovaHostConsole(
         if (said != null) {
             ask?.dismiss()
             ask = NovaHostConsoleAsk(NovaHostConsoleAsk.Kind.Alert, said, "", null)
+        }
+    }
+
+    // A page elsewhere the player tapped, in the browser; said in the console's place when none can.
+    val outside: (Context, Uri) -> Unit = { context, uri ->
+        val opened = runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.isSuccess
+        if (!opened) {
+            ask?.dismiss()
+            ask = NovaHostConsoleAsk(NovaHostConsoleAsk.Kind.Alert, noBrowser, "", null)
         }
     }
 
@@ -791,13 +844,14 @@ internal fun NovaPageScope.NovaHostConsole(
                                 visit = visit,
                                 certificateOf = certificateOf,
                                 onLink = follow,
+                                onOutside = { uri -> outside(context, uri) },
                             )
                             webChromeClient = NovaHostConsoleChromeClient(leaveMessage) { next ->
                                 ask?.dismiss()
                                 ask = next
                             }
                             web = this
-                            loadUrl(page.url)
+                            loadUrl(NovaHostConsoleHandoff.url(page.url, NovaThemeManager.getTheme(context)))
                         }
                     },
                     onRelease = { view ->
