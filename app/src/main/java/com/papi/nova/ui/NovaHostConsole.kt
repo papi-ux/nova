@@ -670,7 +670,13 @@ private class NovaHostConsoleWebView(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) history.gesture()
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            history.gesture()
+            // A gesture that starts on the console is the console's: its page scrolls and its rows
+            // swipe, and the panel's own drag, which Compose would hand the same moves, lets it be
+            // (#319). The panel still closes from its header line, with B or Back, and beside it.
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
         return super.dispatchTouchEvent(event)
     }
 }
