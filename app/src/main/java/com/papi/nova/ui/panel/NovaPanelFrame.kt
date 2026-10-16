@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -322,9 +323,10 @@ private fun BoxScope.NovaEdgePanel(
     }
     val outer = if (atStart) WindowInsetsSides.Start else WindowInsetsSides.End
     val tvPadding = if (tvSafe) {
+        // A Full page reaches the far edge of the screen as well, and keeps the margin there too.
         Modifier.padding(
-            start = if (atStart) NovaPanelMetrics.TvSafeHorizontal else 0.dp,
-            end = if (atStart) 0.dp else NovaPanelMetrics.TvSafeHorizontal,
+            start = if (atStart || full) NovaPanelMetrics.TvSafeHorizontal else 0.dp,
+            end = if (atStart && !full) 0.dp else NovaPanelMetrics.TvSafeHorizontal,
             top = NovaPanelMetrics.TvSafeVertical,
             bottom = NovaPanelMetrics.TvSafeVertical,
         )
@@ -371,6 +373,9 @@ private fun BoxScope.NovaEdgePanel(
             .novaScreenInsets(outer + WindowInsetsSides.Vertical)
             // Across the whole window, its inner edge meets the other side of the screen and its insets.
             .then(if (full) Modifier.novaScreenInsets(if (atStart) WindowInsetsSides.End else WindowInsetsSides.Start) else Modifier)
+            // A Full page's content cannot step around a camera the way the frame's own controls
+            // do, so it keeps clear of the cutout on every edge, whether the bars show or not.
+            .then(if (full) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
             .imePadding()
             .then(tvPadding),
     ) {
@@ -395,6 +400,8 @@ private fun BoxScope.NovaPanelSheet(
     val hairline = surfaces.panelBorder
     val tvPadding = if (tvSafe) {
         Modifier.padding(horizontal = NovaPanelMetrics.TvSafeHorizontal).padding(bottom = NovaPanelMetrics.TvSafeVertical)
+            // A Full page's sheet reaches the top of the screen, and keeps the margin there too.
+            .padding(top = if (full) NovaPanelMetrics.TvSafeVertical else 0.dp)
     } else {
         Modifier
     }
@@ -434,8 +441,10 @@ private fun BoxScope.NovaPanelSheet(
                 )
             }
             .novaScreenInsets(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
-            // Reaching the top of the window, it keeps clear of the status bar and cutouts there too.
+            // Reaching the top of the window, a Full page's sheet keeps clear of the status bar there,
             .then(if (full) Modifier.novaScreenInsets(WindowInsetsSides.Top) else Modifier)
+            // and of a camera on any edge, which its content cannot step around as the frame's controls do.
+            .then(if (full) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
             .imePadding()
             .then(tvPadding)
             .animateContentSize(),
