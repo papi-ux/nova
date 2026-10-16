@@ -120,9 +120,10 @@ internal fun NovaSpaceContent(
             )
             if (!showSettings && spaceState != null) {
                 // The state is a chip, in the same word the chooser and the console use for it.
+                // Its words sit on the chip's control, so a live state takes the accent for one.
                 NovaBadge(
                     text = stringResource(NovaSpacesCopy.stateLabel(spaceState)),
-                    color = if (spaceState == "ready" || spaceState == "running") colors.accent else colors.textSecondary,
+                    color = if (spaceState == "ready" || spaceState == "running") colors.accentOnControl else colors.textSecondary,
                     fontSize = 12.sp,
                     modifier = Modifier.testTag("nova-space-status"),
                 )

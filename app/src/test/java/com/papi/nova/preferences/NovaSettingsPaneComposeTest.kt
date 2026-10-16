@@ -30,17 +30,21 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.compose.NOVA_FIRST_FOCUS_SETTLE_MS
+import com.papi.nova.ui.compose.novaComposeColors
 import com.papi.nova.ui.panel.NovaTestKeys
 import com.papi.nova.ui.panel.frames
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -165,6 +169,41 @@ class NovaSettingsPaneComposeTest {
         val empty = category("empty").getBoundsInRoot()
         assertTrue("a category is at least a compact row tall", (input.bottom - input.top) >= 44.dp)
         assertEquals("categories sit the pane's compact row gap apart", 4f, (empty.top - input.bottom).value, 0.5f)
+    }
+
+    /**
+     * Settings opens with the current category focused, its label on the focus fill. Director's
+     * red read at 4.26:1 there, so under focus the label is the warm white copy, with the red ring
+     * showing focus, and it keeps its red at rest once focus moves into the pane.
+     */
+    @Test
+    fun directorsCurrentCategoryReadsInTheCopyUnderFocusAndInItsRedAtRest() {
+        NovaThemeManager.setTheme(rule.activity, NovaThemeManager.THEME_DIRECTOR)
+        val keys = show()
+        val colors = novaComposeColors(rule.activity)
+        category("stream").assertIsFocused()
+        assertNotEquals("the accent for a control is not the red that read at 4.26:1", colors.accent, colors.accentOnControl)
+        assertEquals("under focus, the warm white copy", colors.textPrimary, categoryLabelColour("stream", "Stream"))
+
+        keys.press(NovaTestKeys.RIGHT)
+        settle()
+        row("checkbox_enable_hdr").assertIsFocused()
+        assertEquals("still current, at rest in its red", colors.accent, categoryLabelColour("stream", "Stream"))
+    }
+
+    /** Every other theme's current category keeps its accent under focus. */
+    @Test
+    fun polarisAurorasFocusedCurrentCategoryKeepsItsAccent() {
+        show()
+        category("stream").assertIsFocused()
+        assertEquals(novaComposeColors(rule.activity).accent, categoryLabelColour("stream", "Stream"))
+    }
+
+    private fun categoryLabelColour(key: String, title: String): Color {
+        val results = mutableListOf<TextLayoutResult>()
+        rule.onNode(hasText(title) and hasAnyAncestor(hasTestTag("nova-settings-category-$key")), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        return results.first().layoutInput.style.color
     }
 
     // B from the Legacy screen a row opened came back on the rail's first category, with the row

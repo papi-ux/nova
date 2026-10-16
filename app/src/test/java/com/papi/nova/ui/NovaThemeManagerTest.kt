@@ -189,6 +189,53 @@ class NovaThemeManagerTest {
         }
     }
 
+    /**
+     * Accent words drawn on a control or a focused row's fill: the current settings category and
+     * the Doctor card's line under focus, on the focus fill, and a Space's Ready or Running chip,
+     * on its control. Composited as drawn, Director's red read from 4.26:1 to 4.37:1 there, so
+     * those words take the warm white copy and the red stays the ring.
+     */
+    @Test
+    @Config(sdk = [33])
+    fun directorAccentWordsOnControlsAndFocusFillsKeepTheWarmWhiteCopy() {
+        NovaThemeManager.setTheme(context, NovaThemeManager.THEME_DIRECTOR)
+        val colors = com.papi.nova.ui.compose.novaComposeColors(ContextThemeWrapper(context, R.style.AppTheme_Director))
+        val surfaces = colors.librarySurfaces(NovaThemeManager.THEME_DIRECTOR)
+        val panel = surfaces.panel.compositeOver(colors.window)
+        val tile = surfaces.tile.compositeOver(panel)
+        for ((name, fill) in listOf(
+            "the focus fill on the panel" to surfaces.selectedControl.compositeOver(panel),
+            "the focus fill on a tile" to surfaces.selectedControl.compositeOver(tile),
+            "a chip's control on the window" to surfaces.control.compositeOver(colors.window),
+            "a chip's control on a tile" to surfaces.control.compositeOver(tile),
+        )) {
+            val red = ColorUtils.calculateContrast(colors.accent.toArgb(), fill.toArgb())
+            assertTrue("the red alone reads under 4.5:1 on $name, at $red", red < 4.5)
+            val ratio = ColorUtils.calculateContrast(colors.accentOnControl.toArgb(), fill.toArgb())
+            assertTrue("accent words on $name read at 4.5:1, not $ratio", ratio >= 4.5)
+        }
+        assertEquals("those words are the warm white copy", colors.textPrimary, colors.accentOnControl)
+        assertEquals("the red signal itself is unchanged", context.getColor(R.color.nova_director_accent), colors.accent.toArgb())
+        assertEquals("focus stays red", colors.accent, surfaces.focusRing)
+    }
+
+    /** Every other theme keeps the accent those words always had. */
+    @Test
+    @Config(sdk = [33], qualifiers = "night")
+    fun onlyDirectorTradesItsAccentWordsOnControlsForTheCopy() {
+        listOf(
+            NovaThemeManager.THEME_POLARIS,
+            NovaThemeManager.THEME_PORTABLE_CHROME,
+            NovaThemeManager.THEME_OLED,
+            NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_HIGH_CONTRAST,
+            NovaThemeManager.THEME_MATERIAL_YOU,
+        ).forEach { theme ->
+            NovaThemeManager.setTheme(context, theme)
+            assertEquals(theme, NovaThemeManager.getAccentColor(context), NovaThemeManager.getAccentOnControlColor(context))
+        }
+    }
+
     @Test
     fun unknownThemeFallsBackToPolaris() {
         NovaThemeManager.setTheme(context, "south_beach_laser_flamingo")

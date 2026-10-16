@@ -308,6 +308,16 @@ object NovaThemeManager {
         }
     }
 
+    /**
+     * Returns the accent for words on a control or a focused row's fill, such as a Space's status
+     * chip or the current settings category under focus: the theme's accent, as those words have
+     * always been. Director's control and focus fill are its badge charcoal, where the red reads at
+     * 4.31:1 and 4.26:1, so its words there are [getAccentTextColor]'s warm white copy and the red
+     * stays on the focus ring. No other theme changes.
+     */
+    fun getAccentOnControlColor(context: Context): Int =
+        if (isDirector(context)) getAccentTextColor(context) else getAccentColor(context)
+
     /** [accent] where it reads at 4.5:1 on every one of [surfaces], otherwise [text]: never a tint between. */
     internal fun signalOrCopyFor(accent: Int, text: Int, surfaces: List<Int>): Int {
         val signal = ColorUtils.setAlphaComponent(accent, 255)
