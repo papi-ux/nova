@@ -368,8 +368,9 @@ private fun BoxScope.NovaEdgePanel(
                     },
                 )
             }
+            .novaScreenInsets(outer + WindowInsetsSides.Vertical)
             // Across the whole window, its inner edge meets the other side of the screen and its insets.
-            .novaScreenInsets((if (full) WindowInsetsSides.Horizontal else outer) + WindowInsetsSides.Vertical)
+            .then(if (full) Modifier.novaScreenInsets(if (atStart) WindowInsetsSides.End else WindowInsetsSides.Start) else Modifier)
             .imePadding()
             .then(tvPadding),
     ) {
@@ -432,8 +433,9 @@ private fun BoxScope.NovaPanelSheet(
                     },
                 )
             }
+            .novaScreenInsets(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
             // Reaching the top of the window, it keeps clear of the status bar and cutouts there too.
-            .novaScreenInsets(WindowInsetsSides.Horizontal + if (full) WindowInsetsSides.Vertical else WindowInsetsSides.Bottom)
+            .then(if (full) Modifier.novaScreenInsets(WindowInsetsSides.Top) else Modifier)
             .imePadding()
             .then(tvPadding)
             .animateContentSize(),
