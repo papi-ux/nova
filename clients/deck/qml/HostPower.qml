@@ -106,9 +106,12 @@ Popup {
             onActiveFocusChanged: if (!activeFocus) power.controller.releaseHold()
             Keys.onReturnPressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
             Keys.onEnterPressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
+            Keys.onSpacePressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
+            Keys.onSelectPressed: event => { power.traceHostPowerKey("press", event); if (!event.isAutoRepeat) power.controller.beginHold() }
             Keys.onReleased: event => {
                 power.traceHostPowerKey("release", event)
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter ||
+                        event.key === Qt.Key_Space || event.key === Qt.Key_Select) {
                     // The navigation bridge emits a tap to activate controls;
                     // the physical A release is observed separately below.
                     if (!event.isAutoRepeat && (!power.gamepad || power.gamepad.primaryHeld !== true)) power.controller.releaseHold()
