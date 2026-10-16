@@ -5,6 +5,8 @@ import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.R
 import com.papi.nova.ShortcutTrampoline
+import androidx.preference.PreferenceManager
+import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.novaSurfaces
 import org.junit.Assert.*
 import org.junit.Test
@@ -29,6 +31,13 @@ class NovaLibraryHostConsoleLinkTest {
             .apply { isAccessible = true }.invoke(activity, "/#/apps") as NovaHostConsolePage
         activity.novaSurfaces.panel.open(page)
         return activity to page
+    }
+
+    @Test fun theLibrarysConsoleOpensAsThePlayerLastLeftItOnThisDevice() {
+        val (activity, collapsed) = page()
+        assertEquals("in its panel until the player chooses", NovaPanelWidth.Wide, collapsed.width)
+        PreferenceManager.getDefaultSharedPreferences(activity).edit().putBoolean(NovaHostConsoleLayout.KEY_EXPANDED, true).commit()
+        assertEquals(NovaPanelWidth.Full, page().second.width)
     }
 
     @Test fun theLibraryBindsLaunchLinksToItsHostAndClosesThePanel() {

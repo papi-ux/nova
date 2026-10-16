@@ -281,9 +281,11 @@ private class NovaFocusHintNode(private var hint: NovaFocusHint?) :
  * [NovaPageScope.novaRestorableFocus] that last held focus, scrolling to it first.
  *
  * The hint bar reads [leadingHints], then A with [selectHint]'s label or Select, B Back, then
- * [hints]. The element with focus can change that through [novaFocusHint]: a value that changes in
- * place leads with `◂▸ Change` and says what A does there, and a stop only there to be read drops A.
- * [headerEnd] is drawn at the end of every page's header line, such as Play Setup's scope pill.
+ * [hints], then the top page's own [NovaPage.controllerHints]. The element with focus can change
+ * that through [novaFocusHint]: a value that changes in place leads with `◂▸ Change` and says what
+ * A does there, and a stop only there to be read drops A. [headerEnd] is drawn at the end of every
+ * page's header line, such as Play Setup's scope pill, except a page's that has its own
+ * [NovaPage.headerEnd].
  * With [remoteKeys], A and B are named as a TV remote's OK and Back, for a screen whose last key
  * came from a remote.
  */
@@ -335,14 +337,15 @@ fun NovaPageStackHost(
     )
     val focusHints = remember { NovaFocusHintState() }
     val focusHint = focusHints.hint
-    val allHints = remember(hints, leadingHints, selectHint, select, back, keyA, keyB, focusHint, change, aLabels) {
+    val pageHints = entry?.page?.controllerHints.orEmpty()
+    val allHints = remember(hints, pageHints, leadingHints, selectHint, select, back, keyA, keyB, focusHint, change, aLabels) {
         val a = when (focusHint) {
             null -> selectHint ?: NovaControllerHint(keyA, select)
             NovaFocusHint.Read, NovaFocusHint.Change -> null
             else -> NovaControllerHint(keyA, aLabels.getValue(focusHint))
         }
         val lead = if (focusHint?.changesInPlace == true) listOf(change) else emptyList()
-        lead + leadingHints + listOfNotNull(a, NovaControllerHint(keyB, back)) + hints
+        lead + leadingHints + listOfNotNull(a, NovaControllerHint(keyB, back)) + hints + pageHints
     }
     val formFactor = LocalNovaFormFactor.current
     val panelDensity = LocalNovaPanelDensity.current
@@ -421,7 +424,7 @@ fun NovaPageStackHost(
                             title = shown.page.title,
                             parentTitle = state.entryBelow(shown)?.page?.title,
                             onBack = { scope.exit.back() },
-                            end = headerEnd,
+                            end = shown.page.headerEnd ?: headerEnd,
                             modifier = Modifier
                                 // Over the page, for touch: the back target reaches past a compact
                                 // line into the page's top padding, and must take a tap there first.
