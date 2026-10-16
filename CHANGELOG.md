@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Host Console no longer shows an empty page once you sign in.
+- Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
 
 ## 1.5.0 - 2026-10-12
 
