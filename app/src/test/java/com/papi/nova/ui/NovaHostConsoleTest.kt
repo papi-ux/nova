@@ -111,6 +111,45 @@ class NovaHostConsoleTest {
         assertTrue(client.shouldOverrideUrlLoading(view, request("http://192.0.2.10:47990/")))
     }
 
+    // The console's guide and release links went nowhere: a page elsewhere never loads in the console,
+    // and nothing said so. One the player taps opens outside Nova now; nothing opens on its own.
+    @Test
+    fun aPageElsewhereThePlayerTapsOpensOutsideNovaAndNeverInTheConsole() {
+        val outside = mutableListOf<Uri>()
+        val opener = NovaHostConsoleClient(page, onState = {}, onHistory = {}, onOutside = { outside += it })
+        fun request(url: String, tapped: Boolean, mainFrame: Boolean = true): WebResourceRequest =
+            mock(WebResourceRequest::class.java).also {
+                `when`(it.url).thenReturn(Uri.parse(url))
+                `when`(it.hasGesture()).thenReturn(tapped)
+                `when`(it.isForMainFrame).thenReturn(mainFrame)
+            }
+        assertTrue(opener.shouldOverrideUrlLoading(view, request("https://papi-ux.com/docs/mission-control/", tapped = true)))
+        assertEquals(listOf(Uri.parse("https://papi-ux.com/docs/mission-control/")), outside)
+        // Not tapped, not the page itself, not secure, or the console: nothing opens outside.
+        assertTrue(opener.shouldOverrideUrlLoading(view, request("https://example.com/redirect", tapped = false)))
+        assertTrue(opener.shouldOverrideUrlLoading(view, request("https://example.com/frame", tapped = true, mainFrame = false)))
+        assertTrue(opener.shouldOverrideUrlLoading(view, request("http://example.com/", tapped = true)))
+        assertFalse(opener.shouldOverrideUrlLoading(view, request("$console/#/apps", tapped = true)))
+        @Suppress("DEPRECATION")
+        assertTrue(opener.shouldOverrideUrlLoading(view, "https://example.com/old-android"))
+        assertEquals(1, outside.size)
+    }
+
+    // Polaris shows Nova's theme and streams Play here only when it knows it is in Nova (Polaris #414).
+    @Test
+    fun theConsoleOpensKnowingItIsInNovaAndNovasTheme() {
+        assertEquals("$console/?client=nova&theme=director", NovaHostConsoleHandoff.url(console, NovaThemeManager.THEME_DIRECTOR))
+        assertEquals(
+            "a route the console was asked for stays after what it is told",
+            "$console/?client=nova&theme=portable-chrome#/config#av",
+            NovaHostConsoleHandoff.url("$console/#/config#av", NovaThemeManager.THEME_PORTABLE_CHROME),
+        )
+        assertEquals("$console/?client=nova#/spaces", NovaHostConsoleHandoff.url("$console/#/spaces", NovaThemeManager.THEME_MATERIAL_YOU))
+        assertEquals("high-contrast", NovaHostConsoleHandoff.polarisTheme(NovaThemeManager.THEME_HIGH_CONTRAST))
+        assertEquals(null, NovaHostConsoleHandoff.polarisTheme(null))
+        assertTrue("it is still the console's own address", NovaHostConsoleTrust.isConsole(console, NovaHostConsoleHandoff.url(console, "oled")))
+    }
+
     @Test
     fun aPageShowsOnlyWithThePairedCertificateEvenOneTheSystemTrusts() {
         `when`(view.certificate).thenReturn(SslCertificate(other))

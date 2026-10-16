@@ -7,6 +7,7 @@
 - Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
 - Scrolling Host Console, or swiping across it, no longer moves the panel it is in. The panel still closes from its header, with Back, or with a tap beside it.
 - `< Congratulations, Director >` on Android and Linux now has charcoal surfaces and warm white text, with red for focus and selection. Polaris Aurora is still the default, and a theme you already chose stays as it is.
+- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris host that supports it, Play on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console now opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
 
 ## 1.5.0 - 2026-10-12
 
