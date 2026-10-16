@@ -111,6 +111,7 @@ class NovaCompanionCommandDeckViewTest {
             NovaThemeManager.THEME_PORTABLE_CHROME,
             NovaThemeManager.THEME_OLED,
             NovaThemeManager.THEME_MIAMI,
+            NovaThemeManager.THEME_DIRECTOR,
             NovaThemeManager.THEME_HIGH_CONTRAST,
             NovaThemeManager.THEME_MATERIAL_YOU,
         )

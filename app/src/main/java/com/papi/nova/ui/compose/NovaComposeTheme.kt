@@ -70,6 +70,13 @@ data class NovaComposeColors(
      * the accent, lifted toward the text colour where it would read under 4.5:1.
      */
     val accentText: Color = accent,
+    /**
+     * The accent for words on a control or a focused row's fill, such as a status chip or the
+     * current category under focus: the accent in every theme but Director, whose controls and
+     * focus fill are the charcoal badge its red reads at 4.26:1 on. There it is the warm white
+     * copy, and the red stays the ring.
+     */
+    val accentOnControl: Color = accent,
 )
 
 /** Handhelds, phones and tablets share one scale; a television reads from further away. */
@@ -108,6 +115,7 @@ fun novaComposeColors(context: Context): NovaComposeColors {
         destructiveFill = destructiveFill,
         onDestructiveFill = readableOn(destructiveFill),
         accentText = Color(NovaThemeManager.getAccentTextColor(context)),
+        accentOnControl = Color(NovaThemeManager.getAccentOnControlColor(context)),
     )
 }
 

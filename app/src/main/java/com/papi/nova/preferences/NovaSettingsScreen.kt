@@ -1074,6 +1074,8 @@ private fun NovaSettingsCategoryChips(
 /**
  * One category of the rail. The category the pane shows is marked the way a current value is
  * (R9): a SemiBold, accent label and selected semantics. Fills and rings only ever mean focus.
+ * Under focus the label sits on the focus fill, so it takes the accent for a control, Director's
+ * warm white where its red would read at 4.26:1, and the ring shows the focus.
  * It is a row like the pane's rows beside it: the row tile, a row's least height and the row
  * title type, so the rail no longer reads a size smaller than the pane.
  */
@@ -1086,6 +1088,7 @@ private fun NovaCategoryRow(
 ) {
     val colors = LocalNovaComposeColors.current
     val shape = NovaSettingsCardShape
+    var focused by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
             .testTag("nova-settings-category-${category.key}")
@@ -1094,6 +1097,7 @@ private fun NovaCategoryRow(
             .heightIn(min = NovaPanelMetrics.rowMinHeight(LocalNovaFormFactor.current))
             .clip(shape)
             .novaFocusRing(shape, rest = novaRowRest)
+            .onFocusChanged { focused = it.hasFocus }
             .semantics { this.selected = selected }
             .novaClickable(role = Role.Tab, onClick = onClick)
             .padding(horizontal = novaControlDimension(NovaPanelMetrics.SpaceMd), vertical = novaControlDimension(NovaPanelMetrics.SpaceSm)),
@@ -1103,7 +1107,11 @@ private fun NovaCategoryRow(
             text = category.title,
             style = novaPanelType.rowTitle,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (selected) colors.accent else colors.textPrimary,
+            color = when {
+                !selected -> colors.textPrimary
+                focused -> colors.accentOnControl
+                else -> colors.accent
+            },
         )
     }
 }

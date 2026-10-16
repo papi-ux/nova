@@ -178,13 +178,13 @@ class NovaSplitConfirmToneComposeTest {
     }
 
     @Test
-    fun aDirectorArmedDestructiveConfirmKeepsItsWarmWhiteRingClearOfTheRedFill() {
+    fun aDirectorArmedDestructiveConfirmKeepsItsRedRingClearOfTheSalmonFill() {
         val keys = setUpDirector()
-        assertEquals(Color(0xFFFFB7AC), colors.destructiveFill)
-        assertEquals(Color(0xFFFFF5E8), surfaces.focusRing)
+        assertEquals(Color(0xFFFF9B8F), colors.destructiveFill)
+        assertEquals(Color(0xFFF04E4B), surfaces.focusRing)
         assertEquals(colors.destructive, labelColour("Live Tuning"))
         assertTrue("This real palette needs ring separation", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), colors.destructiveFill.toArgb()) < 3.0)
-        assertTrue("The exposed panel separates the warm-white ring", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), surfaces.panel.copy(alpha = 1f).toArgb()) >= 3.0)
+        assertTrue("The exposed charcoal panel separates the red ring", ColorUtils.calculateContrast(surfaces.focusRing.toArgb(), surfaces.panel.copy(alpha = 1f).toArgb()) >= 3.0)
 
         rule.mainClock.autoAdvance = false
         rule.onNodeWithText("Live Tuning").requestFocus()
@@ -246,8 +246,9 @@ class NovaSplitConfirmToneComposeTest {
 }
 
 /**
- * The theme under test draws destructive words in the text colour, where its red would not read,
- * and puts the same ink on both fills; these tests tell the roles apart, so each role gets its own.
+ * A theme can draw destructive words in the text colour, where its red would not read, as Polaris
+ * Aurora does, and put the same ink on both fills; these tests tell the roles apart whatever the
+ * default theme, so each role gets its own.
  */
 internal fun NovaComposeColors.withDistinctRoles(): NovaComposeColors = copy(
     destructive = Color(0xFFE5484D),

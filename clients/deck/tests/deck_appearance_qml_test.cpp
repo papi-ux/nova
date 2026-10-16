@@ -159,6 +159,7 @@ ApplicationWindow {
 };
 void fresh(const QString& captures) {
     Scene ui(captures); const auto state = ui.state();
+    require(state["theme"] == "polaris" && state["label"] == "Polaris Aurora", "a new Linux installation did not start on Polaris Aurora");
     require(near(state["font"].toDouble(), .8), "fresh Linux appearance did not default to 80% text");
     require(state["size"] == "standard" && near(state["scale"].toDouble(), .88), "fresh Linux appearance lost Standard density");
     require(state["opacity"].toInt() == 64, "fresh menu opacity did not default to 64%");
@@ -192,8 +193,9 @@ void controls(const QString& captures) {
     require(widths[0] < widths[1] && widths[1] < widths[2], "shared button geometry ignored independent density");
     ui.activate("appearance-theme-director"); const auto director = ui.state();
     require(director["theme"] == "director" && director["label"] == "< Congratulations, Director >", "Director selector or literal label missing");
-    require(QColor(director["window"].toString()) == QColor("#6E0B17") && QColor(director["text"].toString()) == QColor("#FFF5E8") &&
-            QColor(director["focus"].toString()) == QColor("#FFF5E8") && QColor(director["focusText"].toString()) == QColor("#12090B"), "Director semantic palette did not reach production UI");
+    // Charcoal stage, warm white copy, and red as the focus signal with the near-black ground on it.
+    require(QColor(director["window"].toString()) == QColor("#0B0A0A") && QColor(director["text"].toString()) == QColor("#F4EBE1") &&
+            QColor(director["focus"].toString()) == QColor("#F04E4B") && QColor(director["focusText"].toString()) == QColor("#0B0A0A"), "Director semantic palette did not reach production UI");
     QTest::keyClick(ui.window, Qt::Key_Escape); settle();
     ui.activate("appearance-probe-button", true, true); ui.activate("appearance-probe-button");
     require(ui.root->property("taps").toInt() == 2, "touch/controller shared button callback fired incorrectly");

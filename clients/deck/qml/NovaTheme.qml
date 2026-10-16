@@ -10,11 +10,14 @@ QtObject {
     // record, Settings can queue defaults for later properties before loading
     // their saved values (for example textScale when themeId is absent).
     property Settings preferences: Settings { category: "Appearance" }
-    property string selectedTheme: "polaris"
+    // Polaris Aurora is the default, for a new installation and for an unknown id;
+    // every other theme, Director included, is the player's choice.
+    readonly property string defaultTheme: "polaris"
+    property string selectedTheme: defaultTheme
     property real selectedTextScale: 0.8
     property string selectedControlSize: "standard"
     Component.onCompleted: {
-        const savedTheme = preferences.value("themeId", "polaris")
+        const savedTheme = preferences.value("themeId", defaultTheme)
         selectedTheme = savedTheme === "material_you" ? "polaris" : savedTheme
         selectedTextScale = validFontScale(preferences.value("textScale", 0.8))
         const savedSize = preferences.value("controlSize", "standard")
@@ -32,7 +35,7 @@ QtObject {
         { id: "high_contrast", title: "High Contrast" }
     ]
     readonly property string themeId: choices.some(choice => choice.id === selectedTheme)
-        ? selectedTheme : selectedTheme === "psp" ? "portable_chrome" : "polaris"
+        ? selectedTheme : selectedTheme === "psp" ? "portable_chrome" : defaultTheme
     readonly property string label: choices.find(choice => choice.id === themeId).title
     readonly property var controlSizes: [
         { id: "compact", title: "Compact", scale: 0.72 },
@@ -49,7 +52,7 @@ QtObject {
         portable_chrome: { window: "#14161A", panel: "#1E2228", raised: "#262B33", input: "#1A1D22", text: "#C9D1D9", secondary: "#9AA4AF", muted: "#838D9C", divider: "#3A424C", accent: "#5A93D6" },
         oled: { window: "#000000", panel: "#0A0A0E", raised: "#101016", input: "#0A0A0E", text: "#E0E6ED", secondary: "#A8B0B8", muted: "#87919B", divider: "#363640", accent: "#8B80FF" },
         miami: { window: "#130817", panel: "#241429", raised: "#341E3A", input: "#2C1734", text: "#FFF1F7", secondary: "#FFD3E2", muted: "#85C7D4", divider: "#6C3C6F", accent: "#FF5CAB" },
-        director: { window: "#6E0B17", panel: "#881525", raised: "#9A1B2E", input: "#5E0A14", text: "#FFF5E8", secondary: "#F1D9CD", muted: "#DEC0B5", divider: "#12090B", accent: "#FFF5E8" },
+        director: { window: "#0B0A0A", panel: "#191716", raised: "#221F1E", input: "#0E0C0C", text: "#F4EBE1", secondary: "#DDD0C3", muted: "#B5A598", divider: "#342E2B", accent: "#F04E4B" },
         high_contrast: { window: "#05070C", panel: "#0F172A", raised: "#172033", input: "#111827", text: "#FFFFFF", secondary: "#E5E7EB", muted: "#CBD5E1", divider: "#DBEAFE", accent: "#60A5FA" }
     })[themeId]
     readonly property color window: colors.window
@@ -61,10 +64,12 @@ QtObject {
     readonly property color muted: colors.muted
     readonly property color divider: colors.divider
     readonly property color accent: colors.accent
-    readonly property color focus: themeId === "director" ? "#FFF5E8" : "#FFFFFF"
-    readonly property color focusText: themeId === "director" ? "#12090B" : "#111118"
+    // Director's red is its signal: focus fills and rings in the accent, with the
+    // near-black ground on it, and errors stay a lighter salmon.
+    readonly property color focus: themeId === "director" ? "#F04E4B" : "#FFFFFF"
+    readonly property color focusText: themeId === "director" ? "#0B0A0A" : "#111118"
     readonly property color warning: "#FFD0A0"
-    readonly property color danger: themeId === "director" ? "#FFB7AC" : "#FFADB7"
+    readonly property color danger: themeId === "director" ? "#FF9B8F" : "#FFADB7"
     function alpha(color, opacity) { return Qt.rgba(color.r, color.g, color.b, opacity) }
     function setTheme(id) {
         if (choices.some(choice => choice.id === id)) {
