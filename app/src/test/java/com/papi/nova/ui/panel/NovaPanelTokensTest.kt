@@ -34,6 +34,12 @@ class NovaPanelTokensTest {
     }
 
     @Test
+    fun aFullPanelIsTheWindowsWholeWidth() {
+        assertDp(640f, NovaPanelMetrics.panelWidth(NovaPanelWidth.Full, 640.dp))
+        assertDp(1280f, NovaPanelMetrics.panelWidth(NovaPanelWidth.Full, 1280.dp, NovaPanelDensity.Compact))
+    }
+
+    @Test
     fun aGridPanelIsWideOnlyWhereItHasTwoColumns() {
         // The RP6 in landscape, 833dp wide and compact: two columns, so the Wide width.
         assertDp(499.8f, NovaPanelMetrics.panelWidth(NovaPanelWidth.Grid, 833.dp, NovaPanelDensity.Compact))
