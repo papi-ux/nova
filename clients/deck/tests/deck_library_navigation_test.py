@@ -1232,19 +1232,53 @@ def wake_pc_navigation(wait, keys, state, save_capture, window):
     wait(lambda s: not s.get("systemOpen") and s.get("focus") == "library-system")
 
 
-def host_power_navigation(wait, keys, state, fixtures, save_capture, window, settle):
+def host_power_navigation(wait, keys, state, fixtures, save_capture, window, settle, observation):
+    hold_number = 0
     def power_phase(value):
         return lambda s: s.get("hostPower", {}).get("phase") == value
     def open_power():
         keys("Return")
         wait(lambda s: s.get("hostPowerOpen") and power_phase("ready")(s) and s.get("focus") == "host-power-hold")
     def hold():
+        nonlocal hold_number
+        hold_number += 1
         command("xdotool", "keydown", "Return")
         # A controller phase alone does not prove the UI is ready for Cancel.
         # Require the real focused action, and observe the raw key release before
         # sending another press, just as keys() does for ordinary taps.
-        countdown = lambda s: s.get("hostPowerOpen") and power_phase("countdown")(s) and s.get("focus") == "host-power-cancel"
-        before = wait(countdown)
+        started = time.monotonic()
+        samples = []
+
+        def countdown(current):
+            # Failure evidence only: the predicate, polling and deadline stay with wait().
+            # Metadata follows the existing state read; one sample need not name the same
+            # atomic write, while a sustained freeze or advancing writes remain observable.
+            power = current.get("hostPower", {})
+            sample = {"elapsed_s": round(time.monotonic() - started, 4),
+                      "phase": power.get("phase"), "progress": power.get("progress"),
+                      "focus": current.get("focus"), "opened": current.get("hostPowerOpen")}
+            try:
+                stat = observation.stat()
+                sample.update(mtime_ns=stat.st_mtime_ns, inode=stat.st_ino, size=stat.st_size)
+            except OSError as error:
+                sample["stat_errno"] = error.errno
+            samples.append(sample)
+            del samples[:-240]
+            return current.get("hostPowerOpen") and power_phase("countdown")(current) and current.get("focus") == "host-power-cancel"
+
+        try:
+            before = wait(countdown)
+        except AssertionError:
+            print("NOVA_DECK_HOST_POWER_HOLD_SAMPLES_V1 " + json.dumps({
+                "hold": hold_number, "outcome": "failed-awaiting-countdown",
+                "metadata_collected_after_state_read": True, "samples": samples,
+            }), flush=True)
+            raise
+        print("NOVA_DECK_HOST_POWER_HOLD_SAMPLES_V1 " + json.dumps({
+            "hold": hold_number, "outcome": "countdown", "samples": len(samples),
+            "distinct_writes": len({(s.get("mtime_ns"), s.get("inode")) for s in samples
+                                    if "mtime_ns" in s}),
+        }), flush=True)
         print("NOVA_DECK_HOST_POWER_HOLD_V1 " + json.dumps({"stage": "before-keyup", "phase": before["hostPower"]["phase"],
               "focus": before.get("focus"), "opened": before.get("hostPowerOpen")}), flush=True)
         command("xdotool", "keyup", "Return")
@@ -2258,6 +2292,9 @@ def main():
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                    XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="xcb", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR="1",
                    QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1")
+        if args.host_power and not (args.wake_pc or args.steam_app or args.handoff_limits):
+            # Observe X11 event order only in this synthetic route. Preserve any existing rules.
+            env["QT_LOGGING_RULES"] = env.get("QT_LOGGING_RULES", "") + "\nqt.qpa.events.debug=true"
         record = root/"moonlight-argv.txt"
         if args.handoff_limits:
             def ini_bytes(value):
@@ -2396,7 +2433,7 @@ def main():
                 wake_pc_navigation(wait, keys, state, save_capture, window)
             elif args.host_power:
                 host_power_navigation(wait, keys, state, fixtures, save_capture, window,
-                                      lambda: wait_for_ui_observations(observation, app))
+                                      lambda: wait_for_ui_observations(observation, app), observation)
             elif args.appearance:
                 appearance_navigation(wait, keys, state, save_capture, window)
             elif args.audio_settings:
