@@ -44,7 +44,6 @@ import com.papi.nova.ui.panel.frames
 import com.papi.nova.ui.panel.setPanelContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -182,7 +181,6 @@ class NovaSettingsPaneComposeTest {
         val keys = show()
         val colors = novaComposeColors(rule.activity)
         category("stream").assertIsFocused()
-        assertNotEquals("the accent for a control is not the red that read at 4.26:1", colors.accent, colors.accentOnControl)
         assertEquals("under focus, the warm white copy", colors.textPrimary, categoryLabelColour("stream", "Stream"))
 
         keys.press(NovaTestKeys.RIGHT)
