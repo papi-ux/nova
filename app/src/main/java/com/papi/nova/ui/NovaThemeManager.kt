@@ -291,9 +291,39 @@ object NovaThemeManager {
      * theme's accent where it reads at 4.5:1 on the panel and a tile, each over the window, and
      * otherwise the accent mixed toward the text colour in tenths until it does. Polaris Aurora's
      * accent is 3.4:1 on its card, enough for an icon and a ring but not for a label.
+     *
+     * Director's red is a signal, not label ink. A primary label rests on a raised charcoal control
+     * and keeps its colour while the control is selected; the selected control is the badge itself,
+     * where the red reads at 4.26:1, short of the 4.5:1 a label needs. So Director's label is its
+     * warm white copy wherever the red falls short, never a lifted pink, and the red stays on focus
+     * rings, fills and markers.
      */
-    fun getAccentTextColor(context: Context): Int =
-        readableAccentFor(getAccentColor(context), getTextPrimaryColor(context), fillSurfaces(context))
+    fun getAccentTextColor(context: Context): Int {
+        val accent = getAccentColor(context)
+        val text = getTextPrimaryColor(context)
+        return if (isDirector(context)) {
+            signalOrCopyFor(accent, text, fillSurfaces(context) + getBadgeBackgroundColor(context))
+        } else {
+            readableAccentFor(accent, text, fillSurfaces(context))
+        }
+    }
+
+    /**
+     * Returns the accent for words on a control or a focused row's fill, such as a Space's status
+     * chip or the current settings category under focus: the theme's accent, as those words have
+     * always been. Director's control and focus fill are its badge charcoal, where the red reads at
+     * 4.31:1 and 4.26:1, so its words there are [getAccentTextColor]'s warm white copy and the red
+     * stays on the focus ring. No other theme changes.
+     */
+    fun getAccentOnControlColor(context: Context): Int =
+        if (isDirector(context)) getAccentTextColor(context) else getAccentColor(context)
+
+    /** [accent] where it reads at 4.5:1 on every one of [surfaces], otherwise [text]: never a tint between. */
+    internal fun signalOrCopyFor(accent: Int, text: Int, surfaces: List<Int>): Int {
+        val signal = ColorUtils.setAlphaComponent(accent, 255)
+        val reads = surfaces.all { ColorUtils.calculateContrast(signal, ColorUtils.setAlphaComponent(it, 255)) >= 4.5 }
+        return if (reads) signal else text
+    }
 
     /** [accent], or the first tenth of the way toward [text] that reads at 4.5:1 on every one of [surfaces]. */
     internal fun readableAccentFor(accent: Int, text: Int, surfaces: List<Int>): Int {

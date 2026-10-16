@@ -40,11 +40,13 @@ choice. This is a window adaptation, not a requirement to use Linux in portrait.
 **System → Appearance** separates Compact, Standard and Large controls from
 text size. Text supports 80 to 130 percent in one-percent steps; new installations
 start at 80 percent and existing saved sizes stay intact. Opened text and opacity
-editors keep a draft until Save. The six Linux themes now include
-`< Congratulations, Director >`, with crimson surfaces, warm white text and
-black controls. Command Center has its own background-opacity setting.
+editors keep a draft until Save. Polaris Aurora is the default theme. The six
+Linux themes include `< Congratulations, Director >`, which a player can choose:
+a charcoal stage with warm white copy and red signals. Command Center has its
+own background-opacity setting. The capture below is from 1.4.14-beta.1 and
+shows the earlier crimson Director design.
 
-![Nova Linux 1.4.14-beta.1 candidate Appearance settings in the Director theme, with independent text, control size and library layout](../../docs/screenshots/nova-linux-director-appearance-v1.4.14-beta.1.webp)
+![Nova Linux 1.4.14-beta.1 candidate Appearance settings in the earlier crimson Director design, with independent text, control size and library layout](../../docs/screenshots/nova-linux-director-appearance-v1.4.14-beta.1.webp)
 
 *Production Release binary, captured at 1280×800 in an isolated software-rendered
 window. [Source and image provenance](../../docs/screenshots/beta1-readme-provenance.json).

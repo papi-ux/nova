@@ -671,11 +671,12 @@ private fun NovaQuickMenuCard(
     val type = novaPanelType
     val titleWeight = if (quiet) FontWeight.Normal else FontWeight.SemiBold
     val titleLines = if (fixedLines) 2 else Int.MAX_VALUE
+    var focused by remember { mutableStateOf(false) }
     NovaQuickMenuClickableSurface(
         enabled = action.enabled,
         focusableWhenDisabled = focusableWhenDisabled,
         onClick = { callbacks.perform(action) },
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus },
         contentPadding = PaddingValues(NovaPanelMetrics.SpaceMd),
         contentDescription = listOfNotNull(action.label, action.chip?.label, supportingLine, action.caption)
             .filter { it.isNotBlank() }
@@ -701,7 +702,12 @@ private fun NovaQuickMenuCard(
                     text = supportingLine,
                     style = type.caption,
                     fontWeight = titleWeight,
-                    color = if (quiet) colors.textSecondary else colors.accent,
+                    // Under focus it sits on the focus fill, so it takes the accent for a control.
+                    color = when {
+                        quiet -> colors.textSecondary
+                        focused -> colors.accentOnControl
+                        else -> colors.accent
+                    },
                     maxLines = if (fixedLines) 1 else Int.MAX_VALUE,
                     overflow = TextOverflow.Ellipsis,
                 )
