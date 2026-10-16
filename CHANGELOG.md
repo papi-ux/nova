@@ -3,6 +3,7 @@
 ## Unreleased
 
 - On Linux, Space and Select can hold Sleep Host through keyboard repeat. Releasing early still cancels immediately.
+- Host Console no longer shows an empty page once you sign in.
 
 ## 1.5.0 - 2026-10-12
 
