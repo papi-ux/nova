@@ -13,6 +13,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.JsPromptResult
 import android.webkit.JsResult
 import android.webkit.RenderProcessGoneDetail
@@ -557,6 +558,10 @@ private fun WebView.configureForHostConsole() {
     settings.displayZoomControls = false
     // The panel's glass shows through until the console paints.
     setBackgroundColor(Color.TRANSPARENT)
+    // It fills what the page gives it. Added without layout params it would wrap its height, and
+    // a web view whose height wraps lays the page out 0 high: 100vh, 100dvh and 100% all come out
+    // 0, and the signed-in console, one screen high, showed nothing (#316).
+    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     isFocusable = true
     isFocusableInTouchMode = true
 }
