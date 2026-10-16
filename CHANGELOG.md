@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- On Linux, Space and Select can hold Sleep Host through keyboard repeat. Releasing early still cancels immediately.
+
 ## 1.5.0 - 2026-10-12
 
 A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. This release brings the Android interface together, gives PyroWave advice that starts from the screen in your hands, and makes the controls easier to use with touch or a controller. Existing pairings, saved setups and artwork stay yours.
