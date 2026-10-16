@@ -1539,6 +1539,7 @@ class NovaLibraryActivity : NovaActivity() {
             pinnedCertificate = streamServerCert,
             hostUuid = streamPcUuid,
             onLink = ::followHostConsoleLink,
+            expanded = NovaHostConsoleLayout.expanded(PreferenceManager.getDefaultSharedPreferences(this)),
         )
     }
 

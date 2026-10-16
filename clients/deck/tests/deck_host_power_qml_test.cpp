@@ -26,6 +26,10 @@ private:
 void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
 void settle(int ms = 40) { QElapsedTimer t; t.start(); while (t.elapsed() < ms) { QCoreApplication::processEvents(); QThread::msleep(2); } }
 void until(const std::function<bool()>& predicate) { QElapsedTimer t; t.start(); while (!predicate() && t.elapsed() < 2500) settle(5); require(predicate(), "power QML did not settle"); }
+void keyEdge(QQuickWindow* window, QEvent::Type type, int code, bool repeat = false) {
+    QKeyEvent event(type, code, Qt::NoModifier, QString{}, repeat);
+    QCoreApplication::sendEvent(window, &event);
+}
 void key(QQuickWindow* window, int code) {
     QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier), release(QEvent::KeyRelease, code, Qt::NoModifier);
     QCoreApplication::sendEvent(window, &press); QCoreApplication::sendEvent(window, &release); settle();
@@ -70,6 +74,40 @@ ApplicationWindow {
     const auto phase = [&] { return power.state().value("phase").toString(); };
     const auto ready = [&] { until([&] { return phase() == "ready" && window->activeFocusItem() && window->activeFocusItem()->objectName() == "host-power-hold"; }); };
     ready();
+    // Hold every standard activation key through explicitly flagged repeats.
+    // No physical pad is held: keyboard release must cancel immediately.
+    for (const int code : {Qt::Key_Return, Qt::Key_Enter, Qt::Key_Space, Qt::Key_Select}) {
+        std::cout << "Checking repeated host-power key " << code << std::endl;
+        keyEdge(window, QEvent::KeyPress, code);
+        require(phase() == "holding", "keyboard press did not start a hold");
+        QElapsedTimer repeated; repeated.start();
+        while (phase() == "holding" && repeated.elapsed() < 450) {
+            keyEdge(window, QEvent::KeyRelease, code, true);
+            keyEdge(window, QEvent::KeyPress, code, true);
+            settle(30);
+        }
+        require(phase() == "countdown", "keyboard auto-repeat reset the Sleep Host hold");
+        // Repeats can already be queued when focus moves to Cancel.
+        // They and the original physical release must leave the countdown armed.
+        for (int tail = 0; tail < 3; ++tail) {
+            keyEdge(window, QEvent::KeyRelease, code, true);
+            keyEdge(window, QEvent::KeyPress, code, true);
+            settle(10);
+        }
+        require(phase() == "countdown", "held activation key tail activated countdown Cancel");
+        keyEdge(window, QEvent::KeyRelease, code);
+        require(phase() == "countdown", "original held key release activated countdown Cancel");
+        require(window->activeFocusItem()->objectName() == "host-power-cancel", "keyboard countdown did not focus Cancel");
+        key(window, code); settle(650);
+        require(phase() == "ready" && sleeps == 0, "keyboard countdown Cancel sent sleep");
+        QMetaObject::invokeMethod(root.get(), "openPower"); ready();
+        keyEdge(window, QEvent::KeyPress, code); settle(50);
+        require(phase() == "holding", "short keyboard hold ended before release");
+        keyEdge(window, QEvent::KeyRelease, code);
+        require(phase() == "ready", "genuine early keyboard release did not cancel immediately");
+        settle(650);
+        require(phase() == "ready" && sleeps == 0, "genuine early keyboard release later armed sleep");
+    }
     // The real bridge sends an immediate Return pair while physical A stays
     // down. Releasing A, navigating away, or closing must end the hold.
     pad.set(true); key(window, Qt::Key_Return);

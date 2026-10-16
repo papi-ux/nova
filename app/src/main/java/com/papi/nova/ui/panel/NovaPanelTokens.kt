@@ -249,6 +249,7 @@ object NovaPanelMetrics {
             if (density == NovaPanelDensity.Compact) NovaPanelWidth.Wide else NovaPanelWidth.Standard,
             windowWidth,
         )
+        NovaPanelWidth.Full -> windowWidth
     }
 
     /** Whether a window this size shows panels as the portrait sheet rather than at an edge. */
