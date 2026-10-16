@@ -6,6 +6,7 @@
 - Host Console no longer shows an empty page once you sign in.
 - Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
 - Scrolling Host Console, or swiping across it, no longer moves the panel it is in. The panel still closes from its header, with Back, or with a tap beside it.
+- `< Congratulations, Director >` on Android and Linux now has charcoal surfaces and warm white text, with red for focus and selection. Polaris Aurora is still the default, and a theme you already chose stays as it is.
 
 ## 1.5.0 - 2026-10-12
 
