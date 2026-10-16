@@ -11,8 +11,11 @@ import com.papi.nova.PcViewModel.ComputerObject
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager.PairState
+import androidx.preference.PreferenceManager
+import com.papi.nova.ui.NovaHostConsoleLayout
 import com.papi.nova.ui.NovaHostConsoleLink
 import com.papi.nova.ui.NovaHostConsolePage
+import com.papi.nova.ui.panel.NovaPanelWidth
 import com.papi.nova.ui.panel.novaSurfaces
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -108,6 +111,18 @@ class PcViewHostConsoleLinkTest {
         assertEquals(ComputerDetails.AddressTuple("192.0.2.10", 47989), field(hosts, "pendingPairingAddress"))
         assertEquals("1234", field<String>(hosts, "pendingPairingPin"))
         assertEquals("abcd", field<String>(hosts, "pendingPairingPassphrase"))
+    }
+
+    @Test
+    fun theHostsConsoleOpensAsThePlayerLastLeftItOnThisDevice() {
+        val hosts = open()
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        fun opened() = (hosts.hostConsolePageFor(host(PairState.PAIRED)) as NovaHostConsolePage).width
+        assertEquals("in its panel until the player chooses", NovaPanelWidth.Wide, opened())
+        prefs.edit().putBoolean(NovaHostConsoleLayout.KEY_EXPANDED, true).commit()
+        assertEquals(NovaPanelWidth.Full, opened())
+        prefs.edit().putBoolean(NovaHostConsoleLayout.KEY_EXPANDED, false).commit()
+        assertEquals(NovaPanelWidth.Wide, opened())
     }
 
     @Test

@@ -452,6 +452,17 @@ class NovaHostConsolePageComposeTest {
         assertEquals("shown again once answered", View.VISIBLE, web.visibility)
     }
 
+    // A web view added with no layout params of its own gets WRAP_CONTENT, and Android's web view
+    // lays out a page whose height wraps 0 high: 100vh, 100dvh and 100% all come out 0. The
+    // console's shell is one screen high, so a signed-in console showed nothing at all (#316).
+    @Test
+    fun theConsoleFillsTheSpaceItIsGivenSoItsPageIsLaidOutAsHighAsTheView() {
+        show(page(paired.encoded))
+        val params = webView()!!.layoutParams
+        assertEquals("as wide as the page gives it", ViewGroup.LayoutParams.MATCH_PARENT, params.width)
+        assertEquals("as high as the page gives it, never wrapping", ViewGroup.LayoutParams.MATCH_PARENT, params.height)
+    }
+
     private companion object {
         const val HOST = "5E1F5A0B-2C3D-4E5F-8A9B-0C1D2E3F4A5B"
         const val OTHER_HOST = "11111111-2222-4333-8444-555555555555"
