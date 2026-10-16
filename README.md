@@ -47,12 +47,10 @@ path:
   where the game runs. Host-wide choices stay visibly host-wide.
 - **Tiers fit the device.** Saver, Recommended, Max and Custom choose a client
   target, separately from Polaris's Auto, Quality, High FPS and Stability presets.
-- **Make it yours.** Stage, Regular and Compact layouts support touch and
-  controllers. Text and control size are independent; new installs start at
-  80% text on Polaris Aurora, and existing choices stay intact.
-  `< Congratulations, Director >`, a charcoal theme with warm white copy and
-  red signals, can be chosen in Settings
-  ([appearance capture of the earlier 1.4.14-beta.1 crimson Director design](docs/screenshots/nova-android-director-appearance-v1.4.14-beta.1.webp)).
+- **Make it yours.** Stage, Regular and Compact support touch and controllers.
+  Size text and controls independently. New installs: Polaris Aurora,
+  80% text; saved choices stay. `< Congratulations, Director >` adds charcoal,
+  warm white and red ([earlier crimson capture](docs/screenshots/nova-android-director-appearance-v1.4.14-beta.1.webp)).
 - **Doctor uses current evidence.** Command Center separates client, network and
   host findings; Auto Fix requires a reversible, verifiable same-stream action.
 - **Steam from the couch.** Open or quit Steam on the PC from Command Center,
