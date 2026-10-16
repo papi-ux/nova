@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.text.AnnotatedString
+import com.papi.nova.ui.compose.NovaControllerHint
 import kotlinx.coroutines.flow.StateFlow
 
 /** Anything a panel can show. Owners declare sealed families; the host draws [NovaCommonPage] itself. */
@@ -12,6 +13,13 @@ interface NovaPage {
     val key: String
     val title: String
     val width: NovaPanelWidth get() = NovaPanelWidth.Standard
+
+    /** Drawn at the end of this page's header line in place of the stack's own, when it has one. */
+    val headerEnd: (@Composable () -> Unit)? get() = null
+
+    /** This page's own keys, after the stack's in the hint bar. */
+    val controllerHints: List<NovaControllerHint>
+        @Composable get() = emptyList()
 }
 
 /** The screen edge a panel is attached to. */
@@ -20,9 +28,10 @@ enum class NovaEdge { Start, End }
 /**
  * A panel's width class; the pixel width comes from [NovaPanelMetrics.panelWidth]. A [Grid] page
  * lays its rows two to a line on a compact landscape panel, which is Wide for it, and is Standard
- * with one column everywhere else ([novaPanelColumns]).
+ * with one column everywhere else ([novaPanelColumns]). A [Full] page takes the whole window: at
+ * an edge it is as wide as the window, and the portrait sheet is as high as the window.
  */
-enum class NovaPanelWidth { Standard, Wide, Grid }
+enum class NovaPanelWidth { Standard, Wide, Grid, Full }
 
 /** The tone of a status line, such as a host's connection state in a menu header. */
 enum class NovaTone { Neutral, Info, Active, Warning, Danger }
