@@ -2292,6 +2292,9 @@ def main():
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
                    XDG_CONFIG_HOME=str(root/"config"), QT_QPA_PLATFORM="xcb", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR="1",
                    QT_SCREEN_SCALE_FACTORS="1", QT_FORCE_STDERR_LOGGING="1")
+        if args.host_power:
+            # Observe X11 event order only in this synthetic route. Preserve any existing rules.
+            env["QT_LOGGING_RULES"] = env.get("QT_LOGGING_RULES", "") + "\nqt.qpa.events.debug=true"
         record = root/"moonlight-argv.txt"
         if args.handoff_limits:
             def ini_bytes(value):
