@@ -20,6 +20,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performSemanticsAction
@@ -155,6 +156,29 @@ class NovaPanelFrameComposeTest {
         val regular = rule.onNodeWithTag("content", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertEquals("Standard at 800dp: 48%", 384f, (regular.right - regular.left).value, 0.5f)
     }
+
+    @Test
+    fun aFullPanelHasTheWindowsWholeWidth() {
+        frame(landscape = true, width = NovaPanelWidth.Full)
+        val panel = rule.onNodeWithTag("content", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals("Full at 800dp", 800f, (panel.right - panel.left).value, 0.5f)
+    }
+
+    @Test
+    fun aSheetStopsAt88PercentOfTheWindowsHeight() {
+        frame()
+        assertEquals(windowHeight() * 0.88f, sheetHeight(), 1f)
+    }
+
+    @Test
+    fun aFullPagesSheetHasTheWindowsWholeHeight() {
+        frame(width = NovaPanelWidth.Full)
+        assertEquals(windowHeight(), sheetHeight(), 0.5f)
+    }
+
+    private fun windowHeight() = rule.onRoot().getUnclippedBoundsInRoot().let { it.bottom - it.top }.value
+
+    private fun sheetHeight() = rule.onNodeWithTag("content", useUnmergedTree = true).getUnclippedBoundsInRoot().let { it.bottom - it.top }.value
 
     @Test
     fun aClosedPanelSitsOffScreenInEitherLayoutDirection() {

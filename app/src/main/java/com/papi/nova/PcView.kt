@@ -105,6 +105,7 @@ import com.papi.nova.ui.NovaQrScanActivity
 import com.papi.nova.ui.NovaHostMenuActions
 import com.papi.nova.ui.novaHostMenuHeader
 import com.papi.nova.ui.NovaHostConsole
+import com.papi.nova.ui.NovaHostConsoleLayout
 import com.papi.nova.ui.NovaHostConsoleLink
 import com.papi.nova.ui.NovaSteamControls
 import com.papi.nova.ui.NovaHostConsolePage
@@ -2246,6 +2247,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             pinnedCertificate = runCatching { computer.details.serverCert?.encoded }.getOrNull(),
             hostUuid = computer.details.uuid,
             onLink = { link -> followHostConsoleLink(computer.details, link) },
+            expanded = NovaHostConsoleLayout.expanded(PreferenceManager.getDefaultSharedPreferences(this)),
         )
     }
 

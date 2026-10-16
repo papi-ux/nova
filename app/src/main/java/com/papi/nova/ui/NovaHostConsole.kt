@@ -3,6 +3,7 @@ package com.papi.nova.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
@@ -25,14 +26,21 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -44,21 +52,35 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.preference.PreferenceManager
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.R
 import com.papi.nova.ShortcutTrampoline
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.ui.compose.LocalNovaComposeColors
+import com.papi.nova.ui.compose.LocalNovaFormFactor
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
+import com.papi.nova.ui.compose.NovaControllerHint
+import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.panel.LocalNovaPanelDensity
 import com.papi.nova.ui.panel.NovaBackHandler
 import com.papi.nova.ui.panel.NovaFocusHint
 import com.papi.nova.ui.panel.NovaKeys
@@ -68,10 +90,13 @@ import com.papi.nova.ui.panel.NovaPanelButton
 import com.papi.nova.ui.panel.NovaPanelButtonPair
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.NovaPanelWidth
+import com.papi.nova.ui.panel.NovaPressLatch
 import com.papi.nova.ui.panel.NovaTextField
 import com.papi.nova.ui.panel.novaClickable
 import com.papi.nova.ui.panel.novaFocusHint
+import com.papi.nova.ui.panel.novaFocusRing
 import com.papi.nova.ui.panel.novaPanelType
+import com.papi.nova.ui.panel.novaTouchReach
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -98,6 +123,9 @@ import java.util.UUID
  * The console hands a client app its work as art:// links: pair with this host by a PIN, or launch
  * one of its apps here. Nova follows the ones for it ([NovaHostConsoleLink]) through [onLink], and
  * says in the console's place, as it asks the console's questions, that any other is for another app.
+ *
+ * Expand, at the end of its header, or Y gives the console the whole window, and Collapse puts it
+ * back in its panel ([toggleSize]). It opens as the player last left it on this device.
  */
 internal class NovaHostConsolePage(
     override val title: String,
@@ -112,15 +140,115 @@ internal class NovaHostConsolePage(
      * instead, or null once it has acted. Without it every link is for another app.
      */
     val onLink: ((NovaHostConsoleLink) -> String?)? = null,
+    /** Whether it opens with the whole window: this device's last choice ([NovaHostConsoleLayout]). */
+    expanded: Boolean = false,
 ) : NovaPage {
     override val key: String get() = KEY
 
-    // The console is a web page laid out for a window, and the widest panel is the closest.
-    override val width: NovaPanelWidth get() = NovaPanelWidth.Wide
+    /** Whether the console has the whole window, rather than its panel. */
+    var expanded by mutableStateOf(expanded)
+        private set
+
+    // The console is a web page laid out for a window: collapsed, the widest panel is the closest,
+    // and expanded it has the window itself.
+    override val width: NovaPanelWidth get() = if (expanded) NovaPanelWidth.Full else NovaPanelWidth.Wide
+
+    override val headerEnd: @Composable () -> Unit = { NovaHostConsoleSizeToggle(this) }
+
+    override val controllerHints: List<NovaControllerHint>
+        @Composable get() = listOf(
+            NovaControllerHint(
+                stringResource(R.string.nova_controller_hint_y),
+                stringResource(if (expanded) R.string.nova_host_console_collapse_hint else R.string.nova_host_console_expand_hint),
+            ),
+        )
+
+    /** Expands the console to the whole window, or collapses it to its panel, and keeps that for this device. */
+    fun toggleSize(prefs: SharedPreferences) {
+        expanded = !expanded
+        NovaHostConsoleLayout.keep(prefs, expanded)
+    }
 
     companion object {
         const val KEY = "host-console"
     }
+}
+
+/**
+ * Whether Host Console opens with the whole window: the player's last choice on this device, and
+ * its panel until they make one. It is this device's own setting, kept across a restart.
+ */
+internal object NovaHostConsoleLayout {
+    const val KEY_EXPANDED = "nova_host_console_expanded"
+
+    fun expanded(prefs: SharedPreferences): Boolean = prefs.getBoolean(KEY_EXPANDED, false)
+
+    fun keep(prefs: SharedPreferences, expanded: Boolean) {
+        prefs.edit().putBoolean(KEY_EXPANDED, expanded).apply()
+    }
+}
+
+/**
+ * Expand or Collapse, at the end of the console's header line: an icon on a control tile, as a
+ * panel's other icon buttons rest, that a finger has 48dp of, a pad's focus stop that A presses,
+ * and named for TalkBack by what it does next. The header line is 40dp at the compact density, so
+ * the target reaches past it above and below, as the header's own back target does, and the line
+ * keeps its height.
+ */
+@Composable
+private fun NovaHostConsoleSizeToggle(page: NovaHostConsolePage) {
+    val colors = LocalNovaComposeColors.current
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val context = LocalContext.current
+    val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
+    val toggle = { page.toggleSize(prefs) }
+    val latch = remember { NovaPressLatch() }
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val label = stringResource(if (page.expanded) R.string.nova_host_console_collapse else R.string.nova_host_console_expand)
+    val height = NovaPanelMetrics.headerHeight(LocalNovaFormFactor.current, LocalNovaPanelDensity.current)
+    val reach = (NovaPanelMetrics.HeaderHeight - height) / 2
+    val shape = RoundedCornerShape(NovaRadius.hero)
+    val target = Modifier
+        .clip(shape)
+        .novaFocusRing(
+            shape,
+            restFill = if (pressed) surfaces.selectedControl else surfaces.control,
+            restBorder = surfaces.tileBorder,
+            restBorderWidth = NovaPanelMetrics.Hairline,
+        )
+        .onKeyEvent { novaHostConsoleSizeKey(it.nativeKeyEvent, latch, toggle) }
+        .novaClickable(role = Role.Button, interactionSource = interactions, onClick = toggle)
+        .semantics { contentDescription = label }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .novaAvoidCameraCutout(touchTarget = true)
+            .width(NovaPanelMetrics.HeaderHeight)
+            .novaTouchReach(reach, target)
+            .heightIn(min = height),
+    ) {
+        Icon(
+            painter = painterResource(if (page.expanded) R.drawable.ic_host_console_collapse else R.drawable.ic_host_console_expand),
+            contentDescription = null,
+            tint = colors.textPrimary,
+            modifier = Modifier.size(NovaPanelMetrics.IconSize),
+        )
+    }
+}
+
+/**
+ * Y expands or collapses the console, on its release, for a press seen going down here: a Y held
+ * since before the console opened does nothing when it comes up. Every Y is the console's, so the
+ * page under it never sees one. Whether [event] was Y.
+ */
+private fun novaHostConsoleSizeKey(event: KeyEvent, latch: NovaPressLatch, toggle: () -> Unit): Boolean {
+    if (event.keyCode != KeyEvent.KEYCODE_BUTTON_Y) return false
+    when (event.action) {
+        KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) latch.press(event.keyCode)
+        KeyEvent.ACTION_UP -> if (latch.release(event.keyCode) && !event.isCanceled) toggle()
+    }
+    return true
 }
 
 /** What the console page trusts: the certificate Nova paired with, on the console's own address. */
@@ -527,8 +655,16 @@ internal class NovaHostConsoleChromeClient(
  * a page that opens after that is one they opened, not one the console sent them on to.
  */
 @SuppressLint("ViewConstructor")
-private class NovaHostConsoleWebView(context: Context, private val history: NovaHostConsoleHistory) : WebView(context) {
+private class NovaHostConsoleWebView(
+    context: Context,
+    private val history: NovaHostConsoleHistory,
+    private val onSizeKey: () -> Unit,
+) : WebView(context) {
+    private val sizeLatch = NovaPressLatch()
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Y is the console's own key, here too when it comes to the web view itself.
+        if (novaHostConsoleSizeKey(event, sizeLatch, onSizeKey)) return true
         if (event.action == KeyEvent.ACTION_DOWN && NovaKeys.isActivation(event.keyCode)) history.gesture()
         return super.dispatchKeyEvent(event)
     }
@@ -594,6 +730,9 @@ internal fun NovaPageScope.NovaHostConsole(
     val leaveMessage = stringResource(R.string.nova_host_console_leave_page)
     val elsewhere = stringResource(R.string.nova_host_console_link_elsewhere)
     val leave = { if (isTop && !panel.pop()) closeThen { } }
+    val context = LocalContext.current
+    val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
+    val sizeLatch = remember(page) { NovaPressLatch() }
     // A link the console opened: followed where Nova can, and otherwise said in the console's
     // place, as its questions are, with OK back to the console.
     val follow: (NovaHostConsoleLink) -> Unit = { link ->
@@ -629,12 +768,13 @@ internal fun NovaPageScope.NovaHostConsole(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Y is the console's own key wherever focus is in it, and never reaches the page.
+    Box(modifier = Modifier.fillMaxSize().onPreviewKeyEvent { novaHostConsoleSizeKey(it.nativeKeyEvent, sizeLatch) { page.toggleSize(prefs) } }) {
         if (live) {
             key(attempt) {
                 AndroidView(
                     factory = { context ->
-                        NovaHostConsoleWebView(context, history).apply {
+                        NovaHostConsoleWebView(context, history, onSizeKey = { page.toggleSize(prefs) }).apply {
                             configureForHostConsole()
                             visibility = View.INVISIBLE
                             webViewClient = NovaHostConsoleClient(
