@@ -87,9 +87,18 @@ ApplicationWindow {
             settle(30);
         }
         require(phase() == "countdown", "keyboard auto-repeat reset the Sleep Host hold");
+        // Repeats can already be queued when focus moves to Cancel.
+        // They and the original physical release must leave the countdown armed.
+        for (int tail = 0; tail < 3; ++tail) {
+            keyEdge(window, QEvent::KeyRelease, code, true);
+            keyEdge(window, QEvent::KeyPress, code, true);
+            settle(10);
+        }
+        require(phase() == "countdown", "held activation key tail activated countdown Cancel");
         keyEdge(window, QEvent::KeyRelease, code);
+        require(phase() == "countdown", "original held key release activated countdown Cancel");
         require(window->activeFocusItem()->objectName() == "host-power-cancel", "keyboard countdown did not focus Cancel");
-        key(window, Qt::Key_Return); settle(650);
+        key(window, code); settle(650);
         require(phase() == "ready" && sleeps == 0, "keyboard countdown Cancel sent sleep");
         QMetaObject::invokeMethod(root.get(), "openPower"); ready();
         keyEdge(window, QEvent::KeyPress, code); settle(50);
