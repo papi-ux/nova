@@ -86,6 +86,9 @@ class NovaHostConsolePageComposeTest {
         `when`(it.isForMainFrame).thenReturn(true)
     }
 
+    /** The console as Nova opens it: told it is in Nova, and Nova's theme (Polaris #414). */
+    private fun opened() = NovaHostConsoleHandoff.url(console, NovaThemeManager.getTheme(rule.activity))
+
     /** The console on screen, its certificate checked. */
     private fun shown(web: WebView) = onUi { web.webViewClient.onPageFinished(web, "$console/#/") }
 
@@ -258,7 +261,7 @@ class NovaHostConsolePageComposeTest {
         keys.press(NovaTestKeys.CENTER)
         val web = webView()
         assertNotNull("Open Anyway loads the console", web)
-        assertEquals(console, shadowOf(web!!).lastLoadedUrl)
+        assertEquals(opened(), shadowOf(web!!).lastLoadedUrl)
         val client = web.webViewClient
 
         val first = mock(SslErrorHandler::class.java)
@@ -291,7 +294,7 @@ class NovaHostConsolePageComposeTest {
         onUi { assertTrue("it never loads in the console", web.webViewClient.shouldOverrideUrlLoading(web, request(link))) }
         assertEquals(listOf(NovaHostConsoleLink.Pair(link, "192.0.2.10", 47989, "1234", "abcd")), followed)
         rule.onNodeWithTag(NOVA_HOST_CONSOLE_QUESTION_TAG).assertDoesNotExist()
-        assertEquals("nothing but the link was asked for", console, shadowOf(web).lastLoadedUrl)
+        assertEquals("nothing but the link was asked for", opened(), shadowOf(web).lastLoadedUrl)
     }
 
     // Launch asks "launch it from the local client on this device?", and OK opens the app's launch
