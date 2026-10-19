@@ -2,13 +2,6 @@
 
 ## Unreleased
 
-- On Linux, Space and Select can hold Sleep Host through keyboard repeat. Releasing early still cancels immediately.
-- Host Console no longer shows an empty page once you sign in.
-- Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
-- Scrolling Host Console, or swiping across it, no longer moves the panel it is in. The panel still closes from its header, with Back, or with a tap beside it.
-- `< Congratulations, Director >` on Android and Linux now has charcoal surfaces and warm white text, with red for focus and selection. Polaris Aurora is still the default, and a theme you already chose stays as it is.
-- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris host that supports it, Play on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console now opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
-
 ## 1.5.0 - 2026-10-12
 
 A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. This release brings the Android interface together, gives PyroWave advice that starts from the screen in your hands, and makes the controls easier to use with touch or a controller. Existing pairings, saved setups and artwork stay yours.
@@ -23,11 +16,19 @@ Steam from the couch, a readout that knows how you are connected, and three ways
 - Mark a stream you know is good as a **Working baseline**, then Compare a later stream against it for the same PC and game. It is a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it. Streaming moments record the bitrate the launch really asked for, after metered-network limits, host ceilings and AutoSafe.
 - On Android, after a stream ends, that host's Library can show a **Last Stream** card: connection duration, how many samples were measured, per-metric averages, missing-frame evidence and why it ended. Save Report keeps it, Dismiss drops it. A reconnect is not proof the picture came back, and a connection ending is not proof the game quit.
 - Nova Linux gives a host up to two minutes to finish a SteamOS session switch before launch, and Cancel really cancels. Library focus survives a refresh that lands after you moved.
+- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
+- On Android, Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
+- Nova Beta for Android adds **SGSR 1 upscaling (experimental, PyroWave SDR)** under Settings, Client Stream Defaults. It is off by default. When an 8-bit PyroWave SDR stream is smaller than your screen and shown in Fit or Stretch, a spatial filter sharpens edges as the picture is scaled up. HDR or 10-bit, Fill and full-size streams keep the usual scaling, and a change applies from the next stream. If it can't run for a stream, the picture is still scaled smoothly and the log says why. SGSR 1 is Qualcomm's Snapdragon Game Super Resolution 1 under the BSD 3-Clause licence, adapted after RubyLight's Vulkan port; the app carries the full notice.
+- A new guide, PyroWave on Android, explains stream size against screen size, the bitrate you ask for against what the encoder and the network carry, and how to compare two choices on the same scene.
 
 **Fixed in beta.2**
 
 - Homescreen shortcuts to Steam games launch with the same display mode as Play, so a host set to Windowed Stream no longer refuses the shortcut while in-app Play works. ([#371](https://github.com/papi-ux/nova/issues/371))
 - An empty or malformed RTSP Session reply no longer crashes the client, and oversized responses are bounded, on Android and Linux. Carried over from moonlight-common-c, with thanks to its authors.
+- On Android, Host Console no longer shows an empty page once you sign in.
+- On Android, scrolling Host Console, or swiping across it, no longer moves the panel it is in. The panel still closes from its header, with Back, or with a tap beside it.
+- On Linux, Space and Select can hold Sleep Host through keyboard repeat. Releasing early still cancels immediately.
+- PyroWave on Android no longer reports the time its CPU call took as decode and end-to-end latency, which it never measured: that reading is unavailable now, and the HUD and counters say frames were submitted, not rendered. Recaps, copied diagnostics and saved baselines keep that meaning. Other decoders keep their measured latency.
 
 **The game comes first**
 
@@ -48,7 +49,7 @@ Smaller text does not have to mean smaller buttons. Nova now lets you choose the
 - Text size and bitrate have small-step buttons alongside touch adjustment and exact entry. The opened editor keeps changes as a draft until Save; Back leaves the saved value alone.
 - Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen. Settings can hide its supporting menu when the rows need more room.
 - Settings, pickers, sheets and Command Center use consistent focus and Back behavior. The Mouse Mode picker takes D-pad focus, and End Session confirmation opens with a focused action.
-- Android and Linux add `< Congratulations, Director >`: crimson surfaces, warm white text and black controls. It is a separate theme, so your current choice stays intact.
+- Android and Linux add `< Congratulations, Director >`: charcoal surfaces, warm white text, and red for focus and selection. It is a separate theme, so your current choice stays intact, and Polaris Aurora stays the default.
 - Changing themes from Home no longer leaves Nova unresponsive on affected Android handhelds.
 
 **Play Setup knows the device**
@@ -108,8 +109,8 @@ The Linux interface gets the same attention as the Android one: a quieter Librar
 - Linux uses the same app ID when replacing an older bundle. Keep its app data and do not uninstall with `--delete-data`.
 - A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games; full per-game shutdown is a separate follow-up.
 - Nova Linux remains an Alpha, and the Frame route is experimental. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
-- Steam controls, the Tailscale readout, Report This Moment, Working baseline and the Last Stream card are in beta.2 with CI and source checks; their controller, TalkBack and real-stream passes on the RP6, Deck and Shield are part of the beta.2 device checks.
-- The Steam controls and the Tailscale readout need a Polaris 1.5.0 beta.2 host. An older host shows a reason instead.
+- Steam controls, the Tailscale readout, Report This Moment, Working baseline, the Last Stream card, Host Console's new modes and SGSR 1 are in beta.2 with CI and source checks. Their controller, TalkBack and real-stream checks on devices are not complete, the Tailscale readout's direct, relay and split-tunnel cases have not been tried on real networks, and SGSR 1 has not been checked for picture quality on a device. Sharpening adds no detail the stream did not carry.
+- The Steam controls and the Tailscale readout need a Polaris 1.5.0 beta.2 host. An older host shows a reason instead. On an older host, Host Console opens as before, and Launch starts the game on the host.
 - The Tailscale readout, per-host profile rules and the Last Stream card are Android only for now. Nova Linux has the Steam controls, Report this moment and Working baseline.
 - This release was called 1.4.14 while beta.1 was out. It is 1.5.0 now, for how much it carries since 1.4.13, and 1.5.0-beta.2 is the next build of the same train: it installs over Nova Beta 1.4.14-beta.1 and the beta update channel offers it.
 
