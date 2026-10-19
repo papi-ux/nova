@@ -112,6 +112,13 @@ ApplicationWindow {
             if (detail) require(title->mapRectToScene(title->boundingRect()).bottom()
                 <= detail->mapRectToScene(detail->boundingRect()).top(), "Command Center label and caption overlap");
         }
+        const auto close = rect("native-preview-action"), disconnect = rect("native-disconnect-action"), end = rect("native-end-action");
+        const bool oneRow = qAbs(close.top() - disconnect.top()) < 1 && qAbs(close.top() - end.top()) < 1
+            && close.right() <= disconnect.left() && disconnect.right() <= end.left();
+        const bool fullWidthStack = qAbs(close.left() - disconnect.left()) < 1 && qAbs(close.left() - end.left()) < 1
+            && qAbs(close.right() - disconnect.right()) < 1 && qAbs(close.right() - end.right()) < 1
+            && close.bottom() <= disconnect.top() && disconnect.bottom() <= end.top();
+        require(oneRow || fullWidthStack, "Command Center actions must follow one-row or full-width stacked reading order");
         return titlePixels;
     };
     window->resize(1920, 1080); QTest::qWait(150);
