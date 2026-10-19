@@ -383,8 +383,9 @@ Popup {
                 readonly property real titleWidth: Math.max(
                     nativePreviewAction.contentItem.implicitWidth + nativePreviewAction.leftPadding + nativePreviewAction.rightPadding,
                     nativeDisconnectAction.visible ? nativeDisconnectAction.titleWidth : 0, nativeEndAction.titleWidth)
-                readonly property int columns: nativePreview.width < 600 ? 1 : Math.max(1,
+                readonly property int fitColumns: nativePreview.width < 600 ? 1 : Math.max(1,
                     Math.min(actionCount, Math.floor((width + gap) / (titleWidth + gap))))
+                readonly property int columns: fitColumns < actionCount ? 1 : actionCount
                 readonly property bool stacked: columns === 1
                 readonly property real buttonWidth: (width - (columns - 1) * gap) / columns
                 readonly property real buttonHeight: Math.max(48, 56 * nativePreview.unit * nativePreview.controlDensity,
