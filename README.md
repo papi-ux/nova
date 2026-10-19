@@ -167,8 +167,8 @@ See the [Linux client guide](clients/deck/README.md),
 [installation and Steam Input guide](clients/deck/packaging/flatpak/README.md), and
 [compatibility roadmap](docs/linux-client-roadmap.md). Steam is optional; the
 [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) covers Game Mode.
-[Steam Frame](clients/deck/docs/steam-frame.md) has a separate experimental ARM64
-development route; the x86_64 download does not run on Frame.
+[Steam Frame](clients/deck/docs/steam-frame.md#public-alpha) has a separate
+experimental ARM64 alpha; the x86_64 download does not run on Frame.
 
 ## Compatibility and platform boundaries
 
