@@ -37,7 +37,7 @@ Item {
     // It changes no status tone, metric value or event target.
     component HudLabel: Text {
         property real textSize: 13
-        font.pixelSize: Math.max(11 * hud.unit, textSize * hud.scale)
+        font.pixelSize: Math.max(11 * hud.unit * Math.min(1, NovaTheme.fontScale), textSize * hud.scale)
         style: Text.Outline
         styleColor: "#000000"
     }
@@ -133,13 +133,17 @@ Item {
             textSize: 12
             wrapMode: Text.WordWrap
         }
-        RowLayout {
+        Flow {
+            id: performanceFlow
             visible: hud.mode === "performance"
             Layout.fillWidth: true
-            Fact { label: "RTT"; reading: hud.value("rtt"); Layout.fillWidth: true }
-            Fact { label: "BIT"; reading: hud.value("bitrate"); Layout.fillWidth: true }
-            Fact { label: "RES"; reading: hud.value("resolution"); Layout.fillWidth: true }
-            Fact { label: "CODEC"; reading: hud.value("codec"); Layout.fillWidth: true }
+            spacing: 12 * hud.scale
+            // Reflow whole facts before wrapping a reading. A fact wider than
+            // the panel still gets a finite text width, including unknown values.
+            Fact { label: "RTT"; reading: hud.value("rtt"); width: Math.min(implicitWidth, performanceFlow.width) }
+            Fact { label: "BIT"; reading: hud.value("bitrate"); width: Math.min(implicitWidth, performanceFlow.width) }
+            Fact { label: "RES"; reading: hud.value("resolution"); width: Math.min(implicitWidth, performanceFlow.width) }
+            Fact { label: "CODEC"; reading: hud.value("codec"); width: Math.min(implicitWidth, performanceFlow.width) }
         }
         Flow {
             id: layerFlow
