@@ -175,10 +175,12 @@ Popup {
         property string caption: ""
         property bool destructive: false
         property real textScale: nativePreview.unit
+        readonly property real titleWidth: actionTitle.implicitWidth + leftPadding + rightPadding
         Accessible.description: caption
         implicitHeight: Math.max(52, contentItem.implicitHeight + 20 * nativePreview.unit)
         Layout.minimumHeight: implicitHeight
         topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
+        leftPadding: 10 * nativePreview.unit; rightPadding: 10 * nativePreview.unit
         topInset: 0; bottomInset: 0
         contentItem: Item {
             implicitHeight: actionLabels.implicitHeight
@@ -188,6 +190,7 @@ Popup {
                 width: parent.width
                 spacing: 4
                 Text {
+                    id: actionTitle
                     width: parent.width
                     text: action.text; textFormat: Text.PlainText
                     wrapMode: Text.Wrap
@@ -373,11 +376,20 @@ Popup {
                 anchors.topMargin: 8 * nativePreview.unit
                 readonly property int actionCount: nativeDisconnectAction.visible ? 3 : 2
                 readonly property real gap: 8 * nativePreview.unit * nativePreview.controlDensity
-                readonly property bool stacked: nativePreview.width < 600 || width < 360 * NovaTheme.fontScale
-                readonly property real buttonWidth: stacked ? width : (width - (actionCount - 1) * gap) / actionCount
+                // A wider stream must not enlarge the requested action text.
+                readonly property real textScale: Math.min(1, nativePreview.unit)
+                // Fit the rendered labels, including padding, before allocating columns.
+                // A wide stream can still have a narrow Command Center or large text.
+                readonly property real titleWidth: Math.max(
+                    nativePreviewAction.contentItem.implicitWidth + nativePreviewAction.leftPadding + nativePreviewAction.rightPadding,
+                    nativeDisconnectAction.visible ? nativeDisconnectAction.titleWidth : 0, nativeEndAction.titleWidth)
+                readonly property int columns: nativePreview.width < 600 ? 1 : Math.max(1,
+                    Math.min(actionCount, Math.floor((width + gap) / (titleWidth + gap))))
+                readonly property bool stacked: columns === 1
+                readonly property real buttonWidth: (width - (columns - 1) * gap) / columns
                 readonly property real buttonHeight: Math.max(48, 56 * nativePreview.unit * nativePreview.controlDensity,
                     nativePreviewAction.implicitHeight, nativeDisconnectAction.implicitHeight, nativeEndAction.implicitHeight)
-                height: stacked ? actionCount * buttonHeight + (actionCount - 1) * gap : buttonHeight
+                height: Math.ceil(actionCount / columns) * buttonHeight + (Math.ceil(actionCount / columns) - 1) * gap
             }
             NovaScrollColumn {
                 anchors.left: parent.left; anchors.right: parent.right
@@ -682,6 +694,7 @@ Popup {
             id: nativePreviewAction
             implicitHeight: contentItem.implicitHeight + 20 * nativePreview.unit
             topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
+            leftPadding: 10 * nativePreview.unit; rightPadding: 10 * nativePreview.unit
             topInset: 0; bottomInset: 0
             objectName: "native-preview-action"
             x: nativePlaying ? commandCenter.x + commandHeader.x : nativePreview.attempted
@@ -699,7 +712,7 @@ Popup {
             contentItem: Text {
                 text: nativePreviewAction.text
                 color: nativePreviewAction.activeFocus ? NovaTheme.window : "white"
-                font.pixelSize: 20 * NovaTheme.fontScale
+                font.pixelSize: 20 * (nativePlaying ? commandHeader.textScale : 1) * NovaTheme.fontScale
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -766,6 +779,7 @@ Popup {
             height: commandHeader.buttonHeight
             visible: nativePlaying && session.controlsVisible && nativeSessionState.canDisconnect === true
             text: "Disconnect"
+            textScale: commandHeader.textScale
             caption: "Keep game open"
             onClicked: { if (visible) session.disconnectFromHost() }
             Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat && visible) session.disconnectFromHost() }
@@ -780,12 +794,13 @@ Popup {
             objectName: "native-end-action"
             parent: commandHeader
             readonly property int slot: nativeDisconnectAction.visible ? 2 : 1
-            x: commandHeader.stacked ? 0 : (commandHeader.buttonWidth + commandHeader.gap) * slot
-            y: commandHeader.stacked ? (commandHeader.buttonHeight + commandHeader.gap) * slot : 0
+            x: (slot % commandHeader.columns) * (commandHeader.buttonWidth + commandHeader.gap)
+            y: Math.floor(slot / commandHeader.columns) * (commandHeader.buttonHeight + commandHeader.gap)
             width: commandHeader.buttonWidth
             height: commandHeader.buttonHeight
             visible: nativePlaying && session.controlsVisible
             text: "End Session"
+            textScale: commandHeader.textScale
             caption: "Close game on PC"
             destructive: true
             onClicked: requestEnd()
