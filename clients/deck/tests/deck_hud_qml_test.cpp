@@ -2,6 +2,7 @@
 #include <QImage>
 #include <QGuiApplication>
 #include <QElapsedTimer>
+#include <QFont>
 #include <QKeyEvent>
 #include <QJSValue>
 #include <QMouseEvent>
@@ -36,7 +37,7 @@ ApplicationWindow {
     property int gameTaps: 0
     property int holds: 0
     property bool brightBackdrop: false
-    property var sample: ({fps:"59.8", incoming:"60.0", decoded:"60.0", target:"/ 60 target", host:"2.1ms", rtt:"18ms", jitter:"2ms", bitrate:"19.6M", resolution:"1280×800", codec:"PyroWave", history:[59,60,59,55,60,60,59.8], truth:"Composed FPS · video payload bitrate", healthLabel:"Display override", healthTone:"warning", hostTone:"warning", netTone:"stable", clientTone:"stable", tuningLabel:"Tuning: Applying", tuningTone:"info", appliedBitrate:"20.0M", requestedBitrate:"25.0M", videoWork:"1.50ms", refused:"2", qualityLimit:"25.0M"})
+    property var sample: ({fps:"59.8", incoming:"60.0", decoded:"60.0", target:"/ 60 target", host:"2.1ms", rtt:"18ms", jitter:"2ms", bitrate:"19.6M", resolution:"1920×1080", codec:"PyroWave", history:[59,60,59,55,60,60,59.8], truth:"Composed FPS · video payload bitrate", healthLabel:"Display override", healthTone:"warning", hostTone:"warning", netTone:"stable", clientTone:"stable", tuningLabel:"Tuning: Applying", tuningTone:"info", appliedBitrate:"20.0M", requestedBitrate:"25.0M", videoWork:"1.50ms", refused:"2", qualityLimit:"25.0M"})
     Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position:0; color:root.brightBackdrop ? "white" : "#213D50" } GradientStop { position:1; color:root.brightBackdrop ? "white" : "#081720" } } }
     Label { anchors.centerIn: parent; text:"NovaHUD · synthetic stream preview"; color:"#8096A0"; font.pixelSize:22 }
     MouseArea { anchors.fill: parent; onClicked: root.gameTaps++ }
@@ -44,6 +45,9 @@ ApplicationWindow {
     HudSettings { id: settings }
     function openSettings() { settings.open() }
     function largeText() { NovaTheme.setFontScale(1.3) }
+    function performanceText(scale) { NovaHudPreferences.setMode("performance"); NovaTheme.setFontScale(scale); overlay.unit = 1.15 }
+    function setCodec(value) { sample = Object.assign({}, sample, {codec:value}) }
+    function restoreHud() { NovaHudPreferences.setMode("debug"); overlay.unit = 1 }
     function setCorner(x, y) { NovaHudPreferences.setPosition(x, y) }
     function state() { return { mode:NovaHudPreferences.mode, enabled:NovaHudPreferences.enabled, opacity:NovaHudPreferences.panelOpacity, x:NovaHudPreferences.positionX, y:NovaHudPreferences.positionY } }
     Component.onCompleted: settings.open()
@@ -83,6 +87,66 @@ ApplicationWindow {
         bounds(); capture(QString("hud-%1-1280.png").arg(mode));
         QMetaObject::invokeMethod(root.get(), "openSettings"); settle();
     }
+    key(window, Qt::Key_Escape);
+    // Check assigned Text geometry, not just the outer panel. Use the Frame's
+    // 1.15 unit at both widths so the narrow case also constrains large glyphs.
+    std::function<QQuickItem*(QQuickItem*, const QString&)> findText = [&](QQuickItem* parent, const QString& text) -> QQuickItem* {
+        if (!parent->isVisible()) return nullptr;
+        if (parent->property("text").toString() == text) return parent;
+        for (auto* child : parent->childItems()) if (auto* found = findText(child, text)) return found;
+        return nullptr;
+    };
+    const auto textItem = [&](const char* text) { auto* v = findText(hud, QString::fromUtf8(text)); require(v, text); return v; };
+    std::function<void(QQuickItem*)> textBounds = [&](QQuickItem* parent) {
+        if (!parent->isVisible()) return;
+        if (parent->property("contentWidth").isValid() && parent->property("text").isValid()) {
+            const auto rect = parent->mapRectToItem(hud, parent->boundingRect());
+            require(rect.left() >= -1 && rect.right() <= hud->width() + 1 &&
+                rect.top() >= -1 && rect.bottom() <= hud->height() + 1, "HUD text item escaped its panel");
+            require(parent->property("contentWidth").toReal() <= parent->width() + 1 &&
+                parent->property("contentHeight").toReal() <= parent->height() + 1,
+                "HUD painted text escaped its assigned width or height");
+        }
+        for (auto* child : parent->childItems()) textBounds(child);
+    };
+    int defaultCaptionSize = 0, defaultFactSize = 0;
+    for (const double textScale : {0.8, 1.0, 1.3}) {
+        require(QMetaObject::invokeMethod(root.get(), "performanceText", Q_ARG(QVariant, textScale)), "cannot set HUD text scale");
+        for (const int viewportWidth : {1920, 360}) {
+            window->resize(viewportWidth, viewportWidth == 1920 ? 1080 : 640); settle(); bounds();
+            textBounds(hud);
+            QList<QRectF> facts;
+            for (const auto* text : {"RTT 18ms", "BIT 19.6M", "RES 1920×1080", "CODEC PyroWave"}) {
+                auto* fact = textItem(text);
+                require(fact->property("lineCount").toInt() == 1, "Performance HUD split a normal metric instead of reflowing it");
+                const auto rect = fact->mapRectToItem(hud, fact->boundingRect());
+                for (const auto& other : facts) require(!rect.intersects(other), "Performance HUD facts overlap");
+                facts.append(rect);
+            }
+            if (viewportWidth == 360)
+                require(facts.last().top() > facts.first().top(), "constrained Performance HUD did not reflow its metrics");
+            const int captionSize = textItem("COMP FPS")->property("font").value<QFont>().pixelSize();
+            const int factSize = textItem("RES 1920×1080")->property("font").value<QFont>().pixelSize();
+            if (textScale == 0.8) {
+                require(captionSize < factSize, "smaller requested HUD text scale flattened captions to the fact font floor");
+                defaultCaptionSize = captionSize; defaultFactSize = factSize;
+            } else {
+                require(captionSize > defaultCaptionSize && factSize > defaultFactSize,
+                    "HUD ignored larger requested text sizes");
+                require(captionSize < factSize, "large-text HUD lost its caption hierarchy");
+            }
+            capture(QString("hud-performance-%1-%2.png").arg(textScale).arg(viewportWidth));
+        }
+    }
+    // A multiword reading wider than the whole panel must wrap within its
+    // assigned width as well; natural-width reflow alone cannot contain it.
+    require(QMetaObject::invokeMethod(root.get(), "setCodec", Q_ARG(QVariant, QStringLiteral("PyroWave extended synthetic codec reading for bounded text"))), "cannot set long HUD reading");
+    settle(); textBounds(hud);
+    require(textItem("CODEC PyroWave extended synthetic codec reading for bounded text")->property("lineCount").toInt() > 1,
+        "oversized Performance reading did not wrap within the panel");
+    require(QMetaObject::invokeMethod(root.get(), "setCodec", Q_ARG(QVariant, QStringLiteral("PyroWave"))), "cannot restore HUD reading");
+    QMetaObject::invokeMethod(root.get(), "restoreHud");
+    QMetaObject::invokeMethod(root.get(), "openSettings"); settle();
     QMetaObject::invokeMethod(root.get(), "largeText"); window->resize(960, 600); settle();
     click("hud-position"); click("hud-position");
     click("hud-opacity"); click("hud-opacity"); click("hud-opacity"); // 64 -> 90 -> 100 -> 0
