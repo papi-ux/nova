@@ -238,10 +238,19 @@ int main(int argc, char** argv) {
     settle();
     focused(*window, primary, "connected overlay must focus Continue game");
     require(primary->property("text") == "Close" && end->isVisible(), "missing active controls");
-    require(qAbs(primary->width() - disconnect->width()) < 1 &&
-            qAbs(primary->mapToScene(QPointF()).y() - disconnect->mapToScene(QPointF()).y()) < 1 &&
-            disconnect->mapToScene(QPointF()).x() >= primary->mapToScene(QPointF()).x() + primary->width(),
-            "Command Center header actions overlap or retained their old vertical anchors");
+    const auto primaryBounds = primary->mapRectToScene(primary->boundingRect());
+    const auto disconnectBounds = disconnect->mapRectToScene(disconnect->boundingRect());
+    const auto endBounds = end->mapRectToScene(end->boundingRect());
+    const bool oneRow = qAbs(primaryBounds.top() - disconnectBounds.top()) < 1
+        && qAbs(primaryBounds.top() - endBounds.top()) < 1
+        && primaryBounds.right() <= disconnectBounds.left() && disconnectBounds.right() <= endBounds.left();
+    const bool fullWidthStack = qAbs(primaryBounds.left() - disconnectBounds.left()) < 1
+        && qAbs(primaryBounds.left() - endBounds.left()) < 1
+        && qAbs(primaryBounds.width() - disconnectBounds.width()) < 1
+        && qAbs(primaryBounds.width() - endBounds.width()) < 1
+        && primaryBounds.bottom() <= disconnectBounds.top() && disconnectBounds.bottom() <= endBounds.top();
+    require(primaryBounds.isValid() && disconnectBounds.isValid() && endBounds.isValid() && (oneRow || fullWidthStack),
+            "Command Center header actions must be one row or a full-width stack");
     screenshot("native-controls-continue.png");
     require(preview->property("players").toList().size() == 3, "waiting controller was omitted from Command Center");
     key(*window, Qt::Key_Right);
