@@ -61,7 +61,7 @@ the `~/.var/app/com.papi_ux.Nova` data folder, so never uninstall any Nova with
 `--delete-data`.
 
 H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with
-picture, sound and working controllers. That check ran this bundle from its own
+picture, sound and working controllers. Those functional checks used an isolated
 installation with KDE Platform 6.10 commit
 `cb026317831ec841a6b0f6d9808805891bad06fbac5b16d14546a7ce7a0ef1bb`. A fresh
 install of the current Flathub runtime with the commands above has not been
