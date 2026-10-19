@@ -70,14 +70,14 @@ class NovaMomentLogTest {
 
     @Test fun privatePathsAreScrubbedButAppPathsSurvive() {
         val text = listOf(
-            "Nova: wrote /home/papi/Documents/notes.txt and /Users/papi/Library/x",
+            "Nova: wrote /home/redaction-fixture/Documents/notes.txt and /Users/redaction-fixture/Library/x",
             "Nova: picked file:///storage/emulated/0/Download/clip.mp4 and /sdcard/DCIM/a.jpg",
             "Nova: cache /data/user/0/com.papi.nova/cache/x and /data/data/com.example.other/files",
-            """Nova: from C:\Users\papi\Videos\clip.mkv""",
+            """Nova: from C:\Users\redaction-fixture\Videos\clip.mkv""",
             "Nova: GET https://host.example/api/v1/status and decoder at /system/lib64/libcodec2.so",
         ).joinToString("\n")
         val scrubbed = NovaMomentLog.scrub(text)
-        for (personal in listOf("papi", "Documents", "emulated", "DCIM", "com.example.other", "Videos"))
+        for (personal in listOf("redaction-fixture", "Documents", "emulated", "DCIM", "com.example.other", "Videos"))
             assertFalse(personal, scrubbed.contains(personal))
         assertTrue(scrubbed.contains("/api/v1/status"))
         assertTrue(scrubbed.contains("/system/lib64/libcodec2.so"))

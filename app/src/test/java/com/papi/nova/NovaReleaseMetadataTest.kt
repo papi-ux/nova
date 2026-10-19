@@ -336,6 +336,9 @@ class NovaReleaseMetadataTest {
 
         assertTrue(positions.all { it >= 0 })
         assertTrue(positions == positions.sorted())
+        val preflight = buildJob.indexOf("      - name: Verify prestaged Frame alpha\n")
+        assertTrue(preflight > positions[0] && preflight < positions[1])
+        assertTrue(buildJob.contains("fetch-depth: 0"))
         // The rule is that every lane pins the event source, not that there are
         // three lanes. Comparing the two counts keeps the invariant true when a
         // lane is added, and still fails the moment one checks out a floating
@@ -508,11 +511,18 @@ class NovaReleaseMetadataTest {
         ))
         assertConsecutive(verifyLines, listOf(
             "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then",
-            "echo \"Release assets do not match the exact eight-file contract on \${GITHUB_REF_NAME}\" >&2",
+            "echo \"Release assets do not match the exact final eight/ten-file contract on \${GITHUB_REF_NAME}\" >&2",
             "printf 'expected: %s\\n' \"\${expected_assets[*]}\" >&2",
             "printf 'published: %s\\n' \"\${published_assets[*]}\" >&2",
             "exit 1",
             "fi",
+        ))
+
+        assertOrdered(verifyLines, listOf(
+            "if [ \"\$GITHUB_REF_NAME\" = v1.5.0-beta.2 ]; then",
+            "expected_assets+=(Nova-Linux-aarch64-frame-alpha.flatpak Nova-Linux-aarch64-frame-alpha.flatpak.sha256)",
+            "if [ \"\${published_assets[*]}\" != \"\${expected_assets[*]}\" ]; then",
+            "python3 \"\$RUNNER_TEMP/nova-release-readback.py\" final",
         ))
 
         val publish = workflowStep(buildJob, orderedSteps[4])
@@ -528,5 +538,183 @@ class NovaReleaseMetadataTest {
             "gh release edit \"\${GITHUB_REF_NAME}\" --verify-tag --draft=false",
             "fi",
         ))
+    }
+
+    @Test
+    fun pinnedFrameReadbackRejectsMixedOrUnqualifiedReleaseInputs() {
+        val workflow = File(repoRoot(), ".github/workflows/build.yml").readText()
+        val preflight = workflowStep(workflowJob(workflow, "build"), "Verify prestaged Frame alpha")
+        val start = "          cat > \"\$RUNNER_TEMP/nova-release-readback.py\" <<'PY'\n"
+        val script = preflight.substringAfter(start).substringBefore("          PY\n")
+            .lines().joinToString("\n") { it.removePrefix("          ") }
+        assertTrue(script.startsWith("import hashlib\n"))
+        val temp = java.nio.file.Files.createTempDirectory("nova-release-check-").toFile()
+        try {
+            val candidate = File(temp, "readback.py").apply { writeText(script) }
+            val controls = File(temp, "controls.py").apply { writeText("""
+import ast
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+code = Path(sys.argv.pop(1)).read_text()
+assignment = next(n for n in ast.parse(code).body if isinstance(n, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == "FRAME" for t in n.targets))
+lines = code.splitlines(keepends=True)
+real_git = shutil.which("git")
+name = "Nova-Linux-aarch64-frame-alpha.flatpak"
+managed = ["Nova-Beta-Android-" + abi + ".apk" for abi in ("arm64-v8a", "armeabi-v7a", "x86_64")]
+managed += ["Nova-Linux-x86_64-alpha.flatpak"]
+
+class ReleaseReadback(unittest.TestCase):
+    def exercise(self, case, phase, succeeds):
+        with tempfile.TemporaryDirectory(prefix="nova-release-contract-") as tmp:
+            root = Path(tmp)
+            for d in ("bin", "remote", "local", "runner", "scripts", "clients/deck/qml", ".github/workflows"):
+                (root / d).mkdir(parents=True, exist_ok=True)
+            env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+                       GIT_ALLOW_PROTOCOL="", GIT_AUTHOR_NAME="Fixture", GIT_AUTHOR_EMAIL="fixture@example.com",
+                       GIT_COMMITTER_NAME="Fixture", GIT_COMMITTER_EMAIL="fixture@example.com",
+                       REAL_GIT=real_git, GH_FIXTURE=tmp)
+            def git(*args):
+                return subprocess.check_output([real_git, *args], cwd=root, env=env, text=True).strip()
+            git("init", "-q")
+            (root / "scripts/extract_release_notes.py").write_text('print("Curated notes")\n')
+            (root / "clients/deck/qml/NovaHud.qml").write_text("qualified QML\n")
+            (root / ".github/workflows/build.yml").write_text("old release-only metadata\n")
+            git("add", "."); git("commit", "-qm", "qualified source")
+            source, tree = git("rev-parse", "HEAD"), git("rev-parse", "HEAD^{tree}")
+            (root / ".github/workflows/build.yml").write_text("new release-only metadata\n")
+            git("add", "."); git("commit", "-qm", "release-only successor")
+            release = git("rev-parse", "HEAD")
+            tag = "v1.5.0-beta.1" if case.startswith("ordinary") else "v1.5.0-beta.2"
+            git("tag", tag)
+            (root / "body").write_text("Curated notes\n")
+            (root / "runner/nova-release-notes.md").write_text("Curated notes\n")
+            for leaf in managed + [name]:
+                payload = ("fixture bytes for " + leaf).encode()
+                checksum = (hashlib.sha256(payload).hexdigest() + "  " + leaf + "\n").encode()
+                for dest in ("remote", "local"):
+                    (root / dest / leaf).write_bytes(payload)
+                    (root / dest / (leaf + ".sha256")).write_bytes(checksum)
+            payload = (root / "remote" / name).read_bytes()
+            pins = dict(source=source, tree=tree, app_ref="app/com.papi_ux.Nova/aarch64/frame-alpha",
+                        app_commit="1" * 64, runtime_ref="org.kde.Platform/aarch64/6.10", runtime_commit="2" * 64,
+                        size=len(payload), sha256=hashlib.sha256(payload).hexdigest(),
+                        sidecar=(root / "remote" / (name + ".sha256")).read_text())
+            if case.startswith("ordinary") or case == "missing":
+                for leaf in (name, name + ".sha256"): (root / "remote" / leaf).unlink()
+            if case == "draft-pair":
+                for leaf in managed:
+                    for suffix in ("", ".sha256"): (root / "remote" / (leaf + suffix)).unlink()
+            if case == "half": (root / "remote" / (name + ".sha256")).unlink()
+            if case in ("extra", "ordinary-extra"): (root / "remote/unknown.bin").write_bytes(b"unknown")
+            if case == "hash": (root / "remote" / name).write_bytes(b"wrong")
+            if case == "managed-hash": (root / "remote" / managed[0]).write_bytes(b"wrong")
+            if case == "unsafe-checksum": (root / "remote" / (name + ".sha256")).write_text("a" * 64 + "  ../../escape\n")
+            if case == "held": pins["source"] = "PENDING"
+            if case == "tree": pins["tree"] = "0" * 40
+            if case == "runtime-qml":
+                (root / "clients/deck/qml/NovaHud.qml").write_text("unqualified QML\n")
+                git("add", "clients/deck/qml/NovaHud.qml"); git("commit", "-qm", "runtime drift")
+                release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
+            if case == "tag": git("tag", "-f", tag, source)
+            if case == "notes": (root / "body").write_text("different notes\n")
+            if case == "notes-source": (root / "runner/nova-release-notes.md").write_text("stale notes\n")
+            candidate = "".join(lines[:assignment.lineno - 1]) + "FRAME = " + repr(pins) + "\n" + "".join(lines[assignment.end_lineno:])
+            (root / "readback.py").write_text(candidate)
+            gh = 'import json, os\nfrom pathlib import Path\nimport shutil, sys\nr = Path(os.environ["GH_FIXTURE"])\na = sys.argv[1:]\nwith (r / "calls").open("a") as f: f.write(json.dumps(a) + "\\n")\nif a[:2] == ["release", "view"] and a[a.index("--json") + 1] == "assets":\n    print(json.dumps({"assets":[{"name":p.name} for p in (r / "remote").iterdir()]}))\nelif a[:2] == ["release", "view"] and a[a.index("--json") + 1] == "body":\n    print((r / "body").read_text(), end="")\nelif a[:2] == ["release", "download"]:\n    shutil.copyfile(r / "remote" / a[a.index("--pattern") + 1], Path(a[a.index("--dir") + 1]) / a[a.index("--pattern") + 1])\nelse:\n    raise SystemExit("Unexpected/mutating gh command")\n'
+            wrapper = 'import os, sys\nif sys.argv[1] == "fetch": sys.exit(0) # no transport in this pure fixture\nos.execv(os.environ["REAL_GIT"], ["git"] + sys.argv[1:])\n'
+            for leaf, body in (("gh", gh), ("git", wrapper)):
+                p = root / "bin" / leaf; p.write_text("#!" + sys.executable + "\n" + body); p.chmod(0o700)
+            env.update(PATH=str(root / "bin") + os.pathsep + env["PATH"], GITHUB_REF_NAME=tag,
+                       EXPECTED_SOURCE_COMMIT=release, NOVA_ASSET_PREFIX="Nova-Beta-Android",
+                       RUNNER_TEMP=str(root / "runner"), APK_ASSET_DIR=str(root / "local"))
+            before = {p.name:p.read_bytes() for p in (root / "remote").iterdir()}
+            result = subprocess.run([sys.executable, str(root / "readback.py"), phase], cwd=root, env=env,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(succeeds, result.returncode == 0, case + ": " + result.stdout)
+            self.assertEqual(before, {p.name:p.read_bytes() for p in (root / "remote").iterdir()})
+            calls = [json.loads(line) for line in (root / "calls").read_text().splitlines()] if (root / "calls").exists() else []
+            self.assertTrue(all(a[:2] in (["release", "view"], ["release", "download"]) for a in calls))
+            if case in ("held", "tree", "runtime-qml"): self.assertEqual([], calls)
+            print(case + ": expected " + ("PASS" if succeeds else "REFUSE"), flush=True)
+
+    def test_changed_release_boundaries(self):
+        for case, phase, succeeds in (
+                ("ordinary-eight", "final", True), ("draft-pair", "preflight", True),
+                ("final-ten", "final", True), ("rerun-ten", "preflight", True),
+                ("missing", "preflight", False), ("half", "preflight", False),
+                ("hash", "preflight", False), ("unsafe-checksum", "preflight", False),
+                ("extra", "preflight", False), ("ordinary-extra", "final", False),
+                ("runtime-qml", "preflight", False), ("tree", "preflight", False),
+                ("tag", "final", False), ("notes", "final", False), ("notes-source", "final", False),
+                ("held", "preflight", False), ("managed-hash", "final", False)):
+            with self.subTest(case=case): self.exercise(case, phase, succeeds)
+
+unittest.main(failfast=True)
+""".trimIndent()) }
+            val result = ProcessBuilder("python3", controls.path, candidate.path)
+                .redirectErrorStream(true).start()
+            val output = result.inputStream.bufferedReader().readText()
+            assertTrue(output, result.waitFor() == 0)
+        } finally {
+            temp.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun publicSurfaceAllowsOnlyExplicitSyntheticRedactionPaths() {
+        val temp = java.nio.file.Files.createTempDirectory("nova-surface-check-").toFile()
+        try {
+            val controls = File(temp, "controls.py").apply { writeText("""
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+checker = Path(sys.argv[1]).read_bytes()
+home = "/" + "home/"
+known = "app/src/test/java/com/papi/nova/diagnostics/NovaMomentLogTest.kt"
+for case, extra, succeeds in (
+        ("synthetic", {}, True),
+        ("other-home-inside", {known:home + "nonallowed/Documents"}, False),
+        ("synthetic-home-outside", {"other.txt":home + "redaction-fixture/Documents"}, False),
+        ("tracked-secret", {"signing.properties":"fixture only"}, False),
+        ("other-marker-inside", {known:home + "redaction-fixture/Documents project " + "memory anchor"}, False)):
+    with tempfile.TemporaryDirectory(prefix="nova-surface-") as tmp:
+        root = Path(tmp)
+        files = {
+            "scripts/check-public-surface.sh":checker,
+            known:(home + "redaction-fixture/Documents and /" + "Users/redaction-fixture/Library").encode(),
+            "clients/deck/tests/deck_moment_report_test.cpp":('"' + home + 'private"').encode(),
+            "clients/deck/tests/deck_working_baseline_test.cpp":('"' + home + 'private"').encode(),
+        }
+        files.update({name:body.encode() for name, body in extra.items()})
+        for name, body in files.items():
+            p = root / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(body)
+        env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_ALLOW_PROTOCOL="")
+        subprocess.run(["git", "init", "-q"], cwd=root, env=env, check=True)
+        subprocess.run(["git", "add", "."], cwd=root, env=env, check=True)
+        r = subprocess.run(["/bin/bash", "scripts/check-public-surface.sh"], cwd=root, env=env,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        assert succeeds == (r.returncode == 0), case + ": " + r.stdout
+        print(case + ": expected " + ("PASS" if succeeds else "REFUSE"))
+""".trimIndent()) }
+            val result = ProcessBuilder("python3", controls.path,
+                File(repoRoot(), "scripts/check-public-surface.sh").path)
+                .redirectErrorStream(true).start()
+            val output = result.inputStream.bufferedReader().readText()
+            assertTrue(output, result.waitFor() == 0)
+        } finally {
+            temp.deleteRecursively()
+        }
     }
 }

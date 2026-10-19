@@ -271,6 +271,8 @@ jobs:
         with:
           ref: ${{ github.sha }}
           submodules: recursive
+          # Required qualified Frame source must be a present committed ancestor.
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -521,6 +523,138 @@ jobs:
             exit 1
           fi
 
+      - name: Verify prestaged Frame alpha
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EXPECTED_SOURCE_COMMIT: ${{ needs.verify.outputs.source_commit }}
+        run: |
+          set -euo pipefail
+          # Reuse this exact bounded readback at the final gate; it never mutates a release.
+          cat > "$RUNNER_TEMP/nova-release-readback.py" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+          import tempfile
+
+          # ROOT replaces only this tuple after successor source/package qualification.
+          # PENDING is deliberately invalid: beta.2 cannot fall back to eight assets.
+          FRAME = {
+              "source": "PENDING",
+              "tree": "PENDING",
+              "app_ref": "app/com.papi_ux.Nova/aarch64/frame-alpha",
+              "app_commit": "PENDING",
+              "runtime_ref": "org.kde.Platform/aarch64/6.10",
+              "runtime_commit": "PENDING",
+              "size": "PENDING",
+              "sha256": "PENDING",
+              "sidecar": "PENDING",
+          }
+          FRAME_NAME = "Nova-Linux-aarch64-frame-alpha.flatpak"
+          RELEASE_ONLY = {
+              ".github/workflows/build.yml",
+              "app/src/test/java/com/papi/nova/NovaReleaseMetadataTest.kt",
+              "app/src/test/java/com/papi/nova/ui/NovaComposeBuildConfigurationTest.kt",
+              "app/src/test/java/com/papi/nova/diagnostics/NovaMomentLogTest.kt",
+              "scripts/check-public-docs.sh",
+              "scripts/check-public-surface.sh",
+          }
+
+          def output(*argv):
+              return subprocess.check_output(argv, text=True).rstrip("\n")
+
+          def require(ok, message):
+              if not ok:
+                  raise SystemExit(message)
+
+          def identity():
+              for key, length in (("source", 40), ("tree", 40), ("app_commit", 64),
+                                  ("runtime_commit", 64), ("sha256", 64)):
+                  require(re.fullmatch("[0-9a-f]{" + str(length) + "}", FRAME[key]),
+                          "Unqualified/PENDING Frame pin: " + key)
+              require(type(FRAME["size"]) is int and FRAME["size"] > 0, "PENDING Frame size")
+              require(FRAME["app_ref"] == "app/com.papi_ux.Nova/aarch64/frame-alpha" and
+                      FRAME["runtime_ref"] == "org.kde.Platform/aarch64/6.10", "Wrong Frame refs")
+              require(FRAME["sidecar"] == FRAME["sha256"] + "  " + FRAME_NAME + "\n",
+                      "Frame sidecar pin must be canonical")
+              require(output("git", "cat-file", "-t", FRAME["source"]) == "commit", "Frame source missing")
+              require(output("git", "rev-parse", FRAME["source"] + "^{tree}") == FRAME["tree"],
+                      "Frame source tree mismatch")
+              subprocess.run(["git", "merge-base", "--is-ancestor", FRAME["source"], source], check=True)
+              changed = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z",
+                                                 FRAME["source"], source]).decode().split("\0")
+              require(set(changed) - {""} <= RELEASE_ONLY, "Runtime/source inputs changed after Frame qualification")
+
+          def digest(path):
+              require(path.is_file() and not path.is_symlink(), "Not an ordinary asset: " + str(path))
+              h = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      h.update(block)
+              return path.stat().st_size, h.hexdigest()
+
+          mode = sys.argv[1]
+          require(mode in ("preflight", "final"), "Unknown release readback phase")
+          tag = os.environ["GITHUB_REF_NAME"]
+          source = os.environ["EXPECTED_SOURCE_COMMIT"]
+          selected = tag == "v1.5.0-beta.2"
+          require(output("git", "rev-parse", "HEAD") == source, "Release checkout changed")
+          managed = [os.environ["NOVA_ASSET_PREFIX"] + "-" + abi + ".apk"
+                     for abi in ("arm64-v8a", "armeabi-v7a", "x86_64")]
+          managed.append("Nova-Linux-x86_64-alpha.flatpak")
+          pair = {FRAME_NAME, FRAME_NAME + ".sha256"} if selected else set()
+          expected = {name + suffix for name in managed for suffix in ("", ".sha256")} | pair
+          if selected:
+              identity()
+          # Ordinary tags keep their existing create path and exact-eight final check.
+          if mode == "preflight" and not selected:
+              sys.exit(0)
+          assets = json.loads(output("gh", "release", "view", tag, "--json", "assets"))["assets"]
+          names = [asset["name"] for asset in assets]
+          require(len(names) == len(set(names)), "Duplicate release asset name")
+          require(set(names) <= expected, "Unknown remote release asset")
+          require(pair <= set(names), "Missing/partial required Frame pair")
+          if mode == "final":
+              require(set(names) == expected, "Final release must contain exactly eight/ten assets")
+          with tempfile.TemporaryDirectory(prefix="nova-release-" + mode + "-", dir=os.environ["RUNNER_TEMP"]) as tmp:
+              readback = Path(tmp)
+              binaries = managed + ([FRAME_NAME] if selected else []) if mode == "final" else [FRAME_NAME]
+              for name in binaries:
+                  for leaf in (name, name + ".sha256"):
+                      subprocess.run(["gh", "release", "download", tag, "--pattern", leaf, "--dir", tmp], check=True)
+                  if name == FRAME_NAME:
+                      size, sha = FRAME["size"], FRAME["sha256"]
+                      canonical = FRAME["sidecar"].encode()
+                  else:
+                      local = Path(os.environ["APK_ASSET_DIR"])
+                      size, sha = digest(local / name)
+                      canonical = (sha + "  " + name + "\n").encode()
+                      require((local / (name + ".sha256")).read_bytes() == canonical, "Unsafe local checksum")
+                  require(digest(readback / name) == (size, sha), "Downloaded binary size/hash mismatch: " + name)
+                  sidecar = readback / (name + ".sha256")
+                  require(sidecar.is_file() and not sidecar.is_symlink() and sidecar.stat().st_size == len(canonical),
+                          "Invalid checksum file")
+                  require(sidecar.read_bytes() == canonical, "Unsafe/noncanonical checksum: " + name)
+          if mode == "final":
+              # Refresh the actual tag after readback; publication still uses --verify-tag.
+              subprocess.run(["git", "fetch", "--no-tags", "--force", "origin",
+                              "refs/tags/" + tag + ":refs/tags/" + tag], check=True)
+              require(output("git", "rev-parse", "refs/tags/" + tag + "^{commit}") == source,
+                      "Release tag changed before publication")
+              expected_notes = (Path(os.environ["RUNNER_TEMP"]) / "nova-release-notes.md").read_text().rstrip("\n")
+              require(output("python3", "scripts/extract_release_notes.py", tag) == expected_notes,
+                      "Curated notes changed after staging")
+              require(output("gh", "release", "view", tag, "--json", "body", "--jq", ".body") == expected_notes,
+                      "Published release notes do not match CHANGELOG.md")
+          print("Pinned release " + mode + " verified")
+          PY
+          python3 "$RUNNER_TEMP/nova-release-readback.py" preflight
+
       - name: Stage curated GitHub release
         id: stage-release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -627,6 +761,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          EXPECTED_SOURCE_COMMIT: ${{ needs.verify.outputs.source_commit }}
         run: |
           set -euo pipefail
 
@@ -640,16 +775,21 @@ jobs:
             Nova-Linux-x86_64-alpha.flatpak
             Nova-Linux-x86_64-alpha.flatpak.sha256
           )
+          if [ "$GITHUB_REF_NAME" = v1.5.0-beta.2 ]; then
+            expected_assets+=(Nova-Linux-aarch64-frame-alpha.flatpak Nova-Linux-aarch64-frame-alpha.flatpak.sha256)
+          fi
           mapfile -t published_assets < <(
             gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | sort
           )
           mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
           if [ "${published_assets[*]}" != "${expected_assets[*]}" ]; then
-            echo "Release assets do not match the exact eight-file contract on ${GITHUB_REF_NAME}" >&2
+            echo "Release assets do not match the exact final eight/ten-file contract on ${GITHUB_REF_NAME}" >&2
             printf 'expected: %s\n' "${expected_assets[*]}" >&2
             printf 'published: %s\n' "${published_assets[*]}" >&2
             exit 1
           fi
+
+          python3 "$RUNNER_TEMP/nova-release-readback.py" final
 
       - name: Publish verified draft release
         if: startsWith(github.ref, 'refs/tags/v') && steps.stage-release.outputs.publish_draft == 'true'

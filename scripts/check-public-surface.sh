@@ -30,7 +30,26 @@ if [[ -n "$path_hits" ]]; then
 fi
 
 content_hits="$(
-  git grep -nIE '(agent handoff|project memory anchor|VS Code sessions|/home/[^/[:space:]]+|/Users/[^/[:space:]]+|tinyurl\.com)' -- . ':(exclude)scripts/check-public-surface.sh' || true
+  (git grep -nIE '(agent handoff|project memory anchor|VS Code sessions|/home/[^/[:space:]]+|/Users/[^/[:space:]]+|tinyurl\.com)' -- . ':(exclude)scripts/check-public-surface.sh' || true) |
+    python3 -c '
+import re
+import sys
+
+# Only these intentional redaction inputs are synthetic; inspect the rest of
+# each matching line normally, including other home paths and private markers.
+allowed = {
+    "app/src/test/java/com/papi/nova/diagnostics/NovaMomentLogTest.kt": r"/(?:home|Users)/redaction-fixture/",
+    "clients/deck/tests/deck_moment_report_test.cpp": r"/home/private(?=[\"\x27\s])",
+    "clients/deck/tests/deck_working_baseline_test.cpp": r"/home/private(?=[\"\x27\s])",
+}
+private = re.compile(r"agent handoff|project memory anchor|VS Code sessions|/home/[^/\s]+|/Users/[^/\s]+|tinyurl\.com")
+for line in sys.stdin:
+    path, _, body = line.rstrip("\n").split(":", 2)
+    if path in allowed:
+        body = re.sub(allowed[path], "", body)
+    if private.search(body):
+        print(line, end="")
+'
 )"
 if [[ -n "$content_hits" ]]; then
   echo "Suspicious private or maintainer-only strings detected in tracked files:" >&2

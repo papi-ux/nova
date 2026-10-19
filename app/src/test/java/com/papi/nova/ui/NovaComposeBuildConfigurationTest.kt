@@ -279,8 +279,10 @@ class NovaComposeBuildConfigurationTest {
             workflow.contains("\${NOVA_ASSET_PREFIX}-armeabi-v7a.apk")
         )
         assertTrue(
-            "tag release verification should require exact equality with three APKs, one Linux bundle and a checksum for each",
-            workflow.contains("Release assets do not match the exact eight-file contract") &&
+            "tag release verification keeps managed eight and requires the selected Frame pair for final ten",
+            workflow.contains("Local release assets do not match the exact eight-file contract") &&
+                workflow.contains("Release assets do not match the exact final eight/ten-file contract") &&
+                workflow.contains("expected_assets+=(Nova-Linux-aarch64-frame-alpha.flatpak Nova-Linux-aarch64-frame-alpha.flatpak.sha256)") &&
                 workflow.contains("\${published_assets[*]}") &&
                 workflow.contains("\${expected_assets[*]}")
         )

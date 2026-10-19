@@ -108,6 +108,7 @@ from pathlib import Path
 workflow = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
 steps = (
     "Verify release tag matches built source",
+    "Verify prestaged Frame alpha",
     "Stage curated GitHub release",
     "Upload GitHub Release assets",
     "Verify GitHub Release assets",
@@ -124,8 +125,8 @@ checkout_steps = workflow.count("- uses: actions/checkout@")
 if checkout_steps == 0 or workflow.count("ref: ${{ github.sha }}") != checkout_steps:
     raise SystemExit("Every Nova build lane must check out the exact event source")
 
-stage_start = positions[1]
-upload_start = positions[2]
+stage_start = positions[2]
+upload_start = positions[3]
 stage = workflow[stage_start:upload_start]
 if stage.count("--verify-tag") != 2 or "gh release upload" in stage:
     raise SystemExit("Release create and edit must verify the tag before any asset upload")
@@ -147,11 +148,21 @@ expected_assets = (
     "Nova-Linux-x86_64-alpha.flatpak",
     "Nova-Linux-x86_64-alpha.flatpak.sha256",
 )
-verify = workflow[positions[3]:positions[4]]
+verify = workflow[positions[4]:positions[5]]
 verify_lines = [line.strip() for line in verify.splitlines()]
 for asset in expected_assets:
     if verify_lines.count(asset) != 1:
         raise SystemExit(f"Release verification must name {asset} exactly once")
+
+preflight = workflow[positions[1]:positions[2]]
+if 'python3 "$RUNNER_TEMP/nova-release-readback.py" preflight' not in preflight:
+    raise SystemExit("Pinned Frame pair must be checked before redrafting")
+if 'python3 "$RUNNER_TEMP/nova-release-readback.py" final' not in verify:
+    raise SystemExit("Final binary/checksum/tag/notes readback is required")
+if 'expected_assets+=(Nova-Linux-aarch64-frame-alpha.flatpak Nova-Linux-aarch64-frame-alpha.flatpak.sha256)' not in verify:
+    raise SystemExit("Selected Frame beta requires the explicit pair in final ten")
+if 'selected = tag == "v1.5.0-beta.2"' not in preflight:
+    raise SystemExit("Frame selection must be committed and tag-specific")
 PY
 python3 scripts/test_extract_release_notes.py
 grep -Fq "\${NOVA_ASSET_PREFIX}-\${abi}.apk" .github/workflows/build.yml
