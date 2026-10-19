@@ -545,15 +545,15 @@ jobs:
           # ROOT replaces only this tuple after successor source/package qualification.
           # PENDING is deliberately invalid: beta.2 cannot fall back to eight assets.
           FRAME = {
-              "source": "PENDING",
-              "tree": "PENDING",
+              "source": "83f60c0652549a08a8a4cd64548a1d6ff18a2d29",
+              "tree": "df047be261ac79cdec4d062ba854488f12684046",
               "app_ref": "app/com.papi_ux.Nova/aarch64/frame-alpha",
-              "app_commit": "PENDING",
+              "app_commit": "9a034cb7ad8eb3ee56b6acaceb4264c4c33f1607faaa3a7949223cdf65317606",
               "runtime_ref": "org.kde.Platform/aarch64/6.10",
-              "runtime_commit": "PENDING",
-              "size": "PENDING",
-              "sha256": "PENDING",
-              "sidecar": "PENDING",
+              "runtime_commit": "cb026317831ec841a6b0f6d9808805891bad06fbac5b16d14546a7ce7a0ef1bb",
+              "size": 10316400,
+              "sha256": "299bdf626acf530671ab3e03f6aeb21fefcafc5270dc4d4b81d14fbc9d7a6c6f",
+              "sidecar": "299bdf626acf530671ab3e03f6aeb21fefcafc5270dc4d4b81d14fbc9d7a6c6f  Nova-Linux-aarch64-frame-alpha.flatpak\n",
           }
           FRAME_NAME = "Nova-Linux-aarch64-frame-alpha.flatpak"
           RELEASE_ONLY = {
