@@ -96,11 +96,13 @@ The Linux interface gets the same attention as the Android one: a quieter Librar
 - PipeWire audio recovery no longer occasionally hangs during disconnect when the audio service disappears. Stereo, 5.1 and 7.1 keep the same recovery and shutdown deadlines.
 - End Session distinguishes the PC accepting the request from verified game shutdown. A failed update check keeps Retry available and uses the production feed address; a bundle without a configured signed channel still gives installation guidance.
 
-**Steam Frame: experimental groundwork**
+**Steam Frame: experimental alpha**
 
 - The ARM64 development route adds a pinned FFmpeg provider and hardware H.264/HEVC decoding through Frame's Qualcomm V4L2 interface, with bounded frame ownership and Vulkan presentation. It refuses compressed capture layouts it cannot safely read.
 - Startup and Play Setup use the same backend discovery, so a qualified decoder does not appear unavailable merely because the device lacks VA-API. PyroWave keeps its separate Vulkan and DMA-BUF checks.
-- Real Frame streams have produced pictures with all three codecs, but this is still experimental development work. The sustained 1080p at 90 fps target, color and clarity checks are incomplete. Immersive XR and HDR are separate work; this does not announce Steam Frame Verified support or a public ARM64 download.
+- `Nova-Linux-aarch64-frame-alpha.flatpak` is a separate experimental alpha for Steam Frame, published with this release beside its checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`. It installs into its own Flatpak installation with its own pairing and settings. The [Steam Frame guide](https://github.com/papi-ux/nova/blob/v1.5.0-beta.2/clients/deck/docs/steam-frame.md#public-alpha) covers install, launch and removal.
+- On a Frame, H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with picture, sound and working controllers. H.264 and HEVC decode through Frame's V4L2 decoder and copy each frame through the CPU; PyroWave decodes with Vulkan and hands frames over as DMA-BUF. That was a short functional check, not a performance result: rates above 60 fps, long sessions, color and clarity are untested. Immersive XR and HDR are separate work, and this is not Steam Frame Verified support.
+- The Frame alpha has no update channel, so a later alpha is a new manual download. The signed Linux update feed carries the x86_64 build only.
 
 **Before you update**
 

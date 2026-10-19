@@ -1,10 +1,80 @@
 # Experimental native Steam Frame route
 
-Beta.1 includes an experimental development route for native 2D streaming on
-Steam Frame. It does not establish a public ARM download or completed Frame
-hardware qualification. The acceptance target is the virtual 1920×1080 SDR
-screen at nominal 90 fps. Per-eye panel specifications do not determine a
-GameStream request. XR and HDR remain outside this route.
+This guide covers native 2D streaming on Steam Frame: the experimental
+[public alpha](#public-alpha) in Nova 1.5.0-beta.2 and the development build.
+Neither establishes completed Frame hardware qualification. The acceptance
+target is the virtual 1920×1080 SDR screen at nominal 90 fps. Per-eye panel
+specifications do not determine a GameStream request. XR and HDR remain outside
+this route.
+
+## Public alpha
+
+Nova 1.5.0-beta.2 attaches `Nova-Linux-aarch64-frame-alpha.flatpak` and its
+checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`, to its release on
+[Nova Releases](https://github.com/papi-ux/nova/releases). It is an experimental
+native ARM64 Flatpak: app `com.papi_ux.Nova`, architecture `aarch64`, branch
+`frame-alpha`. It has no update channel. The signed Linux update feed carries
+the x86_64 build only, so a later alpha is a new manual download.
+
+Install it into its own Flatpak installation. It then cannot replace another
+Nova build or change another installation's current branch. Run these commands
+in a terminal on the Frame, or over SSH, from the download folder:
+
+```sh
+export FLATPAK_USER_DIR="$HOME/.local/share/nova-frame-alpha-flatpak"
+sha256sum -c Nova-Linux-aarch64-frame-alpha.flatpak.sha256
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user --arch=aarch64 flathub org.kde.Platform//6.10
+flatpak install --user --arch=aarch64 --bundle ./Nova-Linux-aarch64-frame-alpha.flatpak
+```
+
+`FLATPAK_USER_DIR` lasts for that terminal only. Set it again before any later
+`flatpak` command for the alpha.
+
+Save this launcher as `~/nova-frame-alpha.sh`, then run
+`chmod +x ~/nova-frame-alpha.sh`. The development launcher in this repository
+selects `frame-dev` and does not start the alpha.
+
+```sh
+#!/bin/sh
+export FLATPAK_USER_DIR="$HOME/.local/share/nova-frame-alpha-flatpak"
+# Flatpak has no video-only permission; --device=all applies to this run only.
+exec flatpak run --user --arch=aarch64 --branch=frame-alpha --device=all \
+    --env=NOVA_DECK_FRAME_V4L2=1 \
+    --command=sh app/com.papi_ux.Nova/aarch64/frame-alpha -c '
+    export XDG_CONFIG_HOME=/var/config/frame-alpha
+    export XDG_DATA_HOME=/var/data/frame-alpha
+    export XDG_CACHE_HOME=/var/cache/frame-alpha
+    export NOVA_DECK_IDENTITY_DIR=/var/config/frame-alpha/nova-deck
+    exec nova-deck --standalone --experimental-vulkan-stream "$@"
+    ' nova-frame-alpha "$@"
+```
+
+Add the launcher to Steam as its own non-Steam entry, separate from any other
+Nova shortcut. Give it a gamepad Steam Input layout and a Game Resolution of
+1920×1080, as described for the development entry below. Pair the alpha with
+your PC, then choose 1920×1080 at 60 fps; the device default is 1280×800.
+
+The alpha keeps its pairing, settings and cache in its own `frame-alpha`
+folders, and other Nova builds on the device keep theirs. All of these share
+the `~/.var/app/com.papi_ux.Nova` data folder, so never uninstall any Nova with
+`--delete-data`.
+
+H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with
+picture, sound and working controllers. That check ran this bundle from its own
+installation with KDE Platform 6.10 commit
+`cb026317831ec841a6b0f6d9808805891bad06fbac5b16d14546a7ce7a0ef1bb`. A fresh
+install of the current Flathub runtime with the commands above has not been
+tested. Rates above 60 fps, long sessions, color and clarity are untested.
+
+To remove the alpha, close Nova and run:
+
+```sh
+export FLATPAK_USER_DIR="$HOME/.local/share/nova-frame-alpha-flatpak"
+flatpak uninstall --user app/com.papi_ux.Nova/aarch64/frame-alpha
+```
+
+Then delete its Steam entry and the launcher.
 
 ## Qualification checkpoint — 2026-10-03
 

@@ -11,7 +11,9 @@ interface changes.
 
 The [Steam Frame development guide](../../docs/steam-frame.md) describes a
 separate experimental ARM64 build and launcher. The x86_64 release filename is
-not an ARM64 download. Frame codec startup and source tests do not establish
+not an ARM64 download; Frame uses the separate
+`Nova-Linux-aarch64-frame-alpha.flatpak`, which these commands do not install.
+Frame codec startup and source tests do not establish
 sustained 1080p/90 playback, color/clarity, HDR or immersive XR acceptance.
 
 Signed channel builds support **Settings → Nova → Nova Updates**, including
