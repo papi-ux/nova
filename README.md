@@ -28,7 +28,7 @@ Polaris, and Moonlight-compatible hosts work too.
 
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
-![Nova on Android showing the game page for Control Ultimate Edition, with hours played, the stream it will ask for, and Play Setup](docs/screenshots/nova-android-game-detail-v1.4.14-beta.1.webp)
+![Nova's page for Control Ultimate Edition on a Retroid Pocket 6, with hours played, the stream it will ask for, and Play Setup](docs/screenshots/beta2/nova-control-detail-aurora.webp)
 
 ## Why Nova
 
@@ -52,11 +52,13 @@ Polaris, and Moonlight-compatible hosts work too.
   without taking it over. [Stream reports](docs/stream-reports.md) save what
   you saw and send nothing unless you share them.
 
+![Nova Play Setup for Control Ultimate Edition, listing what will happen, where it runs, resolution, frame rate and codec before launch](docs/screenshots/beta2/nova-play-setup-aurora.webp)
+
 Polaris Aurora is the default look, with five more themes and
 `< Congratulations, Director >` in the 1.5.0 beta. Browse them in the
 [theme gallery](https://papi-ux.com/nova/#themes).
 
-![Nova Play Setup for Control Ultimate Edition, reviewing Private Stream, resolution, frame rate and codec before launch](docs/screenshots/nova-android-play-setup-v1.4.14-beta.1.webp)
+![The same Nova game page in the < Congratulations, Director > theme: charcoal, warm white and red](docs/screenshots/beta2/nova-control-detail-director.webp)
 
 ## Get started
 
@@ -109,7 +111,7 @@ Nova Beta beside it, with their own app data. See
 - [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
 - [Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) · [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md) · [Source](https://github.com/papi-ux/nova)
 
-Screenshot sources: [these README captures](docs/screenshots/beta1-readme-provenance.json)
+Screenshot sources: [these 1.5.0-beta.2 captures](docs/screenshots/beta2/provenance.json)
 and [the website gallery](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json).
 
 ## Acknowledgments
