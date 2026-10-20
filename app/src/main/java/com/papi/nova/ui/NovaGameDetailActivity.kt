@@ -594,6 +594,8 @@ class NovaGameDetailActivity : NovaActivity() {
     private fun unregisterNetworkChangeCallback() {
         val callback = networkChangeCallback ?: return
         networkChangeCallback = null
+        // Only the Android 7.0 path above registers a callback; the same check here states that for lint.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N) return
         runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(callback) }
     }
 
