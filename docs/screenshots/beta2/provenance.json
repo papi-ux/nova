@@ -1,0 +1,51 @@
+{
+  "version": "1.5.0-beta.2",
+  "capturedDate": "2026-10-20",
+  "images": [
+    {
+      "file": "nova-control-detail-aurora.webp",
+      "width": 1920,
+      "height": 1080,
+      "theme": "polaris",
+      "capturedAt": "2026-10-20T13:24:51.819711+00:00",
+      "sha256": "100ad411e1874e3ee3b035ced407436fd0476e395448455c07538aa1a1b37765",
+      "bytes": 149174,
+      "originalPNGsha256": "c70bc046f9c367ee1991502f74e85b0d64cd8e48d77367150f1a05c08f3f77a7",
+      "encoding": "WebP quality90, original dimensions, no crop or compositing",
+      "capture": "Actual Retroid Pocket 6 Android interface; no stream launched for this capture.",
+      "package": "com.papi.nova.debug",
+      "versionName": "1.5.0",
+      "APKsha256": "a1e5153d97ea50059fcefb7de7b589c4bfb11e06248cf09bcd2ef335aefe8796"
+    },
+    {
+      "file": "nova-play-setup-aurora.webp",
+      "width": 1920,
+      "height": 1080,
+      "theme": "polaris",
+      "capturedAt": "2026-10-20T13:25:29.188202+00:00",
+      "sha256": "cf0e577a693de1a5b19859799ec0c67a5795b6652cba349313099873a20a0314",
+      "bytes": 79606,
+      "originalPNGsha256": "6d8f32e0a6b936fdb4880f1806048d8c78bf61a4b7e74717084bbb0c2e20d743",
+      "encoding": "WebP quality90, original dimensions, no crop or compositing",
+      "capture": "Actual Retroid Pocket 6 Android interface; no stream launched for this capture.",
+      "package": "com.papi.nova.debug",
+      "versionName": "1.5.0",
+      "APKsha256": "a1e5153d97ea50059fcefb7de7b589c4bfb11e06248cf09bcd2ef335aefe8796"
+    },
+    {
+      "file": "nova-control-detail-director.webp",
+      "width": 1920,
+      "height": 1080,
+      "theme": "director",
+      "capturedAt": "2026-10-20T13:33:33.833193+00:00",
+      "sha256": "239da45dbc04576fba71438ef0f661e9d3e66cf1859372c895f2574e6d371d7e",
+      "bytes": 149840,
+      "originalPNGsha256": "551f74d1d458f62ff3a58657919fb8d63ac03588af9a45266bf4f829adcfbac4",
+      "encoding": "WebP quality90, original dimensions, no crop or compositing",
+      "capture": "Actual Retroid Pocket 6 Android interface; no stream launched for this capture.",
+      "package": "com.papi.nova.debug",
+      "versionName": "1.5.0",
+      "APKsha256": "a1e5153d97ea50059fcefb7de7b589c4bfb11e06248cf09bcd2ef335aefe8796"
+    }
+  ]
+}
