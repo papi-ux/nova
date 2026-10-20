@@ -10,10 +10,10 @@
 **Your PC games, in your hands.**
 
 Nova plays games from your PC on Android handhelds, phones, tablets and TVs.
-Browse your library with a controller, see how a game will launch before it
-starts, and keep the stream's controls a shortcut away. It's at its best with
-Polaris on a Linux PC, and other Moonlight-compatible hosts work too. Native
-Linux and Steam Deck builds are in alpha.
+Browse your library like a console, see exactly how a game will launch before
+it starts, and keep the stream's controls a shortcut away. It's at its best
+with Polaris on a Linux PC, and other Moonlight-compatible hosts work too.
+Native Linux and Steam Deck builds are in alpha.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1f1d31)](https://github.com/papi-ux/nova/stargazers)
 [![Matrix](https://img.shields.io/badge/Matrix-Join_chat-0dbd8b?style=for-the-badge&logo=matrix&logoColor=white&labelColor=1f1d31)](https://matrix.to/#/#papi-ux:papi-ux.com)
@@ -29,37 +29,65 @@ Linux and Steam Deck builds are in alpha.
 
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
-![Nova on a Retroid Pocket 6 showing Control Ultimate Edition: hours played, the stream it will ask for (1920×1080 at 120 FPS, SDR) and Launch, Play Setup and Clear Game Profile](docs/screenshots/beta2/nova-control-detail-aurora.webp)
+![Nova on a Retroid Pocket 6 showing Control Ultimate Edition: hours played, the stream it will ask for (1920×1080 at 120 FPS, 30 Mbps, SDR) and Launch, Play Setup and Clear Game Profile](docs/screenshots/beta2/nova-control-detail-aurora.webp)
 
-## Why Nova
+<sub>A game page on a handheld: your play time, the stream Nova will ask for,
+and everything you need before you press Launch.</sub>
+
+## What Nova does
+
+Nova is a free, open-source game-streaming client made for the device in your
+hands. It pairs with the PC where your games live, puts that library on your
+screen, and stays out of the way while you play.
+
+### Browse and launch
 
 - **A library that feels like a console.** Your host's games appear with their
   cover art, ready to browse with a controller, touch or keyboard. Stage,
   Regular and Compact layouts fit a TV across the room or a handheld in your
   lap, and text and control sizes adjust separately.
 - **Know before you press play.** Play Setup shows where the game will run, its
-  resolution, frame rate and codec, before anything starts. A choice for one
-  session leaves your host's defaults alone, and its advice is a starting
+  resolution, frame rate, codec and HDR, before anything starts. A choice for
+  one session leaves your host's defaults alone, and its advice is a starting
   point, not a promise about your network.
+- **Make the library yours.** Wake a sleeping PC with Wake-on-LAN, pin a
+  favorite game to your Android home screen and, with Polaris, fix its artwork
+  in Artwork Studio.
+
+![Nova Play Setup for Control: what will happen (Private Stream at 1920×1080 and 120 FPS), where it runs, resolution, frame rate, codec, face buttons, launch preset and what Steam does after End Session](docs/screenshots/beta2/nova-play-setup-aurora.webp)
+
+<sub>Play Setup: every choice for this launch on one screen, for this game or
+every game.</sub>
+
+### While you play
+
+- **A sharp, smooth picture.** Nova streams H.264, HEVC or AV1, with HDR and
+  90 or 120 Hz where your device and host support them.
 - **Controls a shortcut away.** Command Center brings tuning, Doctor's advice,
   the NovaHUD stream readout, input helpers and Steam controls over the running
   game. Press Guide + Start to open it and Close to get straight back to play.
-- **It understands your host.** With Polaris, Nova knows the launch choices your
-  PC offers, who owns a session and what Doctor found. Any Moonlight-compatible
-  host still gets pairing, browsing, Wake-on-LAN, launch and streaming. Steam
-  controls and the Android Tailscale readout need Polaris 1.5.0-beta.2 or newer.
-- **Leave on your terms.** Disconnect keeps the game running for later. End
-  Session asks before stopping the game you started, and Watch joins a stream
-  without taking it over. [Stream reports](docs/stream-reports.md) save what
-  you saw and send nothing unless you share them.
+- **Leave on your terms.** Disconnect keeps the game running so you can resume
+  later. End Session asks before stopping the game you started, and Watch
+  joins someone else's stream without taking it over.
+- **Your evidence stays with you.** When something looks off,
+  [stream reports](docs/stream-reports.md) keep what you saw on your device and
+  send nothing unless you share them.
 
-![Nova Play Setup for Control: Private Stream, where it runs, resolution, frame rate, codec and what Steam does after End Session](docs/screenshots/beta2/nova-play-setup-aurora.webp)
+### With Polaris, and with other hosts
 
-Polaris Aurora is the default look, with five more themes to choose from.
-1.5.0-beta.2 adds a seventh, `< Congratulations, Director >`: charcoal, warm
-white and red. See them in the [theme gallery](https://papi-ux.com/nova/#themes).
+- **It understands your host.** With Polaris, Nova knows the launch choices
+  your PC offers, from Private Stream to Mirror Desktop, who owns a session,
+  what Doctor found and which launch defaults the host keeps. On Android, Host
+  Console opens the Polaris console right inside Nova. Any Moonlight-compatible
+  host still gets pairing, browsing, Wake-on-LAN, launch and streaming.
+- **Settings that follow the network.** On Android, per-PC rules can pick one
+  of your saved Settings Profiles by Wi-Fi, Ethernet, cellular, metered or VPN
+  connection, and Play Setup can tell you whether your link to the PC runs
+  over Tailscale. [Connection facts and profiles](docs/network-profiles.md)
+  explains how.
 
-![The same Nova game page in the < Congratulations, Director > theme: charcoal, warm white and red](docs/screenshots/beta2/nova-control-detail-director.webp)
+Nova comes in a choice of themes, with Polaris Aurora as the default; see
+them in the [theme gallery](https://papi-ux.com/nova/#themes).
 
 ## Get started
 
@@ -97,17 +125,22 @@ its own pairing and preferences; see
   [compatibility guide](https://papi-ux.com/docs/nova/compatibility/).
 - **This page follows the source**, which can be ahead of the newest release.
   Install only files attached to a published release.
-- **Experimental and off by default:** PyroWave on Linux and Steam Frame and in
-  Nova Beta for Android, plus SGSR 1 upscaling for PyroWave SDR streams in Nova
-  Beta for Android. In one short Control test on a Retroid Pocket 6, 720p
-  looked good with or without SGSR 1, with no noticeable difference, and native
-  1080p looked nicer. That's one look at one scene, not a measurement; the
-  [PyroWave guide](https://papi-ux.com/docs/pyrowave-beta/#optional-sgsr-1-upscaling-on-android)
-  has the details.
+- **Where each feature works.** Steam controls and the Tailscale readout need
+  Polaris 1.5.0-beta.2 or newer; an older host says so instead. The Tailscale
+  readout, per-PC profile rules and the Last Stream card are Android only for
+  now.
 - **Alpha is maturity, not a channel.** The Linux and Steam Deck build ships in
-  stable and beta releases; its wider desktop interface is in 1.5.0-beta.2.
-  Steam is optional for ordinary Linux use, and the Frame alpha is not Steam
-  Frame Verified.
+  stable and beta releases; its wider desktop interface is in 1.5.0-beta.2, and
+  the [Linux guide](https://papi-ux.com/docs/nova/linux/) covers installing
+  and using it. Steam is optional for ordinary Linux use. The Steam Frame alpha
+  is experimental and not Steam Frame Verified.
+- **Experiments to try when you want them.** PyroWave is an experimental codec
+  that trades bandwidth for very fast decoding on a fast local network. It's
+  off by default on Linux and Steam Frame and in Nova Beta for Android. Nova
+  Beta for Android also offers SGSR 1 upscaling, off by default, which
+  sharpens edges when a PyroWave SDR stream is smaller than your screen. The
+  [PyroWave guide](https://papi-ux.com/docs/pyrowave-beta/) explains when each
+  is worth trying.
 
 ## Learn more
 
