@@ -72,7 +72,7 @@ Smaller text does not have to mean smaller buttons. Nova now lets you choose the
 - Text size and bitrate have small-step buttons alongside touch adjustment and exact entry. The opened editor keeps changes as a draft until Save; Back leaves the saved value alone.
 - Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen. Settings can hide its supporting menu when the rows need more room.
 - Settings, pickers, sheets and Command Center use consistent focus and Back behavior. The Mouse Mode picker takes D-pad focus, and End Session confirmation opens with a focused action.
-- Android and Linux add `< Congratulations, Director >`: charcoal surfaces, warm white text, and red for focus and selection. It is a separate theme, so your current choice stays intact, and Polaris Aurora stays the default.
+- Android and Linux add `< Congratulations, Director >` as a separate theme, so your current choice stays intact. Polaris Aurora stays the default.
 - Changing themes from Home no longer leaves Nova unresponsive on affected Android handhelds.
 
 **From beta.1: Play Setup knows the device**
