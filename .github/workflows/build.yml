@@ -558,6 +558,7 @@ jobs:
           FRAME_NAME = "Nova-Linux-aarch64-frame-alpha.flatpak"
           RELEASE_ONLY = {
               ".github/workflows/build.yml",
+              "CHANGELOG.md",
               "app/src/test/java/com/papi/nova/NovaReleaseMetadataTest.kt",
               "app/src/test/java/com/papi/nova/ui/NovaComposeBuildConfigurationTest.kt",
               "app/src/test/java/com/papi/nova/diagnostics/NovaMomentLogTest.kt",
