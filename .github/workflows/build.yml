@@ -562,6 +562,7 @@ jobs:
               "app/src/test/java/com/papi/nova/NovaReleaseMetadataTest.kt",
               "app/src/test/java/com/papi/nova/ui/NovaComposeBuildConfigurationTest.kt",
               "app/src/test/java/com/papi/nova/diagnostics/NovaMomentLogTest.kt",
+              "clients/deck/tests/deck_library_navigation_test.py",
               "scripts/check-public-docs.sh",
               "scripts/check-public-surface.sh",
           }

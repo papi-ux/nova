@@ -576,7 +576,7 @@ class ReleaseReadback(unittest.TestCase):
     def exercise(self, case, phase, succeeds):
         with tempfile.TemporaryDirectory(prefix="nova-release-contract-") as tmp:
             root = Path(tmp)
-            for d in ("bin", "remote", "local", "runner", "scripts", "clients/deck/qml", ".github/workflows"):
+            for d in ("bin", "remote", "local", "runner", "scripts", "clients/deck/qml", "clients/deck/tests", ".github/workflows"):
                 (root / d).mkdir(parents=True, exist_ok=True)
             env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                        GIT_ALLOW_PROTOCOL="", GIT_AUTHOR_NAME="Fixture", GIT_AUTHOR_EMAIL="fixture@example.com",
@@ -587,6 +587,7 @@ class ReleaseReadback(unittest.TestCase):
             git("init", "-q")
             (root / "scripts/extract_release_notes.py").write_text('print("Curated notes")\n')
             (root / "clients/deck/qml/NovaHud.qml").write_text("qualified QML\n")
+            (root / "clients/deck/tests/deck_library_navigation_test.py").write_text("qualified test fixture\n")
             (root / "CHANGELOG.md").write_text("qualified notes\n")
             (root / ".github/workflows/build.yml").write_text("old release-only metadata\n")
             git("add", "."); git("commit", "-qm", "qualified source")
@@ -629,6 +630,10 @@ class ReleaseReadback(unittest.TestCase):
                 (root / "CHANGELOG.md").write_text("corrected notes\n")
                 git("add", "CHANGELOG.md"); git("commit", "-qm", "release notes correction")
                 release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
+            if case == "allowed-test-change":
+                (root / "clients/deck/tests/deck_library_navigation_test.py").write_text("diagnostic-only test fixture\n")
+                git("add", "clients/deck/tests/deck_library_navigation_test.py"); git("commit", "-qm", "test diagnostic correction")
+                release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
             if case == "tag": git("tag", "-f", tag, source)
             if case == "notes": (root / "body").write_text("different notes\n")
             if case == "notes-source": (root / "runner/nova-release-notes.md").write_text("stale notes\n")
@@ -659,6 +664,7 @@ class ReleaseReadback(unittest.TestCase):
                 ("hash", "preflight", False), ("unsafe-checksum", "preflight", False),
                 ("extra", "preflight", False), ("ordinary-extra", "final", False),
                 ("runtime-qml", "preflight", False), ("changelog-notes", "preflight", True),
+                ("allowed-test-change", "preflight", True),
                 ("tree", "preflight", False),
                 ("tag", "final", False), ("notes", "final", False), ("notes-source", "final", False),
                 ("held", "preflight", False), ("managed-hash", "final", False)):
