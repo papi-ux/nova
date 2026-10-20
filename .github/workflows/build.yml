@@ -560,6 +560,7 @@ jobs:
               ".github/workflows/build.yml",
               "CHANGELOG.md",
               "README.md",
+              "app/src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt",
               "docs/screenshots/beta2/nova-control-detail-aurora.webp",
               "docs/screenshots/beta2/nova-control-detail-director.webp",
               "docs/screenshots/beta2/nova-play-setup-aurora.webp",
