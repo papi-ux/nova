@@ -34,11 +34,11 @@ standard Moonlight-compatible hosts work too.
 | --- | --- | --- |
 | Android | Stable APKs below; separate `Nova-Beta-Android-<ABI>.apk` for published betas | Phones, tablets, TVs and handhelds; choose the Android app ABI |
 | Linux x86_64 | `Nova-Linux-x86_64-alpha.flatpak` from the selected release | Native desktop/laptop/handheld alpha, including Steam Deck |
-| Steam Frame ARM64 | Planned beta.2 `Nova-Linux-aarch64-frame-alpha.flatpak` plus checksum | Experimental native 2D alpha; separate installation and manual updates |
+| Steam Frame ARM64 | Separate `Nova-Linux-aarch64-frame-alpha.flatpak` plus checksum, when attached to the selected release | Experimental native 2D alpha; separate installation and manual updates |
 
-**Public 1.5.0-beta.2 delivery is pending.** Latest links still select stable;
-use the assets and notes of the release you install. The candidate features
-below do not imply beta.2 is already downloadable.
+This README describes **1.5.0-beta.2** features. A source branch can lead
+available packages: install only assets attached to an actually published
+matching release. Latest links select stable.
 
 ![Nova Android 1.4.14-beta.1 game page on a Retroid Pocket 6, showing Control Ultimate Edition and the reviewed launch plan](docs/screenshots/nova-android-game-detail-v1.4.14-beta.1.webp)
 
@@ -142,9 +142,9 @@ for ordinary Linux use.
 
 ### Steam Frame (experimental ARM64)
 
-The x86_64 bundle does not run on Frame. The planned beta.2 pair is
-`Nova-Linux-aarch64-frame-alpha.flatpak` and its `.sha256` sidecar; download
-only from the matching published prerelease. Follow the
+The x86_64 bundle does not run on Frame. The Frame pair is
+`Nova-Linux-aarch64-frame-alpha.flatpak` and its `.sha256` sidecar, when
+included in a release; use only that published release's pair. Follow the
 [Frame alpha guide](clients/deck/docs/steam-frame.md#public-alpha) for its
 isolated installation, Steam launcher, gamepad Steam Input layout and rollback.
 There is no Frame update feed; the signed Linux feed is x86_64 only. Separate
