@@ -589,6 +589,7 @@ class ReleaseReadback(unittest.TestCase):
             (root / "clients/deck/qml/NovaHud.qml").write_text("qualified QML\n")
             (root / "clients/deck/tests/deck_library_navigation_test.py").write_text("qualified test fixture\n")
             (root / "CHANGELOG.md").write_text("qualified notes\n")
+            (root / "README.md").write_text("qualified README\n")
             (root / ".github/workflows/build.yml").write_text("old release-only metadata\n")
             git("add", "."); git("commit", "-qm", "qualified source")
             source, tree = git("rev-parse", "HEAD"), git("rev-parse", "HEAD^{tree}")
@@ -634,6 +635,11 @@ class ReleaseReadback(unittest.TestCase):
                 (root / "clients/deck/tests/deck_library_navigation_test.py").write_text("diagnostic-only test fixture\n")
                 git("add", "clients/deck/tests/deck_library_navigation_test.py"); git("commit", "-qm", "test diagnostic correction")
                 release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
+            if case in ("readme-only", "readme-near-name"):
+                path = "README.md" if case == "readme-only" else "README.md.extra"
+                (root / path).write_text("corrected README\n")
+                git("add", path); git("commit", "-qm", "README correction")
+                release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
             if case == "tag": git("tag", "-f", tag, source)
             if case == "notes": (root / "body").write_text("different notes\n")
             if case == "notes-source": (root / "runner/nova-release-notes.md").write_text("stale notes\n")
@@ -653,7 +659,7 @@ class ReleaseReadback(unittest.TestCase):
             self.assertEqual(before, {p.name:p.read_bytes() for p in (root / "remote").iterdir()})
             calls = [json.loads(line) for line in (root / "calls").read_text().splitlines()] if (root / "calls").exists() else []
             self.assertTrue(all(a[:2] in (["release", "view"], ["release", "download"]) for a in calls))
-            if case in ("held", "tree", "runtime-qml"): self.assertEqual([], calls)
+            if case in ("held", "tree", "runtime-qml", "readme-near-name"): self.assertEqual([], calls)
             print(case + ": expected " + ("PASS" if succeeds else "REFUSE"), flush=True)
 
     def test_changed_release_boundaries(self):
@@ -665,6 +671,7 @@ class ReleaseReadback(unittest.TestCase):
                 ("extra", "preflight", False), ("ordinary-extra", "final", False),
                 ("runtime-qml", "preflight", False), ("changelog-notes", "preflight", True),
                 ("allowed-test-change", "preflight", True),
+                ("readme-only", "preflight", True), ("readme-near-name", "preflight", False),
                 ("tree", "preflight", False),
                 ("tag", "final", False), ("notes", "final", False), ("notes-source", "final", False),
                 ("held", "preflight", False), ("managed-hash", "final", False)):
