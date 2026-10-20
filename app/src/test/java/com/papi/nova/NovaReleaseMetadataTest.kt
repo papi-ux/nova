@@ -654,6 +654,17 @@ class ReleaseReadback(unittest.TestCase):
                 (root / path).write_bytes(b"documentation media fixture\n")
                 git("add", path); git("commit", "-qm", "documentation image successor")
                 release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
+            android_cases = {
+                "android-activity": "app/src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt",
+                "android-activity-near-name": "app/src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt.orig",
+                "android-other-source": "app/src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt",
+            }
+            if case in android_cases:
+                path = android_cases[case]
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text("Android-only source fixture\n")
+                git("add", path); git("commit", "-qm", "Android-only successor")
+                release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
             if case == "tag": git("tag", "-f", tag, source)
             if case == "notes": (root / "body").write_text("different notes\n")
             if case == "notes-source": (root / "runner/nova-release-notes.md").write_text("stale notes\n")
@@ -673,7 +684,8 @@ class ReleaseReadback(unittest.TestCase):
             self.assertEqual(before, {p.name:p.read_bytes() for p in (root / "remote").iterdir()})
             calls = [json.loads(line) for line in (root / "calls").read_text().splitlines()] if (root / "calls").exists() else []
             self.assertTrue(all(a[:2] in (["release", "view"], ["release", "download"]) for a in calls))
-            if case in ("held", "tree", "runtime-qml", "readme-near-name", "readme-image-near-name", "readme-other-image"): self.assertEqual([], calls)
+            if case in ("held", "tree", "runtime-qml", "readme-near-name", "readme-image-near-name", "readme-other-image",
+                        "android-activity-near-name", "android-other-source"): self.assertEqual([], calls)
             print(case + ": expected " + ("PASS" if succeeds else "REFUSE"), flush=True)
 
     def test_changed_release_boundaries(self):
@@ -689,6 +701,8 @@ class ReleaseReadback(unittest.TestCase):
                 ("readme-image", "preflight", True), ("readme-director", "preflight", True),
                 ("readme-play-setup", "preflight", True), ("readme-provenance", "preflight", True),
                 ("readme-image-near-name", "preflight", False), ("readme-other-image", "preflight", False),
+                ("android-activity", "preflight", True), ("android-activity-near-name", "preflight", False),
+                ("android-other-source", "preflight", False),
                 ("tree", "preflight", False),
                 ("tag", "final", False), ("notes", "final", False), ("notes-source", "final", False),
                 ("held", "preflight", False), ("managed-hash", "final", False)):
