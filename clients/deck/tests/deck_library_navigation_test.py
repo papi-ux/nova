@@ -1689,9 +1689,22 @@ def keep_in_step_navigation(wait, keys, state, fixtures, save_capture, window):
     wait(lambda s: s.get("focus") == "host-defaults-plan")
     fixture["catalog"]["desired"]["target_bitrate_kbps"] = 30000
     fixture["catalog"]["revision"] = "changed-after-enable"
-    wait(lambda s: len(fixture["settings_posts"]) == 2 and not status(s).get("busy"), timeout=9)
+    sync_completed = wait(lambda s: len(fixture["settings_posts"]) == 2 and not status(s).get("busy"), timeout=9)
     assert fixture["settings_post_times"][1] - fixture["settings_post_times"][0] >= 5
-    assert state()["focus"] == "host-defaults-plan" and status()["keepInStep"] == "on"
+    sync_observed = None
+    assert (focus_observed := state())["focus"] == "host-defaults-plan" and (sync_observed := status())["keepInStep"] == "on", (
+        "Keep in step diagnostic (JSON prefix, max 2048 chars): " + json.dumps({
+            "waitFocus": {k: sync_completed.get(k) for k in ("focus", "focusVisible", "windowActive")},
+            "waitStatus": {k: sync_completed.get("playSetup", {}).get("hostDefaults", {}).get("status", {}).get(k)
+                           for k in ("phase", "busy", "automaticCheck", "keepInStep")},
+            "focusOperand": {k: focus_observed.get(k) for k in ("focus", "focusVisible", "windowActive")},
+            "statusEvaluated": sync_observed is not None,
+            "statusOperand": {k: sync_observed.get(k) for k in ("phase", "busy", "automaticCheck", "keepInStep")}
+                             if sync_observed is not None else None,
+            "postsAtFailure": fixture["settings_posts"][:2],
+            "postTimesAtFailure": fixture["settings_post_times"][:2],
+        }, separators=(",", ":"))[:2048]
+    )
     command("xdotool", "windowsize", "--sync", window, "960", "600")
     keys("Right", "Right")
     wait(lambda s: s.get("focus") == "host-sync-on" and s.get("focusVisible"))
