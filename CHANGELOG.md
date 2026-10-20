@@ -4,22 +4,44 @@
 
 ## 1.5.0 - 2026-10-12
 
-A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. This release brings the Android interface together, gives PyroWave advice that starts from the screen in your hands, and makes the controls easier to use with touch or a controller. Existing pairings, saved setups and artwork stay yours.
+A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. 1.5.0 also lets you launch a game from the host's console on Android and play it on the device in your hands, drive desktop Steam from the couch, and keep a local record of a stream without sending anything anywhere. Existing pairings, saved setups and artwork stay yours.
+
+This is 1.5.0-beta.2, the second beta. The first went out as 1.4.14-beta.1, before the number changed. Coming from beta.1? The beta.2 sections come first. Sections marked beta.1 have been in since then, and all of it is new if you're on 1.4.13. Polaris's side of these changes is in [its own release notes](https://github.com/papi-ux/polaris/releases).
+
+**Highlights**
+
+- **A Library built around the game** (beta.1). Stage puts the selected game up front, control size and text size are set separately, Play Setup offers stream tiers that fit the device, and Nova Linux gets the same care.
+- **Launch from Host Console** (beta.2, Android). With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to the device in your hands.
+- **Steam from the couch** (beta.2). Open Steam, Open Big Picture or Quit Steam on the paired PC, on Android and Linux.
+- **PyroWave advice for the screen in your hands** (beta.1). A handheld target instead of television-sized bandwidth. PyroWave stays experimental, and Auto doesn't pick it.
+- **Evidence that stays with you** (beta.2). Report This Moment and Working baseline on Android and Linux; on Android, a Last Stream card and a reading of how Nova's control connection reaches the host over Tailscale. Nothing is sent on its own.
+- **Two experiments** (beta.2). SGSR 1 upscaling for PyroWave SDR on Android, off by default, and a Steam Frame alpha that installs separately, by hand.
 
 **New in beta.2**
 
-Steam from the couch, a readout that knows how you are connected, and three ways to keep evidence of a stream without sending anything anywhere.
+Host Console that launches to the device in your hands, Steam from the couch, three ways to keep evidence of a stream without sending anything anywhere, and two experiments: SGSR 1 upscaling and a Steam Frame alpha. The Tailscale readout, per-host profile rules and the Last Stream card are Android only for now. Nova Linux has the Steam controls, Report This Moment and Working baseline.
 
+- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
+- On Android, Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
 - The selected PC menu and Command Center have **Steam**: Open Steam, Open Big Picture and Quit Steam on the paired PC, on Android and Linux. Quit asks again while a game is running. Play Setup shows the chosen mode's Steam policy. Needs a Polaris 1.5.0 beta.2 host; an older host says so.
-- On Android, Play Setup can say how you reach the host, direct, through a relay or unknown, from the host's own Tailscale daemon and never from an address, a hostname or an installed app, and offers Tailscale setup. Per-host rules pick a saved Settings Profile for a launch, name the rule that matched, and take a one-launch override. Your active profile and the host's saved settings stay as they are.
+- Nova Linux gives a host up to two minutes to finish a SteamOS session switch before launch, and Cancel really cancels. Library focus survives a refresh that lands after you moved.
+- `< Congratulations, Director >` trades beta.1's crimson for charcoal, with warm white text and red for focus and selection, the same look as the Polaris console's new Director theme. Polaris Aurora stays the default.
+- On Android, Play Setup can say how Nova's control connection reaches the host over Tailscale: direct, through a relay or unknown. The answer comes from the host's own Tailscale daemon, never from an address, a hostname or an installed app, and it doesn't cover where video and audio travel. Play Setup also offers Tailscale setup. Per-host rules pick a saved Settings Profile for a launch, name the rule that matched, and take a one-launch override. Your active profile and the host's saved settings stay as they are.
 - Command Center has **Report This Moment**. It freezes the current client readings into a local report. On Android the report adds a short redacted log tail, and only Share Report opens the share sheet, which says sharing may pause playback. On Linux, Save writes the readings and a short sampled history to Documents, Nova reports, with no logs. Nothing is sent on its own.
 - Mark a stream you know is good as a **Working baseline**, then Compare a later stream against it for the same PC and game. It is a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it. Streaming moments record the bitrate the launch really asked for, after metered-network limits, host ceilings and AutoSafe.
 - On Android, after a stream ends, that host's Library can show a **Last Stream** card: connection duration, how many samples were measured, per-metric averages, missing-frame evidence and why it ended. Save Report keeps it, Dismiss drops it. A reconnect is not proof the picture came back, and a connection ending is not proof the game quit.
-- Nova Linux gives a host up to two minutes to finish a SteamOS session switch before launch, and Cancel really cancels. Library focus survives a refresh that lands after you moved.
-- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
-- On Android, Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
-- Nova Beta for Android adds **SGSR 1 upscaling (experimental, PyroWave SDR)** under Settings, Client Stream Defaults. It is off by default. When an 8-bit PyroWave SDR stream is smaller than your screen and shown in Fit or Stretch, a spatial filter sharpens edges as the picture is scaled up. HDR or 10-bit, Fill and full-size streams keep the usual scaling, and a change applies from the next stream. If it can't run for a stream, the picture is still scaled smoothly and the log says why. SGSR 1 is Qualcomm's Snapdragon Game Super Resolution 1 under the BSD 3-Clause licence, adapted after RubyLight's Vulkan port; the app carries the full notice.
+- Nova Beta for Android adds **SGSR 1 upscaling (experimental, PyroWave SDR)** under Settings, Client Stream Defaults. It is off by default. When an 8-bit PyroWave SDR stream is smaller than your screen and shown in Fit or Stretch, a spatial filter sharpens edges as the picture is scaled up. HDR or 10-bit, Fill and full-size streams keep the usual scaling, and a change applies from the next stream. If it can't run for a stream, the picture is still scaled smoothly and the log says why. In one hands-on check on a Retroid Pocket 6, the player noticed no difference from the usual scaling, and native 1080p looked nicer; the known limits below have the details. SGSR 1 is Qualcomm's Snapdragon Game Super Resolution 1 under the BSD 3-Clause licence, adapted after RubyLight's Vulkan port; the app carries the full notice.
 - A new guide, PyroWave on Android, explains stream size against screen size, the bitrate you ask for against what the encoder and the network carry, and how to compare two choices on the same scene.
+
+**Steam Frame: experimental alpha**
+
+The alpha download is new in beta.2. The decoder route under it came with beta.1.
+
+- `Nova-Linux-aarch64-frame-alpha.flatpak` is a separate experimental alpha for Steam Frame, published with this release beside its checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`. It installs into its own Flatpak installation with its own pairing and settings. The [Steam Frame guide](https://github.com/papi-ux/nova/blob/v1.5.0-beta.2/clients/deck/docs/steam-frame.md#public-alpha) covers install, launch and removal.
+- On a Frame, H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with picture, sound and working controllers. H.264 and HEVC decode through Frame's V4L2 decoder and copy each frame through the CPU; PyroWave decodes with Vulkan and hands frames over as DMA-BUF. That was a short functional check, not a performance result: rates above 60 fps, long sessions, color and clarity are untested. Immersive XR and HDR are separate work, and this is not Steam Frame Verified support.
+- The Frame alpha has no update channel, so a later alpha is a new manual download. The signed Linux update feed carries the x86_64 build only.
+- The ARM64 development route adds a pinned FFmpeg provider and hardware H.264/HEVC decoding through Frame's Qualcomm V4L2 interface, with bounded frame ownership and Vulkan presentation. It refuses compressed capture layouts it cannot safely read.
+- Startup and Play Setup use the same backend discovery, so a qualified decoder does not appear unavailable merely because the device lacks VA-API. PyroWave keeps its separate Vulkan and DMA-BUF checks.
 
 **Fixed in beta.2**
 
@@ -28,9 +50,10 @@ Steam from the couch, a readout that knows how you are connected, and three ways
 - On Android, Host Console no longer shows an empty page once you sign in.
 - On Android, scrolling Host Console, or swiping across it, no longer moves the panel it is in. The panel still closes from its header, with Back, or with a tap beside it.
 - On Linux, Space and Select can hold Sleep Host through keyboard repeat. Releasing early still cancels immediately.
+- On Linux, NovaHUD follows smaller text settings and reflows Performance readings when space is tight, keeping text within the panel.
 - PyroWave on Android no longer reports the time its CPU call took as decode and end-to-end latency, which it never measured: that reading is unavailable now, and the HUD and counters say frames were submitted, not rendered. Recaps, copied diagnostics and saved baselines keep that meaning. Other decoders keep their measured latency.
 
-**The game comes first**
+**From beta.1: the game comes first**
 
 Stage gives the selected game the room it deserves. The other layouts get quieter, and the controls stop competing with the artwork.
 
@@ -41,7 +64,7 @@ Stage gives the selected game the room it deserves. The other layouts get quiete
 - Hosts, Library and update buttons fit narrow screens. Empty Hosts actions scroll on short screens, so the next step stays reachable by touch and controller.
 - Phone menus fill the screen edges, with nearby text and controls kept clear of camera cutouts. Hosts puts its identity and Menu in one bar; portrait Settings puts Menu on the left.
 
-**Make it your size**
+**From beta.1: make it your size**
 
 Smaller text does not have to mean smaller buttons. Nova now lets you choose them separately.
 
@@ -52,7 +75,7 @@ Smaller text does not have to mean smaller buttons. Nova now lets you choose the
 - Android and Linux add `< Congratulations, Director >`: charcoal surfaces, warm white text, and red for focus and selection. It is a separate theme, so your current choice stays intact, and Polaris Aurora stays the default.
 - Changing themes from Home no longer leaves Nova unresponsive on affected Android handhelds.
 
-**Play Setup knows the device**
+**From beta.1: Play Setup knows the device**
 
 A phone, a handheld and a television should not all start from the same guessed stream settings.
 
@@ -61,7 +84,7 @@ A phone, a handheld and a television should not all start from the same guessed 
 - Saved setups keep their numeric overrides and automatic bitrate choice. Changing resolution or frame rate and then entering a manual bitrate keeps that manual choice.
 - A host-specific Launch As restriction keeps the host's reason. Spaces use their worker's allowed mode without borrowing the desktop's choices, and an unavailable Space remains unavailable.
 
-**PyroWave gets a more useful starting point**
+**From beta.1: PyroWave gets a more useful starting point**
 
 It still wants a fast local network. The advice now distinguishes a screen held nearby from one across the room, instead of asking a handheld to spend television-sized bandwidth.
 
@@ -72,14 +95,14 @@ It still wants a fast local network. The advice now distinguishes a screen held 
 - With a compatible host, Doctor can offer a reversible PyroWave quality increase on a clean network, or a lower bitrate after sustained measured media loss. Verify checks the result; Undo restores the previous bitrate and Live Tuning state.
 - PyroWave remains experimental in Nova Beta on Android. Devices missing its Vulkan features get a reason instead of an unusable choice. Auto does not select it.
 
-**The menu and HUD tell the same story**
+**From beta.1: the menu and HUD tell the same story**
 
 - NovaHUD keeps its corner position, compact readout and sparkline colors. Its numbers distinguish unavailable or stale measurements from healthy ones, and media loss from control-channel retries.
 - Command Center background opacity works again, independently of the HUD. Its pickers, focus and confirmation actions follow the rest of Nova.
 - The capture explanation shows GPU encoding alongside CPU capture copies when both are true. A system-memory capture path no longer reads as software encoding, and Doctor's own health verdict remains visible.
 - Shield controller motion during stream startup and malformed decoder packets are handled safely. Older Android versions can open the new panels without loading newer platform Back APIs.
 
-**Nova Linux, closer to Nova**
+**From beta.1: Nova Linux, closer to Nova**
 
 The Linux interface gets the same attention as the Android one: a quieter Library, controls that fit an 800p handheld, and preferences you can adjust without committing each step.
 
@@ -93,29 +116,25 @@ The Linux interface gets the same attention as the Android one: a quieter Librar
 - Save a PC's MAC address and use Wake PC from its System menu. Nova confirms that it sent the packet; the PC's connection state tells you whether it woke.
 - System offers a reviewed Add Nova to Steam action. The first Moonlight handoff explains its limits before launching, and Back cancels it.
 - Compatible Polaris hosts receive fresh measured video-loss evidence. Decoder refusals and control retries stay separate; missing measurements stay unavailable.
-- NovaHUD follows smaller text settings and reflows Performance readings when space is tight, keeping text within the panel.
 - PipeWire audio recovery no longer occasionally hangs during disconnect when the audio service disappears. Stereo, 5.1 and 7.1 keep the same recovery and shutdown deadlines.
 - End Session distinguishes the PC accepting the request from verified game shutdown. A failed update check keeps Retry available and uses the production feed address; a bundle without a configured signed channel still gives installation guidance.
 
-**Steam Frame: experimental alpha**
+**Experimental and known limits**
 
-- The ARM64 development route adds a pinned FFmpeg provider and hardware H.264/HEVC decoding through Frame's Qualcomm V4L2 interface, with bounded frame ownership and Vulkan presentation. It refuses compressed capture layouts it cannot safely read.
-- Startup and Play Setup use the same backend discovery, so a qualified decoder does not appear unavailable merely because the device lacks VA-API. PyroWave keeps its separate Vulkan and DMA-BUF checks.
-- `Nova-Linux-aarch64-frame-alpha.flatpak` is a separate experimental alpha for Steam Frame, published with this release beside its checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`. It installs into its own Flatpak installation with its own pairing and settings. The [Steam Frame guide](https://github.com/papi-ux/nova/blob/v1.5.0-beta.2/clients/deck/docs/steam-frame.md#public-alpha) covers install, launch and removal.
-- On a Frame, H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with picture, sound and working controllers. H.264 and HEVC decode through Frame's V4L2 decoder and copy each frame through the CPU; PyroWave decodes with Vulkan and hands frames over as DMA-BUF. That was a short functional check, not a performance result: rates above 60 fps, long sessions, color and clarity are untested. Immersive XR and HDR are separate work, and this is not Steam Frame Verified support.
-- The Frame alpha has no update channel, so a later alpha is a new manual download. The signed Linux update feed carries the x86_64 build only.
+- Nova Linux remains an Alpha, and the Frame route is experimental. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
+- Steam controls, the Tailscale readout, Report This Moment, Working baseline, the Last Stream card and Host Console's new modes are in beta.2 with CI and source checks. Their controller, TalkBack and real-stream checks on devices are not complete.
+- The Tailscale readout describes Nova's control connection to the host, as the host's Tailscale daemon reports it. It doesn't show where video and audio travel, and its direct, relay and split-tunnel cases have not been tried on real networks.
+- SGSR 1 is experimental and off by default. In one hands-on check on a Retroid Pocket 6, one scene of Control was streamed three ways with PyroWave SDR at 60 fps and a 100 Mbps request: 1280x720 with the usual scaling, 1280x720 upscaled to 1920x1080 by SGSR 1, and native 1920x1080. To the player, both 720p views looked good with no noticeable difference between them, and native 1080p looked nicer. That is one look at one scene on one device, not a measurement. It doesn't show SGSR 1 improving the picture, matching native resolution, or lowering latency or bandwidth, and other devices, games and stream sizes are unchecked.
+- A limited offscreen GPU check of small synthetic test frames on a Retroid Pocket 6 found differences from its reference model on a noise pattern that are still unexplained. It does not measure picture quality, speed or what reaches the screen. Sharpening adds no detail the stream did not carry.
+- A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games; full per-game shutdown is a separate follow-up.
 
 **Before you update**
 
 - Keep in Step starts on for new pairings.
 - Android beta APKs are named `Nova-Beta-Android-<abi>.apk`, install beside stable Nova, and follow the beta update channel. Numbered builds identify themselves as `1.5.0-beta.2`. New pairings use Beta instead of Pre; an existing host-stored pairing name changes only after pairing again.
 - Linux uses the same app ID when replacing an older bundle. Keep its app data and do not uninstall with `--delete-data`.
-- A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games; full per-game shutdown is a separate follow-up.
-- Nova Linux remains an Alpha, and the Frame route is experimental. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
-- Steam controls, the Tailscale readout, Report This Moment, Working baseline, the Last Stream card, Host Console's new modes and SGSR 1 are in beta.2 with CI and source checks. Their controller, TalkBack and real-stream checks on devices are not complete, the Tailscale readout's direct, relay and split-tunnel cases have not been tried on real networks, and SGSR 1 still needs same-scene picture-quality checks across devices. A limited offscreen GPU check of small synthetic test frames on a Retroid Pocket 6 found differences from its reference model on a noise pattern that are still being investigated; it does not measure picture quality, speed or what reaches the screen. Sharpening adds no detail the stream did not carry.
 - The Steam controls and the Tailscale readout need a Polaris 1.5.0 beta.2 host. An older host shows a reason instead. On an older host, Host Console opens as before, and Launch starts the game on the host.
-- The Tailscale readout, per-host profile rules and the Last Stream card are Android only for now. Nova Linux has the Steam controls, Report this moment and Working baseline.
-- This release was called 1.4.14 while beta.1 was out. It is 1.5.0 now, for how much it carries since 1.4.13, and 1.5.0-beta.2 is the next build of the same train: it installs over Nova Beta 1.4.14-beta.1 and the beta update channel offers it.
+- 1.5.0-beta.2 installs over Nova Beta 1.4.14-beta.1, and the beta update channel offers it.
 
 ## 1.4.13 - 2026-09-24
 
