@@ -1,20 +1,24 @@
-# Experimental native Steam Frame route
+# Nova for Steam Frame (Beta)
 
-This guide covers native 2D streaming on Steam Frame: the experimental
-[public alpha](#public-alpha) in Nova 1.5.0-beta.2 and the development build.
+This guide covers native 2D streaming on Steam Frame: the
+[public Beta](#public-beta) in Nova 1.5.0-beta.2 and the development build.
 Neither establishes completed Frame hardware qualification. The acceptance
 target is the virtual 1920×1080 SDR screen at nominal 90 fps. Per-eye panel
 specifications do not determine a GameStream request. XR and HDR remain outside
 this route.
 
-## Public alpha
+<a id="public-alpha"></a>
+
+## Public Beta
 
 Nova 1.5.0-beta.2 attaches `Nova-Linux-aarch64-frame-alpha.flatpak` and its
 checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`, to its release on
-[Nova Releases](https://github.com/papi-ux/nova/releases). It is an experimental
-native ARM64 Flatpak: app `com.papi_ux.Nova`, architecture `aarch64`, branch
+[Nova Releases](https://github.com/papi-ux/nova/releases). It is a native
+ARM64 Beta Flatpak: app `com.papi_ux.Nova`, architecture `aarch64`, branch
 `frame-alpha`. It has no update channel. The signed Linux update feed carries
-the x86_64 build only, so a later alpha is a new manual download.
+the x86_64 build only, so a later Frame Beta is a new manual download.
+The filenames, `frame-alpha` branch and installation paths retain their earlier
+names for compatibility; they do not describe the current maturity label.
 
 Install it into its own Flatpak installation. It then cannot replace another
 Nova build or change another installation's current branch. Run these commands
@@ -29,11 +33,11 @@ flatpak install --user --arch=aarch64 --bundle ./Nova-Linux-aarch64-frame-alpha.
 ```
 
 `FLATPAK_USER_DIR` lasts for that terminal only. Set it again before any later
-`flatpak` command for the alpha.
+`flatpak` command for this Beta.
 
 Save this launcher as `~/nova-frame-alpha.sh`, then run
 `chmod +x ~/nova-frame-alpha.sh`. The development launcher in this repository
-selects `frame-dev` and does not start the alpha.
+selects `frame-dev` and does not start the Beta.
 
 ```sh
 #!/bin/sh
@@ -52,10 +56,10 @@ exec flatpak run --user --arch=aarch64 --branch=frame-alpha --device=all \
 
 Add the launcher to Steam as its own non-Steam entry, separate from any other
 Nova shortcut. Give it a gamepad Steam Input layout and a Game Resolution of
-1920×1080, as described for the development entry below. Pair the alpha with
+1920×1080, as described for the development entry below. Pair the Beta with
 your PC, then choose 1920×1080 at 60 fps; the device default is 1280×800.
 
-The alpha keeps its pairing, settings and cache in its own `frame-alpha`
+The Beta keeps its pairing, settings and cache in its own `frame-alpha`
 folders, and other Nova builds on the device keep theirs. All of these share
 the `~/.var/app/com.papi_ux.Nova` data folder, so never uninstall any Nova with
 `--delete-data`.
@@ -67,7 +71,7 @@ installation with KDE Platform 6.10 commit
 install of the current Flathub runtime with the commands above has not been
 tested. Rates above 60 fps, long sessions, color and clarity are untested.
 
-To remove the alpha, close Nova and run:
+To remove the Beta, close Nova and run:
 
 ```sh
 export FLATPAK_USER_DIR="$HOME/.local/share/nova-frame-alpha-flatpak"

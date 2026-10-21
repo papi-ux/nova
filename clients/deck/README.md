@@ -1,11 +1,11 @@
-# Nova Linux (Alpha)
+# Nova Linux (Beta)
 
 Nova Linux is the native client for x86_64 Linux desktops, laptops and
 handhelds, including Steam Deck. The Qt/QML interface supports Nova-owned pairing,
 libraries, Play Setup and in-app GameStream video/audio/input. The Flatpak opens
 standalone Nova; Moonlight handoff remains an explicit legacy route.
 
-Release bundles use `Nova-Linux-x86_64-alpha.flatpak`; see the
+The Beta retains the legacy filename `Nova-Linux-x86_64-alpha.flatpak`; see the
 [Flatpak install guide](packaging/flatpak/README.md).
 
 The [Linux client roadmap](../../docs/linux-client-roadmap.md) records the current
@@ -15,7 +15,7 @@ objectives to present source and remaining work; consult it before treating any
 historical implementation note below as an open assignment. The
 [release parity checklist](../../docs/deck-release-parity.md) retains the Deck
 LCD/OLED, HDR90, product parity and physical acceptance requirements. This is an
-Alpha client; a successful build does not validate every Linux configuration.
+Beta client; a successful build does not validate every Linux configuration.
 
 ## Find your next step
 
@@ -72,7 +72,7 @@ The [PyroWave guide](docs/pyrowave.md) covers migration from the retired separat
 bundle, SDR limits, calibrated advice and live controls.
 
 The [Steam Frame development guide](docs/steam-frame.md) covers the experimental
-ARM64 route. Nova 1.5.0-beta.2 adds a separate experimental Frame alpha,
+ARM64 route. Nova 1.5.0-beta.2 adds a separate Frame Beta,
 `Nova-Linux-aarch64-frame-alpha.flatpak`; its [install guide](docs/steam-frame.md#public-alpha)
 covers its own Flatpak installation and launcher. H.264, HEVC and PyroWave have
 streamed 1920×1080 at a requested 60 fps; sustained 1080p/90 performance and
