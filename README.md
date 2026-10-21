@@ -13,7 +13,7 @@ Nova plays games from your PC on Android handhelds, phones, tablets and TVs.
 Browse your library like a console, see exactly how a game will launch before
 it starts, and keep the stream's controls a shortcut away. It's at its best
 with Polaris on a Linux PC, and other Moonlight-compatible hosts work too.
-Native Linux and Steam Deck builds are in alpha.
+Native Linux, Steam Deck and Steam Frame builds are available in Beta.
 
 [![Stars](https://img.shields.io/github/stars/papi-ux/nova?style=for-the-badge&color=7c73ff&labelColor=1f1d31)](https://github.com/papi-ux/nova/stargazers)
 [![Matrix](https://img.shields.io/badge/Matrix-Join_chat-0dbd8b?style=for-the-badge&logo=matrix&logoColor=white&labelColor=1f1d31)](https://matrix.to/#/#papi-ux:papi-ux.com)
@@ -99,8 +99,8 @@ right download for your device. If you'd rather choose yourself:
 | Most Android handhelds, phones, tablets and TVs | [Nova-Android-arm64-v8a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) |
 | 32-bit Android, including Shield models with a 32-bit app ABI | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) |
 | Android x86_64 devices and emulators | [Nova-Android-x86_64.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk) |
-| Linux and Steam Deck, **alpha** | `Nova-Linux-x86_64-alpha.flatpak` from [Releases](https://github.com/papi-ux/nova/releases); see the [Linux guide](https://papi-ux.com/docs/nova/linux/) and [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) |
-| Steam Frame, **experimental** | A separate ARM64 alpha, only when a release includes it; see the [Steam Frame guide](https://papi-ux.com/docs/nova/steam-frame/) |
+| Linux and Steam Deck, **Beta** | The x86_64 Flatpak from [Releases](https://github.com/papi-ux/nova/releases); see the [Linux guide](https://papi-ux.com/docs/nova/linux/) and [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) |
+| Steam Frame, **Beta** | A separate ARM64 Flatpak, when included in the selected release; see the [Steam Frame guide](https://papi-ux.com/docs/nova/steam-frame/) |
 
 Choose by the **Android app ABI**, not the processor name: a 64-bit processor
 can still offer only 32-bit Android app support.
@@ -129,11 +129,12 @@ its own pairing and preferences; see
   Polaris 1.5.0-beta.2 or newer; an older host says so instead. The Tailscale
   readout, per-PC profile rules and the Last Stream card are Android only for
   now.
-- **Alpha is maturity, not a channel.** The Linux and Steam Deck build ships in
-  stable and beta releases; its wider desktop interface is in 1.5.0-beta.2, and
-  the [Linux guide](https://papi-ux.com/docs/nova/linux/) covers installing
-  and using it. Steam is optional for ordinary Linux use. The Steam Frame alpha
-  is experimental and not Steam Frame Verified.
+- **Native clients in Beta.** Linux, Steam Deck and Steam Frame have playable
+  builds in active development. Steam is optional for ordinary Linux use. The
+  [Linux guide](https://papi-ux.com/docs/nova/linux/) covers setup and current
+  limits; the separate Steam Frame build streams to a virtual 2D screen and
+  is not Steam Frame Verified. Beta describes these clients' maturity; stable
+  and prerelease downloads remain separate release channels.
 - **Experiments to try when you want them.** PyroWave is an experimental codec
   that trades bandwidth for very fast decoding on a fast local network. It's
   off by default on Linux and Steam Frame and in Nova Beta for Android. Nova

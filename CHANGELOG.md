@@ -15,11 +15,11 @@ This is 1.5.0-beta.2, the second beta. The first went out as 1.4.14-beta.1, befo
 - **Steam from the couch** (beta.2). Open Steam, Open Big Picture or Quit Steam on the paired PC, on Android and Linux.
 - **PyroWave advice for the screen in your hands** (beta.1). A handheld target instead of television-sized bandwidth. PyroWave stays experimental, and Auto doesn't pick it.
 - **Evidence that stays with you** (beta.2). Report This Moment and Working baseline on Android and Linux; on Android, a Last Stream card and a reading of how Nova's control connection reaches the host over Tailscale. Nothing is sent on its own.
-- **Two experiments** (beta.2). SGSR 1 upscaling for PyroWave SDR on Android, off by default, and a Steam Frame alpha that installs separately, by hand.
+- **More places to play** (beta.2). Nova Linux, Steam Deck and Steam Frame are in Beta. Frame installs separately, by hand. Android also adds opt-in SGSR 1 upscaling for PyroWave SDR.
 
 **New in beta.2**
 
-Host Console that launches to the device in your hands, Steam from the couch, three ways to keep evidence of a stream without sending anything anywhere, and two experiments: SGSR 1 upscaling and a Steam Frame alpha. The Tailscale readout, per-host profile rules and the Last Stream card are Android only for now. Nova Linux has the Steam controls, Report This Moment and Working baseline.
+Host Console that launches to the device in your hands, Steam from the couch, three ways to keep evidence of a stream without sending anything anywhere, an optional SGSR 1 upscaler and a separate Steam Frame Beta. The Tailscale readout, per-host profile rules and the Last Stream card are Android only for now. Nova Linux has the Steam controls, Report This Moment and Working baseline.
 
 - On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
 - On Android, Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
@@ -33,13 +33,13 @@ Host Console that launches to the device in your hands, Steam from the couch, th
 - Nova Beta for Android adds **SGSR 1 upscaling (experimental, PyroWave SDR)** under Settings, Client Stream Defaults. It is off by default. When an 8-bit PyroWave SDR stream is smaller than your screen and shown in Fit or Stretch, a spatial filter sharpens edges as the picture is scaled up. HDR or 10-bit, Fill and full-size streams keep the usual scaling, and a change applies from the next stream. If it can't run for a stream, the picture is still scaled smoothly and the log says why. In one hands-on check on a Retroid Pocket 6, the player noticed no difference from the usual scaling, and native 1080p looked nicer; the known limits below have the details. SGSR 1 is Qualcomm's Snapdragon Game Super Resolution 1 under the BSD 3-Clause licence, adapted after RubyLight's Vulkan port; the app carries the full notice.
 - A new guide, PyroWave on Android, explains stream size against screen size, the bitrate you ask for against what the encoder and the network carry, and how to compare two choices on the same scene.
 
-**Steam Frame: experimental alpha**
+**Steam Frame: a separate Beta**
 
-The alpha download is new in beta.2. The decoder route under it came with beta.1.
+The Frame download is new in beta.2. The decoder route under it came with beta.1. Nova Linux, Steam Deck and Steam Frame are now labeled Beta; the older filenames and installation branches stay the same for compatibility.
 
-- `Nova-Linux-aarch64-frame-alpha.flatpak` is a separate experimental alpha for Steam Frame, published with this release beside its checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`. It installs into its own Flatpak installation with its own pairing and settings. The [Steam Frame guide](https://github.com/papi-ux/nova/blob/v1.5.0-beta.2/clients/deck/docs/steam-frame.md#public-alpha) covers install, launch and removal.
+- `Nova-Linux-aarch64-frame-alpha.flatpak` is a separate Beta for Steam Frame, published with this release beside its checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`. It installs into its own Flatpak installation with its own pairing and settings. The [Steam Frame guide](https://github.com/papi-ux/nova/blob/v1.5.0-beta.2/clients/deck/docs/steam-frame.md#public-alpha) covers install, launch and removal.
 - On a Frame, H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with picture, sound and working controllers. H.264 and HEVC decode through Frame's V4L2 decoder and copy each frame through the CPU; PyroWave decodes with Vulkan and hands frames over as DMA-BUF. That was a short functional check, not a performance result: rates above 60 fps, long sessions, color and clarity are untested. Immersive XR and HDR are separate work, and this is not Steam Frame Verified support.
-- The Frame alpha has no update channel, so a later alpha is a new manual download. The signed Linux update feed carries the x86_64 build only.
+- The Frame Beta has no update channel, so a later version is a new manual download. The signed Linux update feed carries the x86_64 build only.
 - The ARM64 development route adds a pinned FFmpeg provider and hardware H.264/HEVC decoding through Frame's Qualcomm V4L2 interface, with bounded frame ownership and Vulkan presentation. It refuses compressed capture layouts it cannot safely read.
 - Startup and Play Setup use the same backend discovery, so a qualified decoder does not appear unavailable merely because the device lacks VA-API. PyroWave keeps its separate Vulkan and DMA-BUF checks.
 
@@ -121,7 +121,7 @@ The Linux interface gets the same attention as the Android one: a quieter Librar
 
 **Experimental and known limits**
 
-- Nova Linux remains an Alpha, and the Frame route is experimental. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
+- Nova Linux, Steam Deck and Steam Frame are in Beta, with feature and device coverage still growing. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
 - Steam controls, the Tailscale readout, Report This Moment, Working baseline, the Last Stream card and Host Console's new modes are in beta.2 with CI and source checks. Their controller, TalkBack and real-stream checks on devices are not complete.
 - The Tailscale readout describes Nova's control connection to the host, as the host's Tailscale daemon reports it. It doesn't show where video and audio travel, and its direct, relay and split-tunnel cases have not been tried on real networks.
 - SGSR 1 is experimental and off by default. In one hands-on check on a Retroid Pocket 6, one scene of Control was streamed three ways with PyroWave SDR at 60 fps and a 100 Mbps request: 1280x720 with the usual scaling, 1280x720 upscaled to 1920x1080 by SGSR 1, and native 1920x1080. To the player, both 720p views looked good with no noticeable difference between them, and native 1080p looked nicer. That is one look at one scene on one device, not a measurement. It doesn't show SGSR 1 improving the picture, matching native resolution, or lowering latency or bandwidth, and other devices, games and stream sizes are unchecked.

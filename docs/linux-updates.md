@@ -26,10 +26,11 @@ builds show installation guidance instead of claiming that a feed is configured.
 
 ## Architecture and candidate scope
 
-The regular release bundle is `Nova-Linux-x86_64-alpha.flatpak`. The experimental
-[Steam Frame route](../clients/deck/docs/steam-frame.md) builds an ARM64
-development package with its own qualification record. ARM-aware updater tests
-do not establish an available ARM64 public feed, installer or supported release.
+The Linux and Steam Deck client is in Beta. Its release bundle retains the
+filename `Nova-Linux-x86_64-alpha.flatpak` for compatibility. The separate
+[Steam Frame Beta](../clients/deck/docs/steam-frame.md) uses an ARM64 bundle
+and manual updates, with its own qualification record. ARM-aware updater tests
+do not establish an available ARM64 public update feed or channel installer.
 Do not install an x86_64 bundle as a Frame update.
 
 For the 1.5.0 candidate, the app uses the production feed address and retains
