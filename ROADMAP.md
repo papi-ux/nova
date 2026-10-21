@@ -18,9 +18,10 @@ For the shared host-and-client view, see the
 
 ## What stays true
 
-- Android is available today. Nova Linux is available as an Alpha Flatpak for
+- Android is available today. Nova Linux is available as a Beta Flatpak for
   x86_64 desktops, laptops and handhelds, including Steam Deck; compatibility
-  validation and feature parity are in progress.
+  validation and feature parity are in progress. Steam Frame has a separate
+  ARM64 Beta for streaming to a virtual 2D screen.
 - Nova remains usable with Moonlight-compatible hosts for standard pairing,
   launch, and streaming.
 - Polaris provides the richest host-aware experience: launch modes, live host
@@ -33,7 +34,7 @@ For the shared host-and-client view, see the
 
 ## Now — make handheld streaming dependable
 
-- Watch the public v1.4.0 path on real devices and prioritize reproducible
+- Watch published releases on real devices and prioritize reproducible
   pairing, launch, artwork, stream, resume, and teardown regressions over feature
   churn.
 - Make pairing, discovery, launch, reconnect, stop, cleanup, and watch/resume
@@ -117,7 +118,7 @@ latency, thermal, fallback, and rollback evidence.
 ### More client platforms
 
 - Follow the active Linux client roadmap above; keep untested configurations
-  explicit while extending support beyond the Alpha.
+  explicit while broadening the Beta's device and feature coverage.
 - Pursue iOS only when the media, controller, packaging, and maintenance contracts
   are clear enough to support it responsibly.
 - Add new Android variants only when real users and devices justify the release and

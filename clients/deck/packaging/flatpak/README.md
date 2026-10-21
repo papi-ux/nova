@@ -1,6 +1,6 @@
-# Nova Linux Flatpak (Alpha)
+# Nova Linux Flatpak (Beta)
 
-`com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This Alpha targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Steam is optional. Codec, HDR and frame-rate availability depends on the device, drivers, display and host; device acceptance remains tracked in the Linux roadmap and Deck parity checklist.
+`com.papi_ux.Nova` runs on `org.kde.Platform` 6.10. The desktop entry and newly registered Steam shortcuts open the standalone Nova interface, with Nova-owned pairing and in-app streaming. This Beta targets x86_64 Linux desktops, laptops and handhelds, including Steam Deck. Steam is optional. Codec, HDR and frame-rate availability depends on the device, drivers, display and host; device acceptance remains tracked in the Linux roadmap and Deck parity checklist.
 
 The 1.5.0 candidate adds landscape/desktop Library and Settings polish, six
 Linux themes including `< Congratulations, Director >`, separate control sizes,
