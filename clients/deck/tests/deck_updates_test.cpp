@@ -119,6 +119,71 @@ int main(int argc, char** argv) {
     options.instanceFile = file.fileName(); options.settingsFile = dir.filePath("settings.ini");
     options.channel = "beta"; options.feedUrl = "https://127.0.0.1:1"; options.idleDelayMs = 40;
     Portal portal(server);
+    const auto regression = [&](const QString& name) {
+        // Each case owns an opt-out store and measures portal counters relative
+        // to its start, so the existing full lifecycle fixture stays unchanged.
+        auto isolated = options;
+        isolated.settingsFile = dir.filePath(name + ".ini");
+        if (name == "manual") {
+            for (const auto& arch : {QStringLiteral("x86_64"), QStringLiteral("aarch64")}) {
+                auto manual = isolated; manual.architecture = arch; manual.channel = "unpublished";
+                DeckUpdates updates(manual, client);
+                const auto message = updates.state()["message"].toString();
+                require(!updates.state()["supported"].toBool() && message.contains("manually")
+                    && !message.contains("Install a channel"), "manual bundle promised an unpublished update channel");
+                if (arch == "aarch64") require(message.contains("ARM64") && message.contains("x86_64"),
+                    "Frame manual update guidance lost the architecture boundary");
+            }
+            return;
+        }
+        DeckUpdates updates(isolated, client); updates.setBlocked(false);
+        if (name == "equal") {
+            // Defensive event-handler input, without a monitor or a catalog
+            // request: this is not a claim that the real portal emits it early.
+            require(QMetaObject::invokeMethod(&updates, "available", Qt::DirectConnection,
+                Q_ARG(QVariantMap, (QVariantMap{{"running-commit", a}, {"local-commit", a}, {"remote-commit", a}}))),
+                "cannot deliver defensive current-commit event");
+            require(!updates.state()["message"].toString().contains("You're up to date"),
+                "uncompleted check claimed up to date");
+            return;
+        }
+        if (name == "outcome") {
+            require(updates.state()["lastCheck"] == "none", "fresh update state claimed a completed check");
+            updates.check();
+            require(updates.state()["checking"].toBool() && updates.state()["lastCheck"] == "none",
+                "in-flight first check claimed success");
+            until([&] { return !updates.state()["checking"].toBool(); });
+            require(updates.state()["lastCheck"] == "failed", "offline result lost its typed failure");
+            updates.check();
+            require(updates.state()["checking"].toBool() && updates.state()["lastCheck"] == "failed",
+                "recheck discarded the last completed result");
+            until([&] { return !updates.state()["checking"].toBool(); });
+            return;
+        }
+        const auto creates = portal.creates, installs = portal.installs;
+        updates.check();
+        until([&] { return portal.creates == creates + 1 && !updates.state()["checking"].toBool(); });
+        portal.offer(); until([&] { return updates.state()["canInstall"].toBool(); });
+        updates.install(); until([&] { return portal.installs == installs + 1; });
+        portal.send("Progress", {{"status", 0u}, {"progress", 40u}});
+        until([&] { return updates.state()["progress"].toInt() == 40; });
+        require(server.unregisterService(service), "release private updater for recreation");
+        until([&] { return !updates.busy() && updates.state()["message"].toString().contains("disconnected"); });
+        require(server.registerService(service), "reclaim private updater for recreation");
+        updates.install(); // Check synchronously, before CreateUpdateMonitor replies.
+        require(updates.busy() && updates.state()["progress"].toInt() == 0,
+            "new pending install exposed stale progress");
+        until([&] { return portal.installs == installs + 2; });
+        portal.send("Progress", {{"status", 3u}, {"error", "org.freedesktop.portal.Error.Cancelled"}});
+        until([&] { return !updates.busy(); });
+        require(updates.state()["canInstall"].toBool() && updates.state()["lastCheck"] == "failed",
+            "cancelled installation lost retry or changed the completed check");
+    };
+    for (const auto& name : {QStringLiteral("outcome"), QStringLiteral("equal"), QStringLiteral("progress"), QStringLiteral("manual")}) {
+        if (app.arguments().contains("--update-regression=" + name)) {
+            regression(name); std::cout << name.toStdString() << " regression passed\n"; return 0;
+        }
+    }
     for (const auto& architecture : {QStringLiteral("x86_64"), QStringLiteral("aarch64")}) {
         const auto instanceFile = dir.filePath(architecture + ".flatpak-info");
         QFile instance(instanceFile); require(instance.open(QIODevice::WriteOnly), "architecture instance fixture");
@@ -204,4 +269,7 @@ int main(int argc, char** argv) {
         portal.finish(3); until([&] { return !waiting.busy(); });
     }
     std::cout << "Private Flatpak portal: channel guards, offline checks, idle gating, opt-in persistence, install errors, completion and service loss passed.\n";
+    for (const auto& name : {QStringLiteral("outcome"), QStringLiteral("equal"), QStringLiteral("progress"), QStringLiteral("manual")}) regression(name);
+    std::cout << "Update presentation regressions passed\n";
+
 }

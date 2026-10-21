@@ -285,9 +285,15 @@ void eventInvalidation() {
 }
 void observerBoundary() {
     std::atomic<int> reads{0}, posts{0}; std::atomic<bool> foreign{false}, blocked{false}, entered{false}, cancelled{false};
+    std::atomic<bool> verifyReadbackEntered{false}, releaseVerifyReadback{false};
     auto observer = std::make_unique<DeckHudHostObserver>([&]() -> std::optional<DeckHudHostTarget> {
         DeckHudHostTarget target;
-        target.fetch = [&](const auto&) { auto s = sample(++reads); if (foreign) s.sessionToken = "replacement";
+        target.fetch = [&](const auto& stop) {
+            if (posts == 2 && !releaseVerifyReadback) {
+                verifyReadbackEntered = true;
+                while (!releaseVerifyReadback && !stop()) QThread::msleep(1);
+            }
+            auto s = sample(++reads); if (foreign) s.sessionToken = "replacement";
             return DeckPolarisResult<DeckHostTelemetry>{DeckPolarisRequestStatus::Ok, 200, {}, s}; };
         target.identityValid = [] { return true; };
         target.setEnabled = [](bool, const auto&, const auto&) { return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true}; };
@@ -308,7 +314,17 @@ void observerBoundary() {
     until([&] { return observer->snapshot().value("doctorCanUndo").toBool(); });
     require(posts == 1 && observer->checkDoctorResult(), "initial request repeated or check rejected");
     until([&] { return observer->snapshot().value("doctorActionState") == "resolved"; });
-    require(posts == 2 && observer->undoDoctorFix(), "verified Undo missing");
+    until([&] { return verifyReadbackEntered.load(); });
+    // A resolved receipt precedes the fresh paired read. Hold that read so
+    // the fixture proves the same guard the UI observes, without a timing race.
+    require(posts == 2 && !observer->snapshot().value("doctorCanUndo").toBool()
+        && !observer->undoDoctorFix(), "Undo admitted before verification readback");
+    releaseVerifyReadback = true;
+    bool undoAccepted = false;
+    until([&] {
+        if (!undoAccepted) undoAccepted = observer->undoDoctorFix();
+        return undoAccepted;
+    });
     until([&] { return observer->snapshot().value("doctorActionState") == "undone"; });
     require(posts == 3, "Undo duplicated");
     foreign = true; until([&] { return !observer->snapshot().value("hostFresh").toBool(); });

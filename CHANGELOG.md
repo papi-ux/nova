@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- On Linux, Updates distinguishes an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. Copies without an update channel point to manual downloads, including the ARM64 Frame bundle.
+
 ## 1.5.0 - 2026-10-12
 
 A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. 1.5.0 also lets you launch a game from the host's console on Android and play it on the device in your hands, drive desktop Steam from the couch, and keep a local record of a stream without sending anything anywhere. Existing pairings, saved setups and artwork stay yours.

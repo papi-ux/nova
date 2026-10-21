@@ -78,7 +78,9 @@ DeckUpdates::DeckUpdates(DeckUpdateOptions options, QDBusConnection bus, QObject
         && commit(running_) && QStringList{"stable", "beta"}.contains(options_.channel)
         && branch == options_.channel && QUrl(options_.feedUrl).scheme() == "https";
     if (!supported_) {
-        message_ = "This copy has no Nova update channel. Install a channel from Nova's Downloads page once to enable in-app updates. Your pairing and settings stay on this device.";
+        message_ = options_.architecture == "aarch64"
+            ? "Nova on Steam Frame updates manually. Install the newer ARM64 Frame release from Nova's downloads; never use an x86_64 bundle. Your pairing and settings stay on this device."
+            : "This copy updates manually. Install a newer Nova release from Nova's downloads. Your pairing and settings stay on this device.";
         return;
     }
     message_ = "Updates will be checked when Nova is idle.";
@@ -110,6 +112,8 @@ QVariantMap DeckUpdates::state() const {
     return {{"supported", supported_}, {"version", QCoreApplication::applicationVersion()},
         {"channel", options_.channel}, {"automatic", automatic_}, {"checking", checking_},
         {"installing", installing_}, {"progress", progress_}, {"message", message_},
+        {"lastCheck", !checkCompleted_ ? QStringLiteral("none")
+            : feedUnavailable_ ? QStringLiteral("failed") : QStringLiteral("succeeded")},
         {"available", !remote_.isEmpty() && remote_ != local_}, {"latestVersion", latestVersion_},
         {"restartRequired", restart}, {"canFinish", restart && !blocked_ && !installing_},
         {"canCheck", supported_ && !checking_ && !installing_ && !blocked_},
@@ -173,6 +177,7 @@ void DeckUpdates::check() {
     connect(reply, &QNetworkReply::readyRead, this, [reply] { if (reply->bytesAvailable() > 16384) reply->abort(); });
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         checking_ = false;
+        checkCompleted_ = true;
         const auto bytes = reply->readAll();
         const auto catalog = parseDeckUpdateCatalog(bytes, options_.channel, options_.architecture);
         feedUnavailable_ = reply->error() != QNetworkReply::NoError
@@ -243,6 +248,7 @@ void DeckUpdates::setInstalling(bool value) {
 void DeckUpdates::install() {
     if (!canInstall()) return;
     attempted_ = remote_;
+    progress_ = 0;
     ensureMonitor();
     if (creating_) { pendingInstall_ = true; setInstalling(true); return; }
     if (monitor_.isEmpty()) return;
@@ -292,7 +298,8 @@ void DeckUpdates::available(const QVariantMap& info) {
     if (!installing_ && !checking_) message_ = restartRequired_ || local_ != running_
         ? "Update installed. Close and reopen Nova to use it."
         : remote_ != local_ ? "A Nova update is available."
-        : feedUnavailable_ ? feedUnavailableMessage : "You're up to date on this channel.";
+        : feedUnavailable_ ? feedUnavailableMessage
+        : checkCompleted_ ? QStringLiteral("You're up to date on this channel.") : message_;
     scheduleAutomatic();
     emit stateChanged();
 }
