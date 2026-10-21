@@ -560,10 +560,16 @@ jobs:
               ".github/workflows/build.yml",
               "CHANGELOG.md",
               "README.md",
+              "ROADMAP.md",
               "app/src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt",
+              "clients/deck/README.md",
+              "clients/deck/docs/steam-frame.md",
+              "clients/deck/packaging/flatpak/README.md",
+              "docs/linux-updates.md",
               "docs/screenshots/beta2/nova-control-detail-aurora.webp",
               "docs/screenshots/beta2/nova-control-detail-director.webp",
               "docs/screenshots/beta2/nova-play-setup-aurora.webp",
+              "docs/screenshots/beta2/polaris-mission-control-aurora.webp",
               "docs/screenshots/beta2/provenance.json",
               "app/src/test/java/com/papi/nova/NovaReleaseMetadataTest.kt",
               "app/src/test/java/com/papi/nova/ui/NovaComposeBuildConfigurationTest.kt",
@@ -596,7 +602,19 @@ jobs:
               subprocess.run(["git", "merge-base", "--is-ancestor", FRAME["source"], source], check=True)
               changed = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z",
                                                  FRAME["source"], source]).decode().split("\0")
-              require(set(changed) - {""} <= RELEASE_ONLY, "Runtime/source inputs changed after Frame qualification")
+              changed = set(changed) - {""}
+              metainfo = "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml"
+              if metainfo in changed:
+                  # This approved maturity label does not change the qualified Frame runtime.
+                  # Keep built metadata outside the path allowlist: no other byte or mode may change.
+                  before = subprocess.check_output(["git", "show", FRAME["source"] + ":" + metainfo])
+                  after = subprocess.check_output(["git", "show", source + ":" + metainfo])
+                  require(before.count(b"This Alpha targets") == 1 and
+                          after == before.replace(b"This Alpha targets", b"This Beta targets", 1) and
+                          output("git", "ls-tree", source, "--", metainfo).startswith("100644 blob "),
+                          "Unqualified Frame metadata change")
+                  changed.remove(metainfo)
+              require(changed <= RELEASE_ONLY, "Runtime/source inputs changed after Frame qualification")
 
           def digest(path):
               require(path.is_file() and not path.is_symlink(), "Not an ordinary asset: " + str(path))
