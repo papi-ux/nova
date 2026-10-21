@@ -86,6 +86,12 @@ every game.</sub>
   over Tailscale. [Connection facts and profiles](docs/network-profiles.md)
   explains how.
 
+Polaris is the host built for Nova. It runs each game in a private session on
+your Linux PC, brings your Steam, Heroic and Lutris library along, and shows
+how every stream is running. [Meet Polaris](https://github.com/papi-ux/polaris).
+
+![Polaris Mission Control on the PC: Control Ultimate Edition is next up, the host is ready for clients with 5 of 5 launch checks passing, the launch mode is Private Stream, and recent games wait below](docs/screenshots/beta2/polaris-mission-control-aurora.webp)
+
 Nova comes in a choice of themes, with Polaris Aurora as the default; see
 them in the [theme gallery](https://papi-ux.com/nova/#themes).
 
