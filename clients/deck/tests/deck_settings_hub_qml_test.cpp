@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
                 property var state:updateState
                 property bool busy:!!state.installing
                 function check() { updateChecks++ }
-                function install() { updateInstalls++; updateState=Object.assign({},updateState,{installing:true,canInstall:false,canCheck:false,progress:35}) }
+                function install() { updateInstalls++; updateState=Object.assign({},updateState,{installing:true,canInstall:false,canCheck:false,progress:35,message:"Updating Nova… Keep Nova open until this finishes."}) }
                 function setAutomatic(value) { updateState=Object.assign({},updateState,{automatic:value}); return true }
                 function finishUpdate() { updateFinishes++ }
             }
@@ -182,6 +182,7 @@ int main(int argc, char** argv) {
             function resetTheme() { NovaTheme.setTheme("polaris"); NovaTheme.setFontScale(1) }
             function controllerBack() { hub.back() }
             function openUpdates() { hub.openUpdates() }
+            function resetUpdateNavigation() { hub.selectCategory("all") }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
             SettingsHub { id:hub; updateController:updatesAvailable ? updater : null; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
@@ -214,6 +215,62 @@ int main(int argc, char** argv) {
               "theme migration did not persist or crossed preference scope");
     }
     QMetaObject::invokeMethod(root.get(), "resetTheme"); settle();
+    const auto updatePresentation = [&] {
+        checkpoint("update-presentation");
+        const auto original = root->property("updateState").toMap();
+        const auto setState = [&](QVariantMap state) { root->setProperty("updateState", state); settle(); };
+        const auto openUpdates = [&] { check(QMetaObject::invokeMethod(root.get(), "openUpdates"), "cannot open updates"); settle(); };
+        const auto status = [&](const char* state) { check(item("update-state")->property("stateId") == state, "update status contradicts typed outcome"); };
+        for (const auto& size : {QSize(1280,800), QSize(960,600), QSize(400,800)}) {
+            window->resize(size); QMetaObject::invokeMethod(root.get(), size.width() == 1280 ? "resetTheme" : "large"); settle();
+            setState(original); openUpdates(); focused("update-install"); within("update-install"); status("available");
+            click("update-check"); focused("update-back"); within("update-back"); key(Qt::Key_Return);
+            check(!root->property("updateState").toMap()["automatic"].toBool(), "second press after Check enabled automatic updates");
+            focused("settings-row-updates");
+            openUpdates(); click("update-install"); focused("update-back"); within("update-back"); status("updating");
+            auto current = root->property("updateState").toMap();
+            for (const auto value : {0,35,10}) {
+                current["progress"] = value; setState(current);
+                check(item("update-progress")->property("indeterminate").toBool() == (value == 0)
+                    && item("update-progress")->property("value").toInt() == value, "operation progress lagged or invented an overall total");
+            }
+            capture(("updates-installing-" + QByteArray::number(size.width())).constData());
+            key(Qt::Key_Return); focused("settings-row-updates");
+            check(!root->property("updateState").toMap()["automatic"].toBool(), "second press after Install enabled automatic updates");
+            current = original; current["available"]=false; current["canInstall"]=false;
+            for (const auto& pair : {QPair{QStringLiteral("none"),QStringLiteral("unchecked")},
+                     QPair{QStringLiteral("failed"),QStringLiteral("failed")}, QPair{QStringLiteral("succeeded"),QStringLiteral("current")}}) {
+                if (pair.first == "none") current.remove("lastCheck"); else current["lastCheck"]=pair.first;
+                setState(current); openUpdates(); focused("update-check"); within("update-check"); status(pair.second.toLatin1().constData());
+                if (pair.first == "succeeded") {
+                    current["checking"]=true; current["canCheck"]=false; setState(current);
+                    focused("update-back"); within("update-back"); status("checking");
+                    current["checking"]=false; current["canCheck"]=true;
+                }
+                controllerBack();
+            }
+            current["restartRequired"]=true; current["canFinish"]=true; current["canCheck"]=false;
+            current["message"]="Update installed. Close and reopen Nova to use it.";
+            setState(current); openUpdates(); focused("update-back"); within("update-back"); status("ready");
+            check(root->property("updateFinishes").toInt() == 0, "update completion closed Nova automatically");
+            capture(("updates-ready-" + QByteArray::number(size.width())).constData()); controllerBack();
+            current["supported"]=false; current["restartRequired"]=false; current["canFinish"]=false;
+            setState(current); openUpdates(); focused("update-back"); status("manual");
+            check(find(window->contentItem(), "update-downloads") && !find(window->contentItem(), "update-check")
+                && !find(window->contentItem(), "update-automatic"), "manual install offered automatic updates");
+            controllerBack(); controllerBack(); focused("open-settings");
+        }
+        setState(original); root->setProperty("updateChecks", 0); root->setProperty("updateInstalls", 0);
+        window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme");
+        // The new update cases select App; restore the initial category before
+        // the pre-existing Settings suite, without changing its assertions.
+        QMetaObject::invokeMethod(root.get(), "resetUpdateNavigation"); settle();
+    };
+    updatePresentation();
+    if (app.arguments().contains("--update-presentation-regression")) {
+        check(!warnings, "update presentation emitted QML warnings");
+        std::cout << "Update status, safe focus, per-operation progress and responsive geometry passed\n"; return 0;
+    }
     click("open-settings"); focused("settings-category-all");
     check(reads == 0 && writes == 0, "opening hub touched host");
     if (app.arguments().contains("--parity-settings-search")) {
@@ -440,7 +497,7 @@ int main(int argc, char** argv) {
     QMetaObject::invokeMethod(root.get(), "openUpdates"); settle();
     checkpoint("updates");
     check(find(window->contentItem(), "update-status"), "update shortcut did not open its screen");
-    focused("update-back"); click("update-check");
+    focused("update-install"); click("update-check");
     check(root->property("updateChecks").toInt() == 1, "check action was not routed");
     click("update-automatic"); check(root->property("updateState").toMap()["automatic"].toBool(), "automatic choice not routed");
     click("update-install");
