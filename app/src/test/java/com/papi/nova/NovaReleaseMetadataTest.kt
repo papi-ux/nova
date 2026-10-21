@@ -590,6 +590,12 @@ class ReleaseReadback(unittest.TestCase):
             (root / "clients/deck/tests/deck_library_navigation_test.py").write_text("qualified test fixture\n")
             (root / "CHANGELOG.md").write_text("qualified notes\n")
             (root / "README.md").write_text("qualified README\n")
+            metainfo = "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml"
+            (root / metainfo).parent.mkdir(parents=True, exist_ok=True)
+            description = "This Alpha targets Steam Frame."
+            if case == "beta-metadata-ambiguous": description += " This Alpha targets another device."
+            (root / metainfo).write_text('<component><description>' + description +
+                                         '</description><launchable>nova-deck</launchable></component>\n')
             (root / ".github/workflows/build.yml").write_text("old release-only metadata\n")
             git("add", "."); git("commit", "-qm", "qualified source")
             source, tree = git("rev-parse", "HEAD"), git("rev-parse", "HEAD^{tree}")
@@ -623,6 +629,28 @@ class ReleaseReadback(unittest.TestCase):
             if case == "unsafe-checksum": (root / "remote" / (name + ".sha256")).write_text("a" * 64 + "  ../../escape\n")
             if case == "held": pins["source"] = "PENDING"
             if case == "tree": pins["tree"] = "0" * 40
+            successor_paths = []
+            if case == "native-beta-docs":
+                for path in ("ROADMAP.md", "clients/deck/README.md", "clients/deck/docs/steam-frame.md",
+                             "clients/deck/packaging/flatpak/README.md", "docs/linux-updates.md",
+                             "docs/screenshots/beta2/polaris-mission-control-aurora.webp"):
+                    (root / path).parent.mkdir(parents=True, exist_ok=True)
+                    (root / path).write_bytes(b"approved documentation fixture\n")
+                    successor_paths.append(path)
+            if case == "native-beta-doc-near-name":
+                (root / "docs").mkdir(exist_ok=True)
+                (root / "docs/linux-updates.md.extra").write_text("unqualified near-name\n")
+                successor_paths.append("docs/linux-updates.md.extra")
+            if case == "native-beta-docs" or case.startswith("beta-metadata"):
+                content = (root / metainfo).read_bytes().replace(b"This Alpha targets", b"This Beta targets", 1)
+                if case == "beta-metadata-command": content = content.replace(b"nova-deck", b"other-command")
+                if case == "beta-metadata-extra": content += b"\n"
+                (root / metainfo).write_bytes(content)
+                successor_paths.append(metainfo)
+                if case == "beta-metadata-mode": (root / metainfo).chmod(0o755)
+            if case.startswith("native-beta-doc") or case.startswith("beta-metadata"):
+                git("add", "--", *successor_paths); git("commit", "-qm", "native Beta documentation successor")
+                release = git("rev-parse", "HEAD"); git("tag", "-f", tag)
             if case == "runtime-qml":
                 (root / "clients/deck/qml/NovaHud.qml").write_text("unqualified QML\n")
                 git("add", "clients/deck/qml/NovaHud.qml"); git("commit", "-qm", "runtime drift")
@@ -685,11 +713,17 @@ class ReleaseReadback(unittest.TestCase):
             calls = [json.loads(line) for line in (root / "calls").read_text().splitlines()] if (root / "calls").exists() else []
             self.assertTrue(all(a[:2] in (["release", "view"], ["release", "download"]) for a in calls))
             if case in ("held", "tree", "runtime-qml", "readme-near-name", "readme-image-near-name", "readme-other-image",
-                        "android-activity-near-name", "android-other-source"): self.assertEqual([], calls)
+                        "android-activity-near-name", "android-other-source", "native-beta-doc-near-name",
+                        "beta-metadata-command", "beta-metadata-extra", "beta-metadata-ambiguous",
+                        "beta-metadata-mode"): self.assertEqual([], calls)
             print(case + ": expected " + ("PASS" if succeeds else "REFUSE"), flush=True)
 
     def test_changed_release_boundaries(self):
         for case, phase, succeeds in (
+                ("native-beta-docs", "preflight", True), ("beta-metadata", "final", True),
+                ("beta-metadata-command", "preflight", False), ("beta-metadata-extra", "preflight", False),
+                ("beta-metadata-ambiguous", "preflight", False), ("beta-metadata-mode", "preflight", False),
+                ("native-beta-doc-near-name", "preflight", False),
                 ("ordinary-eight", "final", True), ("draft-pair", "preflight", True),
                 ("final-ten", "final", True), ("rerun-ten", "preflight", True),
                 ("missing", "preflight", False), ("half", "preflight", False),
