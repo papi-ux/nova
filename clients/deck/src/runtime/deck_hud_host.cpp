@@ -150,6 +150,7 @@ struct DeckHudHostObserver::Shared {
     std::optional<DeckLiveTuningTelemetry> live;
     std::optional<DeckBitrateUnits> units;
     std::optional<Intent> pending;
+    quint64 doctorIntentVersion = 0;
     bool busy = false, fixedChange = false;
     int requestedBitrate = 0;
     QString message;
@@ -354,7 +355,9 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
             while (valid()) {
                 std::optional<Shared::Intent> intent;
                 std::optional<Shared::MediaIntent> media;
-                { const std::lock_guard lock(state->mutex); intent = std::exchange(state->pending, {}); media = std::exchange(state->mediaPending, {}); }
+                quint64 doctorReadVersion;
+                { const std::lock_guard lock(state->mutex); intent = std::exchange(state->pending, {}); media = std::exchange(state->mediaPending, {});
+                    doctorReadVersion = state->doctorIntentVersion; }
                 auto version = beginRead();
                 auto result = target->fetch(cancelled);
                 if (!valid()) break;
@@ -501,7 +504,11 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 std::optional<DeckDoctorRequest> doctorRequest;
                 {
                     const std::lock_guard lock(state->mutex);
-                    if (!state->busy && state->doctorStorageReady && target->doctorAction) doctorRequest = state->doctor.next(nowMs());
+                    // An action submitted during or after this poll must wait
+                    // for a GET begun after that explicit user request. In
+                    // particular, Apply cannot consume its own reviewed sample.
+                    if (!state->busy && state->doctorStorageReady && target->doctorAction &&
+                        state->doctorIntentVersion == doctorReadVersion) doctorRequest = state->doctor.next(nowMs());
                     if (doctorRequest) { state->doctor.invalidate(); state->view = refreshingView(); state->live.reset(); }
                 }
                 // Commit the initial idempotency key/intent before HTTP can
@@ -609,18 +616,21 @@ bool DeckHudHostObserver::applyDoctorFix() {
     const std::lock_guard lock(shared_->mutex);
     if (shared_->stopped || shared_->eventFatal || shared_->busy || !shared_->doctorStorageReady || !shared_->view.value("hostFresh").toBool() ||
         Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) || !shared_->doctor.apply(nowMs())) return false;
+    ++shared_->doctorIntentVersion;
     shared_->wake.notify_all(); return true;
 }
 bool DeckHudHostObserver::undoDoctorFix() {
     const std::lock_guard lock(shared_->mutex);
     if (shared_->stopped || shared_->eventFatal || shared_->busy || !shared_->doctorStorageReady || !shared_->view.value("hostFresh").toBool() ||
         Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) || !shared_->doctor.undo(nowMs())) return false;
+    ++shared_->doctorIntentVersion;
     shared_->wake.notify_all(); return true;
 }
 bool DeckHudHostObserver::checkDoctorResult() {
     const std::lock_guard lock(shared_->mutex);
     if (shared_->stopped || shared_->eventFatal || shared_->busy || !shared_->doctorStorageReady || !shared_->view.value("hostFresh").toBool() ||
         Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) || !shared_->doctor.check(nowMs())) return false;
+    ++shared_->doctorIntentVersion;
     shared_->wake.notify_all(); return true;
 }
 QVariantMap DeckHudHostObserver::snapshot() const {

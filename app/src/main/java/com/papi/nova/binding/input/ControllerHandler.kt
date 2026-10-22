@@ -48,6 +48,7 @@ import com.papi.nova.ui.GameGestures
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.utils.Vector2d
 import java.lang.reflect.InvocationTargetException
 import kotlin.math.abs
@@ -95,6 +96,74 @@ class ControllerHandler(
     private val backgroundThreadHandler: Handler
     private var hasGameController = false
     private var stopped = false
+    private enum class NativeRoute { HOST, LOCAL, DROP }
+    private var nativeRoute = NativeRoute.HOST
+    private var nativeLocalSink: ((KeyEvent) -> Boolean)? = null
+
+    /** Modal ownership changes synchronously, even if the controller is idle. */
+    internal fun routeNativeToLocal(sink: (KeyEvent) -> Boolean) {
+        if (stopped || nativeRoute == NativeRoute.LOCAL) return
+        changeNativeRoute(NativeRoute.LOCAL, sink)
+    }
+
+    internal fun routeNativeToHost() {
+        if (!stopped && nativeRoute != NativeRoute.HOST) changeNativeRoute(NativeRoute.HOST, null)
+    }
+
+    internal fun nativeWindowLostFocus() {
+        if (!stopped && nativeRoute == NativeRoute.HOST) changeNativeRoute(NativeRoute.DROP, null)
+    }
+
+    private fun changeNativeRoute(route: NativeRoute, sink: ((KeyEvent) -> Boolean)?) {
+        val leavingHost = nativeRoute == NativeRoute.HOST
+        nativeRoute = route
+        nativeLocalSink = sink
+        for (i in 0 until usbDeviceContexts.size()) {
+            val context = usbDeviceContexts.valueAt(i)
+            if (context.device !is SteamController || context.destroyed) continue
+            context.nativeUiKeys.cancel()
+            context.suppressedNativeButtons = context.physicalNativeButtons
+            context.suppressedNativeMouse = context.physicalNativeMouse
+            context.suppressedNativeTouches.clear()
+            context.suppressedNativeTouches.addAll(context.physicalNativeTouches)
+            context.suppressNativeLeftTrigger = context.physicalNativeLeftTrigger > context.triggerDeadzone
+            context.suppressNativeRightTrigger = context.physicalNativeRightTrigger > context.triggerDeadzone
+            context.nativeUiKeys.suppress(context.physicalNativeButtons,
+                context.physicalNativeLeftStickX, context.physicalNativeLeftStickY)
+            context.novaShortcutState.reset()
+            context.nativeButtons = 0
+            context.nativeDownTimes.clear()
+            buttonReleaseScheduler.cancelOwner(context)
+            context.inputMap = 0
+            context.leftTrigger = 0; context.rightTrigger = 0
+            context.leftStickX = 0; context.leftStickY = 0
+            context.rightStickX = 0; context.rightStickY = 0
+            if (leavingHost && context.assignedControllerNumber && context.controllerNumber >= 0) {
+                conn.sendControllerInput(context.controllerNumber, getActiveControllerMask(), 0, 0, 0, 0, 0, 0, 0)
+                updateMouseButtons(context, 0)
+                updateMouseButtons(context, 0, nativeMouse = true)
+                for ((id, position) in context.nativeHostTouches) {
+                    conn.sendControllerTouchEvent(context.controllerNumber.toByte(), MoonBridge.LI_TOUCH_EVENT_UP,
+                        id, position.first, position.second, 0f)
+                }
+                context.nativeHostTouches.clear()
+                if (context.gyroReportRateHz > 0) conn.sendControllerMotionEvent(
+                    context.controllerNumber.toByte(), MoonBridge.LI_MOTION_TYPE_GYRO, 0f, 0f, 0f)
+            }
+        }
+    }
+
+    /** Also reconciles standalone panel windows used by Activity hosts and JVM tests. */
+    private fun syncNativeRoute() {
+        if (stopped) return
+        val surfaces = NovaSurfaces.existing(activityContext)
+        if (surfaces?.controllerInputOwner != null) {
+            routeNativeToLocal(surfaces::dispatchControllerKey)
+        } else if (nativeRoute == NativeRoute.LOCAL) {
+            if (activityContext !is com.papi.nova.Game || activityContext.hasWindowFocus()) routeNativeToHost()
+            else changeNativeRoute(NativeRoute.DROP, null)
+        }
+    }
     private var currentControllers: Short = 0
     private var initialControllers: Short = 0
 
@@ -2467,6 +2536,31 @@ class ControllerHandler(
         val context = usbDeviceContexts[controllerId] ?: return
         if (context.destroyed) return
 
+        var effectiveButtons = buttonFlags
+        if (context.device is SteamController) {
+            syncNativeRoute()
+            val firstReport = !context.physicalNativeSeen
+            context.physicalNativeSeen = true
+            context.physicalNativeButtons = buttonFlags
+            context.physicalNativeLeftStickX = leftStickX
+            context.physicalNativeLeftStickY = leftStickY
+            context.physicalNativeLeftTrigger = leftTrigger
+            context.physicalNativeRightTrigger = rightTrigger
+            context.suppressedNativeButtons = context.suppressedNativeButtons and buttonFlags
+            effectiveButtons = buttonFlags and context.suppressedNativeButtons.inv()
+            if (nativeRoute != NativeRoute.HOST) {
+                if (nativeRoute == NativeRoute.LOCAL) {
+                    if (firstReport) context.nativeUiKeys.suppress(buttonFlags, leftStickX, leftStickY)
+                    val owner = NovaSurfaces.existing(activityContext)?.controllerInputOwner ?: activityContext
+                    val sink = nativeLocalSink
+                    context.nativeUiKeys.update(owner, buttonFlags, leftStickX, leftStickY) {
+                        sink?.invoke(it)
+                    }
+                }
+                return
+            }
+        }
+
         val leftStickVector = populateCachedVector(leftStickX, leftStickY)
         handleDeadZone(leftStickVector, context.leftStickDeadzoneRadius)
         context.leftStickX = (leftStickVector.getX() * 0x7FFE).toInt().toShort()
@@ -2479,6 +2573,12 @@ class ControllerHandler(
 
         var lt = leftTrigger
         var rt = rightTrigger
+        if (context.device is SteamController) {
+            if (lt <= context.triggerDeadzone) context.suppressNativeLeftTrigger = false
+            if (rt <= context.triggerDeadzone) context.suppressNativeRightTrigger = false
+            if (context.suppressNativeLeftTrigger) lt = 0f
+            if (context.suppressNativeRightTrigger) rt = 0f
+        }
         if (lt <= context.triggerDeadzone) {
             lt = 0f
         }
@@ -2488,7 +2588,7 @@ class ControllerHandler(
 
         context.leftTrigger = (lt * 0xFF).toInt().toByte()
         context.rightTrigger = (rt * 0xFF).toInt().toByte()
-        if (context.device is SteamController && !context.assignedControllerNumber && buttonFlags == 0 &&
+        if (context.device is SteamController && !context.assignedControllerNumber && effectiveButtons == 0 &&
             context.leftTrigger.toInt() == 0 && context.rightTrigger.toInt() == 0 &&
             context.leftStickX.toInt() == 0 && context.leftStickY.toInt() == 0 &&
             context.rightStickX.toInt() == 0 && context.rightStickY.toInt() == 0) return
@@ -2497,18 +2597,20 @@ class ControllerHandler(
             // Reuse Nova's actual Guide/chord state, face-button preference and button
             // handling; the raw driver must not synthesize a timed Guide+A macro.
             for ((key, flag) in NATIVE_STEAM_KEYS.asReversed()) {
-                if (context.nativeButtons and flag != 0 && buttonFlags and flag == 0) {
+                if (context.nativeButtons and flag != 0 && effectiveButtons and flag == 0) {
                     handleButtonUpForContext(KeyEvent(context.nativeDownTimes.remove(flag) ?: now, now,
                         KeyEvent.ACTION_UP, key, 0), context)
+                    if (nativeRoute != NativeRoute.HOST) return
                 }
             }
             for ((key, flag) in NATIVE_STEAM_KEYS) {
-                if (context.nativeButtons and flag == 0 && buttonFlags and flag != 0) {
+                if (context.nativeButtons and flag == 0 && effectiveButtons and flag != 0) {
                     context.nativeDownTimes[flag] = now
                     handleButtonDownForContext(KeyEvent(now, now, KeyEvent.ACTION_DOWN, key, 0), context)
+                    if (nativeRoute != NativeRoute.HOST) return
                 }
             }
-            context.nativeButtons = buttonFlags
+            context.nativeButtons = effectiveButtons
         } else context.inputMap = buttonFlags
         sendControllerInputPacket(context)
     }
@@ -2523,6 +2625,10 @@ class ControllerHandler(
         if (stopped) return
         val context = usbDeviceContexts[controllerId] ?: return
         if (context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
+        if (context.device is SteamController) {
+            syncNativeRoute()
+            if (nativeRoute != NativeRoute.HOST) return
+        }
         if (context.device is SteamController &&
             (prefConfig.forceMotionSensorsFallbackToDevice || !prefConfig.gamepadMotionSensors)) return
         if (context.device is SteamController && when (motionType) {
@@ -2536,13 +2642,36 @@ class ControllerHandler(
     override fun reportControllerTouch(controllerId: Int, eventType: Byte, pointerId: Int, x: Float, y: Float, pressure: Float) {
         val context = usbDeviceContexts[controllerId] ?: return
         if (stopped || context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
+        if (context.device is SteamController) {
+            syncNativeRoute()
+            if (eventType == MoonBridge.LI_TOUCH_EVENT_UP || eventType == MoonBridge.LI_TOUCH_EVENT_CANCEL) {
+                context.physicalNativeTouches.remove(pointerId)
+            } else context.physicalNativeTouches.add(pointerId)
+            if (nativeRoute != NativeRoute.HOST) return
+            if (pointerId in context.suppressedNativeTouches) {
+                if (eventType == MoonBridge.LI_TOUCH_EVENT_UP || eventType == MoonBridge.LI_TOUCH_EVENT_CANCEL)
+                    context.suppressedNativeTouches.remove(pointerId)
+                return
+            }
+            if (eventType == MoonBridge.LI_TOUCH_EVENT_DOWN) context.nativeHostTouches[pointerId] = x to y
+            else if (eventType == MoonBridge.LI_TOUCH_EVENT_MOVE) {
+                if (pointerId !in context.nativeHostTouches) return
+                context.nativeHostTouches[pointerId] = x to y
+            } else context.nativeHostTouches.remove(pointerId)
+        }
         conn.sendControllerTouchEvent(context.controllerNumber.toByte(), eventType, pointerId, x, y, pressure)
     }
 
     override fun reportControllerMouse(controllerId: Int, deltaX: Short, deltaY: Short, buttons: Int, scroll: Short) {
         val context = usbDeviceContexts[controllerId] ?: return
         if (stopped || context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
-        updateMouseButtons(context, buttons, nativeMouse = true)
+        if (context.device is SteamController) {
+            syncNativeRoute()
+            context.physicalNativeMouse = buttons
+            context.suppressedNativeMouse = context.suppressedNativeMouse and buttons
+            if (nativeRoute != NativeRoute.HOST) return
+        }
+        updateMouseButtons(context, buttons and context.suppressedNativeMouse.inv(), nativeMouse = true)
         if (deltaX.toInt() != 0 || deltaY.toInt() != 0) conn.sendMouseMove(deltaX, deltaY)
         if (scroll.toInt() != 0) conn.sendMouseHighResScroll(scroll)
     }
@@ -2550,6 +2679,10 @@ class ControllerHandler(
     override fun reportControllerQuickMenu(controllerId: Int) {
         val context = usbDeviceContexts[controllerId] ?: return
         if (stopped || context.destroyed) return
+        if (context.device is SteamController) {
+            syncNativeRoute()
+            if (nativeRoute != NativeRoute.HOST) return
+        }
         val now = android.os.SystemClock.uptimeMillis()
         handleButtonDownForContext(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_APP_SWITCH, 0), context)
         handleButtonUpForContext(KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_APP_SWITCH, 0), context)
@@ -2557,11 +2690,19 @@ class ControllerHandler(
 
     override fun controllerInputActive(controllerId: Int) {
         val context = usbDeviceContexts[controllerId] ?: return
-        if (!stopped && !context.destroyed) assignControllerNumberIfNeeded(context)
+        if (!stopped && !context.destroyed && (context.device !is SteamController || nativeRoute == NativeRoute.HOST))
+            assignControllerNumberIfNeeded(context)
     }
 
     override fun resetControllerState(controllerId: Int) {
         val context = usbDeviceContexts[controllerId] ?: return
+        context.nativeUiKeys.cancel()
+        context.physicalNativeSeen = false
+        context.physicalNativeButtons = 0
+        context.physicalNativeMouse = 0
+        context.physicalNativeTouches.clear()
+        context.nativeHostTouches.clear()
+        context.suppressedNativeTouches.clear()
         context.novaShortcutState.reset()
         context.nativeButtons = 0
         context.nativeDownTimes.clear()
@@ -3041,6 +3182,26 @@ class ControllerHandler(
     }
 
     inner class UsbDeviceContext : InputDeviceContext() {
+        internal val nativeUiKeys = NativeControllerUiKeys()
+        var physicalNativeSeen = false
+        var physicalNativeButtons = 0
+        var physicalNativeLeftStickX = 0f
+        var physicalNativeLeftStickY = 0f
+        var physicalNativeMouse = 0
+        var physicalNativeLeftTrigger = 0f
+        var physicalNativeRightTrigger = 0f
+        var suppressedNativeButtons = 0
+        var suppressedNativeMouse = 0
+        var suppressNativeLeftTrigger = false
+        var suppressNativeRightTrigger = false
+        val physicalNativeTouches = mutableSetOf<Int>()
+        val suppressedNativeTouches = mutableSetOf<Int>()
+        val nativeHostTouches = mutableMapOf<Int, Pair<Float, Float>>()
+
+        override fun destroy() {
+            nativeUiKeys.cancel()
+            super.destroy()
+        }
         lateinit var device: AbstractController
         val nativeMouseOwner = Any()
         var nativeButtons = 0

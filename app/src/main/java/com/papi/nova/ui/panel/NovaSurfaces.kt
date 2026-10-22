@@ -3,6 +3,7 @@ package com.papi.nova.ui.panel
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -78,6 +79,32 @@ class NovaSurfaces internal constructor(internal val placement: NovaWindowPlacem
     // Main thread only: which owner presented each page key still on the stack.
     private val presented = HashMap<String, NovaStateOwner>()
     private var window: NovaPanelWindow? = null
+    private val nativeKeyOwners = mutableMapOf<Pair<Int, Int>, NovaPanelWindow>()
+
+    /** The real window owns input through its exit animation, including state-page-only modals. */
+    internal val controllerInputOwner: Any?
+        get() = window?.takeIf { it.isShowing }
+
+    /** Native controllers deliver locally through the same key gate as Android gamepads. */
+    internal fun dispatchControllerKey(event: KeyEvent): Boolean {
+        val key = event.deviceId to event.keyCode
+        val target = when {
+            event.action == KeyEvent.ACTION_UP -> nativeKeyOwners.remove(key) ?: return true
+            event.repeatCount > 0 -> nativeKeyOwners[key] ?: return true
+            else -> window?.takeIf { it.isShowing } ?: return false
+        }
+        val decor = target.window?.decorView ?: return true
+        if (!event.isCanceled && !decor.hasWindowFocus()) return true
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) nativeKeyOwners[key] = target
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode in setOf(
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT) && decor.isInTouchMode) {
+            val focused = decor.findFocus()
+            (focused ?: decor).requestFocusFromTouch()
+            if (focused == null) return true
+        }
+        return target.dispatchKeyEvent(event)
+    }
 
     // Written on the main thread; read by confirm() and busy() from wherever they are called.
     @Volatile private var disposed = false

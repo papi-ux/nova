@@ -334,11 +334,105 @@ void observerBoundary() {
     until([&] { return entered.load(); }); QElapsedTimer timer; timer.start(); observer.reset();
     require(cancelled && timer.elapsed() < 600, "Doctor request blocked teardown");
 }
+
+void applyDuringRead() {
+    // A GET already in flight when Apply is pressed is not its preflight.
+    // Hold both reads explicitly so this exercises the ordering without sleeps.
+    for (int change = 0; change < 3; ++change) {
+        std::atomic<int> reads{0}, posts{0};
+        std::atomic<bool> secondEntered{false}, releaseSecond{false};
+        std::atomic<bool> thirdEntered{false}, releaseThird{false};
+        DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
+            DeckHudHostTarget target;
+            target.identityValid = [] { return true; };
+            target.setEnabled = [](bool, const auto&, const auto&) {
+                return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true};
+            };
+            target.fetch = [&](const auto& stop) {
+                const int sequence = ++reads;
+                if (sequence == 2) {
+                    secondEntered = true;
+                    while (!releaseSecond && !stop()) QThread::msleep(1);
+                }
+                if (sequence == 3) {
+                    thirdEntered = true;
+                    while (!releaseThird && !stop()) QThread::msleep(1);
+                }
+                auto current = sample(sequence);
+                if (sequence >= 3 && change == 1) current.sessionToken = "replacement";
+                if (sequence >= 3 && change == 2) current.doctorOffer->targetKbps = 12000;
+                return DeckPolarisResult<DeckHostTelemetry>{DeckPolarisRequestStatus::Ok, 200, {}, current};
+            };
+            target.doctorAction = [&](const auto& request, const auto&) {
+                ++posts;
+                require(reads >= 3, "Doctor dispatched using a GET begun before Apply");
+                return DeckPolarisResult<DeckDoctorReceipt>{DeckPolarisRequestStatus::Ok, 200, {},
+                    parseDoctorReceipt(receipt(request), 200, request)};
+            };
+            return target;
+        }, {17, "private-game", "private-token"}, {20, 3000, 100});
+        until([&] { return secondEntered && observer.snapshot().value("doctorCanApply").toBool(); });
+        require(observer.applyDoctorFix() && !observer.applyDoctorFix(), "in-flight Apply was rejected or duplicated");
+        releaseSecond = true;
+        until([&] { return thirdEntered.load(); });
+        require(posts == 0, "Doctor wrote before its fresh preflight finished");
+        releaseThird = true;
+        if (change == 0) {
+            until([&] { return observer.snapshot().value("doctorCanUndo").toBool(); });
+            require(posts == 1, "unchanged fresh preflight did not dispatch exactly once");
+        } else {
+            until([&] { return !observer.snapshot().value("doctorActionBusy").toBool(); });
+            require(posts == 0, "fresh session or offer change authorized the old Apply");
+        }
+    }
+}
+void applyAfterPublishedRead() {
+    // CI 2362: Apply admitted after a read was published but before the worker
+    // consulted Doctor. The media upload runs in exactly that window, so holding
+    // it fixes the order without sleeps. That read must not preflight the Apply.
+    std::atomic<int> reads{0}, posts{0}, uploads{0}, heldRead{0};
+    std::atomic<bool> uploadEntered{false}, releaseUpload{false};
+    DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
+        DeckHudHostTarget target;
+        target.identityValid = [] { return true; };
+        target.setEnabled = [](bool, const auto&, const auto&) { return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true}; };
+        target.fetch = [&](const auto&) {
+            // Media scope is the owned app session, so the session token matches it here.
+            auto current = sample(++reads); current.sessionToken = current.appSession;
+            return DeckPolarisResult<DeckHostTelemetry>{DeckPolarisRequestStatus::Ok, 200, {}, current};
+        };
+        target.uploadMedia = [&](const auto&, const auto&, const auto& cancelled) {
+            if (++uploads == 1) {
+                heldRead = reads.load(); uploadEntered = true;
+                while (!releaseUpload && !cancelled()) QThread::msleep(1);
+            }
+            return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true};
+        };
+        target.doctorAction = [&](const auto& request, const auto&) {
+            ++posts;
+            require(reads > heldRead, "Doctor dispatched using the read published before Apply");
+            return DeckPolarisResult<DeckDoctorReceipt>{DeckPolarisRequestStatus::Ok, 200, {}, parseDoctorReceipt(receipt(request), 200, request)};
+        };
+        return target;
+    }, {17, "private-game", "fixture-session"}, {20, 3000, 100});
+    until([&] { return observer.snapshot().value("doctorCanApply").toBool(); });
+    const auto now = clientMediaMonotonicMs();
+    require(observer.submitClientMedia({now, {10, 8, 2, 1, now}}), "media hold fixture refused");
+    until([&] { return uploadEntered.load(); });
+    require(observer.applyDoctorFix(), "Apply refused between a published read and Doctor");
+    releaseUpload = true;
+    until([&] { return posts > 0 || observer.snapshot().value("doctorActionState") == "changed"; });
+    require(posts == 1, "Apply was judged against the read it was reviewed on instead of a fresh preflight");
+    until([&] { return observer.snapshot().value("doctorCanUndo").toBool(); });
+    require(posts == 1, "fresh preflight dispatched more than once");
+}
 }
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--apply-after-read") { applyAfterPublishedRead(); return 0; }
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--apply-during-read") { applyDuringRead(); return 0; }
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--steady-loss") { steadyLossWithTuningOwner(); return 0; }
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--loss-owner") { lossWithTuningOwner(); return 0; }
-    offerContract(); steadyLossWithTuningOwner(); lossWithTuningOwner(); pyrowaveRecoveryAndGoalFence(); receipts(); stateMachine(); observerBoundary(); eventInvalidation();
+    offerContract(); steadyLossWithTuningOwner(); lossWithTuningOwner(); pyrowaveRecoveryAndGoalFence(); receipts(); stateMachine(); observerBoundary(); eventInvalidation(); applyDuringRead(); applyAfterPublishedRead();
     std::cout << "Doctor contracts, receipts, verification, Undo and observer boundaries passed\n";
 }

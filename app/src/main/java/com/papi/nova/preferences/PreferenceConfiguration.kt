@@ -727,6 +727,11 @@ class PreferenceConfiguration {
             return readPreferences(context, null)
         }
 
+        /** The library needs only this switch, without initializing audio/video native code. */
+        @JvmStatic
+        fun isUsbDriverEnabled(prefs: SharedPreferences): Boolean =
+            prefs.getBoolean(USB_DRIVER_PREF_SRING, DEFAULT_USB_DRIVER)
+
         private fun steamGripMapping(key: String?): Int = when (key) {
             "a" -> com.papi.nova.nvstream.input.ControllerPacket.A_FLAG
             "b" -> com.papi.nova.nvstream.input.ControllerPacket.B_FLAG
@@ -890,7 +895,7 @@ class PreferenceConfiguration {
             config.playHostAudio = prefs.getBoolean(HOST_AUDIO_PREF_STRING, DEFAULT_HOST_AUDIO)
             config.smallIconMode = prefs.getBoolean(SMALL_ICONS_PREF_STRING, getDefaultSmallMode(context))
             config.multiController = prefs.getBoolean(MULTI_CONTROLLER_PREF_STRING, DEFAULT_MULTI_CONTROLLER)
-            config.usbDriver = prefs.getBoolean(USB_DRIVER_PREF_SRING, DEFAULT_USB_DRIVER)
+            config.usbDriver = isUsbDriverEnabled(prefs)
             // Connection consent is global; a profile/import must not opt into Bluetooth.
             config.steamControllerBluetooth = PreferenceManager.getDefaultSharedPreferences(context)
                 .getBoolean("steam_controller_bluetooth", false)

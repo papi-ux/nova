@@ -1,8 +1,9 @@
 # Steam Controller (2026) on Android
 
 Nova's Android driver reads the Steam Controller over a USB cable, a Steam
-Controller Puck, or an already paired Bluetooth LE connection. It runs while a
-stream is open; outside a stream the controller keeps its own mouse mode.
+Controller Puck, or an already paired Bluetooth LE connection. USB controllers
+also navigate Nova's library after USB access has been allowed. Outside the
+library and a stream, the controller keeps its own mouse mode.
 Linux, Steam Deck and Steam Frame use their existing input paths.
 
 This driver is being qualified for 1.5.0. Source tests do not establish that a
@@ -15,6 +16,10 @@ hands-on check.
   driver** on. Connect the controller or Puck, then allow Android's USB access
   prompt when the stream starts. A Puck's four controller channels stay separate;
   an empty channel does not reserve a player.
+  The library uses existing USB permission and does not open a permission prompt.
+  After reconnecting USB or rebooting, start a stream and allow access before
+  using native controller shortcuts in the library. Leave **Override native Xbox
+  gamepad support** off; the Steam Controller has its own driver path.
 - **Bluetooth:** pair in Android's Bluetooth settings first, then enable
   **Steam Controller over Bluetooth** in Nova. On Android 12 and later, allow
   Nearby devices when asked. Nova does not scan, pair or request location access.
@@ -38,6 +43,12 @@ after its duplicate is unplugged.
 A real kernel-provided gamepad keeps its existing Android input route.
 
 ## Play
+
+In the library, **Y** cycles the layout. D-pad and the left stick move focus;
+**A** selects and **B** goes back. While Command Center is open, native controller
+input belongs to its menu. The game receives neutral input, and held buttons
+must be released before they can act after the menu closes. The library's native
+navigation uses USB; Bluetooth remains a stream-only connection in this version.
 
 Face buttons, sticks, D-pad, bumpers, triggers, View and Menu use Nova's normal
 controller path. **Steam** follows the existing Guide tap and shortcut rules;
