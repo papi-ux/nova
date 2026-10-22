@@ -35,7 +35,8 @@ class UsbDriverServiceStreamPreferencesTest {
         val device = mock(UsbDevice::class.java)
         `when`(device.vendorId).thenReturn(0x28de); `when`(device.productId).thenReturn(0x1302)
         `when`(device.deviceName).thenReturn("/dev/bus/usb/test-controller")
-        `when`(manager.deviceList).thenReturn(hashMapOf(device.deviceName to device))
+        val devices = hashMapOf("/dev/bus/usb/test-controller" to device)
+        `when`(manager.deviceList).thenReturn(devices)
         UsbDriverService::class.java.getDeclaredField("usbManager").apply { isAccessible = true }.set(service, manager)
         binder = service.onBind(Intent()) as UsbDriverService.UsbDriverBinder
     }
