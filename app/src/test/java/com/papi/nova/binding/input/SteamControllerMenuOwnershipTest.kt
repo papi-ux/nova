@@ -118,6 +118,7 @@ class SteamControllerMenuOwnershipTest {
             addView(first, LinearLayout.LayoutParams(240, 80))
             addView(second, LinearLayout.LayoutParams(240, 80))
         })
+        shadowOf(Looper.getMainLooper()).idle()
         val decor = dialog.window!!.decorView
         decor.measure(View.MeasureSpec.makeMeasureSpec(240, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY))
@@ -125,6 +126,7 @@ class SteamControllerMenuOwnershipTest {
         // A JVM dialog has no window manager to give it focus. Deliver that actual platform
         // transition, rather than bypassing the production focused-window guard.
         val root = ReflectionHelpers.callInstanceMethod<Any>(decor, "getViewRootImpl")
+        assertNotNull("fixture dialog is attached before focus is granted", root)
         Shadow.extract<ShadowViewRootImpl>(root).callWindowFocusChanged(true)
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue("fixture has an attached, focused dialog", decor.hasWindowFocus())
