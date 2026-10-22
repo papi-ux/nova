@@ -476,6 +476,24 @@ class SteamControllerBleTransportTest {
         val transport = start(); val link = links.single(); link.ready()
         assertFalse(transport.supportsRumble())
     }
+    @Test
+    fun availableRumbleIsReportedOnlyAfterReadyAndClearedOnLinkLoss() {
+        val transport = start(); val link = links.single()
+        assertFalse(transport.supportsRumble())
+        link.ready(); assertTrue(transport.supportsRumble())
+        link.disconnected(133); assertFalse(transport.supportsRumble())
+    }
+    @Test
+    fun completedFeaturesReturnAdmissionSlotsForLaterRefreshes() {
+        val transport = start(); val link = links.single(); link.ready()
+        val results = CopyOnWriteArrayList<Boolean>()
+        repeat(10) { n ->
+            transport.writeFeature(feature(n)) { results += it }
+            idle(); link.written(link.layout.feature)
+        }
+        assertEquals(10, link.writes.size)
+        assertEquals(List(10) { true }, results)
+    }
 
     @Test
     fun disconnectPermissionErrorStillAttemptsCloseAndTerminatesAsPermissionFailure() {

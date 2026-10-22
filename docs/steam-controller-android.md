@@ -31,7 +31,10 @@ Android does not expose a reliable physical parent for every lizard-mode input
 device. To avoid swallowing another controller's mouse or keyboard events, this
 version refuses an ambiguous group: more than one attached USB device with the
 same Steam Controller product ID, or more than one paired Steam Controller over
-Bluetooth. One Puck can still carry its four independent controller channels.
+Bluetooth. Paired means saved in Android, including controllers currently switched
+off. One Puck can still carry its four independent channels; leave **Multiple
+controllers** enabled for separate players. A surviving USB device is reconsidered
+after its duplicate is unplugged.
 A real kernel-provided gamepad keeps its existing Android input route.
 
 ## Play

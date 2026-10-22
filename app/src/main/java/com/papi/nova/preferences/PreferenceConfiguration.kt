@@ -891,7 +891,9 @@ class PreferenceConfiguration {
             config.smallIconMode = prefs.getBoolean(SMALL_ICONS_PREF_STRING, getDefaultSmallMode(context))
             config.multiController = prefs.getBoolean(MULTI_CONTROLLER_PREF_STRING, DEFAULT_MULTI_CONTROLLER)
             config.usbDriver = prefs.getBoolean(USB_DRIVER_PREF_SRING, DEFAULT_USB_DRIVER)
-            config.steamControllerBluetooth = prefs.getBoolean("steam_controller_bluetooth", false)
+            // Connection consent is global; a profile/import must not opt into Bluetooth.
+            config.steamControllerBluetooth = PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean("steam_controller_bluetooth", false)
             config.steamControllerGameTouchpad = prefs.getString("steam_controller_trackpads", "mouse") == "game"
             config.steamControllerGripMappings = intArrayOf(
                 steamGripMapping(prefs.getString("steam_controller_r4", "off")),

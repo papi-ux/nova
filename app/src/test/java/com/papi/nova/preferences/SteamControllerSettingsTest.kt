@@ -53,4 +53,11 @@ class SteamControllerSettingsTest {
         assertEquals(listOf("off", "a", "b", "x", "y", "lb", "rb", "ls", "rs"),
             all.settings.single { it.key == "steam_controller_l4" }.options.map { it.value })
     }
+    @Test fun anImportedProfileCannotTurnOnTheGlobalBluetoothConnectionChoice() {
+        val profile = context.getSharedPreferences("controller-profile", Context.MODE_PRIVATE)
+        profile.edit().putBoolean("steam_controller_bluetooth", true).putString("steam_controller_trackpads", "game").commit()
+        val config = PreferenceConfiguration.readPreferences(context, profile)
+        assertFalse(config.steamControllerBluetooth)
+        assertTrue(config.steamControllerGameTouchpad)
+    }
 }

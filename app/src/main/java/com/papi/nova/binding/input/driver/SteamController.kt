@@ -30,6 +30,7 @@ internal class SteamController(
     private var generation = 0L
     private var pendingState: SteamControllerProtocol.State? = null
     private var previousState: SteamControllerProtocol.State? = null
+    private val pointer = SteamControllerPointerAccumulator()
     private var quickMenuDown = false
     private val padDown = BooleanArray(2)
     private var mouseButtons = 0
@@ -187,12 +188,17 @@ internal class SteamController(
             touch(0, state.leftPad); touch(1, state.rightPad)
         } else {
             val old = previousState
-            val dx = if (old?.rightPad?.touching == true && state.rightPad.touching) state.rightPad.x - old.rightPad.x else 0f
-            val dy = if (old?.rightPad?.touching == true && state.rightPad.touching) state.rightPad.y - old.rightPad.y else 0f
-            val scroll = if (old?.leftPad?.touching == true && state.leftPad.touching) old.leftPad.y - state.leftPad.y else 0f
+            val continuingPointer = old?.rightPad?.touching == true && state.rightPad.touching
+            val continuingScroll = old?.leftPad?.touching == true && state.leftPad.touching
+            if (!continuingPointer) pointer.resetPointer()
+            if (!continuingScroll) pointer.resetScroll()
+            val dx = if (continuingPointer) state.rightPad.x - old!!.rightPad.x else 0f
+            val dy = if (continuingPointer) state.rightPad.y - old!!.rightPad.y else 0f
+            val scroll = if (continuingScroll) old!!.leftPad.y - state.leftPad.y else 0f
+            val movement = pointer.move(dx, dy)
             mouseButtons = (if (state.rightPad.clicking) ControllerPacket.A_FLAG else 0) or
                 (if (state.leftPad.clicking) ControllerPacket.B_FLAG else 0)
-            events.reportControllerMouse(getControllerId(), scaled(dx, 1200f), scaled(dy, 1200f), mouseButtons, scaled(scroll, 960f))
+            events.reportControllerMouse(getControllerId(), movement.first, movement.second, mouseButtons, pointer.scroll(scroll))
         }
         previousState = state
         val now = nanoTime()
@@ -268,6 +274,7 @@ internal class SteamController(
     fun releasePlayerInputs() = synchronized(lock) {
         if (closed) return
         previousState = null
+        pointer.reset()
         activityNotified = false
         events.reportControllerMouse(getControllerId(), 0, 0, 0, 0)
         for (i in 0..1) if (padDown[i]) {
@@ -284,6 +291,7 @@ internal class SteamController(
         SteamControllerOwnership.release(sourceKey)
         activityNotified = false
         pendingState = null; previousState = null; quickMenuDown = false
+        pointer.reset()
         motionRates.fill(0); lastMotion.fill(0); desiredMotion = false; appliedMotion = false
         lowRumble = 0; highRumble = 0
         if (!added) return
@@ -318,7 +326,6 @@ internal class SteamController(
     companion object {
         private val GRIP_FLAGS = intArrayOf(ControllerPacket.PADDLE1_FLAG, ControllerPacket.PADDLE2_FLAG, ControllerPacket.PADDLE3_FLAG, ControllerPacket.PADDLE4_FLAG)
         private val PADDLES = GRIP_FLAGS.fold(0) { mask, flag -> mask or flag }
-        private fun scaled(delta: Float, scale: Float): Short = (delta * scale).toInt().coerceIn(-32767, 32767).toShort()
         private fun retryDelay(failures: Int): Long = 250_000_000L shl (failures - 1).coerceIn(0, 3)
     }
 }

@@ -29,13 +29,14 @@ class SteamControllerTest {
         val motions = mutableListOf<Byte>()
         val touches = mutableListOf<Triple<Byte, Int, Float>>()
         val mouse = mutableListOf<Int>()
+        val mouseDeltas = mutableListOf<Pair<Short, Short>>()
         override fun deviceAdded(controller: AbstractController) { order += "added" }
         override fun deviceRemoved(controller: AbstractController) { order += "removed" }
         override fun resetControllerState(controllerId: Int) { order += "reset" }
         override fun reportControllerState(controllerId: Int, buttonFlags: Int, leftStickX: Float, leftStickY: Float, rightStickX: Float, rightStickY: Float, leftTrigger: Float, rightTrigger: Float) { states += buttonFlags; order += "state" }
         override fun reportControllerMotion(controllerId: Int, motionType: Byte, motionX: Float, motionY: Float, motionZ: Float) { motions += motionType }
         override fun reportControllerTouch(controllerId: Int, eventType: Byte, pointerId: Int, x: Float, y: Float, pressure: Float) { touches += Triple(eventType, pointerId, x) }
-        override fun reportControllerMouse(controllerId: Int, deltaX: Short, deltaY: Short, buttons: Int, scroll: Short) { mouse += buttons }
+        override fun reportControllerMouse(controllerId: Int, deltaX: Short, deltaY: Short, buttons: Int, scroll: Short) { mouse += buttons; mouseDeltas += deltaX to deltaY }
         override fun reportControllerQuickMenu(controllerId: Int) { order += "menu" }
     }
     private class Rig(game: Boolean = false, grips: IntArray = IntArray(4)) {
@@ -176,6 +177,13 @@ class SteamControllerTest {
         r.now += 250_000_000; r.tick(); r.link.confirm()
         r.link.observer.onReport(report())
         assertEquals(listOf(MoonBridge.LI_MOTION_TYPE_GYRO), r.events.motions)
+    }
+    @Test fun slowTrackpadReportsAccumulateThroughTheRealProtocolAndPublishPath() {
+        fun position(raw: Int) = report(0x00200000).also { it[24] = raw.toByte(); it[25] = (raw ushr 8).toByte() }
+        val r = Rig(); r.playing(position(0))
+        repeat(20) { r.link.observer.onReport(position((it + 1) * 33)) }
+        assertEquals(12, r.events.mouseDeltas.sumOf { it.first.toInt() })
+        assertEquals(0, r.events.mouseDeltas.sumOf { it.second.toInt() })
     }
 
     companion object {
