@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import com.papi.nova.Game
 import com.papi.nova.R
+import com.papi.nova.binding.input.NativeControllerLibraryInput
 import com.papi.nova.ui.NovaDialogWindows
 import com.papi.nova.ui.compose.NovaComposeTheme
 import com.papi.nova.utils.ExternalDisplayControlHost
@@ -141,10 +142,18 @@ internal open class NovaPanelWindow protected constructor(
         prepareControllerWindow(window, content)
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-        keyGate.dispatch(event, onBack = onBackPressedDispatcher::onBackPressed, deliver = { super.dispatchKeyEvent(it) })
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
+        return keyGate.dispatch(event, onBack = onBackPressedDispatcher::onBackPressed, deliver = { super.dispatchKeyEvent(it) })
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(ev)) return true
         window?.decorView?.let { NovaSplitConfirmRegistry.onTouch(it, ev) }
         return super.dispatchTouchEvent(ev)
     }
@@ -162,6 +171,7 @@ internal open class NovaPanelWindow protected constructor(
 
     /** Shows the window, reading a companion display's window token at show time. */
     fun showNow() {
+        if (placement is NovaWindowPlacement.Stream) placement.game.yieldStreamInputToModal()
         if (placement is NovaWindowPlacement.Companion) {
             window?.let { window ->
                 window.setType(placement.host.companionDialogWindowType)

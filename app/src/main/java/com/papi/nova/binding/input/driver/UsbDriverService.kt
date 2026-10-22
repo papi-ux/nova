@@ -38,6 +38,11 @@ class UsbDriverService : Service(), UsbDriverListener {
     private val usbControllers = mutableMapOf<String, MutableList<AbstractController>>()
     private val addedControllers = mutableSetOf<AbstractController>()
     private var fallbackShown = false
+    // An owner outside the stream opens only Steam Controllers Android already allows.
+    private var promptForPermission = true
+    private var steamControllersOnly = false
+    /** What the current owner started with, so the same request again keeps its channels. */
+    private var ownedSettings: OwnedSettings? = null
 
     private fun deliver(action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) action() else mainHandler.post(action)
@@ -181,13 +186,38 @@ class UsbDriverService : Service(), UsbDriverListener {
 
         /** Launch settings already include the selected per-game profile. */
         fun start(config: PreferenceConfiguration) {
-            if (!started) prefConfig = PreferenceConfiguration().apply {
-                usbDriver = config.usbDriver
-                bindAllUsb = config.bindAllUsb
-                steamControllerBluetooth = config.steamControllerBluetooth
-                steamControllerGameTouchpad = config.steamControllerGameTouchpad
-                steamControllerGripMappings = config.steamControllerGripMappings.copyOf()
+            if (!started) prefConfig = driverConfig(config)
+            this@UsbDriverService.start()
+        }
+
+        /**
+         * Gives the driver to [owner] with [config]. Another owner, or new settings, first retire
+         * every channel the service holds while the old listener still hears their removal; the
+         * new channels then open with [owner]'s settings, such as a game's own touchpad and grip
+         * profile. The same owner and settings again change nothing.
+         *
+         * Without [promptForPermission] only devices Android already allows are opened, and with
+         * [steamControllersOnly] an Xbox or Pro Controller stays an ordinary Android gamepad.
+         */
+        fun startOwned(
+            owner: UsbDriverListener,
+            stateListener: UsbDriverStateListener?,
+            config: PreferenceConfiguration,
+            promptForPermission: Boolean = true,
+            steamControllersOnly: Boolean = false,
+        ) {
+            val settings = OwnedSettings.of(config, promptForPermission, steamControllersOnly)
+            if (started && listener === owner && ownedSettings == settings) {
+                this@UsbDriverService.stateListener = stateListener
+                return
             }
+            this@UsbDriverService.stop()
+            this@UsbDriverService.listener = owner
+            this@UsbDriverService.stateListener = stateListener
+            prefConfig = driverConfig(config)
+            this@UsbDriverService.promptForPermission = promptForPermission
+            this@UsbDriverService.steamControllersOnly = steamControllersOnly
+            ownedSettings = settings
             this@UsbDriverService.start()
         }
 
@@ -206,8 +236,10 @@ class UsbDriverService : Service(), UsbDriverListener {
             return
         }
         if (!usbManager.deviceList.containsKey(device.deviceName)) return
+        if (steamControllersOnly && !SteamControllerUsbTransport.canClaimDevice(device)) return
         if (shouldClaimDevice(device, prefConfig.bindAllUsb)) {
             if (!usbManager.hasPermission(device)) {
+                if (!promptForPermission) return
                 try {
                     stateListener?.onUsbPermissionPromptStarting()
                     var intentFlags = 0
@@ -343,6 +375,37 @@ class UsbDriverService : Service(), UsbDriverListener {
         }
         usbControllers.clear()
         addedControllers.clear()
+        // A later start(config) is a stream's again: it may ask for access and claim any pad.
+        promptForPermission = true
+        steamControllersOnly = false
+        ownedSettings = null
+    }
+
+    /** The driver's own copy of [config], so a later change to it cannot reach open channels. */
+    private fun driverConfig(config: PreferenceConfiguration) = PreferenceConfiguration().apply {
+        usbDriver = config.usbDriver
+        bindAllUsb = config.bindAllUsb
+        steamControllerBluetooth = config.steamControllerBluetooth
+        steamControllerGameTouchpad = config.steamControllerGameTouchpad
+        steamControllerGripMappings = config.steamControllerGripMappings.copyOf()
+    }
+
+    /** The settings channels opened with under [UsbDriverBinder.startOwned]. */
+    private data class OwnedSettings(
+        val usbDriver: Boolean,
+        val bindAllUsb: Boolean,
+        val bluetooth: Boolean,
+        val gameTouchpad: Boolean,
+        val gripMappings: List<Int>,
+        val promptForPermission: Boolean,
+        val steamControllersOnly: Boolean,
+    ) {
+        companion object {
+            fun of(config: PreferenceConfiguration, promptForPermission: Boolean, steamControllersOnly: Boolean) =
+                OwnedSettings(config.usbDriver, config.bindAllUsb, config.steamControllerBluetooth,
+                    config.steamControllerGameTouchpad, config.steamControllerGripMappings.toList(),
+                    promptForPermission, steamControllersOnly)
+        }
     }
 
     override fun onCreate() {

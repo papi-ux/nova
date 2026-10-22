@@ -421,9 +421,7 @@ if (inputDriverStopped || isFinishing || isDestroyed)
 binder?.stop(controllerHandler)
 return
 }
-binder!!.setListener(controllerHandler)
-binder!!.setStateListener(this@Game)
-binder!!.start(prefConfig!!)
+binder!!.startOwned(controllerHandler!!, this@Game, prefConfig!!)
 connectedToUsbDriverService = true
 }
 override fun onServiceDisconnected(componentName:ComponentName?) {
@@ -2805,11 +2803,26 @@ if (!hasFocus)
 {
 fallbackNovaShortcutState.reset()
 controllerHandler?.resetNovaShortcutStates()
+controllerHandler?.nativeWindowLostFocus()
+}
+else if (com.papi.nova.ui.panel.NovaSurfaces.existing(this)?.controllerInputOwner == null)
+{
+// A library that was foreground while this game was in PiP may have owned the
+// service. Reclaim it with this launch's settings; an unchanged owner is a no-op.
+if (!inputDriverStopped && inputDriverBinder != null && prefConfig != null && controllerHandler != null && !isFinishing && !isDestroyed)
+{
+inputDriverBinder!!.startOwned(controllerHandler!!, this, prefConfig!!)
+}
+controllerHandler?.routeNativeToHost()
 }
 
  // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
         inputCaptureProvider!!.onWindowFocusChanged(hasFocus)
+}
+
+fun yieldStreamInputToModal() {
+controllerHandler?.routeNativeToLocal(novaSurfaces::dispatchControllerKey)
 }
 
 fun restoreStreamInputAfterModalDismissal() {
@@ -2826,6 +2839,7 @@ return@post
 val viewFocusRestored = target.requestFocus()
 if (hasWindowFocus())
 {
+controllerHandler?.routeNativeToHost()
 inputCaptureProvider?.onWindowFocusChanged(true)
 }
 LimeLog.info(

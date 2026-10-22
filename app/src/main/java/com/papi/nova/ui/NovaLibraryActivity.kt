@@ -115,6 +115,7 @@ import com.papi.nova.api.PolarisClientSettings
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.binding.PlatformBinding
+import com.papi.nova.binding.input.NativeControllerLibraryInput
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
@@ -234,6 +235,8 @@ class NovaLibraryActivity : NovaActivity() {
         NovaArtworkLibraryUpdateUiState.Idle
     )
     private var appliedTheme: String = ""
+    /** A Steam Controller's own buttons, which reach the library only while it is resumed. */
+    private val nativeControllerInput = NativeControllerLibraryInput(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
@@ -436,6 +439,7 @@ class NovaLibraryActivity : NovaActivity() {
         startSpacesPolling()
         NovaSpaceRetrySignal.consumeTarget(this, streamPcUuid, streamHost)?.let(::retrySpaceOpenWhenChecked)
         if (recreateForThemeChangeIfNeeded()) return
+        nativeControllerInput.resume()
         startLibraryPolling()
         revealControllerHints(NovaControllerHintChromeEvent.EXPLICIT_REVEAL)
         if (
@@ -447,6 +451,8 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun onPause() {
+        // Before a game launched from here binds the driver with its own settings.
+        nativeControllerInput.pause()
         cancelPendingSpaceOpen()
         spacesEpoch++; spacesPoll?.cancel(); spacesPoll = null
         libraryPollEpoch++; libraryPoll?.cancel(); libraryPoll = null
@@ -722,6 +728,8 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // A natively owned controller's keyboard only repeats the keys it already sends as a pad.
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
         // The hint bar names the keys of whatever was pressed last: a remote has no X or L1.
         // A phone's own Back gesture comes from a virtual device, which is neither.
         if (
@@ -743,6 +751,7 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
         val isJoystick = event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK
         val hasBrowseIntent =
             isJoystick &&
@@ -756,6 +765,8 @@ class NovaLibraryActivity : NovaActivity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // Its mouse's clicks arrive as touches.
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
         val handled = super.dispatchTouchEvent(event)
         if (handled && event.actionMasked == MotionEvent.ACTION_UP) {
             registerSuccessfulLibraryInput(NovaControllerHintChromeEvent.TOUCH_INPUT)
