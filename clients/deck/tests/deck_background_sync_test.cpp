@@ -35,7 +35,7 @@ template<class F> void until(F condition, int timeout = 9000, std::source_locati
 void drain(int ms = 400) { QElapsedTimer time; time.start(); until([&] { return time.elapsed() >= ms; }, ms + 1000); }
 template<class T> DeckPolarisResult<T> ok(T value) { return {DeckPolarisRequestStatus::Ok, 200, {}, std::move(value)}; }
 struct Fixture {
-    QTemporaryDir directory;
+    QTemporaryDir directory{host_settings_fixture::settingsDirectoryTemplate()};
     DeckPlaySettings preferences{directory.filePath("preferences.ini")};
     DeckHostSettings current = *parseHostSettings(host_settings_fixture::json(host_settings_fixture::settings()));
     std::atomic<int> reads{0}, writes{0};
@@ -43,6 +43,7 @@ struct Fixture {
     QStringList writtenHosts;
     DeckHostSettingsController controller;
     Fixture() {
+        require(directory.isValid(), "cannot create private settings fixture directory");
         current.desiredDisplay.clear(); current.effectiveDisplay.clear();
         current.desiredBitrate = current.effectiveBitrate = 0;
     }

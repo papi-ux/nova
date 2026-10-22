@@ -124,7 +124,8 @@ void controller() {
     require(!c.state().value("supported").toBool() && c.state().value("settings").toMap().isEmpty(), "host switch retained settings");
 }
 void resumeTimeoutAndDefaults() {
-    QTemporaryDir directory; DeckPlaySettings preferences(directory.filePath("custom.ini"));
+    QTemporaryDir directory{host_settings_fixture::settingsDirectoryTemplate()};
+    require(directory.isValid(), "cannot create private settings fixture directory"); DeckPlaySettings preferences(directory.filePath("custom.ini"));
     auto current = *parseHostSettings(host_settings_fixture::json(host_settings_fixture::settings()));
     int writes = 0; bool lost = false, valid = true, idle = true;
     DeckHostSettingsResolver resolver = [&]() -> std::optional<DeckHostSettingsTarget> {
@@ -169,7 +170,8 @@ void resumeTimeoutAndDefaults() {
     require(!parseHostSettings(host_settings_fixture::json(malformed)),"timeout string was coerced");
 }
 void profiles() {
-    QTemporaryDir directory;
+    QTemporaryDir directory{host_settings_fixture::settingsDirectoryTemplate()};
+    require(directory.isValid(), "cannot create private settings fixture directory");
     DeckPlaySettings preferences(directory.filePath("defaults.ini"));
     const auto original = preferences.streamDefaults();
     require(preferences.saveChoice("other-pc", "custom-game", {{"bitrateKbps", 40000}}), "fixture preference failed");
@@ -254,8 +256,9 @@ void profiles() {
     require(preferences.load("other-pc", "custom-game").value("configuration").toMap().value("bitrateKbps") == 40000,
         "reset removed per-game choices");
 }
-void automaticProfiles() {
-    QTemporaryDir directory;
+void automaticProfiles(bool crossThrottleRefresh = false) {
+    QTemporaryDir directory{host_settings_fixture::settingsDirectoryTemplate()};
+    require(directory.isValid(), "cannot create private settings fixture directory");
     DeckPlaySettings preferences(directory.filePath("sync.ini"));
     const auto original = preferences.streamDefaults();
     require(preferences.saveChoice("one", "game", {{"bitrateKbps", 40000}}), "cannot seed game override");
@@ -302,8 +305,14 @@ void automaticProfiles() {
         require(c.setKeepInStep(true), "cannot enable sync"); until([&] { return !c.busy(); }, 6500);
         require(writes == 1 && c.state().value("keepInStep") == "on", "enable did not save mismatched device defaults");
         current.desiredBitrate = current.effectiveBitrate = 30000; current.revision = "external-edit";
+        if (crossThrottleRefresh) QThread::msleep(5100);
         require(c.refresh(), "cannot read external profile"); until([&] { return !c.busy(); });
-        require(writes == 1, "automatic sync ignored five-second throttle");
+        if (crossThrottleRefresh) std::cerr << "[cross-throttle refresh] writes=" << writes.load()
+            << " interval=" << (writeTimes.size() >= 2 ? writeTimes[1] - writeTimes[0] : -1) << std::endl;
+        // A slow refresh can outlast the cooldown and legitimately send again.
+        // Judge actual POST spacing rather than how quickly refresh returned.
+        require(writes == 1 || (writes == 2 && writeTimes[1] - writeTimes[0] >= 5000),
+            "automatic sync ignored five-second throttle");
         until([&] { return writes == 2 && !c.busy(); }, 7500);
         require(writeTimes[1] - writeTimes[0] >= 5000, "slow preflight compressed automatic POSTs to less than five seconds apart");
         const int stable = writes;
@@ -325,6 +334,7 @@ void automaticProfiles() {
         require(writes == 3 && c.state().value("keepInStep") == "off", "clear did not turn sync off");
         c.close();
     }
+    if (crossThrottleRefresh) return;
     {
         // A dropped reply pauses durably; GET, reopening and a new controller do
         // not authorize a replay even when the returned profile still differs.
@@ -412,7 +422,8 @@ void automaticProfiles() {
 }
 
 void syncView() {
-    QTemporaryDir directory;
+    QTemporaryDir directory{host_settings_fixture::settingsDirectoryTemplate()};
+    require(directory.isValid(), "cannot create private settings fixture directory");
     DeckPlaySettings preferences(directory.filePath("settings.ini"));
     require(preferences.saveKeepInStep("one","on"), "sync preference fixture failed");
     auto current = *parseHostSettings(host_settings_fixture::json(host_settings_fixture::settings()));
@@ -461,4 +472,13 @@ void syncView() {
 }
 
 }
-int main(int argc, char** argv) { QCoreApplication app(argc, argv); parser(); controller(); resumeTimeoutAndDefaults(); profiles(); automaticProfiles(); syncView(); std::cout << "Host settings parser, controller and profile scope passed\n"; }
+int main(int argc, char** argv) {
+    QCoreApplication app(argc, argv);
+    if (app.arguments().contains("--cross-throttle-refresh")) {
+        automaticProfiles(true);
+        std::cout << "A refresh after the cooldown preserves the actual POST spacing\n";
+        return 0;
+    }
+    parser(); controller(); resumeTimeoutAndDefaults(); profiles(); automaticProfiles(); syncView();
+    std::cout << "Host settings parser, controller and profile scope passed\n";
+}
