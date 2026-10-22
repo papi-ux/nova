@@ -126,7 +126,8 @@ data class NovaQuickMenuHudModeState(
     val selected: NovaHudMode,
     val enabled: Boolean,
     /** Where the HUD's left edge sits across the stream window, in pixels; NaN when unknown. */
-    val hudLeftPx: Float = Float.NaN
+    val hudLeftPx: Float = Float.NaN,
+    val guideShortcutsEnabled: Boolean = true,
 )
 
 enum class NovaQuickMenuDoctorCapability {
@@ -304,6 +305,7 @@ data class NovaQuickMenuUiState(
             momentReportAvailable: Boolean = true,
             /** The Working Baseline row's reading of local storage; never changes anything. */
             workingBaseline: NovaWorkingBaselineRow = NovaWorkingBaselineRow(hasEntry = true),
+            guideShortcutsEnabled: Boolean = true,
         ): NovaQuickMenuUiState {
             val viewerSession = status?.isViewer == true
             val canAdjustHostTuning = status?.canAdjustHostTuning == true
@@ -474,7 +476,8 @@ data class NovaQuickMenuUiState(
                 },
                 selected = hudMode,
                 enabled = hudShowing,
-                hudLeftPx = hudLeftPx
+                hudLeftPx = hudLeftPx,
+                guideShortcutsEnabled = guideShortcutsEnabled,
             )
             val doctorReceiptAction = doctorReceiptAction(
                 context = context,

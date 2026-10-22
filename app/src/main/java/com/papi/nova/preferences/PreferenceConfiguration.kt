@@ -81,6 +81,7 @@ class PreferenceConfiguration {
     @JvmField var steamControllerGameTouchpad = false
     @JvmField var steamControllerGripMappings = IntArray(4)
     @JvmField var flipFaceButtons = false
+    @JvmField var guideShortcuts = true
     @JvmField var onscreenController = false
     @JvmField var onscreenControllerLayoutPreset: String? = null
     @JvmField var hideOSCWhenHasGamepad = false
@@ -239,6 +240,7 @@ class PreferenceConfiguration {
         private const val VIBRATE_FALLBACK_PREF_STRING = "checkbox_vibrate_fallback"
         private const val VIBRATE_FALLBACK_STRENGTH_PREF_STRING = "seekbar_vibrate_fallback_strength"
         private const val FLIP_FACE_BUTTONS_PREF_STRING = "checkbox_flip_face_buttons"
+        private const val GUIDE_SHORTCUTS_PREF_STRING = "checkbox_guide_shortcuts"
         private const val LATENCY_TOAST_PREF_STRING = "checkbox_enable_post_stream_toast"
         private const val FRAME_PACING_PREF_STRING = "frame_pacing"
         private const val LOW_LATENCY_FRAME_BALANCE_PREF_STRING = "pref_low_latency_frame_balance"
@@ -338,6 +340,7 @@ class PreferenceConfiguration {
         private const val DEFAULT_VIBRATE_FALLBACK = false
         private const val DEFAULT_VIBRATE_FALLBACK_STRENGTH = 100
         private const val DEFAULT_FLIP_FACE_BUTTONS = false
+        private const val DEFAULT_GUIDE_SHORTCUTS = true
         private const val DEFAULT_AUDIO_CONFIG = "2"
         private const val DEFAULT_LATENCY_TOAST = false
         private const val DEFAULT_FRAME_PACING = "latency"
@@ -963,6 +966,7 @@ class PreferenceConfiguration {
             config.vibrateFallbackToDeviceStrength =
                 prefs.getInt(VIBRATE_FALLBACK_STRENGTH_PREF_STRING, DEFAULT_VIBRATE_FALLBACK_STRENGTH)
             config.flipFaceButtons = prefs.getBoolean(FLIP_FACE_BUTTONS_PREF_STRING, DEFAULT_FLIP_FACE_BUTTONS)
+            config.guideShortcuts = prefs.getBoolean(GUIDE_SHORTCUTS_PREF_STRING, DEFAULT_GUIDE_SHORTCUTS)
             config.enableLatencyToast = prefs.getBoolean(LATENCY_TOAST_PREF_STRING, DEFAULT_LATENCY_TOAST)
             config.enableBackMenu = prefs.getBoolean(CHECKBOX_ENABLE_QUIT_DIALOG, true)
             config.enableFloatingButton =

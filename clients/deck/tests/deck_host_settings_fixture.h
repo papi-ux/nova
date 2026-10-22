@@ -2,8 +2,26 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QDir>
+#include <QFileInfo>
+#include <QStorageInfo>
+#include <iostream>
 
 namespace host_settings_fixture {
+// These fixtures verify real QSettings state and restart semantics, not disk throughput.
+// Keep their small private files off container overlay storage when tmpfs is available.
+inline QString settingsDirectoryTemplate() {
+    const QString sharedMemory = "/dev/shm";
+    const QStorageInfo storage(sharedMemory);
+    if (storage.isValid() && storage.isReady() && !storage.isReadOnly()
+        && storage.fileSystemType() == "tmpfs" && storage.bytesAvailable() >= 1024 * 1024
+        && QFileInfo(sharedMemory).isWritable()) {
+        std::cerr << "[settings fixture] storage=tmpfs\n";
+        return sharedMemory + "/nova-settings-fixture-XXXXXX";
+    }
+    std::cerr << "[settings fixture] storage=default-temp\n";
+    return QDir::tempPath() + "/nova-settings-fixture-XXXXXX";
+}
 inline QJsonObject settings() {
     const QJsonObject profile{{"stream_display_mode", "headless_stream"}, {"display_mode", "1280x800x60"}, {"target_bitrate_kbps", 20000}, {"disconnect_resume_timeout_seconds",300}};
     return {{"version", 1}, {"revision", "1"}, {"desired", profile}, {"effective", profile}, {"relaunch_required", false},

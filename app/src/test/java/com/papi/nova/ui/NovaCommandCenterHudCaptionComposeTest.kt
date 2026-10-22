@@ -119,6 +119,19 @@ class NovaCommandCenterHudCaptionComposeTest {
     }
 
     @Test
+    fun disabledGuideShortcutsDoNotAdvertiseGuideY() {
+        open(companionDisplay(), hudLeftPx = corner)
+        state.value = state.value.copy(hudMode = state.value.hudMode.copy(guideShortcutsEnabled = false))
+        rule.waitForIdle()
+        rule.onNodeWithText(string(R.string.nova_quick_menu_hud_mode_caption_no_guide)).assertExists()
+        rule.onNodeWithText(string(R.string.nova_quick_menu_hud_mode_caption)).assertDoesNotExist()
+        state.value = state.value.copy(hudMode = state.value.hudMode.copy(guideShortcutsEnabled = true))
+        rule.waitForIdle()
+        rule.onNodeWithText(string(R.string.nova_quick_menu_hud_mode_caption)).assertExists()
+        rule.onNodeWithText(string(R.string.nova_quick_menu_hud_mode_caption_no_guide)).assertDoesNotExist()
+    }
+
+    @Test
     @Config(qualifiers = "w400dp-h800dp-port-xhdpi")
     fun aPortraitSheetLeavesTheHudsCornerClear() {
         open(streamWindow(), hudLeftPx = corner)

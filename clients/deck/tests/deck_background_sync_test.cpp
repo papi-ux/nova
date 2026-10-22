@@ -4,6 +4,7 @@
 #include <QElapsedTimer>
 #include <QTemporaryDir>
 #include <atomic>
+#include <source_location>
 #include <cstdlib>
 #include <iostream>
 
@@ -11,15 +12,30 @@ using namespace nova::deck::runtime;
 using namespace nova::deck::polaris;
 namespace {
 void require(bool value, const char* message) { if (!value) { std::cerr << message << '\n'; std::abort(); } }
-template<class F> void until(F condition, int timeout = 9000) {
+template<class F> void until(F condition, int timeout = 9000, std::source_location at = std::source_location::current()) {
     QElapsedTimer time; time.start();
-    while (!condition() && time.elapsed() < timeout) { QCoreApplication::processEvents(); QThread::msleep(2); }
-    require(condition(), "background sync timed out");
+    qint64 polls = 0, last = 0, maxLoopGap = 0, maxEventTime = 0;
+    while (!condition() && time.elapsed() < timeout) {
+        const auto before = time.elapsed();
+        if (before - last > maxLoopGap) maxLoopGap = before - last;
+        QCoreApplication::processEvents();
+        const auto eventTime = time.elapsed() - before;
+        if (eventTime > maxEventTime) maxEventTime = eventTime;
+        QThread::msleep(2);
+        last = before; ++polls;
+    }
+    const bool ready = condition();
+    if (!ready) {
+        std::cerr << "[wait timeout] function=" << at.function_name() << " line=" << at.line() << " column=" << at.column() << " timeout=" << timeout
+                  << " elapsed=" << time.elapsed() << " polls=" << polls
+                  << " lastPollStart=" << last << " maxLoopGap=" << maxLoopGap << " maxEventTime=" << maxEventTime << '\n';
+    }
+    require(ready, "background sync timed out");
 }
 void drain(int ms = 400) { QElapsedTimer time; time.start(); until([&] { return time.elapsed() >= ms; }, ms + 1000); }
 template<class T> DeckPolarisResult<T> ok(T value) { return {DeckPolarisRequestStatus::Ok, 200, {}, std::move(value)}; }
 struct Fixture {
-    QTemporaryDir directory;
+    QTemporaryDir directory{host_settings_fixture::settingsDirectoryTemplate()};
     DeckPlaySettings preferences{directory.filePath("preferences.ini")};
     DeckHostSettings current = *parseHostSettings(host_settings_fixture::json(host_settings_fixture::settings()));
     std::atomic<int> reads{0}, writes{0};
@@ -27,6 +43,7 @@ struct Fixture {
     QStringList writtenHosts;
     DeckHostSettingsController controller;
     Fixture() {
+        require(directory.isValid(), "cannot create private settings fixture directory");
         current.desiredDisplay.clear(); current.effectiveDisplay.clear();
         current.desiredBitrate = current.effectiveBitrate = 0;
     }

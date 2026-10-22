@@ -386,4 +386,30 @@ class NovaControllerShortcutStateTest {
         )
     }
 
+    @Test
+    fun disabledGuideShortcutsPassGuideAndChordsThrough() {
+        val shortcuts = NovaControllerShortcutState()
+        shortcuts.guideShortcutsEnabled = false
+
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_MODE, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_MODE, repeatCount = 1)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonDown(KeyEvent.KEYCODE_BUTTON_Y, repeatCount = 0)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_BUTTON_Y)
+        )
+        assertEquals(
+            NovaControllerShortcutAction.NONE,
+            shortcuts.onButtonUp(KeyEvent.KEYCODE_BUTTON_MODE)
+        )
+    }
 }
