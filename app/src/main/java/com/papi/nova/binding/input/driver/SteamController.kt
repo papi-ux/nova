@@ -76,7 +76,9 @@ internal class SteamController(
         nativeReady = false
         featurePending = false
         appliedMotion = false
-        configureNativeMode()
+        // An empty receiver interface can acknowledge a write without a controller.
+        // Wait for that channel's actual connect/state before disabling lizard mode.
+        if (getProductId() != SteamControllerProtocol.PUCK_PID) configureNativeMode()
     }
 
     private fun configureNativeMode() {
@@ -134,6 +136,8 @@ internal class SteamController(
 
     private fun publish(state: SteamControllerProtocol.State) {
         if (!added) {
+            capabilities = ((capabilities.toInt() and MoonBridge.LI_CCAP_RUMBLE.toInt().inv()) or
+                if (transport.supportsRumble()) MoonBridge.LI_CCAP_RUMBLE.toInt() else 0).toShort()
             added = true
             SteamControllerOwnership.acquire(sourceKey, getProductId())
             events.deviceAdded(this)
@@ -200,7 +204,7 @@ internal class SteamController(
     }
 
     override fun rumble(lowFreqMotor: Short, highFreqMotor: Short) = synchronized(lock) {
-        if (closed || !added) return
+        if (closed || !added || !transport.supportsRumble()) return
         lowRumble = lowFreqMotor; highRumble = highFreqMotor
         transport.writeRumble(SteamControllerProtocol.rumble(lowRumble, highRumble))
         lastRumble = nanoTime()
@@ -258,7 +262,7 @@ internal class SteamController(
     }
 
     override fun stop() = synchronized(lock) {
-        if (!closed && linkReady) transport.writeRumble(SteamControllerProtocol.rumble(0, 0))
+        if (!closed && linkReady && transport.supportsRumble()) transport.writeRumble(SteamControllerProtocol.rumble(0, 0))
         fail(notify = false)
     }
 

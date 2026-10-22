@@ -58,7 +58,8 @@ class SteamControllerBleTransportTest {
         timestampReference: ByteArray? = null,
         featureProperties: Int = BluetoothGattCharacteristic.PROPERTY_WRITE or
             BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
-        val hasService: Boolean = true
+        val hasService: Boolean = true,
+        hasRumble: Boolean = true,
     ) {
         val service = BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         val input = notifying(INPUT, inputReference)
@@ -72,7 +73,7 @@ class SteamControllerBleTransportTest {
         )
 
         init {
-            for (characteristic in listOf(input, timestamp, feature, rumble)) {
+            for (characteristic in listOf(input, timestamp, feature) + if (hasRumble) listOf(rumble) else emptyList()) {
                 service.addCharacteristic(characteristic)
             }
         }
@@ -443,6 +444,46 @@ class SteamControllerBleTransportTest {
         link.written(link.layout.feature)
         assertEquals("each accepted write completes once", listOf("short:false", "id:false", "a:true", "b:false"), results)
         assertEquals(listOf("ready"), events)
+    }
+
+    @Test
+    fun completionThatClosesTransportCannotDispatchAnotherQueuedWrite() {
+        val transport = start(); val link = links.single(); link.ready()
+        val results = CopyOnWriteArrayList<String>()
+        transport.writeFeature(feature(1)) { results += "a:$it"; transport.close() }
+        transport.writeFeature(feature(2)) { results += "b:$it" }
+        idle()
+        assertEquals(1, link.writes.size)
+        link.written(link.layout.feature)
+        assertEquals(listOf("a:true", "b:false"), results)
+        assertEquals("close from the completion cannot send b", 1, link.writes.size)
+    }
+
+    @Test
+    fun featureAdmissionIsBoundedBeforePostsReachHandler() {
+        val transport = start(); val link = links.single(); link.ready()
+        val results = CopyOnWriteArrayList<Boolean>()
+        repeat(10) { transport.writeFeature(feature(it)) { result -> results += result } }
+        assertEquals("two calls must be refused without growing the handler queue", listOf(false, false), results)
+        idle(); assertEquals(1, link.writes.size)
+        transport.close(); idle()
+        assertEquals(10, results.size); assertTrue(results.all { !it })
+    }
+
+    @Test
+    fun missingOptionalRumbleCharacteristicIsReportedHonestly() {
+        layouts = { Layout(hasRumble = false) }
+        val transport = start(); val link = links.single(); link.ready()
+        assertFalse(transport.supportsRumble())
+    }
+
+    @Test
+    fun disconnectPermissionErrorStillAttemptsCloseAndTerminatesAsPermissionFailure() {
+        start(); val link = links.single(); link.ready()
+        org.mockito.Mockito.doThrow(SecurityException("revoked")).`when`(link.gatt).disconnect()
+        link.disconnected(133)
+        verify(link.gatt).close()
+        assertEquals(listOf("ready", "lost", "closed:PERMISSION"), events)
     }
 
     @Test

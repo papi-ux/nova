@@ -31,6 +31,9 @@ internal interface SteamControllerTransport {
     /** Replace any queued rumble with this state. A transport must never grow a rumble queue. */
     fun writeRumble(report: ByteArray)
 
+    /** Actual ready-link output support; optional BLE characteristics need not exist. */
+    fun supportsRumble(): Boolean = true
+
     /** Idempotent; cancels writes and releases only this channel's resources. */
     fun close()
 }

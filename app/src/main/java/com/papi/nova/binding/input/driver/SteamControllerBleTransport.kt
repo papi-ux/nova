@@ -113,6 +113,7 @@ internal class SteamControllerBleTransport internal constructor(
         var op: Op? = null
         var timer: Runnable? = null
         var ready = false
+        var cleanupPermissionDenied = false
         var feature: BluetoothGattCharacteristic? = null
         var rumble: BluetoothGattCharacteristic? = null
         var rumbleWriteType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
@@ -139,6 +140,8 @@ internal class SteamControllerBleTransport internal constructor(
     private val latestRumble = AtomicReference<ByteArray?>()
     private val rumblePosted = AtomicBoolean()
     private val queuedReports = AtomicInteger()
+    private val outstandingFeatures = AtomicInteger()
+    @Volatile private var rumbleSupported = false
 
     private val reconnect = Runnable { guarded { connect() } }
 
@@ -159,7 +162,16 @@ internal class SteamControllerBleTransport internal constructor(
 
     override fun writeFeature(report: ByteArray, completion: (Boolean) -> Unit) {
         val valid = report.size == FEATURE_REPORT_SIZE && report[0] == FEATURE_REPORT_ID.toByte()
-        val write = FeatureWrite(if (valid) report.copyOfRange(1, report.size) else null, completion)
+        if (!valid || closed || finished) { completion(false); return }
+        if (outstandingFeatures.incrementAndGet() > MAX_PENDING_FEATURES) {
+            outstandingFeatures.decrementAndGet()
+            completion(false)
+            return
+        }
+        val write = FeatureWrite(report.copyOfRange(1, report.size)) {
+            outstandingFeatures.decrementAndGet()
+            completion(it)
+        }
         if (closed || finished || !post { queueFeature(write) }) {
             write.complete(false)
         }
@@ -174,6 +186,8 @@ internal class SteamControllerBleTransport internal constructor(
             rumblePosted.set(false)
         }
     }
+
+    override fun supportsRumble(): Boolean = rumbleSupported
 
     override fun close() {
         val owned = synchronized(lifecycleLock) {
@@ -451,6 +465,7 @@ internal class SteamControllerBleTransport internal constructor(
         val route = link.subscriptions.pollFirst()
         if (route == null) {
             link.ready = true
+            rumbleSupported = link.rumble != null
             failures = 0
             LimeLog.info("Steam Controller BLE: ready")
             deliver { it.onReady() }
@@ -521,7 +536,7 @@ internal class SteamControllerBleTransport internal constructor(
 
     /** Starts the next write once the link is idle; queued features go before the latest rumble. */
     private fun pump(link: Link) {
-        while (this.link === link && link.ready && link.op == null) {
+        while (!closed && !finished && this.link === link && link.ready && link.op == null) {
             val write = features.pollFirst()
             if (write != null) {
                 // Acknowledged writes only: completion has to mean the controller took the report
@@ -565,6 +580,7 @@ internal class SteamControllerBleTransport internal constructor(
         }
         val inFlight = link.op?.write
         val wasReady = detach(link)
+        val actualFailure = if (link.cleanupPermissionDenied) Failure.PERMISSION else failure
         if (wasReady) {
             deliver { it.onLinkLost() }
         }
@@ -575,8 +591,8 @@ internal class SteamControllerBleTransport internal constructor(
             return
         }
         failures += 1
-        if (failure == Failure.PERMISSION || failure == Failure.PROTOCOL || failures >= MAX_LINK_ATTEMPTS) {
-            finish(failure)
+        if (actualFailure == Failure.PERMISSION || actualFailure == Failure.PROTOCOL || failures >= MAX_LINK_ATTEMPTS) {
+            finish(actualFailure)
             return
         }
         val delay = minOf(RECONNECT_BASE_MS shl (failures - 1), RECONNECT_MAX_MS)
@@ -587,6 +603,7 @@ internal class SteamControllerBleTransport internal constructor(
         val wasReady = link.ready
         this.link = null
         link.ready = false
+        rumbleSupported = false
         link.op = null
         link.pendingRumble = null
         cancelTimer(link)
@@ -594,9 +611,11 @@ internal class SteamControllerBleTransport internal constructor(
             link.gatt = null
             try {
                 gatt.disconnect()
-                gatt.close()
             } catch (e: SecurityException) {
-                // Permission is already gone; the platform has released the client
+                // Still attempt close: revocation does not prove that the client was freed.
+                link.cleanupPermissionDenied = true
+            } finally {
+                try { gatt.close() } catch (_: SecurityException) { link.cleanupPermissionDenied = true }
             }
         }
         return wasReady
@@ -613,16 +632,18 @@ internal class SteamControllerBleTransport internal constructor(
         if (finished) {
             return
         }
+        var actualFailure = failure
         link?.let { lost ->
             val inFlight = lost.op?.write
             if (detach(lost)) {
                 deliver { it.onLinkLost() }
             }
+            if (lost.cleanupPermissionDenied) actualFailure = Failure.PERMISSION
             inFlight?.complete(false)
         }
         cancelQueuedWrites()
         finished = true
-        deliver { it.onClosed(failure) }
+        deliver { it.onClosed(actualFailure) }
         release()
     }
 
@@ -656,7 +677,8 @@ internal class SteamControllerBleTransport internal constructor(
 
         private fun notified(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray?) {
             // Copy now: before Android 13 the characteristic's value is overwritten by the next one
-            val payload = value?.copyOf() ?: return
+            if (value == null || value.isEmpty() || value.size > MAX_INPUT_PAYLOAD) return
+            val payload = value.copyOf()
             if (queuedReports.incrementAndGet() > MAX_QUEUED_REPORTS) {
                 queuedReports.decrementAndGet()
                 return

@@ -14,6 +14,8 @@ class SteamControllerTest {
         val rumble = mutableListOf<ByteArray>()
         var closes = 0
         var accepts = true
+        var hasRumble = true
+        override fun supportsRumble() = hasRumble
         override fun start(observer: SteamControllerTransport.Observer): Boolean { this.observer = observer; return accepts }
         override fun writeFeature(report: ByteArray, completion: (Boolean) -> Unit) { features += report.copyOf() to completion }
         override fun writeRumble(report: ByteArray) { rumble += report.copyOf() }
@@ -56,11 +58,17 @@ class SteamControllerTest {
         assertTrue(r.events.order.isEmpty()); assertTrue(r.pad.isClosed()); assertEquals(1, r.link.closes)
     }
     @Test fun emptyPuckChannelDoesNotReservePlayer() {
-        val r = Rig(); r.ready(); r.link.confirm(); assertFalse(r.pad.hasNativeOwnership())
-        r.link.observer.onReport(byteArrayOf(0x46, 2)); assertTrue(r.events.order.isEmpty())
+        val r = Rig(); r.ready()
+        assertTrue("an empty Puck must not preconfigure a future physical controller", r.link.features.isEmpty())
+        assertFalse(r.pad.hasNativeOwnership())
+        r.link.observer.onReport(byteArrayOf(0x46, 2))
+        assertEquals(1, r.link.features.size)
+        r.link.confirm(); assertTrue(r.events.order.isEmpty())
+        r.link.observer.onReport(report())
+        assertTrue(r.pad.hasNativeOwnership())
     }
     @Test fun malformedReportCannotCreatePlayer() {
-        val r = Rig(); r.ready(); r.link.confirm(); r.link.observer.onReport(ByteArray(45))
+        val r = Rig(); r.ready(); r.link.observer.onReport(ByteArray(45))
         assertFalse(r.pad.hasNativeOwnership()); assertTrue(r.events.states.isEmpty())
     }
     @Test fun disconnectCancelsWithoutGuideTapThenReconnectAddsOnePlayer() {
@@ -129,6 +137,12 @@ class SteamControllerTest {
     @Test fun startupRefusalClosesWithoutObserverPlayerEvents() {
         val r = Rig(); r.link.accepts = false
         assertFalse(r.pad.start()); assertTrue(r.pad.isClosed()); assertTrue(r.events.order.isEmpty())
+    }
+    @Test fun absentRumbleOutputCannotBeAdvertisedOrWritten() {
+        val r = Rig(); r.link.hasRumble = false; r.playing()
+        assertEquals(0, r.pad.getCapabilities().toInt() and MoonBridge.LI_CCAP_RUMBLE.toInt())
+        r.pad.rumble(100, 100); r.pad.stop()
+        assertTrue(r.link.rumble.isEmpty())
     }
 
     companion object {
