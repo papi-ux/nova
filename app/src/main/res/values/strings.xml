@@ -892,6 +892,8 @@
     <string name="summary_checkbox_remember_mouse_mode">Remember mouse mode selected during stream. When disabled, mouse mode changed during stream will be temporary.</string>
     <string name="title_checkbox_flip_face_buttons">Flip face buttons</string>
     <string name="summary_checkbox_flip_face_buttons">Switches the face buttons A/B and X/Y for gamepads and the on-screen controls</string>
+    <string name="title_checkbox_guide_shortcuts">Guide button shortcuts</string>
+    <string name="summary_checkbox_guide_shortcuts">Use Guide+Start for the quick menu and Guide+Y for the HUD. Turn off to send Guide presses and holds to the host immediately.</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Always control mouse with touchpad</string>
     <string name="summary_checkbox_gamepad_touchpad_as_mouse">Forces gamepad touchpad input to control the host mouse, even when emulating a gamepad with a touchpad.</string>
     <string name="title_checkbox_gamepad_motion_sensors">Allow use of gamepad motion sensors</string>

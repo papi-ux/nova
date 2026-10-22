@@ -25,6 +25,7 @@ class NovaControllerShortcutState {
     private var yDown = false
     private var backYConsumedByNova = false
     var loneAppSwitchOpensQuickMenu = false
+    var guideShortcutsEnabled = true
     private var appSwitchConsumedByNova = false
 
     fun onButtonDown(keyCode: Int, repeatCount: Int): NovaControllerShortcutAction {
@@ -61,6 +62,9 @@ class NovaControllerShortcutState {
         }
 
         if (keyCode == KeyEvent.KEYCODE_BUTTON_MODE) {
+            if (!guideShortcutsEnabled) {
+                return NovaControllerShortcutAction.NONE
+            }
             if (repeatCount == 0) {
                 guideDown = true
                 guideForwardedToHost = false

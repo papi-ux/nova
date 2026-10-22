@@ -2674,7 +2674,9 @@ class ControllerHandler(
         var startDownTime = 0L
         var startUpTime = 0L
         var backMenuPending = false
-        val novaShortcutState = NovaControllerShortcutState()
+        val novaShortcutState = NovaControllerShortcutState().apply {
+            guideShortcutsEnabled = prefConfig.guideShortcuts
+        }
         val batteryStateUpdateRunnable: Runnable =
             object : Runnable {
                 override fun run() {
