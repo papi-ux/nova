@@ -893,7 +893,7 @@
     <string name="title_checkbox_flip_face_buttons">Flip face buttons</string>
     <string name="summary_checkbox_flip_face_buttons">Switches the face buttons A/B and X/Y for gamepads and the on-screen controls</string>
     <string name="title_checkbox_guide_shortcuts">Guide button shortcuts</string>
-    <string name="summary_checkbox_guide_shortcuts">Use Guide+Start for Command Center and Guide+Y for NovaHUD. Turn off to send Guide to the host during gameplay. Start+Select still opens Command Center.</string>
+    <string name="summary_checkbox_guide_shortcuts">Guide + Start opens Command Center and Guide + Y shows or cycles Nova HUD. Turn off to send Guide to the host during gameplay, including held combinations such as Guide + A. Start + Select still opens Command Center.</string>
     <string name="title_checkbox_gamepad_touchpad_as_mouse">Always control mouse with touchpad</string>
     <string name="summary_checkbox_gamepad_touchpad_as_mouse">Forces gamepad touchpad input to control the host mouse, even when emulating a gamepad with a touchpad.</string>
     <string name="title_checkbox_gamepad_motion_sensors">Allow use of gamepad motion sensors</string>
@@ -1113,6 +1113,7 @@
     <string name="nova_quick_menu_nova_hud_caption">Long press the HUD to open Command Center.</string>
     <string name="nova_quick_menu_hud_mode">HUD Mode</string>
     <string name="nova_quick_menu_hud_mode_caption">Pick a layout. Guide + Y cycles through them on a controller.</string>
+    <string name="nova_quick_menu_hud_mode_caption_no_guide">Pick a layout.</string>
     <string name="nova_quick_menu_hud_mode_disabled_caption">Turn Nova HUD on to pick a layout.</string>
     <string name="nova_quick_menu_hud_mode_slim">Slim</string>
     <string name="nova_quick_menu_hud_mode_minimal">Minimal</string>

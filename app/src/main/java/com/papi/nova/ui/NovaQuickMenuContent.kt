@@ -1084,6 +1084,7 @@ private fun NovaQuickMenuHudModePicker(
             when {
                 !hudMode.enabled -> R.string.nova_quick_menu_hud_mode_disabled_caption
                 novaHudUnderPanel(hudMode.hudLeftPx, hudMode.enabled) -> R.string.nova_cc_hud_mode_under_panel
+                !hudMode.guideShortcutsEnabled -> R.string.nova_quick_menu_hud_mode_caption_no_guide
                 else -> R.string.nova_quick_menu_hud_mode_caption
             }
         ),
