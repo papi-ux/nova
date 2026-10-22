@@ -1,4 +1,5 @@
 #include "runtime/deck_support_report.h"
+#include "deck_host_settings_fixture.h"
 #include "runtime/deck_working_baseline.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -181,7 +182,9 @@ void testBuilderContract() {
     require(value && (*value)["readings"].toObject()["video_payload_mbps"] == 134698096.372, "valid producer number rejected");
     const auto parsed = parseWorkingBaseline(serializeWorkingBaseline(*value), scope, kNow);
     require(parsed && (*parsed)["readings"].toObject()["video_payload_mbps"].toDouble() == 134698096.372, "valid producer number lost in serialize/parse");
-    QTemporaryDir root; DeckWorkingBaselineStore store(root.filePath("working-baselines"));
+    QTemporaryDir root{host_settings_fixture::settingsDirectoryTemplate()};
+    require(root.isValid(), "cannot create private working-baseline fixture directory");
+    DeckWorkingBaselineStore store(root.filePath("working-baselines"));
     require(store.save(scope, *value, kNow) == "saved" && store.load(scope, kNow).baseline == value, "valid producer number lost in storage");
 }
 
@@ -209,7 +212,8 @@ void testCompareSentinels() {
 }
 
 void testReadsAreReadOnly() {
-    QTemporaryDir root;
+    QTemporaryDir root{host_settings_fixture::settingsDirectoryTemplate()};
+    require(root.isValid(), "cannot create private working-baseline fixture directory");
     const auto missing = root.filePath("app/working-baselines");
     DeckWorkingBaselineStore store(missing);
     const auto before = tree(root.path());
@@ -249,7 +253,8 @@ void testReadsAreReadOnly() {
     const auto loose = tree(root.path());
     require(present.save(scopeFor(7), record(scopeFor(7)), kNow) == "storage_unsafe" && tree(root.path()) == loose,
         "loose directory permissions were changed or written into");
-    QTemporaryDir linkRoot;
+    QTemporaryDir linkRoot{host_settings_fixture::settingsDirectoryTemplate()};
+    require(linkRoot.isValid(), "cannot create private working-baseline symlink fixture directory");
     const auto real = privateDirectory(linkRoot, "real");
     require(QFile::link(real, linkRoot.filePath("working-baselines")), "directory link fixture failed");
     DeckWorkingBaselineStore linked(linkRoot.filePath("working-baselines"));
@@ -258,7 +263,8 @@ void testReadsAreReadOnly() {
 }
 
 void testSaveReplaceClear() {
-    QTemporaryDir root;
+    QTemporaryDir root{host_settings_fixture::settingsDirectoryTemplate()};
+    require(root.isValid(), "cannot create private working-baseline fixture directory");
     const auto directory = root.filePath("app/working-baselines");
     DeckWorkingBaselineStore store(directory);
     const auto scope = scopeFor(0);
@@ -301,7 +307,8 @@ void testSaveReplaceClear() {
 }
 
 void testCapAndRetention() {
-    QTemporaryDir root;
+    QTemporaryDir root{host_settings_fixture::settingsDirectoryTemplate()};
+    require(root.isValid(), "cannot create private working-baseline fixture directory");
     const auto directory = privateDirectory(root);
     DeckWorkingBaselineStore store(directory);
     for (int index = 0; index < 12; ++index)

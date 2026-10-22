@@ -600,6 +600,7 @@ class NovaQuickMenu(
                 profilePreference = currentProfilePreference(gameName),
                 launchPresetSaved = launchPresetSaved,
                 hudShowing = game.isNovaHudShowing(),
+                guideShortcutsEnabled = game.prefConfig.guideShortcuts,
                 hudLeftPx = game.novaHudLeftPx,
                 hudPositionCorner = game.novaHudPositionCorner,
                 hudMode = NovaHudMode.fromPreference(prefs.getString("nova_polaris_hud_mode", "minimal")),

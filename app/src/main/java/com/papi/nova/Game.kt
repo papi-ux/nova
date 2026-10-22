@@ -875,6 +875,7 @@ UiHelper.setLocale(this)
  // Read the stream preferences
         val tierSnapshotAtRead = com.papi.nova.preferences.NovaTierRuntime.snapshot()
         prefConfig = PreferenceConfiguration.readPreferences(this, launchSharedPreferences())
+        fallbackNovaShortcutState.guideShortcutsEnabled = prefConfig.guideShortcuts
         com.papi.nova.ui.NovaVideoCodecOverrides.applyToLaunch(this, intent, prefConfig)
         // A per-game face-button choice from Play Setup outranks the Settings flip for this
         // launch. ControllerHandler and the on-screen pad read prefConfig later, so one
