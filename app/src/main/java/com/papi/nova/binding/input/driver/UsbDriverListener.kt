@@ -26,4 +26,6 @@ interface UsbDriverListener {
 
     /** Detach is cancellation, never a Guide tap or a shortcut-button release. */
     fun resetControllerState(controllerId: Int) = Unit
+
+    fun nativeControllerUnavailable(controllerId: Int) = Unit
 }

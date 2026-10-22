@@ -2516,6 +2516,11 @@ class ControllerHandler(
         if (context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
         if (context.device is SteamController &&
             (prefConfig.forceMotionSensorsFallbackToDevice || !prefConfig.gamepadMotionSensors)) return
+        if (context.device is SteamController && when (motionType) {
+                MoonBridge.LI_MOTION_TYPE_ACCEL -> context.accelReportRateHz.toInt() <= 0
+                MoonBridge.LI_MOTION_TYPE_GYRO -> context.gyroReportRateHz.toInt() <= 0
+                else -> true
+            }) return
         conn.sendControllerMotionEvent(context.controllerNumber.toByte(), motionType, motionX, motionY, motionZ)
     }
 

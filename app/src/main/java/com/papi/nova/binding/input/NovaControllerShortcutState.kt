@@ -28,12 +28,16 @@ class NovaControllerShortcutState {
     private var appSwitchConsumedByNova = false
 
     fun onButtonDown(keyCode: Int, repeatCount: Int): NovaControllerShortcutAction {
-        if (!guideDown && keyCode == KeyEvent.KEYCODE_APP_SWITCH && loneAppSwitchOpensQuickMenu) {
+        if (keyCode == KeyEvent.KEYCODE_APP_SWITCH && loneAppSwitchOpensQuickMenu) {
             if (appSwitchConsumedByNova) {
                 return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON
             }
             if (repeatCount == 0) {
                 appSwitchConsumedByNova = true
+                if (guideDown) {
+                    guideConsumedByNova = true
+                    consumedChordButton = keyCode
+                }
                 return NovaControllerShortcutAction.OPEN_QUICK_MENU
             }
             return NovaControllerShortcutAction.CONSUME_CHORD_BUTTON

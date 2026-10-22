@@ -68,7 +68,9 @@ object NovaSettingsAvailability {
         }
         if (!pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             keys += "steam_controller_bluetooth"
+            keys += "steam_controller_permission"
         }
+        if (Build.VERSION.SDK_INT < 31) keys += "steam_controller_permission"
 
         if (
             Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
@@ -132,6 +134,7 @@ object NovaSettingsAvailability {
 
     private val profileEditorHiddenKeys = setOf(
         "steam_controller_bluetooth",
+        "steam_controller_permission",
         "nova_control_size",
         "nova_ui_font_scale_percent",
         "option_reset_osc_preference",

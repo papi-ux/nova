@@ -247,18 +247,19 @@ internal class SteamController(
         events.deviceRemoved(this)
     }
 
-    private fun fail() {
+    private fun fail(notify: Boolean = true) {
         if (closed) return
         generation++
         closed = true; nativeReady = false; linkReady = false
         losePlayer()
         transport.close()
         scheduler.shutdownNow()
+        if (notify) events.nativeControllerUnavailable(getControllerId())
     }
 
     override fun stop() = synchronized(lock) {
         if (!closed && linkReady) transport.writeRumble(SteamControllerProtocol.rumble(0, 0))
-        fail()
+        fail(notify = false)
     }
 
     companion object {

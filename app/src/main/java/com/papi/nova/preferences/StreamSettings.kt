@@ -297,6 +297,8 @@ class StreamSettings : NovaActivity() {
 
     private fun handleComposeAction(definition: NovaSettingDefinition) {
         when (definition.key) {
+            "steam_controller_permission" -> startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:$packageName")))
             "nova_app_version" -> Unit
             "pref_debug_info" -> startActivity(Intent(this, DebugInfoActivity::class.java))
             "nova_report_problem" -> com.papi.nova.diagnostics.SupportReportSharing.share(
@@ -796,6 +798,14 @@ class StreamSettings : NovaActivity() {
             }
 
             val inputCategory = findPreference<PreferenceCategory>("category_input")
+            findPreference<Preference>("steam_controller_permission")?.setOnPreferenceClickListener {
+                startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${requireContext().packageName}")))
+                true
+            }
+            if (Build.VERSION.SDK_INT < 31 || !pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+                removeIfExists(inputCategory, "steam_controller_permission")
+            }
 
             if (
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||

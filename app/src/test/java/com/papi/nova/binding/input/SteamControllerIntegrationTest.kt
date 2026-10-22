@@ -79,6 +79,11 @@ class SteamControllerIntegrationTest {
         verify(gestures, times(1)).showGameMenu(any())
         assertTrue(flags().all { it == 0 })
     }
+    @Test fun quickAccessWhileGuideHeldStillOpensLocallyAndConsumesGuideRelease() {
+        link.state(0x10000); link.state(0x10010); link.state()
+        verify(gestures, times(1)).showGameMenu(any())
+        assertTrue(flags().all { it == 0 })
+    }
     @Test fun nativeImuOnAndroid11KeepsSteamTypeAndUsesControllerRatherThanPhone() {
         link.state()
         val arrival = mockingDetails(connection).invocations.single { it.method.name == "sendControllerArrivalEvent" }

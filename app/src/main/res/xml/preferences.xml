@@ -313,6 +313,11 @@
             android:title="@string/steam_controller_bluetooth_title"
             android:summary="@string/steam_controller_bluetooth_summary"
             app:iconSpaceReserved="false" />
+        <Preference
+            android:key="steam_controller_permission"
+            android:title="@string/steam_controller_permission_title"
+            android:summary="@string/steam_controller_permission_summary"
+            app:iconSpaceReserved="false" />
         <ListPreference
             android:defaultValue="mouse"
             android:key="steam_controller_trackpads"

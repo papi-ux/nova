@@ -2144,6 +2144,8 @@
     <string name="steam_controller_bluetooth_title">Steam Controller over Bluetooth</string>
     <string name="steam_controller_bluetooth_summary">Use an already paired Steam Controller (2026). Pair it in Android Bluetooth settings first. Applies to the next stream.</string>
     <string name="steam_controller_permission_denied">Allow Nearby devices in Nova’s app permissions to use the Steam Controller over Bluetooth. Until then it stays in mouse mode.</string>
+    <string name="steam_controller_permission_title">Steam Controller permissions</string>
+    <string name="steam_controller_permission_summary">Review Nova’s Nearby devices access in Android app settings.</string>
     <string name="steam_controller_fallback">Couldn’t connect to the Steam Controller. It stays in mouse mode. Turn it off and on, or check its connection and permissions.</string>
     <string name="steam_controller_trackpads_title">Steam Controller trackpads</string>
     <string name="steam_controller_next_stream">Applies when the next stream starts.</string>

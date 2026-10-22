@@ -118,6 +118,13 @@ class UsbDriverService : Service(), UsbDriverListener {
         deliver { listener?.resetControllerState(controllerId) }
     }
 
+    override fun nativeControllerUnavailable(controllerId: Int) {
+        deliver {
+            controllers.removeAll { it.getControllerId() == controllerId }
+            if (started) showSteamFallback()
+        }
+    }
+
     inner class UsbEventReceiver : BroadcastReceiver() {
         @Suppress("DEPRECATION")
         override fun onReceive(context: Context, intent: Intent) {
