@@ -9,6 +9,12 @@ import com.papi.nova.binding.input.ControllerHandler
 import com.papi.nova.binding.input.NovaControllerShortcutState
 import com.papi.nova.nvstream.NvConnection
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.preferences.NovaSettingApplyTiming
+import com.papi.nova.preferences.NovaSettingDefinitions
+import com.papi.nova.preferences.NovaSettingValue
+import com.papi.nova.preferences.NovaSettingsAvailability
+import com.papi.nova.profiles.ProfilesManager
+import com.papi.nova.profiles.SettingsProfile
 import com.papi.nova.service.NovaQsTile
 import com.papi.nova.shadows.ShadowMoonBridge
 import org.junit.Assert.*
@@ -19,6 +25,7 @@ import org.mockito.Mockito.*
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.UUID
 
 @Config(sdk = [30], shadows = [ShadowMoonBridge::class])
 @RunWith(RobolectricTestRunner::class)
@@ -26,7 +33,10 @@ class GuideShortcutPreferencesTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val prefs get() = PreferenceManager.getDefaultSharedPreferences(context)
 
-    @Before fun clearPreferences() { prefs.edit().clear().commit() }
+    @Before fun clearPreferences() {
+        prefs.edit().clear().commit()
+        ProfilesManager.instance = null
+    }
 
     @Test fun guideShortcutsDefaultOnAndSavedChoiceReloads() {
         assertTrue(PreferenceConfiguration.readPreferences(context, prefs).guideShortcuts)
@@ -59,6 +69,31 @@ class GuideShortcutPreferencesTest {
         assertTrue(game.prefConfig.guideShortcuts)
         assertTrue(fallback(game, key(KeyEvent.KEYCODE_BUTTON_MODE, true), true))
         assertFalse(fallback(game, key(KeyEvent.KEYCODE_BUTTON_MODE, false), false))
+    }
+
+    @Test fun bothSettingsSurfacesExposeTheDefaultAndHonestApplyTiming() {
+        val all = NovaSettingDefinitions.load(context)
+        val setting = all.require("checkbox_guide_shortcuts")
+        assertEquals(NovaSettingValue.BooleanValue(true), setting.defaultValue)
+        assertEquals(NovaSettingApplyTiming.NextStream, setting.applyTiming)
+        assertTrue(NovaSettingsAvailability.filter(context, all).settings.any { it.key == setting.key })
+        assertTrue(NovaSettingsAvailability.filterForProfileEditor(all).settings.any { it.key == setting.key })
+        assertTrue(NovaSettingsAvailability.shouldPersistProfileOverride(setting.key))
+    }
+
+    @Test fun aLaunchProfileCanGiveGuideToItsHostWithoutChangingTheGlobalChoice() {
+        prefs.edit().putBoolean("checkbox_guide_shortcuts", true).commit()
+        val profiles = ProfilesManager.getInstance()
+        profiles.load(context)
+        val profile = SettingsProfile(UUID.randomUUID(), "Host Guide", 0L, 0L,
+            mapOf("checkbox_guide_shortcuts" to false))
+        profiles.add(profile)
+        val intent = Intent(context, Game::class.java).setAction(NovaQsTile.NOVA_DISCONNECT_ACTION)
+            .putExtra(Game.EXTRA_LAUNCH_PROFILE_UUID, profile.getUuid().toString())
+        val game = Robolectric.buildActivity(Game::class.java, intent).create().get()
+        assertFalse(game.prefConfig.guideShortcuts)
+        assertFalse(fallback(game, key(KeyEvent.KEYCODE_BUTTON_MODE, true), true))
+        assertTrue(prefs.getBoolean("checkbox_guide_shortcuts", false))
     }
 
     @Test fun turningGuideShortcutsOffDoesNotBypassSyntheticInputRefusal() {

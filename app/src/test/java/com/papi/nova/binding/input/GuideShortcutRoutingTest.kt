@@ -1,7 +1,8 @@
 package com.papi.nova.binding.input
 
-import android.app.Activity
+import android.content.ComponentName
 import android.view.KeyEvent
+import androidx.activity.ComponentActivity
 import com.papi.nova.binding.input.driver.SteamController
 import com.papi.nova.binding.input.driver.SteamControllerProtocol
 import com.papi.nova.binding.input.driver.SteamControllerTransport
@@ -11,6 +12,9 @@ import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.shadows.ShadowGameManager
 import com.papi.nova.shadows.ShadowMoonBridge
 import com.papi.nova.ui.GameGestures
+import com.papi.nova.ui.panel.NovaCommonPage
+import com.papi.nova.ui.panel.NovaMenuItem
+import com.papi.nova.ui.panel.NovaSurfaces
 import java.util.concurrent.ScheduledExecutorService
 import org.junit.After
 import org.junit.Assert.*
@@ -20,6 +24,8 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.*
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 
@@ -28,6 +34,8 @@ import org.robolectric.annotation.LooperMode
 @LooperMode(LooperMode.Mode.PAUSED)
 @RunWith(RobolectricTestRunner::class)
 class GuideShortcutRoutingTest {
+    private lateinit var lifecycle: ActivityController<ComponentActivity>
+    private lateinit var activity: ComponentActivity
     private lateinit var handler: ControllerHandler
     private lateinit var connection: NvConnection
     private lateinit var gestures: GameGestures
@@ -48,12 +56,20 @@ class GuideShortcutRoutingTest {
     }
 
     @Before fun setup() {
+        lifecycle = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        activity = lifecycle.get()
+        shadowOf(activity.application).declareComponentUnbindable(
+            ComponentName("com.nvidia.blakepairing", "com.nvidia.blakepairing.AccessoryService"))
         connection = mock(NvConnection::class.java)
         gestures = mock(GameGestures::class.java)
-        handler = ControllerHandler(Robolectric.buildActivity(Activity::class.java).setup().get(),
+        handler = ControllerHandler(activity,
             connection, gestures, PreferenceConfiguration().apply { guideShortcuts = false })
     }
-    @After fun cleanup() { pad?.stop(); handler.destroy() }
+    @After fun cleanup() {
+        pad?.stop(); handler.destroy()
+        NovaSurfaces.existing(activity)?.dispose()
+        lifecycle.pause().stop().destroy()
+    }
 
     private fun flags(): List<Int> = mockingDetails(connection).invocations
         .filter { it.method.name == "sendControllerInput" }
@@ -131,6 +147,28 @@ class GuideShortcutRoutingTest {
         link.state(0x10000); clearInvocations(connection, gestures)
         link.observer.onLinkLost()
         assertEquals(listOf(0), flags())
+        verifyNoInteractions(gestures)
+    }
+
+    @Test fun guidePassThroughStillYieldsToALocalMenuAndFencesHeldButtonsOnReturn() {
+        val link = native()
+        link.state(0x10000)
+        val surfaces = NovaSurfaces.of(activity).apply {
+            open(NovaCommonPage.Menu("guide-local", "Command Center",
+                listOf(NovaMenuItem.Action("action", "An action", onClick = {}))))
+        }
+        handler.routeNativeToLocal { true }
+        assertEquals(0, flags().last())
+        clearInvocations(connection)
+        link.state(0x10008) // Guide+Y belongs to the menu, even when Guide shortcuts are off.
+        assertTrue(flags().isEmpty())
+        surfaces.panel.close(); surfaces.onWindowIdle()
+        handler.routeNativeToHost(); clearInvocations(connection)
+        link.state(0x10008)
+        assertTrue(flags().all { it == 0 })
+        link.state(0); clearInvocations(connection)
+        link.state(0x10000)
+        assertEquals(listOf(ControllerPacket.SPECIAL_BUTTON_FLAG), flags())
         verifyNoInteractions(gestures)
     }
 }

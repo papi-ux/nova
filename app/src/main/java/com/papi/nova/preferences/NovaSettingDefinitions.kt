@@ -207,6 +207,7 @@ object NovaSettingDefinitions {
     private fun String.toApplyTiming(categoryKey: String): NovaSettingApplyTiming {
         return when {
             startsWith("steam_controller_") && this != "steam_controller_permission" -> NovaSettingApplyTiming.NextStream
+            this == "checkbox_guide_shortcuts" -> NovaSettingApplyTiming.NextStream
             this == "list_languages" -> NovaSettingApplyTiming.RestartApp
             this == "nova_theme" -> NovaSettingApplyTiming.Instant
             this == PreferenceConfiguration.ANDROID_STREAM_DISPLAY_TARGET_PREF_STRING -> NovaSettingApplyTiming.NextStream
