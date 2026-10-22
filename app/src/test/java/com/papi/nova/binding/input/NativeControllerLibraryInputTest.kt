@@ -68,8 +68,9 @@ class NativeControllerLibraryInputTest {
         override fun writeFeature(report: ByteArray, completion: (Boolean) -> Unit) = completion(true)
         override fun writeRumble(report: ByteArray) = Unit
         override fun close() = Unit
-        fun state(raw: Int = 0) = observer.onReport(ByteArray(46).also {
+        fun state(raw: Int = 0, leftX: Int = 0) = observer.onReport(ByteArray(46).also {
             it[0] = 0x42; for (i in 0..3) it[2 + i] = (raw ushr (8 * i)).toByte()
+            it[10] = leftX.toByte(); it[11] = (leftX ushr 8).toByte()
         })
     }
 
@@ -265,11 +266,11 @@ class NativeControllerLibraryInputTest {
             dispatchToPanel = { true }, dispatchToScreen = { toScreen += it; true })
         library.resume()
         try {
-            pad(7, library)
-            fun stick(x: Float) = library.reportControllerState(7, 0, x, 0f, 0f, 0f, 0f, 0f)
-            stick(1f); stick(1f)
+            val (_, link) = pad(7, library)
+            // The first real report both announces the native channel and seeds its held stick.
+            link.state(leftX = 32767); link.state(leftX = 32767)
             assertTrue("held input began outside the library", toScreen.isEmpty())
-            stick(0f); stick(1f); stick(0f)
+            link.state(); link.state(leftX = 32767); link.state()
             assertEquals(listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP), toScreen.map { it.action })
             assertTrue(toScreen.all { it.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT })
         } finally {

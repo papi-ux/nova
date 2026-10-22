@@ -1,5 +1,7 @@
 package com.papi.nova.binding.input
 
+import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
@@ -25,10 +27,14 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.*
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowDialog
+import org.robolectric.shadows.ShadowViewRootImpl
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.util.ReflectionHelpers
 
 /** Drive actual native reports through ControllerHandler while a Nova panel owns a real window. */
 @Config(sdk = [30], shadows = [ShadowMoonBridge::class, ShadowGameManager::class])
@@ -112,6 +118,16 @@ class SteamControllerMenuOwnershipTest {
             addView(first, LinearLayout.LayoutParams(240, 80))
             addView(second, LinearLayout.LayoutParams(240, 80))
         })
+        val decor = dialog.window!!.decorView
+        decor.measure(View.MeasureSpec.makeMeasureSpec(240, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY))
+        decor.layout(0, 0, 240, 320)
+        // A JVM dialog has no window manager to give it focus. Deliver that actual platform
+        // transition, rather than bypassing the production focused-window guard.
+        val root = ReflectionHelpers.callInstanceMethod<Any>(decor, "getViewRootImpl")
+        Shadow.extract<ShadowViewRootImpl>(root).callWindowFocusChanged(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("fixture has an attached, focused dialog", decor.hasWindowFocus())
         first.requestFocus()
         link.state(0x400) // down
         link.state(0)
