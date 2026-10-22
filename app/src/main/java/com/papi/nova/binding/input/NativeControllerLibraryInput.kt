@@ -14,6 +14,7 @@ import com.papi.nova.binding.input.driver.SteamControllerOwnership
 import com.papi.nova.binding.input.driver.UsbDriverListener
 import com.papi.nova.binding.input.driver.UsbDriverService
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.ui.panel.NovaSurfaces
 
 /**
@@ -99,7 +100,12 @@ internal class NativeControllerLibraryInput(
         if (resumed) return
         resumed = true
         connection = newConnection(++bindingGeneration)
-        val config = libraryConfig(PreferenceConfiguration.readPreferences(activity))
+        // The library reads only its USB switch from the same profile overlay as a stream.
+        // Reading the entire stream configuration also initializes native audio/video code.
+        val config = libraryConfig(PreferenceConfiguration().apply {
+            usbDriver = PreferenceConfiguration.isUsbDriverEnabled(
+                ProfilesManager.getInstance().getOverlayingSharedPreferences(activity))
+        })
         this.config = config
         if (!config.usbDriver || bound) return
         bound = activity.bindService(Intent(activity, UsbDriverService::class.java), connection, Context.BIND_AUTO_CREATE)
