@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
@@ -82,6 +83,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.binding.input.NativeControllerLibraryInput
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisApiRejectedException
 import com.papi.nova.api.PolarisArtworkChoice
@@ -131,6 +133,10 @@ import kotlin.math.roundToInt
  * performs it after this window closes.
  */
 class NovaGameDetailActivity : NovaActivity() {
+
+    // Play Setup needs the same native buttons as Library, without waiting for firmware
+    // keyboard/mouse fallback after Library releases its USB interface.
+    private val nativeControllerInput = NativeControllerLibraryInput(this)
 
     private lateinit var apiClient: PolarisApiClient
     private lateinit var shortcutHelper: ShortcutHelper
@@ -400,8 +406,24 @@ class NovaGameDetailActivity : NovaActivity() {
         refreshActiveSession(game)
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (NativeControllerLibraryInput.isOwnedLizard(event)) return true
+        return super.dispatchTouchEvent(event)
+    }
+
     override fun onResume() {
         super.onResume()
+        if (!isFinishing && !isDestroyed) nativeControllerInput.resume()
         refreshShortcutPinState()
         // Where this game can play changes while the window is away (a Space started or
         // stopped, a switch made in the library), so the answer is refreshed on return.
@@ -417,6 +439,7 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
     override fun onPause() {
+        nativeControllerInput.pause()
         com.papi.nova.profiles.ProfilesManager.getInstance().removeListener(launchProfilesListener)
         unregisterLaunchBasePreferences()
         unregisterNetworkChangeCallback()
@@ -788,6 +811,7 @@ class NovaGameDetailActivity : NovaActivity() {
     }
 
     override fun onDestroy() {
+        nativeControllerInput.pause()
         pinShortcutJob?.cancel()
         pinShortcutJob = null
         hostSyncEngine?.close()
