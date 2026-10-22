@@ -414,7 +414,7 @@ override fun onServiceConnected(componentName:ComponentName?, iBinder:IBinder?) 
 var binder:UsbDriverService.UsbDriverBinder? = iBinder as UsbDriverService.UsbDriverBinder?
 binder!!.setListener(controllerHandler)
 binder!!.setStateListener(this@Game)
-binder!!.start()
+binder!!.start(prefConfig!!)
 connectedToUsbDriverService = true
 }
 override fun onServiceDisconnected(componentName:ComponentName?) {

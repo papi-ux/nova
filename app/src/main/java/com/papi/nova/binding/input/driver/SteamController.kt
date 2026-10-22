@@ -42,6 +42,12 @@ internal class SteamController(
     private var appliedMotion = false
     private var lastRefresh = 0L
     private var lastRumble = 0L
+    private var controllerPresent = false
+    private var activityNotified = false
+    private var modeFailures = 0
+    private var motionFailures = 0
+    private var retryModeAt = 0L
+    private var retryMotionAt = 0L
 
     init {
         type = SteamControllerProtocol.CONTROLLER_TYPE
@@ -76,20 +82,32 @@ internal class SteamController(
         nativeReady = false
         featurePending = false
         appliedMotion = false
+        controllerPresent = getProductId() != SteamControllerProtocol.PUCK_PID
+        modeFailures = 0; motionFailures = 0
+        retryModeAt = 0; retryMotionAt = 0
         // An empty receiver interface can acknowledge a write without a controller.
         // Wait for that channel's actual connect/state before disabling lizard mode.
         if (getProductId() != SteamControllerProtocol.PUCK_PID) configureNativeMode()
     }
 
     private fun configureNativeMode() {
-        if (closed || !linkReady || featurePending) return
+        if (closed || !linkReady || !controllerPresent || featurePending || nanoTime() < retryModeAt) return
         val epoch = generation
         featurePending = true
         transport.writeFeature(SteamControllerProtocol.lizardMode(false)) { ok ->
             synchronized(lock) {
                 if (closed || generation != epoch) return@writeFeature
                 featurePending = false
-                if (!ok) { fail(); return@writeFeature }
+                if (!ok) {
+                    modeFailures++
+                    retryModeAt = nanoTime() + retryDelay(modeFailures)
+                    if (modeFailures >= 3) {
+                        losePlayer()
+                        nativeReady = false
+                    }
+                    return@writeFeature
+                }
+                modeFailures = 0; retryModeAt = 0
                 nativeReady = true
                 lastRefresh = nanoTime()
                 pendingState?.let { pendingState = null; publish(it) }
@@ -99,7 +117,7 @@ internal class SteamController(
     }
 
     private fun configureMotion() {
-        if (closed || !nativeReady || featurePending || desiredMotion == appliedMotion) return
+        if (closed || !nativeReady || featurePending || desiredMotion == appliedMotion || nanoTime() < retryMotionAt) return
         val epoch = generation
         val wanted = desiredMotion
         featurePending = true
@@ -107,7 +125,12 @@ internal class SteamController(
             synchronized(lock) {
                 if (closed || generation != epoch) return@writeFeature
                 featurePending = false
-                if (!ok) { fail(); return@writeFeature }
+                if (!ok) {
+                    motionFailures++
+                    retryMotionAt = nanoTime() + retryDelay(motionFailures)
+                    return@writeFeature
+                }
+                motionFailures = 0; retryMotionAt = 0
                 appliedMotion = wanted
                 configureMotion()
             }
@@ -120,14 +143,16 @@ internal class SteamController(
             false -> {
                 generation++
                 featurePending = false
+                controllerPresent = false
                 losePlayer()
                 nativeReady = false
                 return
             }
-            true -> { if (!nativeReady) configureNativeMode(); return }
+            true -> { controllerPresent = true; if (!nativeReady) configureNativeMode(); return }
             null -> Unit
         }
         val state = SteamControllerProtocol.state(report) ?: return
+        controllerPresent = true
         if (nativeReady) publish(state) else {
             pendingState = state
             configureNativeMode()
@@ -141,6 +166,12 @@ internal class SteamController(
             added = true
             SteamControllerOwnership.acquire(sourceKey, getProductId())
             events.deviceAdded(this)
+            if (closed || !added) return
+        }
+        if (!activityNotified && (state.leftPad.touching || state.rightPad.touching ||
+                state.leftPad.clicking || state.rightPad.clicking)) {
+            activityNotified = true
+            events.controllerInputActive(getControllerId())
         }
         buttonFlags = mapGrips(state.buttons)
         if (gameTouchpad && (state.leftPad.clicking || state.rightPad.clicking)) {
@@ -213,7 +244,8 @@ internal class SteamController(
     override fun rumbleTriggers(leftTrigger: Short, rightTrigger: Short) = Unit
 
     private fun maintain() = synchronized(lock) {
-        if (closed || !added || !nativeReady) return
+        if (closed || !linkReady || !controllerPresent) return
+        if (!nativeReady) { configureNativeMode(); return }
         val now = nanoTime()
         if (now - lastRefresh >= 3_000_000_000L) configureNativeMode()
         else configureMotion()
@@ -226,14 +258,31 @@ internal class SteamController(
     override fun onLinkLost() = synchronized(lock) {
         if (closed) return
         generation++
-        linkReady = false; nativeReady = false; featurePending = false
+        linkReady = false; nativeReady = false; featurePending = false; controllerPresent = false
         losePlayer()
     }
 
     override fun onClosed(failure: SteamControllerTransport.Failure) = synchronized(lock) { fail() }
 
+    /** Reassign releases old contacts/feedback but keeps this physical channel owned. */
+    fun releasePlayerInputs() = synchronized(lock) {
+        if (closed) return
+        previousState = null
+        activityNotified = false
+        events.reportControllerMouse(getControllerId(), 0, 0, 0, 0)
+        for (i in 0..1) if (padDown[i]) {
+            events.reportControllerTouch(getControllerId(), MoonBridge.LI_TOUCH_EVENT_UP, i, (0.5f + i) / 2f, 0.5f, 0f)
+        }
+        padDown.fill(false)
+        lowRumble = 0; highRumble = 0
+        if (linkReady && transport.supportsRumble()) transport.writeRumble(SteamControllerProtocol.rumble(0, 0))
+        motionRates.fill(0); desiredMotion = false
+        configureMotion()
+    }
+
     private fun losePlayer() {
         SteamControllerOwnership.release(sourceKey)
+        activityNotified = false
         pendingState = null; previousState = null; quickMenuDown = false
         motionRates.fill(0); lastMotion.fill(0); desiredMotion = false; appliedMotion = false
         lowRumble = 0; highRumble = 0
@@ -270,5 +319,6 @@ internal class SteamController(
         private val GRIP_FLAGS = intArrayOf(ControllerPacket.PADDLE1_FLAG, ControllerPacket.PADDLE2_FLAG, ControllerPacket.PADDLE3_FLAG, ControllerPacket.PADDLE4_FLAG)
         private val PADDLES = GRIP_FLAGS.fold(0) { mask, flag -> mask or flag }
         private fun scaled(delta: Float, scale: Float): Short = (delta * scale).toInt().coerceIn(-32767, 32767).toShort()
+        private fun retryDelay(failures: Int): Long = 250_000_000L shl (failures - 1).coerceIn(0, 3)
     }
 }

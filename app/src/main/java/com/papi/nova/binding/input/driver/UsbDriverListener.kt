@@ -28,4 +28,6 @@ interface UsbDriverListener {
     fun resetControllerState(controllerId: Int) = Unit
 
     fun nativeControllerUnavailable(controllerId: Int) = Unit
+
+    fun controllerInputActive(controllerId: Int) = Unit
 }

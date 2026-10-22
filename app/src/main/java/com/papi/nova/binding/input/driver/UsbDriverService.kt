@@ -120,9 +120,18 @@ class UsbDriverService : Service(), UsbDriverListener {
 
     override fun nativeControllerUnavailable(controllerId: Int) {
         deliver {
+            val usbName = usbControllers.entries.firstOrNull { (_, pads) ->
+                pads.any { it.getControllerId() == controllerId }
+            }?.key
             controllers.removeAll { it.getControllerId() == controllerId }
-            if (started) showSteamFallback()
+            // A physical unplug may reach the read thread before its broadcast. It
+            // is ordinary detach, not a connection failure the player needs to fix.
+            if (started && (usbName == null || usbManager.deviceList.containsKey(usbName))) showSteamFallback()
         }
+    }
+
+    override fun controllerInputActive(controllerId: Int) {
+        deliver { listener?.controllerInputActive(controllerId) }
     }
 
     inner class UsbEventReceiver : BroadcastReceiver() {
@@ -138,6 +147,10 @@ class UsbDriverService : Service(), UsbDriverListener {
                     controller.stop()
                     controllers.remove(controller)
                 }
+                if (device.vendorId == SteamControllerProtocol.VENDOR_ID) mainHandler.postDelayed({
+                    if (started) usbManager.deviceList.values.filter { it.vendorId == device.vendorId &&
+                        it.productId == device.productId }.forEach(::handleUsbDeviceState)
+                }, 1200)
             } else if (action == ACTION_USB_PERMISSION) {
                 val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
                 stateListener?.onUsbPermissionPromptCompleted()
@@ -166,6 +179,18 @@ class UsbDriverService : Service(), UsbDriverListener {
             this@UsbDriverService.start()
         }
 
+        /** Launch settings already include the selected per-game profile. */
+        fun start(config: PreferenceConfiguration) {
+            if (!started) prefConfig = PreferenceConfiguration().apply {
+                usbDriver = config.usbDriver
+                bindAllUsb = config.bindAllUsb
+                steamControllerBluetooth = config.steamControllerBluetooth
+                steamControllerGameTouchpad = config.steamControllerGameTouchpad
+                steamControllerGripMappings = config.steamControllerGripMappings.copyOf()
+            }
+            this@UsbDriverService.start()
+        }
+
         fun stop() {
             this@UsbDriverService.stop()
         }
@@ -175,6 +200,7 @@ class UsbDriverService : Service(), UsbDriverListener {
         if (device == null || !started || !prefConfig.usbDriver || usbControllers.containsKey(device.deviceName)) {
             return
         }
+        if (!usbManager.deviceList.containsKey(device.deviceName)) return
         if (shouldClaimDevice(device, prefConfig.bindAllUsb)) {
             if (!usbManager.hasPermission(device)) {
                 try {
@@ -275,6 +301,7 @@ class UsbDriverService : Service(), UsbDriverListener {
     @SuppressLint("MissingPermission")
     private fun startPairedSteamControllers() {
         if (!prefConfig.steamControllerBluetooth) return
+        if (hasKernelGamepad(SteamControllerProtocol.VENDOR_ID, SteamControllerProtocol.BLUETOOTH_PID)) return
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, R.string.steam_controller_permission_denied, Toast.LENGTH_LONG).show()
             return
@@ -345,9 +372,11 @@ class UsbDriverService : Service(), UsbDriverListener {
             return false
         }
 
-        private fun hasKernelGamepad(device: UsbDevice): Boolean = InputDevice.getDeviceIds().any { id ->
+        private fun hasKernelGamepad(device: UsbDevice): Boolean = hasKernelGamepad(device.vendorId, device.productId)
+
+        private fun hasKernelGamepad(vendorId: Int, productId: Int): Boolean = InputDevice.getDeviceIds().any { id ->
             val input = InputDevice.getDevice(id)
-            input != null && input.vendorId == device.vendorId && input.productId == device.productId &&
+            input != null && input.vendorId == vendorId && input.productId == productId &&
                 ((input.sources and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
                     (input.sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD)
         }

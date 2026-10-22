@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.papi.nova.nvstream.input.ControllerPacket
+import com.papi.nova.shadows.ShadowMoonBridge
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -13,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-@Config(sdk = [30])
+@Config(sdk = [30], shadows = [ShadowMoonBridge::class])
 @RunWith(RobolectricTestRunner::class)
 class SteamControllerSettingsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()

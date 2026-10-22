@@ -5,6 +5,7 @@ import com.papi.nova.nvstream.jni.MoonBridge
 import org.junit.Assert.*
 import org.junit.Test
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockingDetails
 import java.util.concurrent.ScheduledExecutorService
 
 class SteamControllerTest {
@@ -39,11 +40,15 @@ class SteamControllerTest {
     }
     private class Rig(game: Boolean = false, grips: IntArray = IntArray(4)) {
         val link = Link(); val events = Events()
+        val scheduler = mock(ScheduledExecutorService::class.java)
         var now = 1_000_000_000L
         val pad = SteamController(7, events, SteamControllerProtocol.PUCK_PID, link, "test-puck:2", game, grips,
-            mock(ScheduledExecutorService::class.java), { now })
+            scheduler, { now })
         fun ready() { assertTrue(pad.start()); link.observer.onReady() }
         fun playing(report: ByteArray = report()) { ready(); link.observer.onReport(report); link.confirm() }
+        fun tick() = (mockingDetails(scheduler).invocations.single {
+            it.method.name == "scheduleAtFixedRate"
+        }.arguments[0] as Runnable).run()
     }
 
     @Test fun waitsForActualFeatureWriteBeforeAdvertisingPlayer() {
@@ -53,9 +58,12 @@ class SteamControllerTest {
         assertEquals(listOf("added", "state"), r.events.order)
         assertTrue(r.pad.hasNativeOwnership())
     }
-    @Test fun failedModeCommandNeverAddsPlayerAndClosesChannel() {
+    @Test fun failedModeCommandNeverAddsPlayerAndBacksOffBeforeRecovery() {
         val r = Rig(); r.ready(); r.link.observer.onReport(report()); r.link.confirm(false)
-        assertTrue(r.events.order.isEmpty()); assertTrue(r.pad.isClosed()); assertEquals(1, r.link.closes)
+        assertTrue(r.events.order.isEmpty()); assertFalse(r.pad.isClosed()); assertEquals(0, r.link.closes)
+        r.link.observer.onReport(report()); assertTrue(r.link.features.isEmpty())
+        r.now += 250_000_000; r.tick(); r.link.confirm()
+        assertTrue(r.pad.hasNativeOwnership())
     }
     @Test fun emptyPuckChannelDoesNotReservePlayer() {
         val r = Rig(); r.ready()
@@ -143,6 +151,31 @@ class SteamControllerTest {
         assertEquals(0, r.pad.getCapabilities().toInt() and MoonBridge.LI_CCAP_RUMBLE.toInt())
         r.pad.rumble(100, 100); r.pad.stop()
         assertTrue(r.link.rumble.isEmpty())
+    }
+    @Test fun oneRefreshFailureKeepsOwnedPlayerAndRadioDisconnectCanStillReconnect() {
+        val r = Rig(); r.playing()
+        r.now += 3_000_000_000; r.tick(); r.link.confirm(false)
+        assertTrue(r.pad.hasNativeOwnership()); assertEquals(0, r.link.closes)
+        r.link.observer.onReport(byteArrayOf(0x46, 1))
+        r.link.observer.onReport(byteArrayOf(0x46, 2))
+        r.link.observer.onReport(report(1))
+        r.now += 250_000_000; r.tick(); r.link.confirm()
+        assertTrue(r.pad.hasNativeOwnership()); assertEquals(2, r.events.order.count { it == "added" })
+    }
+    @Test fun repeatedModeFailuresReleaseInputWithoutDestroyingTheReceiverSlot() {
+        val r = Rig(); r.playing(); r.now += 3_000_000_000
+        repeat(3) { n -> r.tick(); r.link.confirm(false); r.now += 250_000_000L shl n }
+        assertFalse(r.pad.hasNativeOwnership()); assertFalse(r.pad.isClosed())
+        assertEquals(0, r.link.closes)
+        r.link.observer.onReport(report(1)); r.link.confirm()
+        assertTrue(r.pad.hasNativeOwnership())
+    }
+    @Test fun motionSettingFailureCanRecoverWithoutLosingTheGamepad() {
+        val r = Rig(); r.playing(); r.pad.setMotionEventState(MoonBridge.LI_MOTION_TYPE_GYRO, 100)
+        r.link.confirm(false); assertTrue(r.pad.hasNativeOwnership())
+        r.now += 250_000_000; r.tick(); r.link.confirm()
+        r.link.observer.onReport(report())
+        assertEquals(listOf(MoonBridge.LI_MOTION_TYPE_GYRO), r.events.motions)
     }
 
     companion object {

@@ -415,6 +415,33 @@ class SteamControllerUsbTransportTest {
     }
 
     @Test
+    fun rumbleFailureCompletesTheFeatureDequeuedInTheSameOutputPass() {
+        val device = usbDevice(WIRED, listOf(usbInterface(1)))
+        val channel = Channel(device, device.getInterface(0))
+        val transport = channel.transport(); val recorder = Recorder()
+        assertTrue(transport.start(recorder)); assertEquals("ready", recorder.next())
+        val entered = CountDownLatch(1); val release = CountDownLatch(1)
+        val count = AtomicInteger()
+        channel.onControl = { call ->
+            if (call.value == 0x0280) throw SecurityException("revoked during rumble")
+            if (count.incrementAndGet() == 1) {
+                entered.countDown()
+                assertTrue(release.await(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+            }
+            call.bytes.size
+        }
+        val busy = Completion(); transport.writeFeature(feature(0x87), busy)
+        assertTrue(entered.await(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        transport.writeRumble(rumble(12))
+        val dequeued = Completion(); transport.writeFeature(feature(0x87, 9), dequeued)
+        release.countDown()
+        assertEquals(true, busy.await())
+        assertEquals("lost", recorder.next()); assertEquals("closed:PERMISSION", recorder.next())
+        assertEquals(false, dequeued.await())
+        assertEquals(1, dequeued.calls.get())
+    }
+
+    @Test
     fun closeFromReportCallbackStopsDeliveryWithoutDeadlock() {
         val device = puck()
         val channel = Channel(device, device.getInterface(3))

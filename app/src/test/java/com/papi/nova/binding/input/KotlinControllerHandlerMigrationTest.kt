@@ -210,6 +210,7 @@ class KotlinControllerHandlerMigrationTest {
     }
 
     @Test
+    @Config(sdk = [35])
     fun nonAlphabeticValveLizardDoesNotBecomeAnExtraGamepad() {
         val lizard = InputDeviceBuilder.newBuilder().setId(904)
             .setName("Steam Controller Puck").setVendorId(0x28de).setProductId(0x1304)

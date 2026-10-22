@@ -272,9 +272,11 @@ internal class SteamControllerUsbTransport(
                     feature = pendingFeatures.removeFirstOrNull()
                 }
 
+                // The feature left the queue alongside rumble. If that earlier transfer
+                // throws, finally must still complete the accepted feature exactly once.
+                inFlight = feature
                 rumble?.let { sendRumble(it) }
                 feature?.let {
-                    inFlight = it
                     val written = sendFeature(it.report)
                     inFlight = null
                     it.completion(written)

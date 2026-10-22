@@ -21,7 +21,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
-import org.robolectric.shadows.InputDeviceBuilder
 import java.util.concurrent.ScheduledExecutorService
 
 @Config(sdk = [30], shadows = [ShadowMoonBridge::class, ShadowGameManager::class])
@@ -57,6 +56,7 @@ class SteamControllerIntegrationTest {
     @After fun cleanup() { pad.stop(); handler.destroy() }
     private fun flags() = mockingDetails(connection).invocations.filter { it.method.name == "sendControllerInput" }
         .map { (it.arguments[2] as Number).toInt() }
+    private fun join() { link.state(1); link.state() }
     @Suppress("UNCHECKED_CAST")
     private fun context(): ControllerHandler.UsbDeviceContext = ControllerHandler::class.java.getDeclaredField("usbDeviceContexts").run {
         isAccessible = true; (get(handler) as SparseArray<ControllerHandler.UsbDeviceContext>)[91]
@@ -85,7 +85,7 @@ class SteamControllerIntegrationTest {
         assertTrue(flags().all { it == 0 })
     }
     @Test fun nativeImuOnAndroid11KeepsSteamTypeAndUsesControllerRatherThanPhone() {
-        link.state()
+        join()
         val arrival = mockingDetails(connection).invocations.single { it.method.name == "sendControllerArrivalEvent" }
         assertEquals(4, (arrival.arguments[2] as Number).toInt())
         assertEquals(MoonBridge.LI_CCAP_GYRO.toInt(), (arrival.arguments[4] as Number).toInt() and MoonBridge.LI_CCAP_GYRO.toInt())
@@ -95,7 +95,7 @@ class SteamControllerIntegrationTest {
         assertTrue(mockingDetails(connection).invocations.any { it.method.name == "sendControllerMotionEvent" })
     }
     @Test fun reassignStopsNativeMotionAndLateUnassignedMotionCannotReachOldPlayer() {
-        link.state()
+        join()
         handler.handleSetMotionEventState(context().controllerNumber, MoonBridge.LI_MOTION_TYPE_GYRO, 100)
         handler.reassignPlayers()
         assertArrayEquals(SteamControllerProtocol.motionEnabled(false), link.features.last())
@@ -111,14 +111,49 @@ class SteamControllerIntegrationTest {
         assertTrue(handler.players().isEmpty())
     }
     @Test fun streamStopClosesNativeTimerTransportAndOwnership() {
-        link.state(); handler.stop()
+        join(); clearInvocations(connection); handler.stop()
         assertEquals(1, link.closes); assertTrue(pad.isClosed())
+        assertTrue(flags().isEmpty())
         clearInvocations(connection); link.state(1)
         verifyNoInteractions(connection)
     }
+    @Test fun idleReportsCannotClaimOrReclaimPlayersAfterReassign() {
+        link.state(); assertTrue(handler.players().isEmpty())
+        join(); assertEquals(1, handler.players().size)
+        handler.reassignPlayers(); link.state(); link.state()
+        assertTrue(handler.players().isEmpty())
+        link.state(1); assertEquals(1, handler.players().size)
+    }
+    @Test fun nativeTrackpadAndStickMouseClicksHaveIndependentOwners() {
+        join(); context().setControllerMouseEmulationActive(true)
+        clearInvocations(connection)
+        link.state(1); link.state(1)
+        assertEquals(1, mockingDetails(connection).invocations.count { it.method.name == "sendMouseButtonDown" })
+        assertEquals(0, mockingDetails(connection).invocations.count { it.method.name == "sendMouseButtonUp" })
+        pad.stop()
+        assertEquals(1, mockingDetails(connection).invocations.count { it.method.name == "sendMouseButtonUp" })
+    }
+    @Test fun touchContactsLiftBeforeReassignAndBeginWithDownOnTheNextPlayer() {
+        pad.stop(); link = Link()
+        pad = SteamController(91, handler, SteamControllerProtocol.PUCK_PID, link, "integration-puck:2",
+            gameTouchpad = true, scheduler = mock(ScheduledExecutorService::class.java))
+        assertTrue(pad.start()); link.state(0x00200000)
+        handler.reassignPlayers(); link.state(0x00200000)
+        val types = mockingDetails(connection).invocations.filter { it.method.name == "sendControllerTouchEvent" }
+            .map { (it.arguments[1] as Number).toByte() }
+        assertEquals(listOf(MoonBridge.LI_TOUCH_EVENT_DOWN, MoonBridge.LI_TOUCH_EVENT_UP, MoonBridge.LI_TOUCH_EVENT_DOWN), types)
+    }
+    @Test fun aPreviouslyEmptySlotCannotActivateAfterHandlerStopped() {
+        handler.stop(); link.state(1)
+        assertTrue(pad.isClosed()); assertFalse(pad.hasNativeOwnership())
+        assertEquals(1, link.closes)
+    }
     @Test fun ownedLizardIsFilteredButUnrelatedMouseAndKernelGamepadRemainAvailable() {
-        fun device(pid: Int, sources: Int) = InputDeviceBuilder.newBuilder().setId(pid)
-            .setName("Controller").setVendorId(0x28de).setProductId(pid).setSources(sources).build()
+        fun device(pid: Int, sources: Int): InputDevice = mock(InputDevice::class.java).also {
+            `when`(it.vendorId).thenReturn(0x28de)
+            `when`(it.productId).thenReturn(pid)
+            `when`(it.sources).thenReturn(sources)
+        }
         val lizard = device(0x1304, InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_MOUSE)
         val other = device(0x1303, InputDevice.SOURCE_MOUSE)
         val gamepad = device(0x1304, InputDevice.SOURCE_JOYSTICK or InputDevice.SOURCE_GAMEPAD)

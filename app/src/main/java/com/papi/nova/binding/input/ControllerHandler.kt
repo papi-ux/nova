@@ -70,7 +70,7 @@ class ControllerHandler(
     private val usbDeviceContexts = SparseArray<UsbDeviceContext>()
     // Every Mouse Mode controller drives the same host pointer. Keep each
     // physical context's contribution until it releases or leaves Mouse Mode.
-    private val mouseButtonOwners = mutableMapOf<GenericControllerContext, Int>()
+    private val mouseButtonOwners = mutableMapOf<Any, Int>()
     private var mouseButtonMask = 0
 
     private val stickDeadzone: Double
@@ -228,7 +228,7 @@ class ControllerHandler(
                 (currentControllers.toInt() and (1 shl context.controllerNumber.toInt()).inv()).toShort()
         }
 
-        if (context.assignedControllerNumber) {
+        if (context.assignedControllerNumber && !stopped) {
             conn.sendControllerInput(
                 context.controllerNumber,
                 getActiveControllerMask(),
@@ -412,6 +412,9 @@ class ControllerHandler(
      */
     private fun forgetPlayer(context: InputDeviceContext) {
         if (!context.assignedControllerNumber) return
+        if (context is UsbDeviceContext && context.device is SteamController) {
+            (context.device as SteamController).releasePlayerInputs()
+        }
         releaseControllerNumber(context)
         if (context is UsbDeviceContext) {
             context.device.rumble(0, 0)
@@ -422,6 +425,7 @@ class ControllerHandler(
             context.nativeDownTimes.clear()
             context.inputMap = 0
             updateMouseButtons(context, 0)
+            updateMouseButtons(context, 0, nativeMouse = true)
         } else {
             val vm = context.vibratorManager
             val vib = context.vibrator
@@ -906,8 +910,9 @@ class ControllerHandler(
         } else {
             0
         }
-        if (buttons == (mouseButtonOwners[context] ?: 0)) return
-        if (buttons == 0) mouseButtonOwners.remove(context) else mouseButtonOwners[context] = buttons
+        val owner = if (nativeMouse && context is UsbDeviceContext) context.nativeMouseOwner else context
+        if (buttons == (mouseButtonOwners[owner] ?: 0)) return
+        if (buttons == 0) mouseButtonOwners.remove(owner) else mouseButtonOwners[owner] = buttons
         val next = mouseButtonOwners.values.fold(0) { combined, value -> combined or value }
         val changed = next xor mouseButtonMask
         mouseButtonMask = next
@@ -2483,6 +2488,10 @@ class ControllerHandler(
 
         context.leftTrigger = (lt * 0xFF).toInt().toByte()
         context.rightTrigger = (rt * 0xFF).toInt().toByte()
+        if (context.device is SteamController && !context.assignedControllerNumber && buttonFlags == 0 &&
+            context.leftTrigger.toInt() == 0 && context.rightTrigger.toInt() == 0 &&
+            context.leftStickX.toInt() == 0 && context.leftStickY.toInt() == 0 &&
+            context.rightStickX.toInt() == 0 && context.rightStickY.toInt() == 0) return
         if (context.device is SteamController) {
             val now = android.os.SystemClock.uptimeMillis()
             // Reuse Nova's actual Guide/chord state, face-button preference and button
@@ -2546,6 +2555,11 @@ class ControllerHandler(
         handleButtonUpForContext(KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_APP_SWITCH, 0), context)
     }
 
+    override fun controllerInputActive(controllerId: Int) {
+        val context = usbDeviceContexts[controllerId] ?: return
+        if (!stopped && !context.destroyed) assignControllerNumberIfNeeded(context)
+    }
+
     override fun resetControllerState(controllerId: Int) {
         val context = usbDeviceContexts[controllerId] ?: return
         context.novaShortcutState.reset()
@@ -2557,6 +2571,7 @@ class ControllerHandler(
         context.rightStickX = 0; context.rightStickY = 0
         buttonReleaseScheduler.cancelOwner(context)
         updateMouseButtons(context, 0)
+        updateMouseButtons(context, 0, nativeMouse = true)
         if (!stopped && !context.destroyed && context.assignedControllerNumber && context.controllerNumber >= 0) {
             sendControllerInputPacket(context)
         }
@@ -2579,6 +2594,7 @@ class ControllerHandler(
 
     override fun deviceAdded(controller: AbstractController) {
         if (stopped) {
+            if (controller is SteamController) controller.stop()
             return
         }
 
@@ -2726,6 +2742,7 @@ class ControllerHandler(
         open fun destroy() {
             destroyed = true
             updateMouseButtons(this, 0)
+            updateMouseButtons(this, 0, nativeMouse = true)
             mouseEmulationLastInputMap = 0
             mouseEmulationXDown = false
             buttonReleaseScheduler.cancelOwner(this)
@@ -3025,6 +3042,7 @@ class ControllerHandler(
 
     inner class UsbDeviceContext : InputDeviceContext() {
         lateinit var device: AbstractController
+        val nativeMouseOwner = Any()
         var nativeButtons = 0
         val nativeDownTimes = mutableMapOf<Int, Long>()
 
@@ -3033,6 +3051,10 @@ class ControllerHandler(
             var capabilities = device.getCapabilities()
 
             val sm = sensorManager
+            if (device is SteamController && prefConfig.forceMotionSensorsFallbackToDevice) {
+                capabilities = (capabilities.toInt() and
+                    (MoonBridge.LI_CCAP_ACCEL.toInt() or MoonBridge.LI_CCAP_GYRO.toInt()).inv()).toShort()
+            }
             if (type != MoonBridge.LI_CTYPE_PS && type != MoonBridge.LI_CTYPE_NINTENDO &&
                 (device !is SteamController || prefConfig.forceMotionSensorsFallbackToDevice) && sm != null) {
                 if (sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null) {
@@ -3042,7 +3064,10 @@ class ControllerHandler(
                     capabilities = (capabilities.toInt() or MoonBridge.LI_CCAP_ACCEL.toInt()).toShort()
                 }
 
-                type = MoonBridge.LI_CTYPE_UNKNOWN
+                if (device !is SteamController || capabilities.toInt() and
+                    (MoonBridge.LI_CCAP_ACCEL.toInt() or MoonBridge.LI_CCAP_GYRO.toInt()) != 0) {
+                    type = MoonBridge.LI_CTYPE_UNKNOWN
+                }
             }
 
             if (device !is SteamController && type != MoonBridge.LI_CTYPE_PS &&
