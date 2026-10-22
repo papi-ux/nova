@@ -2386,7 +2386,7 @@ def main():
                 except AssertionError as error:
                     # Retain bounded closed state and app-log tail before the fixture directory is removed;
                     # the original exception, message and traceback are re-raised unchanged.
-                    attach_settling_failure_note(error, state, log)
+                    attach_settling_failure_note(error, state, log, app=app)
                     raise
 
         def save_capture(name):
