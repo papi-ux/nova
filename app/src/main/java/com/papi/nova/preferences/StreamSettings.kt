@@ -27,6 +27,7 @@ import android.view.WindowInsets
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.papi.nova.NovaActivity
 import androidx.compose.ui.platform.ComposeView
@@ -78,6 +79,21 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class StreamSettings : NovaActivity() {
+    private val steamPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) {
+            PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putBoolean("steam_controller_bluetooth", false).apply()
+            Toast.makeText(this, R.string.steam_controller_permission_denied, Toast.LENGTH_LONG).show()
+            reloadSettings()
+        }
+    }
+    private val steamPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if (key == "steam_controller_bluetooth" && prefs.getBoolean(key, false) &&
+            Build.VERSION.SDK_INT >= 31 &&
+            checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            steamPermission.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
+        }
+    }
     private lateinit var previousPrefs: PreferenceConfiguration
     private var previousDisplayPixelCount = 0
     private var prefsFragment: SettingsFragment? = null
@@ -132,6 +148,8 @@ class StreamSettings : NovaActivity() {
         super.onCreate(savedInstanceState)
 
         previousPrefs = PreferenceConfiguration.readPreferences(this)
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener(steamPreferenceListener)
         UiHelper.setLocale(this)
         onBackPressedDispatcher.addCallback(this, leaveCallback)
         if (shouldShowComposeSettings()) {
@@ -146,6 +164,12 @@ class StreamSettings : NovaActivity() {
             return false
         }
         return NovaSettingsFeatureFlags.isComposeSettingsEnabled(this)
+    }
+
+    override fun onDestroy() {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .unregisterOnSharedPreferenceChangeListener(steamPreferenceListener)
+        super.onDestroy()
     }
 
     private fun showComposeSettings(returnToRow: String? = null) {
@@ -780,8 +804,8 @@ class StreamSettings : NovaActivity() {
                 removeIfExists(inputCategory, "checkbox_absolute_mouse_mode")
             }
 
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                removeIfExists(inputCategory, "checkbox_gamepad_motion_sensors")
+            if (!pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+                removeIfExists(inputCategory, "steam_controller_bluetooth")
             }
 
             if (

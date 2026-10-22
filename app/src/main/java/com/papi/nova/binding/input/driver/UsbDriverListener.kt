@@ -17,4 +17,13 @@ interface UsbDriverListener {
     fun deviceRemoved(controller: AbstractController)
 
     fun deviceAdded(controller: AbstractController)
+
+    fun reportControllerTouch(controllerId: Int, eventType: Byte, pointerId: Int, x: Float, y: Float, pressure: Float) = Unit
+
+    fun reportControllerMouse(controllerId: Int, deltaX: Short, deltaY: Short, buttons: Int, scroll: Short) = Unit
+
+    fun reportControllerQuickMenu(controllerId: Int) = Unit
+
+    /** Detach is cancellation, never a Guide tap or a shortcut-button release. */
+    fun resetControllerState(controllerId: Int) = Unit
 }

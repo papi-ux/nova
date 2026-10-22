@@ -4156,6 +4156,7 @@ if (!isKeyInputReady())
 {
 return false
 }
+if (com.papi.nova.binding.input.driver.SteamControllerOwnership.owns(event.device)) return true
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4281,6 +4282,7 @@ if (!isKeyInputReady())
 {
 return false
 }
+if (com.papi.nova.binding.input.driver.SteamControllerOwnership.owns(event.device)) return true
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4931,6 +4933,7 @@ if (event == null || isFinishing || isDestroyed || !::prefConfig.isInitialized |
 {
 return false
 }
+if (com.papi.nova.binding.input.driver.SteamControllerOwnership.owns(event.device)) return true
 view?.display?.displayId?.let(::recordQuickMenuInteraction)
  // Pass through mouse/touch/joystick input if we're not grabbing
         if (!grabbedInput)
@@ -6160,7 +6163,7 @@ timerHandler!!.postDelayed(backgroundPing, 1000)
 }
 })
 
-if (prefConfig!!.usbDriver)
+if (prefConfig!!.usbDriver || prefConfig!!.steamControllerBluetooth)
 {
  // Start the USB driver
             bindService(Intent(this, UsbDriverService::class.java),

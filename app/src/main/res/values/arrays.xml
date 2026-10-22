@@ -334,4 +334,17 @@
         <item>right</item>
     </string-array>
 
+    <string-array name="steam_controller_trackpad_names">
+        <item>Mouse — right pad moves and clicks; left pad scrolls and right-clicks</item>
+        <item>Game touchpad — two halves of the host PlayStation touchpad</item>
+    </string-array>
+    <string-array name="steam_controller_trackpad_values"><item>mouse</item><item>game</item></string-array>
+    <string-array name="steam_controller_grip_names">
+        <item>Off</item><item>A</item><item>B</item><item>X</item><item>Y</item>
+        <item>Left bumper</item><item>Right bumper</item><item>Left stick click</item><item>Right stick click</item>
+    </string-array>
+    <string-array name="steam_controller_grip_values">
+        <item>off</item><item>a</item><item>b</item><item>x</item><item>y</item>
+        <item>lb</item><item>rb</item><item>ls</item><item>rs</item>
+    </string-array>
 </resources>
