@@ -194,6 +194,11 @@ class UsbDriverService : Service(), UsbDriverListener {
         fun stop() {
             this@UsbDriverService.stop()
         }
+
+        /** A retiring Game must not stop channels now owned by another bound Game. */
+        fun stop(owner: UsbDriverListener?) {
+            if (owner != null && listener === owner) this@UsbDriverService.stop()
+        }
     }
 
     private fun handleUsbDeviceState(device: UsbDevice?) {

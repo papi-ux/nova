@@ -409,9 +409,18 @@ private var highPerfWifiLock:WifiManager.WifiLock? = null
 private var lowLatencyWifiLock:WifiManager.WifiLock? = null
 
 private var connectedToUsbDriverService:Boolean = false
+private var inputDriverBinder:UsbDriverService.UsbDriverBinder? = null
+private var inputDriverStopped:Boolean = false
 private var usbDriverServiceConnection:ServiceConnection = object : ServiceConnection {
 override fun onServiceConnected(componentName:ComponentName?, iBinder:IBinder?) {
 var binder:UsbDriverService.UsbDriverBinder? = iBinder as UsbDriverService.UsbDriverBinder?
+inputDriverBinder = binder
+connectedToUsbDriverService = true
+if (inputDriverStopped || isFinishing || isDestroyed)
+{
+binder?.stop(controllerHandler)
+return
+}
 binder!!.setListener(controllerHandler)
 binder!!.setStateListener(this@Game)
 binder!!.start(prefConfig!!)
@@ -419,6 +428,7 @@ connectedToUsbDriverService = true
 }
 override fun onServiceDisconnected(componentName:ComponentName?) {
 connectedToUsbDriverService = false
+inputDriverBinder = null
 }
 }
 
@@ -5730,6 +5740,10 @@ streamRecapErrorCode = errorCode
 }
 
 private fun stopConnection() {
+// Includes channels that have not produced a controller context yet. A late
+// service connection must also stay stopped while the termination dialog shows.
+inputDriverStopped = true
+inputDriverBinder?.stop(controllerHandler)
 if (connecting || connected)
 {
 connected = false

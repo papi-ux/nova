@@ -51,4 +51,17 @@ class UsbDriverServiceStreamPreferencesTest {
         binder.start(PreferenceConfiguration().apply { usbDriver = false; steamControllerBluetooth = true })
         assertEquals(0, mockingDetails(manager).invocations.count { it.method.name == "requestPermission" })
     }
+    @Test fun staleGameOwnerCannotStopTheCurrentGamesDriverChannels() {
+        val owner = mock(UsbDriverListener::class.java)
+        binder.setListener(owner)
+        binder.start(PreferenceConfiguration().apply { usbDriver = true })
+        fun requests() = mockingDetails(manager).invocations.count { it.method.name == "requestPermission" }
+        assertEquals(1, requests())
+        binder.stop(mock(UsbDriverListener::class.java))
+        binder.start()
+        assertEquals("wrong owner must leave the running service alone", 1, requests())
+        binder.stop(owner)
+        binder.start()
+        assertEquals("the actual owner can stop and restart its service", 2, requests())
+    }
 }
