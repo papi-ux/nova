@@ -1,5 +1,6 @@
 package com.papi.nova.binding.input
 
+import android.content.ComponentName
 import android.os.Looper
 import android.view.View
 import android.widget.Button
@@ -67,6 +68,10 @@ class SteamControllerMenuOwnershipTest {
     @Before fun setup() {
         lifecycle = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         activity = lifecycle.get()
+        // This JVM has no NVIDIA accessory service. Draining the window looper must not
+        // fabricate its onServiceConnected callback with a null binder.
+        shadowOf(activity.application).declareComponentUnbindable(
+            ComponentName("com.nvidia.blakepairing", "com.nvidia.blakepairing.AccessoryService"))
         connection = mock(NvConnection::class.java)
         handler = ControllerHandler(activity, connection, mock(GameGestures::class.java),
             PreferenceConfiguration().apply { multiController = true })
