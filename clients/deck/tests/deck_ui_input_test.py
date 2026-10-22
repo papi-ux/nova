@@ -1,10 +1,13 @@
 """Pure contract test for deck_ui_input: the settling predicate and its bounded failure evidence.
 
-A deterministic fake clock, observation and app drive the real helper: no real waits, processes,
-X server or device.
+A deterministic fake clock, observation and app drive the settling helper. Linux-only
+process-note controls read a test-owned Python child; no X server or device is involved.
 """
 import json
 import os
+from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -221,6 +224,59 @@ class FailureNote(unittest.TestCase):
             deck_ui_input.attach_settling_failure_note(error, lambda: {}, self.log)
         self.assertEqual(error.args, (TIMEOUT_MESSAGE,))
         self.assertFalse(getattr(error, "__notes__", []))
+
+
+class ProcessFailureNote(unittest.TestCase):
+    def test_task_stat_handles_parentheses_and_rejects_wrong_identity(self):
+        fields = ["S", "12"] + ["0"] * 18
+        fields[11], fields[12], fields[19] = "17", "9", "123456"
+        raw = "321 (nested (comm) name) " + " ".join(fields)
+        self.assertEqual(deck_ui_input._task_stat(raw, 321),
+            {"pid": 321, "state": "S", "parent": 12, "userTicks": 17,
+             "systemTicks": 9, "startTicks": 123456})
+        for broken, pid in ((raw, 322), ("321 (short) S 12", 321), ("invalid", 321)):
+            with self.assertRaises(ValueError):
+                deck_ui_input._task_stat(broken, pid)
+
+    def test_changed_process_identity_is_unavailable_and_keeps_primary_failure(self):
+        first = {"pid": 321, "startTicks": 1}
+        second = {"pid": 321, "startTicks": 2}
+        error = AssertionError(TIMEOUT_MESSAGE)
+        with mock.patch.object(deck_ui_input, "_process_snapshot", side_effect=[first, second]), \
+             mock.patch.object(deck_ui_input.time, "sleep") as sleep, \
+             mock.patch.object(deck_ui_input, "settling_failure_note", return_value="existing note"):
+            deck_ui_input.attach_settling_failure_note(error, lambda: {}, "unused", app=object())
+        sleep.assert_called_once_with(1)
+        self.assertEqual(error.args, (TIMEOUT_MESSAGE,))
+        self.assertEqual(error.__notes__, ["existing note", "[settling process unavailable: ValueError]"])
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux procfs evidence")
+    def test_real_owned_child_and_refusals_use_virtual_proc_files(self):
+        # EOF, rather than a signal, ends only this control's child.
+        app = subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],
+                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.assertEqual((Path("/proc") / str(app.pid) / "stat").stat().st_size, 0)
+            note = deck_ui_input.settling_process_failure_note(app)
+            self.assertTrue(note.startswith("[settling process] "), note)
+            samples = json.loads(note.removeprefix("[settling process] "))
+            self.assertEqual(len(samples), 2)
+            self.assertEqual(samples[0]["startTicks"], samples[1]["startTicks"])
+            for sample in samples:
+                self.assertEqual((sample["pid"], sample["parent"]), (app.pid, os.getpid()))
+                self.assertGreater(sample["startTicks"], 0)
+                self.assertIn("wchan", sample)
+                self.assertIn("syscall", sample)
+            wrong_executable = types.SimpleNamespace(pid=app.pid, args=["/bin/false"], poll=app.poll)
+            with self.assertRaisesRegex(ValueError, "executable changed"):
+                deck_ui_input._process_snapshot(wrong_executable)
+            not_our_child = types.SimpleNamespace(pid=os.getpid(), args=[sys.executable], poll=lambda: None)
+            with self.assertRaisesRegex(ValueError, "fixture's child"):
+                deck_ui_input._process_snapshot(not_our_child)
+        finally:
+            app.stdin.close()
+            app.wait(timeout=5)
+        self.assertIn("unavailable", deck_ui_input.settling_process_failure_note(app))
 
 
 if __name__ == "__main__":

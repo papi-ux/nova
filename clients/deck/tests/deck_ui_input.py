@@ -2,6 +2,8 @@
 
 import collections
 import json
+import os
+from pathlib import Path
 import time
 
 # Failure evidence only: nothing below changes the success predicate, the deadline,
@@ -117,9 +119,76 @@ def settling_failure_note(read_state, log_path):
     return "\n".join(parts)
 
 
-def attach_settling_failure_note(error, read_state, log_path):
+def _task_stat(raw, pid):
+    # procfs reports a zero file size; read its bounded content rather than
+    # comparing it with st_size. comm can contain spaces and parentheses.
+    prefix, separator, fields = raw.rpartition(") ")
+    values = fields.split()
+    if not separator or prefix.split("(", 1)[0].strip() != str(pid) or len(values) < 20:
+        raise ValueError("Malformed task stat")
+    return {"pid": pid, "state": values[0], "parent": int(values[1]),
+            "userTicks": int(values[11]), "systemTicks": int(values[12]), "startTicks": int(values[19])}
+
+
+def _bounded_proc_read(path, limit=4096):
+    with path.open("r") as handle:
+        value = handle.read(limit + 1)
+    if len(value) > limit:
+        raise ValueError("Oversized proc observation")
+    return value.strip()
+
+
+def _process_snapshot(app):
+    # Only the fixture's direct child with the expected executable is observed.
+    # Never attach a debugger, send a signal, or inspect an arbitrary PID.
+    pid = app.pid
+    if type(pid) is not int or pid <= 0 or app.poll() is not None:
+        raise ValueError("Fixture child unavailable")
+    if not isinstance(app.args, (list, tuple)) or not app.args:
+        raise ValueError("Fixture executable unavailable")
+    process = Path("/proc") / str(pid)
+    expected = Path(app.args[0]).resolve(strict=True)
+    if (process / "exe").readlink() != expected:
+        raise ValueError("Fixture executable changed")
+    task = process / "task" / str(pid)
+    before = _task_stat(_bounded_proc_read(task / "stat"), pid)
+    if before["parent"] != os.getpid():
+        raise ValueError("Not the fixture's child")
+    observed = dict(before)
+    for name in ("wchan", "syscall"):
+        try:
+            observed[name] = _bounded_proc_read(task / name, 512)
+        except OSError as failure:
+            observed[name] = {"unavailable": type(failure).__name__}
+    after = _task_stat(_bounded_proc_read(task / "stat"), pid)
+    if (before["parent"], before["startTicks"]) != (after["parent"], after["startTicks"]):
+        raise ValueError("Fixture child identity changed")
+    if app.poll() is not None or (process / "exe").readlink() != expected:
+        raise ValueError("Fixture child exited or changed executable")
+    return observed
+
+
+def settling_process_failure_note(app):
+    """Failure-only evidence; never changes the settling predicate or deadline."""
+    try:
+        first = _process_snapshot(app)
+        time.sleep(1)
+        second = _process_snapshot(app)
+        if (first["pid"], first["startTicks"]) != (second["pid"], second["startTicks"]):
+            raise ValueError("Fixture child identity changed between observations")
+        return "[settling process] " + json.dumps([first, second], separators=(",", ":"), sort_keys=True)
+    except Exception as failure:
+        return "[settling process unavailable: " + type(failure).__name__ + "]"
+
+
+def attach_settling_failure_note(error, read_state, log_path, app=None):
     """Add the note to the original exception object; its message, traceback and context are kept."""
     try:
         error.add_note(settling_failure_note(read_state, log_path))
     except Exception:
         pass
+    if app is not None:
+        try:
+            error.add_note(settling_process_failure_note(app))
+        except Exception:
+            pass
