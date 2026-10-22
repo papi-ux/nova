@@ -2300,6 +2300,25 @@ def main():
         identity.chmod(0o600)
         before = identity.read_bytes()
         observation = root/"state.json"
+        if timing.route == "host_power":
+            # The GUI thread atomically publishes this synthetic observation every 50 ms.
+            # It needs visibility, not disk durability; keep all identity/config files in root.
+            shared_memory = Path("/dev/shm")
+            try:
+                storage = os.statvfs(shared_memory)
+                use_tmpfs = (command("stat", "-f", "-c", "%T", str(shared_memory)) == "tmpfs"
+                             and not storage.f_flag & os.ST_RDONLY
+                             and storage.f_bavail * storage.f_frsize >= 1024 * 1024
+                             and os.access(shared_memory, os.W_OK))
+            except (OSError, subprocess.SubprocessError):
+                use_tmpfs = False
+            if use_tmpfs:
+                private = Path(stack.enter_context(tempfile.TemporaryDirectory(
+                    prefix="nova-host-power-observation-", dir=shared_memory)))
+                assert private.stat().st_uid == os.getuid() and private.stat().st_mode & 0o777 == 0o700
+                observation = private/"state.json"
+            print("NOVA_DECK_HOST_POWER_OBSERVATION_V1 " + json.dumps({
+                "storage": "tmpfs" if use_tmpfs else "default-temp"}), flush=True)
         capture = root/"library.png"
         log = root/"app.log"
         env = dict(os.environ, NOVA_DECK_IDENTITY_DIR=str(root), NOVA_DECK_GAMEPAD_DEVICE="/dev/null",
