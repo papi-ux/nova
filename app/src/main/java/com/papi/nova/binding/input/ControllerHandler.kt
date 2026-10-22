@@ -2539,6 +2539,8 @@ class ControllerHandler(
         var effectiveButtons = buttonFlags
         if (context.device is SteamController) {
             syncNativeRoute()
+            val firstReport = !context.physicalNativeSeen
+            context.physicalNativeSeen = true
             context.physicalNativeButtons = buttonFlags
             context.physicalNativeLeftStickX = leftStickX
             context.physicalNativeLeftStickY = leftStickY
@@ -2548,6 +2550,7 @@ class ControllerHandler(
             effectiveButtons = buttonFlags and context.suppressedNativeButtons.inv()
             if (nativeRoute != NativeRoute.HOST) {
                 if (nativeRoute == NativeRoute.LOCAL) {
+                    if (firstReport) context.nativeUiKeys.suppress(buttonFlags, leftStickX, leftStickY)
                     val owner = NovaSurfaces.existing(activityContext)?.controllerInputOwner ?: activityContext
                     val sink = nativeLocalSink
                     context.nativeUiKeys.update(owner, buttonFlags, leftStickX, leftStickY) {
@@ -2694,6 +2697,7 @@ class ControllerHandler(
     override fun resetControllerState(controllerId: Int) {
         val context = usbDeviceContexts[controllerId] ?: return
         context.nativeUiKeys.cancel()
+        context.physicalNativeSeen = false
         context.physicalNativeButtons = 0
         context.physicalNativeMouse = 0
         context.physicalNativeTouches.clear()
@@ -3179,6 +3183,7 @@ class ControllerHandler(
 
     inner class UsbDeviceContext : InputDeviceContext() {
         internal val nativeUiKeys = NativeControllerUiKeys()
+        var physicalNativeSeen = false
         var physicalNativeButtons = 0
         var physicalNativeLeftStickX = 0f
         var physicalNativeLeftStickY = 0f

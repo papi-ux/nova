@@ -2805,11 +2805,12 @@ fallbackNovaShortcutState.reset()
 controllerHandler?.resetNovaShortcutStates()
 controllerHandler?.nativeWindowLostFocus()
 }
-else if (com.papi.nova.ui.panel.NovaSurfaces.existing(this)?.controllerInputOwner == null)
+else if (com.papi.nova.ui.panel.NovaSurfaces.existing(this)?.controllerInputOwner == null &&
+    !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode))
 {
 // A library that was foreground while this game was in PiP may have owned the
 // service. Reclaim it with this launch's settings; an unchanged owner is a no-op.
-if (!inputDriverStopped && inputDriverBinder != null && prefConfig != null && controllerHandler != null && !isFinishing && !isDestroyed)
+if (!inputDriverStopped && inputDriverBinder != null && this::prefConfig.isInitialized && controllerHandler != null && !isFinishing && !isDestroyed)
 {
 inputDriverBinder!!.startOwned(controllerHandler!!, this, prefConfig!!)
 }
@@ -2837,7 +2838,8 @@ return@post
 }
 
 val viewFocusRestored = target.requestFocus()
-if (hasWindowFocus())
+if (hasWindowFocus() && com.papi.nova.ui.panel.NovaSurfaces.existing(this)?.controllerInputOwner == null &&
+    !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode))
 {
 controllerHandler?.routeNativeToHost()
 inputCaptureProvider?.onWindowFocusChanged(true)
