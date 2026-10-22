@@ -5,6 +5,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <atomic>
+#include <source_location>
 #include <iostream>
 
 using namespace nova::deck;
@@ -12,10 +13,25 @@ using namespace nova::deck::polaris;
 using namespace nova::deck::runtime;
 namespace {
 void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::abort(); } }
-void until(const std::function<bool()>& predicate, int timeout = 3000) {
+void until(const std::function<bool()>& predicate, int timeout = 3000, std::source_location at = std::source_location::current()) {
     QElapsedTimer timer; timer.start();
-    while (!predicate() && timer.elapsed() < timeout) { QCoreApplication::processEvents(); QThread::msleep(1); }
-    require(predicate(), "controller timed out");
+    qint64 polls = 0, last = 0, maxLoopGap = 0, maxEventTime = 0;
+    while (!predicate() && timer.elapsed() < timeout) {
+        const auto before = timer.elapsed();
+        if (before - last > maxLoopGap) maxLoopGap = before - last;
+        QCoreApplication::processEvents();
+        const auto eventTime = timer.elapsed() - before;
+        if (eventTime > maxEventTime) maxEventTime = eventTime;
+        QThread::msleep(1);
+        last = before; ++polls;
+    }
+    const bool ready = predicate();
+    if (!ready) {
+        std::cerr << "[wait timeout] function=" << at.function_name() << " line=" << at.line() << " column=" << at.column() << " timeout=" << timeout
+                  << " elapsed=" << timer.elapsed() << " polls=" << polls
+                  << " lastPollStart=" << last << " maxLoopGap=" << maxLoopGap << " maxEventTime=" << maxEventTime << '\n';
+    }
+    require(ready, "controller timed out");
 }
 template<class T> DeckPolarisResult<T> ok(T value) { return {DeckPolarisRequestStatus::Ok, 200, {}, std::move(value)}; }
 void parser() {
