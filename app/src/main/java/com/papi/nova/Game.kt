@@ -409,16 +409,26 @@ private var highPerfWifiLock:WifiManager.WifiLock? = null
 private var lowLatencyWifiLock:WifiManager.WifiLock? = null
 
 private var connectedToUsbDriverService:Boolean = false
+private var inputDriverBinder:UsbDriverService.UsbDriverBinder? = null
+private var inputDriverStopped:Boolean = false
 private var usbDriverServiceConnection:ServiceConnection = object : ServiceConnection {
 override fun onServiceConnected(componentName:ComponentName?, iBinder:IBinder?) {
 var binder:UsbDriverService.UsbDriverBinder? = iBinder as UsbDriverService.UsbDriverBinder?
+inputDriverBinder = binder
+connectedToUsbDriverService = true
+if (inputDriverStopped || isFinishing || isDestroyed)
+{
+binder?.stop(controllerHandler)
+return
+}
 binder!!.setListener(controllerHandler)
 binder!!.setStateListener(this@Game)
-binder!!.start()
+binder!!.start(prefConfig!!)
 connectedToUsbDriverService = true
 }
 override fun onServiceDisconnected(componentName:ComponentName?) {
 connectedToUsbDriverService = false
+inputDriverBinder = null
 }
 }
 
@@ -4156,6 +4166,7 @@ if (!isKeyInputReady())
 {
 return false
 }
+if (com.papi.nova.binding.input.driver.SteamControllerOwnership.owns(event.device)) return true
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4281,6 +4292,7 @@ if (!isKeyInputReady())
 {
 return false
 }
+if (com.papi.nova.binding.input.driver.SteamControllerOwnership.owns(event.device)) return true
  // Pass-through virtual navigation keys
         if ((event!!.getFlags() and KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0)
 {
@@ -4931,6 +4943,7 @@ if (event == null || isFinishing || isDestroyed || !::prefConfig.isInitialized |
 {
 return false
 }
+if (com.papi.nova.binding.input.driver.SteamControllerOwnership.owns(event.device)) return true
 view?.display?.displayId?.let(::recordQuickMenuInteraction)
  // Pass through mouse/touch/joystick input if we're not grabbing
         if (!grabbedInput)
@@ -5727,6 +5740,10 @@ streamRecapErrorCode = errorCode
 }
 
 private fun stopConnection() {
+// Includes channels that have not produced a controller context yet. A late
+// service connection must also stay stopped while the termination dialog shows.
+inputDriverStopped = true
+inputDriverBinder?.stop(controllerHandler)
 if (connecting || connected)
 {
 connected = false
@@ -6160,7 +6177,7 @@ timerHandler!!.postDelayed(backgroundPing, 1000)
 }
 })
 
-if (prefConfig!!.usbDriver)
+if (prefConfig!!.usbDriver || prefConfig!!.steamControllerBluetooth)
 {
  // Start the USB driver
             bindService(Intent(this, UsbDriverService::class.java),

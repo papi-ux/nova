@@ -882,8 +882,8 @@
     <string name="title_seekbar_deadzone">Adjust analog stick deadzone</string>
     <string name="summary_seekbar_deadzone">Positive values set a normal dead zone, negative values apply dead zone compensation. Ensure your controller can adjust dead zones when using dead zone compensation, or centering may be difficult.</string>
     <string name="suffix_seekbar_deadzone">%</string>
-    <string name="title_checkbox_xb1_driver">Xbox 360/One/NintendoPro USB gamepad driver</string>
-    <string name="summary_checkbox_xb1_driver">Enables a built-in USB driver for devices without native Xbox/Nintendo Pro controller support</string>
+    <string name="title_checkbox_xb1_driver">USB controller driver</string>
+    <string name="summary_checkbox_xb1_driver">Read Xbox, Nintendo Pro and Steam Controller (2026) pads over USB, including the Steam Controller Puck.</string>
     <string name="title_checkbox_usb_bind_all">Override native Xbox gamepad support</string>
     <string name="summary_checkbox_usb_bind_all">Use Nova\'s USB driver for all supported gamepads, even if native Xbox/Nintendo Pro controller support is present</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>
@@ -2141,4 +2141,16 @@
     <string name="nova_tailscale_help">Tailscale Help</string>
     <string name="nova_tailscale_help_url" translatable="false">https://tailscale.com/kb/1017/install</string>
     <string name="nova_tailscale_help_unavailable">No app can open the Tailscale help page.</string>
+    <string name="steam_controller_bluetooth_title">Steam Controller over Bluetooth</string>
+    <string name="steam_controller_bluetooth_summary">Use an already paired Steam Controller (2026). Pair it in Android Bluetooth settings first. Applies to the next stream.</string>
+    <string name="steam_controller_permission_denied">Allow Nearby devices in Nova’s app permissions to use the Steam Controller over Bluetooth. Until then it stays in mouse mode.</string>
+    <string name="steam_controller_permission_title">Steam Controller permissions</string>
+    <string name="steam_controller_permission_summary">Review Nova’s Nearby devices access in Android app settings.</string>
+    <string name="steam_controller_fallback">Couldn’t connect to the Steam Controller. It stays in mouse mode. Turn it off and on, or check its connection and permissions.</string>
+    <string name="steam_controller_trackpads_title">Steam Controller trackpads</string>
+    <string name="steam_controller_next_stream">Applies when the next stream starts.</string>
+    <string name="steam_controller_l4_title">Steam Controller L4</string>
+    <string name="steam_controller_r4_title">Steam Controller R4</string>
+    <string name="steam_controller_l5_title">Steam Controller L5</string>
+    <string name="steam_controller_r5_title">Steam Controller R5</string>
 </resources>

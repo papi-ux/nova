@@ -1,0 +1,85 @@
+# Steam Controller (2026) on Android
+
+Nova's Android driver reads the Steam Controller over a USB cable, a Steam
+Controller Puck, or an already paired Bluetooth LE connection. It runs while a
+stream is open; outside a stream the controller keeps its own mouse mode.
+Linux, Steam Deck and Steam Frame use their existing input paths.
+
+This driver is being qualified for 1.5.0. Source tests do not establish that a
+particular controller, Puck, Android device or host combination has passed a
+hands-on check.
+
+## Connect
+
+- **USB or Puck:** leave **Settings → Input & Controllers → USB controller
+  driver** on. Connect the controller or Puck, then allow Android's USB access
+  prompt when the stream starts. A Puck's four controller channels stay separate;
+  an empty channel does not reserve a player.
+- **Bluetooth:** pair in Android's Bluetooth settings first, then enable
+  **Steam Controller over Bluetooth** in Nova. On Android 12 and later, allow
+  Nearby devices when asked. Nova does not scan, pair or request location access.
+  Bluetooth support is off by default, including on Shield.
+- A Shield with a USB port can use a cable or Puck. Models without USB need
+  Bluetooth. Follow [Valve's connection guide](https://help.steampowered.com/en/faqs/view/33E8-5EDF-24E6-4CFB)
+  for the controller's pairing controls.
+
+Changes apply to the next stream. If access is denied or the native connection
+fails, Nova releases it and the controller returns to mouse mode. Check the
+connection and permissions before trying another stream.
+
+Android does not expose a reliable physical parent for every lizard-mode input
+device. To avoid swallowing another controller's mouse or keyboard events, this
+version refuses an ambiguous group: more than one attached USB device with the
+same Steam Controller product ID, or more than one paired Steam Controller over
+Bluetooth. Paired means saved in Android, including controllers currently switched
+off. One Puck can still carry its four independent channels; leave **Multiple
+controllers** enabled for separate players. A surviving USB device is reconsidered
+after its duplicate is unplugged.
+A real kernel-provided gamepad keeps its existing Android input route.
+
+## Play
+
+Face buttons, sticks, D-pad, bumpers, triggers, View and Menu use Nova's normal
+controller path. **Steam** follows the existing Guide tap and shortcut rules;
+**…** opens Nova's Command Center locally. **Players** shows the assigned player
+and connection, and **Reassign players** releases the old assignment before
+the next input joins again.
+
+Choose **Steam Controller trackpads**:
+
+- **Mouse** (default): the right pad moves the host pointer and clicks it;
+  clicking the left pad right-clicks, and moving on the left pad scrolls.
+- **Game touchpad**: the two pads become separate contacts on the left and right
+  halves of one host PlayStation touchpad. Clicking either pad clicks that pad.
+
+L4, R4, L5 and R5 can each map to a face button, bumper or stick click in the
+same settings page. They default to Off. A mapped grip shares its target with
+the physical button: releasing one does not release the other while held.
+
+The controller's gyro and accelerometer are used when **Allow use of gamepad
+motion sensors** is enabled and the host requests motion. **Always use device's
+motion sensors** remains an explicit phone-sensor override. Basic two-motor
+rumble follows **Enable Rumble**. Trigger rumble, HD haptic waveforms, battery
+readouts and full capacitive Steam Input layouts are not advertised.
+
+With Polaris's automatic host controller type, Steam Controller type 4 is
+emulated as a DualSense, preserving motion and the split touchpad. This is not
+a native Steam Input Steam Controller identity or a Valve community-layout
+implementation. Choosing an Xbox host controller type loses motion/touchpad
+features. Other streaming hosts may handle the type differently.
+
+Disconnecting a controller cancels held buttons, mouse clicks and touch contacts,
+stops motion and rumble, and releases its player. A reconnected controller must
+confirm native mode again before it can join. Ending a stream stops the native
+driver; the controller's watchdog restores mouse mode, which can take a moment.
+
+## Implementation sources
+
+The report layout is adapted from SDL's Steam Triton driver at
+`d0183f0ee3b2497f49c6322c62354d114c22af29` (zlib). Android transport work also
+consulted Moonlight Android PR 1619 at
+`6e83831838b3cd80ee325c6dac4611263af2d00d` (GPLv3). Its open-PR status is not
+an upstream or hardware qualification claim. Adapted source preserves its
+license notices. Nova's pinned common-c API carries both contacts through the
+single-touchpad interface; Nova does not advertise an unsupported dual-pad
+wire extension.

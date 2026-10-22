@@ -52,9 +52,7 @@ object NovaSettingsAvailability {
             keys += "checkbox_absolute_mouse_mode"
         }
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            keys += "checkbox_gamepad_motion_sensors"
-        }
+        // Native Steam Controller motion also works on Android 11 (Shield).
 
         if (
             !pm.hasSystemFeature(PackageManager.FEATURE_SENSOR_ACCELEROMETER) &&
@@ -68,6 +66,11 @@ object NovaSettingsAvailability {
             keys += "checkbox_usb_bind_all"
             keys += "checkbox_usb_driver"
         }
+        if (!pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            keys += "steam_controller_bluetooth"
+            keys += "steam_controller_permission"
+        }
+        if (Build.VERSION.SDK_INT < 31) keys += "steam_controller_permission"
 
         if (
             Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
@@ -130,6 +133,8 @@ object NovaSettingsAvailability {
     fun shouldPersistProfileOverride(key: String): Boolean = key !in profileEditorHiddenKeys
 
     private val profileEditorHiddenKeys = setOf(
+        "steam_controller_bluetooth",
+        "steam_controller_permission",
         "nova_control_size",
         "nova_ui_font_scale_percent",
         "option_reset_osc_preference",

@@ -184,15 +184,15 @@ class KotlinControllerHandlerMigrationTest {
 
     @Test
     @Config(sdk = [35])
-    fun steamControllerBluetoothKeyboardMouseHidIsAcceptedAsControllerInput() {
+    fun steamControllerBluetoothLizardRemainsKeyboardMouseUntilNativeOwnership() {
         val steamController = steamControllerKeyboardMouseDevice(id = 901)
 
-        assertTrue(ControllerHandler.isGameControllerDevice(steamController))
+        assertFalse(ControllerHandler.isGameControllerDevice(steamController))
     }
 
     @Test
     @Config(sdk = [35])
-    fun steamControllerKeyboardMouseHidNameVariantsAreAcceptedAcrossAndroidDevices() {
+    fun steamControllerLizardNameVariantsDoNotReserveDuplicatePlayers() {
         val steamController = listOf(
             steamControllerKeyboardMouseDevice(
                 id = 902,
@@ -205,19 +205,18 @@ class KotlinControllerHandlerMigrationTest {
         )
 
         steamController.forEach {
-            assertTrue(ControllerHandler.isGameControllerDevice(it))
+            assertFalse(ControllerHandler.isGameControllerDevice(it))
         }
     }
 
     @Test
-    fun attachedControllerMaskKeepsSteamControllerKeyboardMouseCompatibilityCheck() {
-        val source = String(
-            Files.readAllBytes(Path.of("src/main/java/com/papi/nova/binding/input/ControllerHandler.kt")),
-            StandardCharsets.UTF_8
-        )
-
-        assertTrue(source.contains("isSteamControllerKeyboardMouseDevice(dev)"))
-        assertTrue(source.contains("hasJoystickAxes(dev) || isSteamControllerKeyboardMouseDevice(dev)"))
+    @Config(sdk = [35])
+    fun nonAlphabeticValveLizardDoesNotBecomeAnExtraGamepad() {
+        val lizard = InputDeviceBuilder.newBuilder().setId(904)
+            .setName("Steam Controller Puck").setVendorId(0x28de).setProductId(0x1304)
+            .setSources(InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_MOUSE)
+            .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC).build()
+        assertFalse(ControllerHandler.isGameControllerDevice(lizard))
     }
 
     @Test

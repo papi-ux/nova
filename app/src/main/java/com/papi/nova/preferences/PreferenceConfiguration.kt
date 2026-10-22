@@ -77,6 +77,9 @@ class PreferenceConfiguration {
     @JvmField var smallIconMode = false
     @JvmField var multiController = false
     @JvmField var usbDriver = false
+    @JvmField var steamControllerBluetooth = false
+    @JvmField var steamControllerGameTouchpad = false
+    @JvmField var steamControllerGripMappings = IntArray(4)
     @JvmField var flipFaceButtons = false
     @JvmField var onscreenController = false
     @JvmField var onscreenControllerLayoutPreset: String? = null
@@ -724,6 +727,18 @@ class PreferenceConfiguration {
             return readPreferences(context, null)
         }
 
+        private fun steamGripMapping(key: String?): Int = when (key) {
+            "a" -> com.papi.nova.nvstream.input.ControllerPacket.A_FLAG
+            "b" -> com.papi.nova.nvstream.input.ControllerPacket.B_FLAG
+            "x" -> com.papi.nova.nvstream.input.ControllerPacket.X_FLAG
+            "y" -> com.papi.nova.nvstream.input.ControllerPacket.Y_FLAG
+            "lb" -> com.papi.nova.nvstream.input.ControllerPacket.LB_FLAG
+            "rb" -> com.papi.nova.nvstream.input.ControllerPacket.RB_FLAG
+            "ls" -> com.papi.nova.nvstream.input.ControllerPacket.LS_CLK_FLAG
+            "rs" -> com.papi.nova.nvstream.input.ControllerPacket.RS_CLK_FLAG
+            else -> 0
+        }
+
         @JvmStatic
         fun readPreferences(context: Context, sharedPrefs: SharedPreferences?): PreferenceConfiguration {
             if (sharedPrefs == null) {
@@ -876,6 +891,16 @@ class PreferenceConfiguration {
             config.smallIconMode = prefs.getBoolean(SMALL_ICONS_PREF_STRING, getDefaultSmallMode(context))
             config.multiController = prefs.getBoolean(MULTI_CONTROLLER_PREF_STRING, DEFAULT_MULTI_CONTROLLER)
             config.usbDriver = prefs.getBoolean(USB_DRIVER_PREF_SRING, DEFAULT_USB_DRIVER)
+            // Connection consent is global; a profile/import must not opt into Bluetooth.
+            config.steamControllerBluetooth = PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean("steam_controller_bluetooth", false)
+            config.steamControllerGameTouchpad = prefs.getString("steam_controller_trackpads", "mouse") == "game"
+            config.steamControllerGripMappings = intArrayOf(
+                steamGripMapping(prefs.getString("steam_controller_r4", "off")),
+                steamGripMapping(prefs.getString("steam_controller_l4", "off")),
+                steamGripMapping(prefs.getString("steam_controller_r5", "off")),
+                steamGripMapping(prefs.getString("steam_controller_l5", "off")),
+            )
             config.fullScreen = prefs.getBoolean(FULL_SCREEN_PREF_STRING, DEFAULT_FULL_SCREEN)
 
             when ((prefs.getString("mouse_mode_list", "0") ?: "0").toInt()) {

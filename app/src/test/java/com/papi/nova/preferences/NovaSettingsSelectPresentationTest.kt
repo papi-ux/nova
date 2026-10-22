@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 
 /**
  * The one rule for how a Select is presented (spec section 7, group 4), over the real
- * definitions in res/xml/preferences.xml: of the 20 list preferences, 13 change in place and 7
+ * definitions in res/xml/preferences.xml: of the 25 list preferences, 14 change in place and 11
  * open a page.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -24,8 +24,8 @@ class NovaSettingsSelectPresentationTest {
     }
 
     @Test
-    fun theTwentyListsSplitThirteenInPlaceAndSevenPages() {
-        assertEquals(20, selects.size)
+    fun listsUseTheExpectedInPlaceControlsAndFullPages() {
+        assertEquals(25, selects.size)
         val inPlace = selects.filter { it.selectPresentation == NovaSelectPresentation.InPlace }.map { it.key }.toSet()
         val pages = selects.filter { it.selectPresentation == NovaSelectPresentation.Page }.map { it.key }.toSet()
 
@@ -44,6 +44,7 @@ class NovaSettingsSelectPresentationTest {
                 "list_onscreen_controls_layout_preset",
                 "dual_screen_quick_menu_display_policy",
                 "nova_polaris_hud_mode",
+                "steam_controller_trackpads",
             ),
             inPlace,
         )
@@ -56,6 +57,10 @@ class NovaSettingsSelectPresentationTest {
                 "frame_pacing",
                 "mouse_mode_list",
                 "keyboard_axi_list",
+                "steam_controller_l4",
+                "steam_controller_r4",
+                "steam_controller_l5",
+                "steam_controller_r5",
             ),
             pages,
         )

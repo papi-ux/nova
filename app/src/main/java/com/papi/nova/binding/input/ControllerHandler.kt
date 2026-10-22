@@ -33,6 +33,9 @@ import android.view.Surface
 import com.google.android.material.snackbar.Snackbar
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.binding.input.driver.SteamController
+import com.papi.nova.binding.input.driver.SteamControllerProtocol
+import com.papi.nova.binding.input.driver.SteamControllerOwnership
 import com.papi.nova.binding.input.driver.AbstractController
 import com.papi.nova.binding.input.driver.UsbDriverListener
 import com.papi.nova.binding.input.driver.UsbDriverService
@@ -67,7 +70,7 @@ class ControllerHandler(
     private val usbDeviceContexts = SparseArray<UsbDeviceContext>()
     // Every Mouse Mode controller drives the same host pointer. Keep each
     // physical context's contribution until it releases or leaves Mouse Mode.
-    private val mouseButtonOwners = mutableMapOf<GenericControllerContext, Int>()
+    private val mouseButtonOwners = mutableMapOf<Any, Int>()
     private var mouseButtonMask = 0
 
     private val stickDeadzone: Double
@@ -108,7 +111,7 @@ class ControllerHandler(
         val deadzonePercentage = prefConfig.deadzonePercentage
         for (id in InputDevice.getDeviceIds()) {
             val dev = InputDevice.getDevice(id) ?: continue
-            if (hasJoystickAxes(dev) || isSteamControllerKeyboardMouseDevice(dev)) {
+            if (hasJoystickAxes(dev)) {
                 hasGameController = true
             }
         }
@@ -175,9 +178,11 @@ class ControllerHandler(
         for (i in 0 until inputDeviceContexts.size()) {
             inputDeviceContexts.valueAt(i).destroy()
         }
-        for (i in 0 until usbDeviceContexts.size()) {
-            usbDeviceContexts.valueAt(i).destroy()
-        }
+        val usbContexts = (0 until usbDeviceContexts.size()).map { usbDeviceContexts.valueAt(it) }
+        for (context in usbContexts) context.destroy()
+        // Native driver timers must end with the stream, even while the Activity is
+        // still displaying the disconnected screen and remains bound to the service.
+        for (context in usbContexts) if (context.device is SteamController) context.device.stop()
 
         defaultContext.destroy()
         deviceVibrator.cancel()
@@ -203,6 +208,7 @@ class ControllerHandler(
         for (i in 0 until inputDeviceContexts.size()) {
             inputDeviceContexts.valueAt(i).novaShortcutState.reset()
         }
+        for (i in 0 until usbDeviceContexts.size()) usbDeviceContexts.valueAt(i).novaShortcutState.reset()
     }
 
     fun enableSensors() {
@@ -222,7 +228,7 @@ class ControllerHandler(
                 (currentControllers.toInt() and (1 shl context.controllerNumber.toInt()).inv()).toShort()
         }
 
-        if (context.assignedControllerNumber) {
+        if (context.assignedControllerNumber && !stopped) {
             conn.sendControllerInput(
                 context.controllerNumber,
                 getActiveControllerMask(),
@@ -275,7 +281,8 @@ class ControllerHandler(
 
                 if (prefConfig.gamepadMotionSensorsFallbackToDevice &&
                     context.controllerNumber.toInt() == 0 &&
-                    (prefConfig.forceMotionSensorsFallbackToDevice || context.sensorManager == null)
+                    (prefConfig.forceMotionSensorsFallbackToDevice ||
+                        context.device !is SteamController && context.sensorManager == null)
                 ) {
                     context.sensorManager = deviceSensorManager
                 }
@@ -378,7 +385,9 @@ class ControllerHandler(
             val device = InputDevice.getDevice(id) ?: return@mapNotNull null
             if (device.isVirtual || !hasJoystickAxes(device)) return@mapNotNull null
             if (inputDeviceContexts[id]?.assignedControllerNumber == true) null else device.name
-        }.distinct()
+        }.plus((0 until usbDeviceContexts.size()).mapNotNull { index ->
+            usbDeviceContexts.valueAt(index).takeUnless { it.assignedControllerNumber }?.name
+        }).distinct()
 
     /**
      * Every pad gives up its player, and the host drops them all. The next pad to press a
@@ -403,9 +412,20 @@ class ControllerHandler(
      */
     private fun forgetPlayer(context: InputDeviceContext) {
         if (!context.assignedControllerNumber) return
+        if (context is UsbDeviceContext && context.device is SteamController) {
+            (context.device as SteamController).releasePlayerInputs()
+        }
         releaseControllerNumber(context)
         if (context is UsbDeviceContext) {
             context.device.rumble(0, 0)
+            context.device.setMotionEventState(MoonBridge.LI_MOTION_TYPE_ACCEL, 0)
+            context.device.setMotionEventState(MoonBridge.LI_MOTION_TYPE_GYRO, 0)
+            context.novaShortcutState.reset()
+            context.nativeButtons = 0
+            context.nativeDownTimes.clear()
+            context.inputMap = 0
+            updateMouseButtons(context, 0)
+            updateMouseButtons(context, 0, nativeMouse = true)
         } else {
             val vm = context.vibratorManager
             val vib = context.vibrator
@@ -453,6 +473,17 @@ class ControllerHandler(
         val context = UsbDeviceContext()
         context.id = device.getControllerId()
         context.device = device
+        context.hasSelect = device is SteamController
+        context.hasMode = device is SteamController
+        if (device is SteamController) {
+            context.name = when (device.getProductId()) {
+                SteamControllerProtocol.PUCK_PID -> "Steam Controller · Puck"
+                SteamControllerProtocol.BLUETOOTH_PID -> "Steam Controller · Bluetooth"
+                else -> "Steam Controller · USB"
+            }
+            context.novaShortcutState.loneAppSwitchOpensQuickMenu = true
+            hasGameController = true
+        }
         context.external = true
         context.vendorId = device.getVendorId()
         context.productId = device.getProductId()
@@ -751,7 +782,7 @@ class ControllerHandler(
     }
 
     private fun getContextForEvent(event: InputEvent): InputDeviceContext? {
-        if (stopped) {
+        if (stopped || SteamControllerOwnership.owns(event.device)) {
             return null
         } else if (event.deviceId == 0) {
             return defaultContext
@@ -873,14 +904,15 @@ class ControllerHandler(
     }
 
     @Synchronized
-    private fun updateMouseButtons(context: GenericControllerContext, flags: Int) {
-        val buttons = if (context.mouseEmulationActive && !context.destroyed && !stopped) {
+    private fun updateMouseButtons(context: GenericControllerContext, flags: Int, nativeMouse: Boolean = false) {
+        val buttons = if ((context.mouseEmulationActive || nativeMouse) && !context.destroyed && !stopped) {
             flags and (ControllerPacket.A_FLAG or ControllerPacket.B_FLAG)
         } else {
             0
         }
-        if (buttons == (mouseButtonOwners[context] ?: 0)) return
-        if (buttons == 0) mouseButtonOwners.remove(context) else mouseButtonOwners[context] = buttons
+        val owner = if (nativeMouse && context is UsbDeviceContext) context.nativeMouseOwner else context
+        if (buttons == (mouseButtonOwners[owner] ?: 0)) return
+        if (buttons == 0) mouseButtonOwners.remove(owner) else mouseButtonOwners[owner] = buttons
         val next = mouseButtonOwners.values.fold(0) { combined, value -> combined or value }
         val changed = next xor mouseButtonMask
         mouseButtonMask = next
@@ -1838,7 +1870,7 @@ class ControllerHandler(
             return
         }
 
-        val reportRateHz = min(200, reportRateHzInput.toInt()).toShort()
+        val reportRateHz = reportRateHzInput.toInt().coerceIn(0, 200).toShort()
 
         for (i in 0 until inputDeviceContexts.size() + usbDeviceContexts.size()) {
             val deviceContext =
@@ -1848,7 +1880,18 @@ class ControllerHandler(
                     usbDeviceContexts.valueAt(i - inputDeviceContexts.size())
                 }
 
-            if (deviceContext.controllerNumber == controllerNumber) {
+            if (deviceContext.assignedControllerNumber && deviceContext.controllerNumber >= 0 &&
+                deviceContext.controllerNumber == controllerNumber) {
+                if (deviceContext is UsbDeviceContext && deviceContext.device is SteamController &&
+                    !prefConfig.forceMotionSensorsFallbackToDevice) {
+                    val nativeRate = if (prefConfig.gamepadMotionSensors) reportRateHz else 0
+                    deviceContext.device.setMotionEventState(motionType, nativeRate.toInt())
+                    when (motionType) {
+                        MoonBridge.LI_MOTION_TYPE_ACCEL -> deviceContext.accelReportRateHz = nativeRate.toShort()
+                        MoonBridge.LI_MOTION_TYPE_GYRO -> deviceContext.gyroReportRateHz = nativeRate.toShort()
+                    }
+                    continue
+                }
                 when (motionType) {
                     MoonBridge.LI_MOTION_TYPE_ACCEL -> deviceContext.accelReportRateHz = reportRateHz
                     MoonBridge.LI_MOTION_TYPE_GYRO -> deviceContext.gyroReportRateHz = reportRateHz
@@ -1926,6 +1969,10 @@ class ControllerHandler(
 
     fun handleButtonUp(event: KeyEvent): Boolean {
         val context = getContextForEvent(event) ?: return true
+        return handleButtonUpForContext(event, context)
+    }
+
+    private fun handleButtonUpForContext(event: KeyEvent, context: InputDeviceContext): Boolean {
         var keyCode = handleRemapping(context, event)
         if (keyCode < 0) {
             return keyCode == REMAP_CONSUME
@@ -1944,6 +1991,9 @@ class ControllerHandler(
             else -> Unit
         }
 
+        if (context is UsbDeviceContext && context.device is SteamController) {
+            return applyButtonUp(context, keyCode, event.scanCode, event.eventTime)
+        }
         val releaseKey = ControllerButtonReleaseScheduler.ReleaseKey(keyCode, event.scanCode)
         if (buttonReleaseScheduler.scheduleIfNeeded(
                 owner = context,
@@ -2143,6 +2193,10 @@ class ControllerHandler(
 
     fun handleButtonDown(event: KeyEvent): Boolean {
         val context = getContextForEvent(event) ?: return true
+        return handleButtonDownForContext(event, context)
+    }
+
+    private fun handleButtonDownForContext(event: KeyEvent, context: InputDeviceContext): Boolean {
         var keyCode = handleRemapping(context, event)
         if (keyCode < 0) {
             return keyCode == REMAP_CONSUME
@@ -2409,7 +2463,9 @@ class ControllerHandler(
         leftTrigger: Float,
         rightTrigger: Float,
     ) {
+        if (stopped) return
         val context = usbDeviceContexts[controllerId] ?: return
+        if (context.destroyed) return
 
         val leftStickVector = populateCachedVector(leftStickX, leftStickY)
         handleDeadZone(leftStickVector, context.leftStickDeadzoneRadius)
@@ -2432,7 +2488,28 @@ class ControllerHandler(
 
         context.leftTrigger = (lt * 0xFF).toInt().toByte()
         context.rightTrigger = (rt * 0xFF).toInt().toByte()
-        context.inputMap = buttonFlags
+        if (context.device is SteamController && !context.assignedControllerNumber && buttonFlags == 0 &&
+            context.leftTrigger.toInt() == 0 && context.rightTrigger.toInt() == 0 &&
+            context.leftStickX.toInt() == 0 && context.leftStickY.toInt() == 0 &&
+            context.rightStickX.toInt() == 0 && context.rightStickY.toInt() == 0) return
+        if (context.device is SteamController) {
+            val now = android.os.SystemClock.uptimeMillis()
+            // Reuse Nova's actual Guide/chord state, face-button preference and button
+            // handling; the raw driver must not synthesize a timed Guide+A macro.
+            for ((key, flag) in NATIVE_STEAM_KEYS.asReversed()) {
+                if (context.nativeButtons and flag != 0 && buttonFlags and flag == 0) {
+                    handleButtonUpForContext(KeyEvent(context.nativeDownTimes.remove(flag) ?: now, now,
+                        KeyEvent.ACTION_UP, key, 0), context)
+                }
+            }
+            for ((key, flag) in NATIVE_STEAM_KEYS) {
+                if (context.nativeButtons and flag == 0 && buttonFlags and flag != 0) {
+                    context.nativeDownTimes[flag] = now
+                    handleButtonDownForContext(KeyEvent(now, now, KeyEvent.ACTION_DOWN, key, 0), context)
+                }
+            }
+            context.nativeButtons = buttonFlags
+        } else context.inputMap = buttonFlags
         sendControllerInputPacket(context)
     }
 
@@ -2443,8 +2520,61 @@ class ControllerHandler(
         motionY: Float,
         motionZ: Float,
     ) {
+        if (stopped) return
         val context = usbDeviceContexts[controllerId] ?: return
+        if (context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
+        if (context.device is SteamController &&
+            (prefConfig.forceMotionSensorsFallbackToDevice || !prefConfig.gamepadMotionSensors)) return
+        if (context.device is SteamController && when (motionType) {
+                MoonBridge.LI_MOTION_TYPE_ACCEL -> context.accelReportRateHz.toInt() <= 0
+                MoonBridge.LI_MOTION_TYPE_GYRO -> context.gyroReportRateHz.toInt() <= 0
+                else -> true
+            }) return
         conn.sendControllerMotionEvent(context.controllerNumber.toByte(), motionType, motionX, motionY, motionZ)
+    }
+
+    override fun reportControllerTouch(controllerId: Int, eventType: Byte, pointerId: Int, x: Float, y: Float, pressure: Float) {
+        val context = usbDeviceContexts[controllerId] ?: return
+        if (stopped || context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
+        conn.sendControllerTouchEvent(context.controllerNumber.toByte(), eventType, pointerId, x, y, pressure)
+    }
+
+    override fun reportControllerMouse(controllerId: Int, deltaX: Short, deltaY: Short, buttons: Int, scroll: Short) {
+        val context = usbDeviceContexts[controllerId] ?: return
+        if (stopped || context.destroyed || !context.assignedControllerNumber || context.controllerNumber < 0) return
+        updateMouseButtons(context, buttons, nativeMouse = true)
+        if (deltaX.toInt() != 0 || deltaY.toInt() != 0) conn.sendMouseMove(deltaX, deltaY)
+        if (scroll.toInt() != 0) conn.sendMouseHighResScroll(scroll)
+    }
+
+    override fun reportControllerQuickMenu(controllerId: Int) {
+        val context = usbDeviceContexts[controllerId] ?: return
+        if (stopped || context.destroyed) return
+        val now = android.os.SystemClock.uptimeMillis()
+        handleButtonDownForContext(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_APP_SWITCH, 0), context)
+        handleButtonUpForContext(KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_APP_SWITCH, 0), context)
+    }
+
+    override fun controllerInputActive(controllerId: Int) {
+        val context = usbDeviceContexts[controllerId] ?: return
+        if (!stopped && !context.destroyed) assignControllerNumberIfNeeded(context)
+    }
+
+    override fun resetControllerState(controllerId: Int) {
+        val context = usbDeviceContexts[controllerId] ?: return
+        context.novaShortcutState.reset()
+        context.nativeButtons = 0
+        context.nativeDownTimes.clear()
+        context.inputMap = 0
+        context.leftTrigger = 0; context.rightTrigger = 0
+        context.leftStickX = 0; context.leftStickY = 0
+        context.rightStickX = 0; context.rightStickY = 0
+        buttonReleaseScheduler.cancelOwner(context)
+        updateMouseButtons(context, 0)
+        updateMouseButtons(context, 0, nativeMouse = true)
+        if (!stopped && !context.destroyed && context.assignedControllerNumber && context.controllerNumber >= 0) {
+            sendControllerInputPacket(context)
+        }
     }
 
     override fun deviceRemoved(controller: AbstractController) {
@@ -2454,14 +2584,21 @@ class ControllerHandler(
             releaseControllerNumber(context)
             context.destroy()
             usbDeviceContexts.remove(controller.getControllerId())
+            if (controller is SteamController) {
+                hasGameController = usbDeviceContexts.size() > 0 || InputDevice.getDeviceIds().any {
+                    InputDevice.getDevice(it)?.let(::hasJoystickAxes) == true
+                }
+            }
         }
     }
 
     override fun deviceAdded(controller: AbstractController) {
         if (stopped) {
+            if (controller is SteamController) controller.stop()
             return
         }
 
+        if (usbDeviceContexts[controller.getControllerId()] != null) return
         val context = createUsbDeviceContextForDevice(controller)
         usbDeviceContexts.put(controller.getControllerId(), context)
     }
@@ -2605,6 +2742,7 @@ class ControllerHandler(
         open fun destroy() {
             destroyed = true
             updateMouseButtons(this, 0)
+            updateMouseButtons(this, 0, nativeMouse = true)
             mouseEmulationLastInputMap = 0
             mouseEmulationXDown = false
             buttonReleaseScheduler.cancelOwner(this)
@@ -2904,13 +3042,21 @@ class ControllerHandler(
 
     inner class UsbDeviceContext : InputDeviceContext() {
         lateinit var device: AbstractController
+        val nativeMouseOwner = Any()
+        var nativeButtons = 0
+        val nativeDownTimes = mutableMapOf<Int, Long>()
 
         override fun sendControllerArrival() {
             var type = device.getType()
             var capabilities = device.getCapabilities()
 
             val sm = sensorManager
-            if (type != MoonBridge.LI_CTYPE_PS && type != MoonBridge.LI_CTYPE_NINTENDO && sm != null) {
+            if (device is SteamController && prefConfig.forceMotionSensorsFallbackToDevice) {
+                capabilities = (capabilities.toInt() and
+                    (MoonBridge.LI_CCAP_ACCEL.toInt() or MoonBridge.LI_CCAP_GYRO.toInt()).inv()).toShort()
+            }
+            if (type != MoonBridge.LI_CTYPE_PS && type != MoonBridge.LI_CTYPE_NINTENDO &&
+                (device !is SteamController || prefConfig.forceMotionSensorsFallbackToDevice) && sm != null) {
                 if (sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE) != null) {
                     capabilities = (capabilities.toInt() or MoonBridge.LI_CCAP_GYRO.toInt()).toShort()
                 }
@@ -2918,10 +3064,13 @@ class ControllerHandler(
                     capabilities = (capabilities.toInt() or MoonBridge.LI_CCAP_ACCEL.toInt()).toShort()
                 }
 
-                type = MoonBridge.LI_CTYPE_UNKNOWN
+                if (device !is SteamController || capabilities.toInt() and
+                    (MoonBridge.LI_CCAP_ACCEL.toInt() or MoonBridge.LI_CCAP_GYRO.toInt()) != 0) {
+                    type = MoonBridge.LI_CTYPE_UNKNOWN
+                }
             }
 
-            if (type != MoonBridge.LI_CTYPE_PS &&
+            if (device !is SteamController && type != MoonBridge.LI_CTYPE_PS &&
                 (capabilities.toInt() and
                     (MoonBridge.LI_CCAP_GYRO.toInt() or MoonBridge.LI_CCAP_ACCEL.toInt())) != 0
             ) {
@@ -2934,6 +3083,10 @@ class ControllerHandler(
                 }
             }
 
+            if (device is SteamController && !prefConfig.gamepadMotionSensors && !prefConfig.forceMotionSensorsFallbackToDevice) {
+                capabilities = (capabilities.toInt() and
+                    (MoonBridge.LI_CCAP_ACCEL.toInt() or MoonBridge.LI_CCAP_GYRO.toInt()).inv()).toShort()
+            }
             conn.sendControllerArrivalEvent(
                 controllerNumber.toByte(),
                 getActiveControllerMask(),
@@ -2948,10 +3101,6 @@ class ControllerHandler(
         /** No player on the host uses it, so no request for a player reaches a pad parked on it. */
         private const val UNASSIGNED_CONTROLLER_NUMBER: Short = -1
 
-        private const val VALVE_VENDOR_ID = 0x28de
-        private const val STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID = 0x1303
-        private val STEAM_CONTROLLER_DEVICE_NAME_TOKENS =
-            arrayOf("Steam Ctrl", "Steam Controller", "SteamController")
         private const val MAXIMUM_BUMPER_UP_DELAY_MS = 100
         private const val START_DOWN_TIME_MOUSE_MODE_MS = 750
         private const val MINIMUM_BUTTON_DOWN_TIME_MS = 25
@@ -2963,6 +3112,25 @@ class ControllerHandler(
         private const val BATTERY_RECHECK_INTERVAL_MS = 120 * 1000
         private const val REMAP_IGNORE = -1
         private const val REMAP_CONSUME = -2
+
+        private val NATIVE_STEAM_KEYS = listOf(
+            KeyEvent.KEYCODE_BUTTON_MODE to ControllerPacket.SPECIAL_BUTTON_FLAG,
+            KeyEvent.KEYCODE_BUTTON_START to ControllerPacket.PLAY_FLAG,
+            KeyEvent.KEYCODE_BUTTON_SELECT to ControllerPacket.BACK_FLAG,
+            KeyEvent.KEYCODE_BUTTON_A to ControllerPacket.A_FLAG,
+            KeyEvent.KEYCODE_BUTTON_B to ControllerPacket.B_FLAG,
+            KeyEvent.KEYCODE_BUTTON_X to ControllerPacket.X_FLAG,
+            KeyEvent.KEYCODE_BUTTON_Y to ControllerPacket.Y_FLAG,
+            KeyEvent.KEYCODE_BUTTON_L1 to ControllerPacket.LB_FLAG,
+            KeyEvent.KEYCODE_BUTTON_R1 to ControllerPacket.RB_FLAG,
+            KeyEvent.KEYCODE_BUTTON_THUMBL to ControllerPacket.LS_CLK_FLAG,
+            KeyEvent.KEYCODE_BUTTON_THUMBR to ControllerPacket.RS_CLK_FLAG,
+            KeyEvent.KEYCODE_DPAD_UP to ControllerPacket.UP_FLAG,
+            KeyEvent.KEYCODE_DPAD_DOWN to ControllerPacket.DOWN_FLAG,
+            KeyEvent.KEYCODE_DPAD_LEFT to ControllerPacket.LEFT_FLAG,
+            KeyEvent.KEYCODE_DPAD_RIGHT to ControllerPacket.RIGHT_FLAG,
+            KeyEvent.KEYCODE_BUTTON_1 to ControllerPacket.TOUCHPAD_FLAG,
+        )
 
         private val ANDROID_TO_LI_BUTTON_MAP =
             mapOf(
@@ -3006,36 +3174,21 @@ class ControllerHandler(
         private fun hasGamepadButtons(device: InputDevice): Boolean =
             (device.sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
 
-        private fun isSteamControllerKeyboardMouseDevice(device: InputDevice): Boolean =
-            device.vendorId == VALVE_VENDOR_ID &&
-                device.productId == STEAM_CONTROLLER_BLUETOOTH_PRODUCT_ID &&
-                STEAM_CONTROLLER_DEVICE_NAME_TOKENS.any {
-                    device.name.contains(it, ignoreCase = true)
-                } &&
-                (device.sources and InputDevice.SOURCE_KEYBOARD) == InputDevice.SOURCE_KEYBOARD &&
-                (device.sources and InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK &&
-                (device.sources and InputDevice.SOURCE_GAMEPAD) != InputDevice.SOURCE_GAMEPAD
-
         @JvmStatic
         fun isGameControllerDevice(device: InputDevice?): Boolean {
             if (device == null) {
                 return true
             }
 
-            if (hasJoystickAxes(device) ||
-                hasGamepadButtons(device) ||
-                isSteamControllerKeyboardMouseDevice(device)
-            ) {
+            if (SteamControllerOwnership.isLizard(device)) return false
+            if (hasJoystickAxes(device) || hasGamepadButtons(device)) {
                 return true
             }
 
             if (Build.VERSION.SDK_INT == Build.VERSION_CODES.R && device.id == -1) {
                 for (id in InputDevice.getDeviceIds()) {
                     val dev = InputDevice.getDevice(id) ?: continue
-                    if (hasJoystickAxes(dev) ||
-                        hasGamepadButtons(dev) ||
-                        isSteamControllerKeyboardMouseDevice(dev)
-                    ) {
+                    if (hasJoystickAxes(dev) || hasGamepadButtons(dev)) {
                         return true
                     }
                 }
@@ -3052,7 +3205,7 @@ class ControllerHandler(
             val im = context.getSystemService(Context.INPUT_SERVICE) as InputManager
             for (id in im.inputDeviceIds) {
                 val dev = im.getInputDevice(id) ?: continue
-                if (hasJoystickAxes(dev) || isSteamControllerKeyboardMouseDevice(dev)) {
+                if (hasJoystickAxes(dev)) {
                     LimeLog.info("Counting InputDevice: " + dev.name)
                     mask = (mask.toInt() or (1 shl count++)).toShort()
                 }
@@ -3062,7 +3215,8 @@ class ControllerHandler(
                 val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager?
                 if (usbManager != null) {
                     for (dev: UsbDevice in usbManager.deviceList.values) {
-                        if (UsbDriverService.shouldClaimDevice(dev, false) &&
+                        if (dev.vendorId != SteamControllerProtocol.VENDOR_ID &&
+                            UsbDriverService.shouldClaimDevice(dev, false) &&
                             !UsbDriverService.isRecognizedInputDevice(dev)
                         ) {
                             LimeLog.info("Counting UsbDevice: " + dev.deviceName)

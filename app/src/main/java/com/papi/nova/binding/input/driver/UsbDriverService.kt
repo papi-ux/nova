@@ -1,5 +1,9 @@
 package com.papi.nova.binding.input.driver
 
+import android.Manifest
+import android.bluetooth.BluetoothManager
+import android.content.pm.PackageManager
+import android.os.Looper
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.app.Service
@@ -30,6 +34,25 @@ class UsbDriverService : Service(), UsbDriverListener {
     private var listener: UsbDriverListener? = null
     private var stateListener: UsbDriverStateListener? = null
     private var nextDeviceId = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val usbControllers = mutableMapOf<String, MutableList<AbstractController>>()
+    private val addedControllers = mutableSetOf<AbstractController>()
+    private var fallbackShown = false
+
+    private fun deliver(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action() else mainHandler.post(action)
+    }
+
+    private fun steamController(productId: Int, transport: SteamControllerTransport, key: String): SteamController =
+        SteamController(nextDeviceId++, this, productId, transport, key,
+            prefConfig.steamControllerGameTouchpad, prefConfig.steamControllerGripMappings)
+
+    private fun showSteamFallback() {
+        if (!fallbackShown) {
+            fallbackShown = true
+            Toast.makeText(this, R.string.steam_controller_fallback, Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun reportControllerState(
         controllerId: Int,
@@ -41,7 +64,7 @@ class UsbDriverService : Service(), UsbDriverListener {
         leftTrigger: Float,
         rightTrigger: Float
     ) {
-        listener?.reportControllerState(
+        deliver { listener?.reportControllerState(
             controllerId,
             buttonFlags,
             leftStickX,
@@ -50,7 +73,7 @@ class UsbDriverService : Service(), UsbDriverListener {
             rightStickY,
             leftTrigger,
             rightTrigger
-        )
+        ) }
     }
 
     override fun reportControllerMotion(
@@ -60,16 +83,55 @@ class UsbDriverService : Service(), UsbDriverListener {
         motionY: Float,
         motionZ: Float
     ) {
-        listener?.reportControllerMotion(controllerId, motionType, motionX, motionY, motionZ)
+        deliver { listener?.reportControllerMotion(controllerId, motionType, motionX, motionY, motionZ) }
     }
 
     override fun deviceRemoved(controller: AbstractController) {
-        controllers.remove(controller)
-        listener?.deviceRemoved(controller)
+        deliver {
+            addedControllers.remove(controller)
+            if (controller !is SteamController || controller.isClosed()) controllers.remove(controller)
+            listener?.deviceRemoved(controller)
+        }
     }
 
     override fun deviceAdded(controller: AbstractController) {
-        listener?.deviceAdded(controller)
+        deliver {
+            if (!started || controller is SteamController && !controller.hasNativeOwnership()) return@deliver
+            addedControllers.add(controller)
+            listener?.deviceAdded(controller)
+        }
+    }
+
+    override fun reportControllerTouch(controllerId: Int, eventType: Byte, pointerId: Int, x: Float, y: Float, pressure: Float) {
+        deliver { listener?.reportControllerTouch(controllerId, eventType, pointerId, x, y, pressure) }
+    }
+
+    override fun reportControllerMouse(controllerId: Int, deltaX: Short, deltaY: Short, buttons: Int, scroll: Short) {
+        deliver { listener?.reportControllerMouse(controllerId, deltaX, deltaY, buttons, scroll) }
+    }
+
+    override fun reportControllerQuickMenu(controllerId: Int) {
+        deliver { listener?.reportControllerQuickMenu(controllerId) }
+    }
+
+    override fun resetControllerState(controllerId: Int) {
+        deliver { listener?.resetControllerState(controllerId) }
+    }
+
+    override fun nativeControllerUnavailable(controllerId: Int) {
+        deliver {
+            val usbName = usbControllers.entries.firstOrNull { (_, pads) ->
+                pads.any { it.getControllerId() == controllerId }
+            }?.key
+            controllers.removeAll { it.getControllerId() == controllerId }
+            // A physical unplug may reach the read thread before its broadcast. It
+            // is ordinary detach, not a connection failure the player needs to fix.
+            if (started && (usbName == null || usbManager.deviceList.containsKey(usbName))) showSteamFallback()
+        }
+    }
+
+    override fun controllerInputActive(controllerId: Int) {
+        deliver { listener?.controllerInputActive(controllerId) }
     }
 
     inner class UsbEventReceiver : BroadcastReceiver() {
@@ -78,12 +140,24 @@ class UsbDriverService : Service(), UsbDriverListener {
             val action = intent.action
             if (action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
                 val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
-                Handler().postDelayed({ handleUsbDeviceState(device) }, 1000)
+                mainHandler.postDelayed({ if (started) handleUsbDeviceState(device) }, 1000)
+            } else if (action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
+                val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+                usbControllers.remove(device.deviceName)?.toList()?.forEach { controller ->
+                    controller.stop()
+                    controllers.remove(controller)
+                }
+                if (device.vendorId == SteamControllerProtocol.VENDOR_ID) mainHandler.postDelayed({
+                    if (started) usbManager.deviceList.values.filter { it.vendorId == device.vendorId &&
+                        it.productId == device.productId }.forEach(::handleUsbDeviceState)
+                }, 1200)
             } else if (action == ACTION_USB_PERMISSION) {
                 val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
                 stateListener?.onUsbPermissionPromptCompleted()
                 if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                     handleUsbDeviceState(device)
+                } else if (device?.vendorId == SteamControllerProtocol.VENDOR_ID) {
+                    showSteamFallback()
                 }
             }
         }
@@ -93,9 +167,7 @@ class UsbDriverService : Service(), UsbDriverListener {
         fun setListener(listener: UsbDriverListener?) {
             this@UsbDriverService.listener = listener
             if (listener != null) {
-                for (controller in controllers) {
-                    listener.deviceAdded(controller)
-                }
+                for (controller in addedControllers.toList()) listener.deviceAdded(controller)
             }
         }
 
@@ -107,15 +179,33 @@ class UsbDriverService : Service(), UsbDriverListener {
             this@UsbDriverService.start()
         }
 
+        /** Launch settings already include the selected per-game profile. */
+        fun start(config: PreferenceConfiguration) {
+            if (!started) prefConfig = PreferenceConfiguration().apply {
+                usbDriver = config.usbDriver
+                bindAllUsb = config.bindAllUsb
+                steamControllerBluetooth = config.steamControllerBluetooth
+                steamControllerGameTouchpad = config.steamControllerGameTouchpad
+                steamControllerGripMappings = config.steamControllerGripMappings.copyOf()
+            }
+            this@UsbDriverService.start()
+        }
+
         fun stop() {
             this@UsbDriverService.stop()
+        }
+
+        /** A retiring Game must not stop channels now owned by another bound Game. */
+        fun stop(owner: UsbDriverListener?) {
+            if (owner != null && listener === owner) this@UsbDriverService.stop()
         }
     }
 
     private fun handleUsbDeviceState(device: UsbDevice?) {
-        if (device == null) {
+        if (device == null || !started || !prefConfig.usbDriver || usbControllers.containsKey(device.deviceName)) {
             return
         }
+        if (!usbManager.deviceList.containsKey(device.deviceName)) return
         if (shouldClaimDevice(device, prefConfig.bindAllUsb)) {
             if (!usbManager.hasPermission(device)) {
                 try {
@@ -138,6 +228,31 @@ class UsbDriverService : Service(), UsbDriverListener {
                 return
             }
 
+            if (SteamControllerUsbTransport.canClaimDevice(device)) {
+                // Android exposes no physical parent for lizard InputDevices. Refuse an
+                // ambiguous group rather than suppress another controller's keyboard/mouse.
+                if (usbManager.deviceList.values.count { it.vendorId == device.vendorId && it.productId == device.productId } != 1) {
+                    usbControllers.entries.filter { (_, pads) -> pads.any { it.getProductId() == device.productId } }
+                        .map { it.key }.forEach { key ->
+                            usbControllers.remove(key)?.toList()?.forEach { it.stop(); controllers.remove(it) }
+                        }
+                    showSteamFallback()
+                    return
+                }
+                val channels = mutableListOf<AbstractController>()
+                usbControllers[device.deviceName] = channels
+                for (interfaceId in SteamControllerUsbTransport.candidateInterfaceIds(device)) {
+                    val connection = try { usbManager.openDevice(device) } catch (_: SecurityException) { null } ?: continue
+                    val controller = steamController(device.productId,
+                        SteamControllerUsbTransport(device, connection, interfaceId), "usb:${device.deviceName}:$interfaceId")
+                    channels.add(controller)
+                    controllers.add(controller)
+                    if (!controller.start()) { controllers.remove(controller); channels.remove(controller); showSteamFallback() }
+                }
+                if (channels.isEmpty()) usbControllers.remove(device.deviceName)
+                return
+            }
+
             val connection: UsbDeviceConnection? = usbManager.openDevice(device)
             if (connection == null) {
                 LimeLog.warning("Unable to open USB device: " + device.deviceName)
@@ -149,14 +264,17 @@ class UsbDriverService : Service(), UsbDriverListener {
                 Xbox360Controller.canClaimDevice(device) -> Xbox360Controller(device, connection, nextDeviceId++, this)
                 Xbox360WirelessDongle.canClaimDevice(device) -> Xbox360WirelessDongle(device, connection, nextDeviceId++, this)
                 ProConController.canClaimDevice(device) -> ProConController(device, connection, nextDeviceId++, this)
-                else -> return
+                else -> { connection.close(); return }
             }
 
+            controllers.add(controller)
+            usbControllers[device.deviceName] = mutableListOf(controller)
             if (!controller.start()) {
                 connection.close()
+                controllers.remove(controller)
+                usbControllers.remove(device.deviceName)
                 return
             }
-            controllers.add(controller)
         }
     }
 
@@ -169,6 +287,7 @@ class UsbDriverService : Service(), UsbDriverListener {
         started = true
         val filter = IntentFilter()
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         filter.addAction(ACTION_USB_PERMISSION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
@@ -181,6 +300,34 @@ class UsbDriverService : Service(), UsbDriverListener {
                 handleUsbDeviceState(device)
             }
         }
+        startPairedSteamControllers()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startPairedSteamControllers() {
+        if (!prefConfig.steamControllerBluetooth) return
+        if (hasKernelGamepad(SteamControllerProtocol.VENDOR_ID, SteamControllerProtocol.BLUETOOTH_PID)) return
+        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, R.string.steam_controller_permission_denied, Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter ?: return
+            if (!adapter.isEnabled) return
+            val paired = adapter.bondedDevices.filter { device ->
+                val name = device.name.orEmpty()
+                name.contains("Steam Controller", ignoreCase = true) || name.contains("SteamCtrl", ignoreCase = true)
+            }
+            // Without a stable Android InputDevice-to-GATT association, two paired
+            // controllers cannot safely share the lizard suppression group.
+            if (paired.size > 1) { showSteamFallback(); return }
+            for (device in paired) {
+                val controller = steamController(SteamControllerProtocol.BLUETOOTH_PID,
+                    SteamControllerBleTransport(applicationContext, device), "ble:${device.address}")
+                controllers.add(controller)
+                if (!controller.start()) { controllers.remove(controller); showSteamFallback() }
+            }
+        } catch (_: SecurityException) { showSteamFallback() }
     }
 
     private fun stop() {
@@ -190,9 +337,12 @@ class UsbDriverService : Service(), UsbDriverListener {
 
         started = false
         unregisterReceiver(receiver)
+        mainHandler.removeCallbacksAndMessages(null)
         while (controllers.size > 0) {
             controllers.removeAt(0).stop()
         }
+        usbControllers.clear()
+        addedControllers.clear()
     }
 
     override fun onCreate() {
@@ -227,6 +377,15 @@ class UsbDriverService : Service(), UsbDriverListener {
             return false
         }
 
+        private fun hasKernelGamepad(device: UsbDevice): Boolean = hasKernelGamepad(device.vendorId, device.productId)
+
+        private fun hasKernelGamepad(vendorId: Int, productId: Int): Boolean = InputDevice.getDeviceIds().any { id ->
+            val input = InputDevice.getDevice(id)
+            input != null && input.vendorId == vendorId && input.productId == productId &&
+                ((input.sources and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
+                    (input.sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD)
+        }
+
         @JvmStatic
         fun kernelSupportsXboxOne(): Boolean {
             val kernelVersion = System.getProperty("os.version")
@@ -255,7 +414,7 @@ class UsbDriverService : Service(), UsbDriverListener {
         @JvmStatic
         fun shouldClaimDevice(device: UsbDevice, claimAllAvailable: Boolean): Boolean {
             LimeLog.info("UsbDevice info: $device")
-            return ((!kernelSupportsXboxOne() || !isRecognizedInputDevice(device) || claimAllAvailable) &&
+            return (SteamControllerUsbTransport.canClaimDevice(device) && !hasKernelGamepad(device)) || ((!kernelSupportsXboxOne() || !isRecognizedInputDevice(device) || claimAllAvailable) &&
                 XboxOneController.canClaimDevice(device)) ||
                 ((!isRecognizedInputDevice(device) || claimAllAvailable) && Xbox360Controller.canClaimDevice(device)) ||
                 ((!kernelSupportsXbox360W() || claimAllAvailable) && Xbox360WirelessDongle.canClaimDevice(device)) ||

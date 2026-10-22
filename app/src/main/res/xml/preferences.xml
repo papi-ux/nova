@@ -307,6 +307,57 @@
             android:title="@string/title_checkbox_usb_bind_all"
             app:iconSpaceReserved="false" />
 
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="steam_controller_bluetooth"
+            android:title="@string/steam_controller_bluetooth_title"
+            android:summary="@string/steam_controller_bluetooth_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="steam_controller_permission"
+            android:title="@string/steam_controller_permission_title"
+            android:summary="@string/steam_controller_permission_summary"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="mouse"
+            android:key="steam_controller_trackpads"
+            android:title="@string/steam_controller_trackpads_title"
+            android:summary="@string/steam_controller_next_stream"
+            android:entries="@array/steam_controller_trackpad_names"
+            android:entryValues="@array/steam_controller_trackpad_values"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="off"
+            android:key="steam_controller_l4"
+            android:title="@string/steam_controller_l4_title"
+            android:summary="@string/steam_controller_next_stream"
+            android:entries="@array/steam_controller_grip_names"
+            android:entryValues="@array/steam_controller_grip_values"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="off"
+            android:key="steam_controller_r4"
+            android:title="@string/steam_controller_r4_title"
+            android:summary="@string/steam_controller_next_stream"
+            android:entries="@array/steam_controller_grip_names"
+            android:entryValues="@array/steam_controller_grip_values"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="off"
+            android:key="steam_controller_l5"
+            android:title="@string/steam_controller_l5_title"
+            android:summary="@string/steam_controller_next_stream"
+            android:entries="@array/steam_controller_grip_names"
+            android:entryValues="@array/steam_controller_grip_values"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:defaultValue="off"
+            android:key="steam_controller_r5"
+            android:title="@string/steam_controller_r5_title"
+            android:summary="@string/steam_controller_next_stream"
+            android:entries="@array/steam_controller_grip_names"
+            android:entryValues="@array/steam_controller_grip_values"
+            app:iconSpaceReserved="false" />
         <!-- Mouse emulation -->
         <CheckBoxPreference
             android:defaultValue="true"

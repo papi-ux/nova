@@ -87,6 +87,9 @@ abstract class AbstractController(
 
     abstract fun rumbleTriggers(leftTrigger: Short, rightTrigger: Short)
 
+    /** Native drivers with their own IMU override this; ordinary USB pads keep phone fallback. */
+    open fun setMotionEventState(motionType: Byte, reportRateHz: Int) = Unit
+
     protected fun notifyDeviceRemoved() {
         listener!!.deviceRemoved(this)
     }
