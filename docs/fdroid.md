@@ -1,122 +1,175 @@
 # F-Droid and IzzyOnDroid Packaging Notes
 
-Nova is prepared for release-APK distribution and is being prepared for F-Droid-compatible source builds.
+Nova's Android APK can be distributed through app repositories, but a working
+APK does not establish repository eligibility. This guide records the work to
+prepare a possible IzzyOnDroid re-review **after stable 1.5.0 is released**.
+Nova is not listed in IzzyOnDroid or F-Droid main.
 
-## Current Status
+Last policy and source review: **2026-10-23**. The source observations below
+refer to `df41dabb548170e9f9cc7080e2fcf0c481e56c3b`; repeat the affected checks
+on the final release inputs. No stable 1.5.0 APK has been qualified by this guide.
 
-| Channel | Status | Notes |
-|---|---|---|
-| IzzyOnDroid | Declined for now | App request #159 was declined under IzzyOnDroid's current policy/space limits for games and gaming-focused apps. Nova remains prepared for a future re-review if that policy changes or an exception path opens. |
-| F-Droid main | Not ready yet | The Android build still consumes prebuilt native static libraries for OpenSSL and Opus. F-Droid main generally expects those dependencies to be built from source in the build recipe. |
-| Self-hosted F-Droid repo | Possible | The existing GitHub release APKs can be indexed in a self-hosted repo, but users would need to add that repo manually. |
+## Eligibility comes first
 
-## App Metadata
+Read the current [IzzyOnDroid inclusion policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/)
+before requesting another review. Two unresolved policy barriers apply:
 
-Fastlane metadata lives in:
+- **Gaming focus.** Nova is a game-streaming client. Not bundling games does
+  not remove the policy's restriction on gaming-focused apps.
+- **Development provenance.** The policy rejects vibe-coded apps and says app
+  code should be free of generative-AI output. Nova includes Codex/Claude-authored
+  implementation changes. Human review and tests do not change that provenance.
+  Documentation and read-only research are treated differently by the policy.
 
-```text
-fastlane/metadata/android/en-US/
-```
+The [original review](https://codeberg.org/IzzyOnDroid/repodata/issues/159#issuecomment-13759757)
+declined Nova over category/space limits. Its scan asked for explanations of
+CAMERA and AccessibilityService. In the [follow-up](https://codeberg.org/IzzyOnDroid/repodata/issues/159#issuecomment-13952963),
+the maintainer accepted the earlier AI disclosure on the understanding that it
+covered documentation, testing and triage without touching app code. That
+description must not be reused for the current codebase.
 
-The metadata is intentionally written for public stores and app-index mirrors:
+An honest eligibility inquiry is needed before presenting a new submission as
+compliant. Neither this preparation nor an APK scan promises acceptance. Do not
+add an IzzyOnDroid badge until Nova is actually listed.
 
-- title and short description are store-sized
-- full description avoids marketing-only language and names the Polaris relationship clearly
-- screenshots are copied from `docs/screenshots/`
-- changelog `18.txt` matches Nova `versionCode = 18`
+## Which distribution path?
 
-## APK Scan and Security Notes
+| Path | What remains |
+| --- | --- |
+| IzzyOnDroid | Maintainer eligibility decision, then review of the exact public Android release APK and metadata. |
+| F-Droid main | Separate source-build recipe and dependency/license review; the checked-in native binaries are unresolved. Izzy preparation does not qualify this path. |
+| Self-hosted repository | A possible separate distribution project, requiring its own index signing, maintenance and user setup. None is provided here. |
 
-The `v1.0.2` release hardens the security surfaces that were raised during public scanner review:
+Nova also has native Linux/Steam Deck and Steam Frame builds. An Izzy request
+concerns the **Android APK**; it is not a request to distribute the Linux packages.
 
-- externally supplied host and path handling in Moonlight/Polaris HTTP flows
-- poster/content URI handling used by launcher and TV surfaces
-- cache path validation for app artwork
-- stream notification PendingIntent creation
+## Android release identity
 
-IzzyOnDroid's APK scan also flagged two manifest items that are expected for Nova:
+The current Gradle pins are `versionName = 1.5.0`, stable `versionCode = 55`,
+and application ID `com.papi.nova` for `nonRoot_gameRelease`. Read the actual
+final APK rather than relying on these source values.
 
-- `android.permission.CAMERA` is used for QR pairing with a Polaris host. The camera hardware feature is declared optional.
-- `android.accessibilityservice.AccessibilityService` is used by the optional physical keyboard helper for shortcut passthrough while streaming. The service is not exported, requires Android's `BIND_ACCESSIBILITY_SERVICE` permission, and must be enabled by the user in system settings.
+The release workflow names per-ABI stable assets
+`Nova-Android-arm64-v8a.apk`, `Nova-Android-armeabi-v7a.apk`, and
+`Nova-Android-x86_64.apk`. Agree the repository's preferred ABI and size budget
+with its maintainer; supplying every ABI is not an inclusion requirement.
+Use the matching tagged release URL, not an unqualified `releases/latest` link.
 
-## F-Droid Build Switch
+Debug (`com.papi.nova.debug`), Beta (`com.papi.nova.pre`), dirty, benchmark,
+root and unsigned outputs are not substitutes for the stable submission APK.
+Keep the established release signing identity; a valid debug signature is not a
+release signature. The two channels have different application IDs, so the
+Beta channel's larger derived versionCode is not the stable upgrade sequence.
 
-Nova supports a build-time switch for F-Droid-style builds:
+## Permissions and network behavior
 
-```bash
+These explanations accompany an actual merged-manifest review; they are not
+waivers for unexpected permissions in the final APK.
+
+- **Camera:** QR host pairing. Camera hardware is optional and manual host
+  setup remains available. Denying camera access must leave ordinary pairing
+  and streaming usable.
+- **AccessibilityService:** an optional physical-keyboard passthrough helper
+  while a stream is connected. The user enables it in Android settings; it is
+  non-exported and protected by `BIND_ACCESSIBILITY_SERVICE`. Its XML declares
+  key filtering and window-content access; the current implementation forwards
+  key events to the connected game and ignores accessibility-event callbacks.
+  Explain the declared capabilities as well as the intended use.
+- **Install packages:** the built-in updater can hand a downloaded APK to
+  Android's installer after the user asks. Android's unknown-source permission
+  does not itself explain bypassing a repository's update review.
+- **Bluetooth:** controller connectivity; permission availability varies by
+  Android version. No controller is required for installing Nova.
+- **Network:** host discovery, pairing, streaming, artwork and requested online
+  services such as update checks. `network_security_config.xml` currently permits
+  cleartext in its **base configuration**, not only for selected LAN domains.
+  Moonlight-compatible initial host communication requires HTTP; do not describe
+  the current configuration as a LAN-enforced allowlist or as all-encrypted.
+
+Also review the final exported activities/providers/services and dependency
+manifest additions. In particular, the exported poster provider serves launcher
+and TV artwork; its input validation belongs in the security review.
+
+## Updater consent and the F-Droid switch
+
+The inclusion policy requires explicit opt-in for executable downloads and a
+clear explanation when using an updater bypasses repository checks. At the
+reviewed source, automatic checks fetch release information, while APK download
+starts from a user action. The dialogs explain Android install permission but
+**do not yet explain bypassing repository checks**. This remains a submission
+gap; declining must be straightforward too.
+
+For source-build experiments, Nova supports:
+
+```sh
 ./gradlew -PnovaFdroid=true -PnovaAbis=arm64-v8a assembleNonRoot_gameRelease
 ```
 
-That switch sets `BuildConfig.FDROID_BUILD=true` and removes the GitHub Releases and Obtainium update shortcuts from the app settings UI. It does not change the package name, signing, streaming behavior, or Polaris integration.
+This sets `BuildConfig.FDROID_BUILD=true`, hides the Releases/Obtainium settings
+entries and suppresses the automatic update prompt/check. At the reviewed source
+the manual dashboard update action is still wired. The switch does not remove
+the install permission or updater implementation, change signing/application ID,
+or certify a repository-only update channel. Audit every entry point before
+claiming that in-app updates are disabled. Building this variant is not required
+merely to request Izzy inclusion.
 
-## Known F-Droid Main Blockers
+## Metadata preparation
 
-The current native build imports prebuilt static libraries:
+Store metadata lives in `fastlane/metadata/android/en-US/`:
 
-```text
-app/src/main/jni/moonlight-core/libopus/*/libopus.a
-app/src/main/jni/moonlight-core/openssl/*/libcrypto.a
-app/src/main/jni/moonlight-core/openssl/*/libssl.a
-```
+- Keep Nova's own title, icon, descriptions and screenshots, with Moonlight and
+  other upstream credit. Explain what the Android app actually does today.
+- Refresh screenshots from a reviewed release build; check for private host
+  addresses, names, notifications and pairing data before committing them.
+- Match `changelogs/<actual-versionCode>.txt` to the submitted APK. The reviewed
+  tree ends at `54.txt`, while the stable pin is 55: the final 1.5.0 entry is
+  still needed after its release scope is settled.
+- Explain optional camera and accessibility use in store-facing text, and link
+  the detailed permission/update explanations here.
+- Check description limits, image dimensions, links, license notices and release
+  availability on the public default branch. Private preview metadata is not
+  public delivery.
 
-Those libraries are documented upstream in `app/src/main/jni/moonlight-core/Build.txt`, but for F-Droid main they should be replaced by a source build in the F-Droid recipe or in Nova's Gradle/NDK build.
+## Exact-APK release checklist
 
-The practical path is:
+Use one receipt for each final candidate; repeat only checks whose inputs changed.
+Keep unresolved findings visible rather than claiming a universally clean scan.
 
-1. Add source-fetch/build steps for Opus and OpenSSL.
-2. Wire the generated static libraries into the existing NDK build.
-3. Build at least `arm64-v8a` with `-PnovaFdroid=true`.
-4. Validate the resulting APK against the same runtime smoke path used by CI.
-5. Submit `metadata/com.papi.nova.yml` to `fdroiddata` once the native dependency path no longer uses checked-in prebuilt libraries.
+- [ ] Record the public tag/commit, build workflow and toolchain, selected ABI,
+  actual APK byte count/SHA-256 and matching checksum asset.
+- [ ] Verify `apksigner verify --verbose --print-certs`; compare the public
+  release certificate with the previous stable APK. Check upgrade versionCode,
+  `com.papi.nova`, versionName, and absence of `debuggable`/`testOnly` in the
+  **merged APK manifest**. Preserve existing signing keys.
+- [ ] Inventory merged permissions/components, included SDKs and native
+  libraries. Review tracker/security/license findings locally; do not infer
+  absence from a source-name search. Record scanner versions and limitations.
+- [ ] Confirm upstream/native provenance and packaged notices, including the
+  PyroWave library and SGSR/Steam Controller notices when actually included.
+  Apply dependency/vulnerability findings to the versions shipped, not just a
+  current upstream branch. No APK upload to an external scanner is implied.
+- [ ] Check ZIP integrity/alignment, native ELF 16 KB page alignment, and actual
+  release size against the maintainer's budget. Debug APK size is not release
+  size. Existing runtime acceptance carries only for unchanged affected inputs.
+- [ ] Close the updater-consent gap and qualify the chosen variant's real update
+  entry points, including Cancel/decline behavior.
+- [ ] Finish Fastlane's release changelog and screenshots, then read back the
+  published assets and exact tagged-source/download links after release.
+- [ ] Obtain the eligibility decision above and prepare an accurate disclosure
+  plus the exact asset/update-match details for the maintainer. Papi sends the
+  request after release; this checklist does not submit anything.
 
-## Suggested fdroiddata Shape
+## Separate F-Droid main work
 
-This is a starting point, not a ready-to-submit recipe:
+The native build imports checked-in Opus/OpenSSL static archives under
+`app/src/main/jni/moonlight-core/{libopus,openssl}/` and PyroWave shared libraries
+under `app/src/main/jni/pyrowave-core/<abi>/`. The [PyroWave notes](../app/src/main/jni/pyrowave-core/README.md)
+record its upstream revision and build procedure. A release that hides an
+experimental picker may still package its native libraries: inspect actual bytes.
 
-```yaml
-Categories:
-  - Multimedia
-License: GPL-3.0-only
-AuthorName: papi-ux
-SourceCode: https://github.com/papi-ux/nova
-IssueTracker: https://github.com/papi-ux/nova/issues
-Changelog: https://github.com/papi-ux/nova/blob/master/CHANGELOG.md
-
-AutoName: Nova
-
-RepoType: git
-Repo: https://github.com/papi-ux/nova.git
-
-Builds:
-  - versionName: 1.0.3
-    versionCode: 18
-    commit: v1.0.3
-    subdir: .
-    gradle:
-      - nonRoot_gameRelease
-    gradleprops:
-      - novaFdroid=true
-      - novaAbis=arm64-v8a
-
-AutoUpdateMode: Version v%v
-UpdateCheckMode: Tags
-CurrentVersion: 1.0.3
-CurrentVersionCode: 18
-```
-
-`v1.0.3` contains the F-Droid build switch, store metadata, public scanner hardening, and the latest Wake-on-LAN setup fixes. Official F-Droid main still needs the source-built native dependency path described above; do not submit this sample against `v1.0.0` because that tag predates the packaging prep.
-
-## Future IzzyOnDroid Checklist
-
-Nova's first IzzyOnDroid request was declined because Nova is game-streaming/gaming-focused. If IzzyOnDroid's category policy changes or a specific exception path becomes available, confirm the following before requesting re-review:
-
-- confirm the latest GitHub release has signed APK assets
-- confirm the release contains `Nova-Android-arm64-v8a.apk` and `Nova-Android-x86_64.apk`
-- confirm `fastlane/metadata/android/en-US` is present in the default branch
-- mention the `v1.0.2` scanner hardening and link this document's APK scan notes
-- mention that Nova is Android-only and currently publishes `arm64-v8a` and `x86_64` APKs
-- mention that Nova is a game streaming client, not a bundled game
-- mention that Polaris-related tuning indicators are local host state, not a cloud AI service
-- link the release page: `https://github.com/papi-ux/nova/releases/latest`
-
-After IzzyOnDroid accepts Nova, add an IzzyOnDroid badge to the README beside the GitHub, GitHub Store, and Obtainium links.
+Before proposing a F-Droid main recipe, replace the prebuilt dependency path
+with pinned source builds, inventory transitive sources/licenses and generated
+shader provenance, and demonstrate the full clean build plus affected runtime
+checks. Review the current F-Droid submission requirements separately. The old
+1.0.3 example recipe was incomplete and is intentionally removed rather than
+presented as a working 1.5.0 recipe.
