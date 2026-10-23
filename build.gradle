@@ -79,6 +79,11 @@ if (
 }
 def patchedWireVersion = '6.4.7'
 def patchedWireModules = ['wire-runtime', 'wire-runtime-jvm'] as Set
+// AGP resolves these tool classpaths separately from the buildscript and app runtime.
+def bouncyCastleToolConfigurations = [
+    'androidLintTool',
+    'unified-test-platform-android-test-plugin-result-listener-gradle'
+] as Set
 
 allprojects { project ->
     configurations.configureEach { configuration ->
@@ -90,6 +95,12 @@ allprojects { project ->
             if (details.requested.group == 'com.squareup.wire' && patchedWireModules.contains(details.requested.name)) {
                 details.useVersion patchedWireVersion
                 details.because 'Dependabot flags Wire from AndroidX benchmark/baseline-profile transitives'
+            }
+            if (bouncyCastleToolConfigurations.contains(configuration.name) &&
+                details.requested.group == 'org.bouncycastle' &&
+                details.requested.name in ['bcpkix-jdk18on', 'bcprov-jdk18on', 'bcutil-jdk18on']) {
+                details.useVersion '1.85'
+                details.because 'Align AGP lint and UTP tooling with the patched Bouncy Castle line'
             }
         }
     }
