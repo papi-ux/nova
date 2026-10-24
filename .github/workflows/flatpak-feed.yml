@@ -8,10 +8,15 @@ on:
         type: string
         required: true
       channel:
-        description: Update channel
+        description: Target ref (Beta includes prereleases and intentionally promoted stable releases)
         type: choice
         options: [beta, stable]
         default: beta
+      arch:
+        description: Native architecture (aarch64 is Beta only until Stable is qualified)
+        type: choice
+        options: [x86_64, aarch64]
+        default: x86_64
       bootstrap:
         description: Start the first feed (only allowed when the existing summary returns 404)
         type: boolean
@@ -43,11 +48,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NOVA_TAG: ${{ inputs.release_tag }}
           NOVA_CHANNEL: ${{ inputs.channel }}
+          NOVA_ARCH: ${{ inputs.arch }}
         run: |
           python3 - <<'PY'
           import os
-          from tools.nova_flatpak_feed import TAG
-          if not TAG.fullmatch(os.environ['NOVA_TAG']):
+          from tools.nova_flatpak_feed import BUILD_TAG, validate_build_target
+          validate_build_target(os.environ['NOVA_ARCH'], os.environ['NOVA_CHANNEL'])
+          if not BUILD_TAG.fullmatch(os.environ['NOVA_TAG']):
               raise SystemExit('Use a versioned release tag')
           PY
           gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${NOVA_TAG}" > release.json
@@ -58,14 +65,15 @@ jobs:
 
   build:
     needs: source
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
       options: --privileged
     env:
       NOVA_CHANNEL: ${{ inputs.channel }}
       NOVA_TAG: ${{ inputs.release_tag }}
-      NOVA_FEED_URL: https://papi-ux.com/nova
+      NOVA_ARCH: ${{ inputs.arch }}
+      NOVA_FEED_URL: https://updates.papi-ux.com/nova
     steps:
       - name: Check signing configuration
         env:
@@ -82,17 +90,18 @@ jobs:
 
       - name: Prepare channel manifest
         run: |
+          test "$(uname -m)" = "$NOVA_ARCH"
           test -f source/clients/deck/src/runtime/deck_updates.cpp
           manifest=source/clients/deck/packaging/flatpak/com.papi_ux.Nova.json
           python3 automation/tools/nova_flatpak_feed.py prepare "$manifest" \
-            source/clients/deck/packaging/flatpak/feed-build.json \
+            "source/clients/deck/packaging/flatpak/feed-build-${NOVA_ARCH}.json" \
             --channel "$NOVA_CHANNEL" --url "$NOVA_FEED_URL" --version "$NOVA_TAG"
 
       - name: Build the channel without installing it
         run: |
-          flatpak-builder --user --force-clean --disable-rofiles-fuse --repo=unsigned-repo \
+          flatpak-builder --user --arch="$NOVA_ARCH" --force-clean --disable-rofiles-fuse --repo=unsigned-repo \
             --subject="Nova ${NOVA_TAG}" --install-deps-from=flathub --assumeyes \
-            build-flatpak source/clients/deck/packaging/flatpak/feed-build.json
+            build-flatpak "source/clients/deck/packaging/flatpak/feed-build-${NOVA_ARCH}.json"
 
       - name: Import the feed signing key
         env:
@@ -122,21 +131,21 @@ jobs:
         env:
           NOVA_BOOTSTRAP: ${{ inputs.bootstrap }}
         run: |
-          mkdir -p site/repo previous
+          mkdir -p site/nova/repo previous
           gpg --batch --export "$NOVA_SIGNING_ID" > "$RUNNER_TEMP/nova-public.gpg"
-          ostree --repo=site/repo init --mode=archive-z2
+          ostree --repo=site/nova/repo init --mode=archive-z2
           code="$(curl --silent --show-error --output "$RUNNER_TEMP/previous-summary" \
             --write-out '%{http_code}' --max-time 30 "$NOVA_FEED_URL/repo/summary")"
           if [ "$code" = 200 ]; then
             test "$NOVA_BOOTSTRAP" = false || { echo 'Existing feed cannot be bootstrapped again' >&2; exit 1; }
-            ostree --repo=site/repo remote add --gpg-import="$RUNNER_TEMP/nova-public.gpg" \
+            ostree --repo=site/nova/repo remote add --gpg-import="$RUNNER_TEMP/nova-public.gpg" \
               --set=gpg-verify=true --set=gpg-verify-summary=true previous "$NOVA_FEED_URL/repo"
-            ostree --repo=site/repo pull --mirror previous
+            ostree --repo=site/nova/repo pull --mirror previous
             # Retain metadata for every supported architecture/channel in the
-            # verified feed, even though this build job still publishes x86_64.
+            # verified feed, independently of the selected build architecture.
             python3 automation/tools/nova_flatpak_feed.py preserve-catalogs \
-              --repository site/repo --previous previous --url "$NOVA_FEED_URL"
-            ostree --repo=site/repo remote delete previous
+              --repository site/nova/repo --previous previous --url "$NOVA_FEED_URL"
+            ostree --repo=site/nova/repo remote delete previous
           elif [ "$code" != 404 ] || [ "$NOVA_BOOTSTRAP" != true ]; then
             echo 'Refusing to replace an unreadable feed; bootstrap is only for the first 404' >&2
             exit 1
@@ -144,23 +153,27 @@ jobs:
 
       - name: Sign the new commit and build the download site
         run: |
-          ref="app/com.papi_ux.Nova/x86_64/$NOVA_CHANNEL"
-          ostree --repo=site/repo pull-local unsigned-repo "$ref"
-          revision="$(ostree --repo=site/repo rev-parse "$ref")"
-          ostree --repo=site/repo gpg-sign "$revision" "$NOVA_SIGNING_ID"
-          flatpak build-update-repo --gpg-sign="$NOVA_SIGNING_ID" --gpg-homedir="$GNUPGHOME" site/repo
-          python3 automation/tools/nova_flatpak_feed.py site --repository site/repo --site site \
+          ref="app/com.papi_ux.Nova/$NOVA_ARCH/$NOVA_CHANNEL"
+          ostree --repo=site/nova/repo pull-local unsigned-repo "$ref"
+          revision="$(ostree --repo=site/nova/repo rev-parse "$ref")"
+          ostree --repo=site/nova/repo gpg-sign "$revision" "$NOVA_SIGNING_ID"
+          flatpak build-update-repo --gpg-sign="$NOVA_SIGNING_ID" --gpg-homedir="$GNUPGHOME" site/nova/repo
+          python3 automation/tools/nova_flatpak_feed.py site --repository site/nova/repo --site site/nova \
             --previous previous --key "$RUNNER_TEMP/nova-public.gpg" --channel "$NOVA_CHANNEL" \
-            --version "$NOVA_TAG" --url "$NOVA_FEED_URL"
+            --version "$NOVA_TAG" --url "$NOVA_FEED_URL" --arch "$NOVA_ARCH"
+          cat > site/index.html <<'HTML'
+          <!doctype html><html lang="en"><meta charset="utf-8"><title>Nova updates</title>
+          <main><p><a href="https://papi-ux.com/nova/">Nova product page</a></p></main></html>
+          HTML
           mkdir -p bundles
-          flatpak build-bundle --repo-url="$NOVA_FEED_URL/repo" --gpg-keys="$RUNNER_TEMP/nova-public.gpg" \
+          flatpak build-bundle --arch="$NOVA_ARCH" --repo-url="$NOVA_FEED_URL/repo" --gpg-keys="$RUNNER_TEMP/nova-public.gpg" \
             --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-            site/repo "bundles/Nova-Linux-x86_64-${NOVA_CHANNEL}.flatpak" com.papi_ux.Nova "$NOVA_CHANNEL"
-          ostree --repo=site/repo fsck
+            site/nova/repo "bundles/Nova-Linux-${NOVA_ARCH}-${NOVA_CHANNEL}.flatpak" com.papi_ux.Nova "$NOVA_CHANNEL"
+          ostree --repo=site/nova/repo fsck
           # Independently verify both summary and commit signatures before publishing.
           ostree --repo=verification init --mode=archive-z2
           ostree --repo=verification remote add --gpg-import="$RUNNER_TEMP/nova-public.gpg" \
-            --set=gpg-verify=true --set=gpg-verify-summary=true candidate "file://$PWD/site/repo"
+            --set=gpg-verify=true --set=gpg-verify-summary=true candidate "file://$PWD/site/nova/repo"
           ostree --repo=verification pull --untrusted candidate "$ref"
 
       - name: Remove private signing material
@@ -168,13 +181,13 @@ jobs:
         run: rm -rf -- "$RUNNER_TEMP/nova-flatpak-key" "$RUNNER_TEMP/key-info"
       - uses: actions/upload-artifact@v7
         with:
-          name: nova-linux-channel-bundle
+          name: nova-linux-${{ inputs.arch }}-${{ inputs.channel }}-bundle
           path: bundles/
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
-          name: nova-linux-channel-installer
-          path: site/nova-${{ inputs.channel }}.flatpakref
+          name: nova-linux-${{ inputs.arch }}-${{ inputs.channel }}-installer
+          path: site/nova/nova-${{ inputs.channel }}.flatpakref
           if-no-files-found: error
       - uses: actions/upload-pages-artifact@v4
         with:

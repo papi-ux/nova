@@ -7,7 +7,7 @@ include(cmake/NovaAppStream.cmake)
 
 # Only builds exported to a signed update feed enable the in-app updater.
 set(NOVA_DECK_UPDATE_CHANNEL "" CACHE STRING "Flatpak update branch: stable or beta")
-set(NOVA_DECK_UPDATE_URL "https://papi-ux.com/nova" CACHE STRING "Nova update catalog base URL")
+set(NOVA_DECK_UPDATE_URL "https://updates.papi-ux.com/nova" CACHE STRING "Nova update catalog base URL")
 if(NOT NOVA_DECK_UPDATE_CHANNEL MATCHES "^(|stable|beta)$")
     message(FATAL_ERROR "Unknown Nova update channel")
 endif()
