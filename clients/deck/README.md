@@ -43,7 +43,9 @@ start at 80 percent and existing saved sizes stay intact. Opened text and opacit
 editors keep a draft until Save. Polaris Aurora is the default theme. The six
 Linux themes include `< Congratulations, Director >`, which a player can choose:
 a charcoal stage with warm white copy and red signals. Command Center has its
-own background-opacity setting. The capture below is from 1.4.14-beta.1 and
+own background-opacity setting. **Reduce Motion** turns off Nova's interface
+transitions, including Library focus and Updates status, without changing
+progress, buttons or controller focus. The capture below is from 1.4.14-beta.1 and
 shows the earlier crimson Director design.
 
 ![Nova Linux 1.4.14-beta.1 candidate Appearance settings in the earlier crimson Director design, with independent text, control size and library layout](../../docs/screenshots/nova-linux-director-appearance-v1.4.14-beta.1.webp)

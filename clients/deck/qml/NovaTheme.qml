@@ -16,12 +16,14 @@ QtObject {
     property string selectedTheme: defaultTheme
     property real selectedTextScale: 0.8
     property string selectedControlSize: "standard"
+    property bool selectedReduceMotion: false
     Component.onCompleted: {
         const savedTheme = preferences.value("themeId", defaultTheme)
         selectedTheme = savedTheme === "material_you" ? "polaris" : savedTheme
         selectedTextScale = validFontScale(preferences.value("textScale", 0.8))
         const savedSize = preferences.value("controlSize", "standard")
         selectedControlSize = controlSizes.some(choice => choice.id === savedSize) ? savedSize : "standard"
+        selectedReduceMotion = savedFlag(preferences.value("reduceMotion", false))
         // Retire the Android theme without rewriting unrelated saved choices.
         if (savedTheme === "material_you")
             preferences.setValue("themeId", "polaris")
@@ -47,6 +49,11 @@ QtObject {
     readonly property real controlScale: controlSizes.find(choice => choice.id === controlSize).scale
     readonly property real fontScale: validFontScale(selectedTextScale)
     readonly property bool highContrast: themeId === "high_contrast"
+    // One restrained motion language. Reduce Motion makes the duration zero,
+    // and animated surfaces treat zero as no animation rather than a fast one.
+    readonly property bool reduceMotion: selectedReduceMotion
+    readonly property int motionDuration: reduceMotion ? 0 : 180
+    readonly property int motionEasing: Easing.OutCubic
     readonly property var colors: ({
         polaris: { window: "#2A2840", panel: "#343150", raised: "#3E3A5E", input: "#343150", text: "#C8D6E5", secondary: "#A8B0B8", muted: "#7A8E95", divider: "#4C5265", accent: "#7C73FF" },
         portable_chrome: { window: "#14161A", panel: "#1E2228", raised: "#262B33", input: "#1A1D22", text: "#C9D1D9", secondary: "#9AA4AF", muted: "#838D9C", divider: "#3A424C", accent: "#5A93D6" },
@@ -97,5 +104,16 @@ QtObject {
             selectedControlSize = value
             preferences.setValue("controlSize", value)
         }
+    }
+    function setReduceMotion(value) {
+        if (typeof value === "boolean") {
+            selectedReduceMotion = value
+            preferences.setValue("reduceMotion", value)
+        }
+    }
+    function savedFlag(value) {
+        // INI-backed QSettings returns a saved boolean as a string after restart.
+        // Anything other than true stays off.
+        return value === true || (typeof value === "string" && value.trim() === "true")
     }
 }
