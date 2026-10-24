@@ -132,11 +132,10 @@ jobs:
             ostree --repo=site/repo remote add --gpg-import="$RUNNER_TEMP/nova-public.gpg" \
               --set=gpg-verify=true --set=gpg-verify-summary=true previous "$NOVA_FEED_URL/repo"
             ostree --repo=site/repo pull --mirror previous
-            for channel in stable beta; do
-              if ostree --repo=site/repo rev-parse "app/com.papi_ux.Nova/x86_64/$channel" >/dev/null 2>&1; then
-                curl --fail --silent --show-error --max-time 30 "$NOVA_FEED_URL/$channel.json" -o "previous/$channel.json"
-              fi
-            done
+            # Retain metadata for every supported architecture/channel in the
+            # verified feed, even though this build job still publishes x86_64.
+            python3 automation/tools/nova_flatpak_feed.py preserve-catalogs \
+              --repository site/repo --previous previous --url "$NOVA_FEED_URL"
             ostree --repo=site/repo remote delete previous
           elif [ "$code" != 404 ] || [ "$NOVA_BOOTSTRAP" != true ]; then
             echo 'Refusing to replace an unreadable feed; bootstrap is only for the first 404' >&2

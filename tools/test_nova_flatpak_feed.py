@@ -199,5 +199,115 @@ class FeedTests(unittest.TestCase):
                 query.assert_not_called()
 
 
+class CatalogPreservationTests(unittest.TestCase):
+    def repository(self):
+        return {f"app/{feed.APP}/{arch}/{channel}": letter * 64
+                for (arch, channel), letter in zip(
+                    (("x86_64", "stable"), ("x86_64", "beta"),
+                     ("aarch64", "stable"), ("aarch64", "beta")), "abcd")}
+
+    def catalogs(self, refs):
+        return {feed.catalog_path(channel, arch): feed.catalog(channel, revision, "v1.5.0", arch)
+                for ref, revision in refs.items() for _, _, arch, channel in [ref.split("/")]}
+
+    def backend(self, refs, catalogs, requested):
+        def output(args, **kwargs):
+            if args[0] == "curl":
+                requested.append(args[-1])
+                return json.dumps(catalogs[Path(args[-1].removeprefix("https://example.org/nova/"))])
+            if args[-1] == "refs":
+                return "\n".join(refs) + "\n"
+            return refs[args[-1]] + "\n"
+        return output
+
+    def test_either_architecture_publish_preserves_all_other_architecture_channels(self):
+        for selected_arch in feed.ARCHITECTURES:
+            for selected_channel in feed.CHANNELS:
+                with self.subTest(arch=selected_arch, channel=selected_channel), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory); refs = self.repository(); old = self.catalogs(refs); requested = []
+                    with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, requested)):
+                        feed.preserve_catalogs(root / "repo", root / "previous", "https://example.org/nova")
+                        refs[f"app/{feed.APP}/{selected_arch}/{selected_channel}"] = "e" * 64
+                        feed.write_site(root / "repo", root / "site", root / "previous", selected_channel,
+                                        "v1.5.1", "https://example.org/nova", b"public fixture", selected_arch)
+                    self.assertEqual(set(requested), {"https://example.org/nova/" + path.as_posix() for path in old})
+                    self.assertEqual(len(requested), 4)
+                    selected = feed.catalog_path(selected_channel, selected_arch)
+                    for path, data in old.items():
+                        self.assertEqual(json.loads((root / "previous" / path).read_text()), data)
+                        expected = feed.catalog(selected_channel, "e" * 64, "v1.5.1", selected_arch) if path == selected else data
+                        self.assertEqual(json.loads((root / "site" / path).read_text()), expected)
+                    self.assertFalse((root / "site/x86_64").exists())
+                    for channel in feed.CHANNELS:
+                        repo, descriptor = feed.descriptors("https://example.org/nova", b"public fixture", channel)
+                        self.assertEqual((root / "site/nova.flatpakrepo").read_text(), repo)
+                        self.assertEqual((root / "site" / f"nova-{channel}.flatpakref").read_text(), descriptor)
+
+    def test_invalid_prior_catalogs_never_replace_existing_destination(self):
+        invalid = [None, [], {}, {"appId": "org.example.Unrelated"}, {"channel": "stable"},
+                   {"arch": "x86_64"}, {"commit": "f" * 64}, {"version": 1},
+                   {"version": "not-a-release"}, {"extra": "unrelated metadata"}]
+        for malformed in invalid:
+            with self.subTest(metadata=malformed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); refs = self.repository(); catalogs = self.catalogs(refs)
+                path = Path("aarch64/beta.json")
+                catalogs[path] = catalogs[path] | malformed if isinstance(malformed, dict) and malformed else malformed
+                previous = root / "previous"; previous.mkdir(); sentinel = previous / "stable.json"
+                sentinel.write_bytes(b"existing catalog must survive")
+                with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, catalogs, [])):
+                    with self.assertRaises(ValueError):
+                        feed.preserve_catalogs(root / "repo", previous, "https://example.org/nova")
+                self.assertEqual(sentinel.read_bytes(), b"existing catalog must survive")
+                self.assertEqual(list(previous.rglob("*")), [sentinel])
+
+    def test_fetch_or_decode_failure_leaves_existing_destination_unchanged(self):
+        for failure in ("http", "json", "oversized"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); refs = self.repository(); old = self.catalogs(refs); requested = []
+                previous = root / "previous"; previous.mkdir(); sentinel = previous / "stable.json"; sentinel.write_bytes(b"keep")
+                backend = self.backend(refs, old, requested)
+                def output(args, **kwargs):
+                    if args[0] == "curl" and args[-1].endswith("aarch64/beta.json"):
+                        if failure == "http": raise subprocess.CalledProcessError(22, args)
+                        if failure == "json": return "{"
+                        return " " * 65536 + "{}"
+                    return backend(args, **kwargs)
+                with patch.object(feed.subprocess, "check_output", side_effect=output):
+                    with self.assertRaises(subprocess.CalledProcessError if failure == "http" else ValueError):
+                        feed.preserve_catalogs(root / "repo", previous, "https://example.org/nova")
+                self.assertEqual(sentinel.read_bytes(), b"keep")
+                self.assertEqual(list(previous.rglob("*")), [sentinel])
+
+    def test_site_rejects_bad_catalog_or_descriptor_before_overwriting_output(self):
+        for bad in ([], {"appId": "org.example.Unrelated"}, {"arch": "x86_64"}, {"version": 1}, "invalid-key", "invalid-url"):
+            with self.subTest(bad=bad), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); refs = self.repository(); old = self.catalogs(refs)
+                previous = root / "previous"
+                for path, data in old.items():
+                    dest = previous / path; dest.parent.mkdir(parents=True, exist_ok=True)
+                    if path == Path("aarch64/beta.json") and isinstance(bad, (dict, list)):
+                        data = data | bad if isinstance(bad, dict) else bad
+                    dest.write_text(json.dumps(data))
+                site = root / "site"; site.mkdir(); sentinel = site / "stable.json"; sentinel.write_bytes(b"keep")
+                url = "http://example.org/nova" if bad == "invalid-url" else "https://example.org/nova"
+                key = b"" if bad == "invalid-key" else b"public fixture"
+                with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, [])):
+                    with self.assertRaises(ValueError):
+                        feed.write_site(root / "repo", site, previous, "stable", "v1.5.1", url, key)
+                self.assertEqual(sentinel.read_bytes(), b"keep")
+                self.assertEqual(list(site.rglob("*")), [sentinel])
+
+    def test_preservation_cli_selects_only_supported_nova_refs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); refs = self.repository(); old = self.catalogs(refs); requested = []
+            refs["app/org.example.Unrelated/aarch64/beta"] = "f" * 64
+            refs[f"app/{feed.APP}/riscv64/beta"] = "f" * 64
+            argv = ["nova_flatpak_feed.py", "preserve-catalogs", "--repository", str(root / "repo"),
+                    "--previous", str(root / "previous"), "--url", "https://example.org/nova"]
+            with patch("sys.argv", argv), patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, requested)):
+                feed.main()
+            self.assertEqual(set(requested), {"https://example.org/nova/" + path.as_posix() for path in old})
+
+
 if __name__ == "__main__":
     unittest.main()
