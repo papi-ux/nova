@@ -1490,6 +1490,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     private fun openBestPlaySurface(computer: ComputerDetails) {
+        // Pairing pauses discovery. A pending Library check can keep Hosts open,
+        // so resume updates here instead of waiting for another Activity resume.
+        startComputerUpdates()
         val surface = novaHostPlaySurface(
             runningGame = computer.runningGameId != 0,
             ownedByThisDevice = computer.currentGameOwnedByClient,
