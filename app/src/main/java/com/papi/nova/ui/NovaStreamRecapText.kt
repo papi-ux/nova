@@ -1,9 +1,14 @@
 package com.papi.nova.ui
 
 import android.content.Context
+import android.text.format.DateUtils
 import com.papi.nova.R
 import com.papi.nova.diagnostics.NovaStreamRecap
+import java.text.ParsePosition
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * The After-stream recap in words: a one-line card summary and the read-only page. Descriptive
@@ -11,13 +16,42 @@ import java.util.Locale
  * as a grade, a verdict or a claim about the host, the scene or the network path.
  */
 internal object NovaStreamRecapText {
-    fun card(context: Context, recap: NovaStreamRecap.Recap): String {
-        val reason = short(context, recap)
-        return if (recap.mediaSampled) {
-            context.getString(R.string.nova_recap_card_summary, recap.endedAtUtc, reason, recap.acceptedSamples)
-        } else {
-            context.getString(R.string.nova_recap_card_summary_no_samples, recap.endedAtUtc, reason)
+    /**
+     * The host bar's line: what ended the stream, then when, as this device tells the time. The
+     * UTC stamp, the sample counts and the readings stay on the page View opens.
+     */
+    fun card(context: Context, recap: NovaStreamRecap.Recap, nowMillis: Long = System.currentTimeMillis()): String =
+        context.getString(
+            R.string.nova_recap_card_summary,
+            short(context, recap).replaceFirstChar { it.titlecase() },
+            endedAt(context, recap.endedAtUtc, nowMillis),
+        )
+
+    /**
+     * When [endedAtUtc] was, in this device's time zone, language and 12 or 24 hour clock: the time
+     * alone on the day it is now, the date with it on any other. A stamp that does not parse as
+     * the recap writes it is shown as written, never guessed at.
+     */
+    internal fun endedAt(context: Context, endedAtUtc: String, nowMillis: Long): String {
+        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+            isLenient = false
         }
+        val position = ParsePosition(0)
+        val ended = parser.parse(endedAtUtc, position)
+        if (ended == null || position.index != endedAtUtc.length) return endedAtUtc
+        val flags = if (sameDay(ended.time, nowMillis)) {
+            DateUtils.FORMAT_SHOW_TIME
+        } else {
+            DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
+        }
+        return DateUtils.formatDateTime(context, ended.time, flags)
+    }
+
+    private fun sameDay(first: Long, second: Long): Boolean {
+        val a = Calendar.getInstance().apply { timeInMillis = first }
+        val b = Calendar.getInstance().apply { timeInMillis = second }
+        return a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
     }
 
     fun page(context: Context, recap: NovaStreamRecap.Recap): String = buildString {

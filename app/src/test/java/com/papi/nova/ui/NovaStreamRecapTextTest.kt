@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import android.text.format.DateUtils
 import com.papi.nova.R
 import com.papi.nova.diagnostics.NovaStreamRecap
 import com.papi.nova.diagnostics.NovaStreamRecap.End
@@ -59,8 +60,10 @@ class NovaStreamRecapTextTest {
         val page = NovaStreamRecapText.page(context, none)
         assertTrue(page, page.contains(text(R.string.nova_recap_no_samples)))
         assertFalse(page, page.contains(text(R.string.nova_recap_averages)))
-        assertEquals(text(R.string.nova_recap_card_summary_no_samples, "2026-10-08T14:00:00Z", text(R.string.nova_recap_short_connection_ended)),
-            NovaStreamRecapText.card(context, none))
+        // The host bar says what ended and when; whether there were samples is the page's to say.
+        val card = NovaStreamRecapText.card(context, none, ended)
+        assertEquals(text(R.string.nova_recap_card_summary, "Connection ended", NovaStreamRecapText.endedAt(context, stamp, ended)), card)
+        assertFalse(card, card.contains("sample"))
     }
 
     @Test fun aNormalEndDoesNotClaimTheHostAppQuit() {
@@ -73,8 +76,8 @@ class NovaStreamRecapTextTest {
 
     @Test fun anErrorEndShowsItsCodeTheWayTheErrorDialogDoes() {
         assertTrue(NovaStreamRecapText.page(context, recap(end = End.ERROR, code = 22)).contains(text(R.string.nova_recap_end_error, "22")))
-        val large = NovaStreamRecapText.card(context, recap(end = End.ERROR, code = 0x8000_0001.toInt()))
-        assertTrue(large, large.contains(text(R.string.nova_recap_short_error, "80000001")))
+        val large = NovaStreamRecapText.card(context, recap(end = End.ERROR, code = 0x8000_0001.toInt()), ended)
+        assertTrue(large, large.startsWith("Ended with error 80000001 · "))
     }
 
     @Test fun aRequestedReconnectIsNotPresentedAsRecovery() {
@@ -102,6 +105,46 @@ class NovaStreamRecapTextTest {
         assertEquals("4 s", NovaStreamRecapText.duration(4_900L))
         assertEquals("2 min 05 s", NovaStreamRecapText.duration(125_000L))
         assertEquals("1 h 01 min", NovaStreamRecapText.duration(3_660_000L))
+    }
+
+    /** The fixtures' stamp, and the moment it names. */
+    private val stamp = "2026-10-08T14:00:00Z"
+    private val ended = 1_791_468_000_000L
+
+    // papi's screenshot of 2026-10-23 23:34 showed "Ended 2026-10-23T22:56:05Z (UTC) · video
+    // surface lost · 53 client samples": the stamp as the recap stores it, not a time to read.
+    @Test fun theCardSaysWhatEndedThenWhenAsThisDeviceTellsTheTime() {
+        val card = NovaStreamRecapText.card(context, recap(end = End.SURFACE_LOST), ended)
+        val time = DateUtils.formatDateTime(context, ended, DateUtils.FORMAT_SHOW_TIME)
+        assertEquals("Video surface lost · $time", card)
+        listOf(stamp, "UTC", "2026", "sample").forEach { assertFalse("$it in $card", card.contains(it)) }
+        verdicts.forEach { assertFalse("$it in $card", Regex("\\b${Regex.escape(it)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(card)) }
+    }
+
+    @Test fun anotherDaysRecapCarriesItsDate() {
+        val later = ended + 3 * DateUtils.DAY_IN_MILLIS
+        val when3DaysOn = NovaStreamRecapText.endedAt(context, stamp, later)
+        assertEquals(
+            DateUtils.formatDateTime(context, ended,
+                DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH),
+            when3DaysOn,
+        )
+        assertTrue(when3DaysOn, when3DaysOn.contains("Oct"))
+        assertFalse(when3DaysOn, when3DaysOn.contains(stamp))
+    }
+
+    @Test fun aStampThatDoesNotParseIsShownAsWrittenNeverGuessed() {
+        for (raw in listOf("", "unknown", "2026-10-08 14:00:00", "2026-10-08T14:00:00Zjunk", "2026-13-40T25:61:00Z")) {
+            assertEquals(raw, NovaStreamRecapText.endedAt(context, raw, ended))
+        }
+    }
+
+    @Test fun theStampIsReadAsTheRecapWritesIt() {
+        // The moment the fixtures' stamp names, in UTC, whatever this machine's zone.
+        assertEquals(
+            DateUtils.formatDateTime(context, ended, DateUtils.FORMAT_SHOW_TIME),
+            NovaStreamRecapText.endedAt(context, stamp, ended),
+        )
     }
 
     @Test fun theRecapPageIsAReadOnlyNotice() {

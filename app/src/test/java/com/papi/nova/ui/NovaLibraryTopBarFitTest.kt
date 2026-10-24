@@ -314,4 +314,61 @@ class NovaLibraryTopBarFitTest {
         assertEquals("fe80::1", novaShortHostLabel("fe80::1"))
         assertEquals("Living Room", novaShortHostLabel("Living Room"))
     }
+
+    /** A Last Stream recap [total] dp wide in the strip's middle: its words, View and Dismiss. */
+    private fun recap(total: Float = 300f) = NovaTopBarRecapWidths(
+        textMin = total - 50f - 70f - 16f,
+        gap = 8f,
+        view = 50f,
+        dismiss = 70f,
+    )
+
+    /** What the fitted row leaves over in its middle. */
+    private fun leftOver(widths: NovaTopBarWidths): Float =
+        widths.available - novaTopBarRequiredWidth(widths, novaLibraryTopBarFit(widths))
+
+    // papi's screenshot of 2026-10-23 23:34: the recap as a row of its own under the strip. In
+    // the strip's empty middle it costs the posters nothing, and the strip gives nothing up for it.
+    @Test
+    fun anIdleStripTakesTheRecapIntoItsMiddleAndGivesNothingUpForIt() {
+        for (spaces in listOf(false, true)) {
+            val idle = widths(spaces = spaces)
+            val withRecap = idle.copy(recap = recap())
+            val fit = novaLibraryTopBarFit(withRecap)
+            assertTrue("a 300 dp recap fits the Retroid's idle middle (spaces=$spaces): ${leftOver(idle)}", fit.showRecap)
+            assertEquals("nothing else changes for it", novaLibraryTopBarFit(idle), fit.copy(showRecap = false))
+            assertEquals(300f, novaTopBarRecapWidth(withRecap.recap!!), 0.01f)
+            assertTrue("the row and the recap fit together", novaTopBarRecapWidth(withRecap.recap!!) <= leftOver(idle))
+        }
+    }
+
+    @Test
+    fun theRecapTakesOnlyWhatIsLeftOverAndOtherwiseGoesToItsOwnLine() {
+        val idle = widths(fontScale = 1.3f, playing = true)
+        val room = leftOver(idle)
+        val exact = recap(total = room)
+        assertTrue("exactly the room left over is room enough", novaLibraryTopBarFit(idle.copy(recap = exact)).showRecap)
+        val wider = recap(total = room + 1f)
+        val fit = novaLibraryTopBarFit(idle.copy(recap = wider))
+        assertFalse("a dp more and it is the bar's second line", fit.showRecap)
+        assertEquals(
+            "the host's status, the Space's caption and name stay: the recap never trims them",
+            novaLibraryTopBarFit(idle),
+            fit,
+        )
+        // Words that cannot be whole in the strip at all ask for more than any strip has.
+        assertFalse(novaLibraryTopBarFit(idle.copy(recap = recap(total = idle.available * 2))).showRecap)
+    }
+
+    @Test
+    fun aLiveSessionsResumeAndEndKeepTheMiddleOnEveryWidth() {
+        // A 1280 dp television strip has room to spare, and the card still keeps the middle.
+        for (stripWidth in listOf(Retroid.STRIP, 1280f)) {
+            val live = widths(stripWidth = stripWidth, playing = true, live = true)
+            val fit = novaLibraryTopBarFit(live.copy(recap = recap(total = 120f)))
+            assertFalse("never beside Resume and End ($stripWidth dp)", fit.showRecap)
+            assertEquals("the card keeps everything it had ($stripWidth dp)", novaLibraryTopBarFit(live), fit)
+            fits(live, fit)
+        }
+    }
 }

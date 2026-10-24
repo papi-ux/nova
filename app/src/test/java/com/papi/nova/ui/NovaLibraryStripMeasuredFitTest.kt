@@ -125,4 +125,71 @@ class NovaLibraryStripMeasuredFitTest {
         assertTrue(fit.showContinueText)
         assertEquals(1, fit.continueEyebrowLines)
     }
+
+    private val recapWords = NovaTopBarRecap(
+        label = "LAST STREAM",
+        summary = "Video surface lost · 10:56 PM",
+        viewLabel = "View",
+        dismissLabel = "Dismiss",
+    )
+
+    /**
+     * The RP6's strip with a Space that is ready, a live session's card when [live], and the Last
+     * Stream recap's words in the handheld panel type its card draws them in.
+     */
+    private fun recapFit(fontScale: Float, live: Boolean = false, recap: NovaTopBarRecap? = recapWords): NovaTopBarFit {
+        val density = Density(density = 369f / 160f, fontScale = fontScale)
+        return novaLibraryTopBarMeasuredFit(
+            measure = DeviceText(density),
+            density = density,
+            available = 795.dp,
+            largeText = fontScale >= 1.5f,
+            hostLabel = "test-pc.lan",
+            hostStatus = "Polaris ready",
+            environment = NovaEnvironmentStrings(caption = "Your Space", name = "papi - steam", status = null),
+            continueCard = if (!live) null else NovaTopBarContinue(
+                eyebrow = "Resume your stream",
+                title = "Control Ultimate Edition",
+                actionLabel = "Resume Stream",
+                secondaryActionLabel = "End Session",
+                hasCover = true,
+            ),
+            base = TextStyle.Default,
+            buttonStyle = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
+            splitStyle = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+            optionsLabel = "Options",
+            systemLabel = "System",
+            recap = recap,
+            recapLabelStyle = novaStreamRecapSolid(com.papi.nova.ui.panel.NovaPanelType.Handheld.sectionLabel),
+            recapSummaryStyle = novaStreamRecapSolid(com.papi.nova.ui.panel.NovaPanelType.Handheld.caption),
+        )
+    }
+
+    // The strip's middle is about 409 dp of nothing at 1.0 on the RP6, and the recap wants about
+    // 343: it goes there, on a line it has room for, and nothing else gives way for it.
+    @Test
+    fun theRp6sIdleStripHoldsTheRecapInItsMiddle() {
+        val fit = recapFit(1f)
+        assertTrue("the recap fits the idle middle: $fit", fit.showRecap)
+        assertTrue("its summary has a line: $fit", fit.recapSummaryLines >= 1)
+        assertEquals(recapFit(1f, recap = null), fit.copy(showRecap = false, recapSummaryLines = 1))
+    }
+
+    // At 1.3 the words outgrow what the row leaves over: the recap takes the bar's second line
+    // rather than the host's status, the Space's caption or a menu's width.
+    @Test
+    fun atLargerTextTheRecapTakesTheBarsSecondLineAndCostsNothing() {
+        val fit = recapFit(1.3f)
+        assertFalse("the second line at 1.3: $fit", fit.showRecap)
+        assertEquals(recapFit(1.3f, recap = null), fit.copy(recapSummaryLines = 1))
+    }
+
+    @Test
+    fun aLiveSessionsCardKeepsTheMiddleFromTheRecap() {
+        for (fontScale in listOf(0.85f, 1f, 1.3f)) {
+            val fit = recapFit(fontScale, live = true)
+            assertFalse("Resume and End keep the middle at $fontScale: $fit", fit.showRecap)
+            assertEquals(recapFit(fontScale, live = true, recap = null), fit.copy(recapSummaryLines = 1))
+        }
+    }
 }

@@ -198,6 +198,8 @@ internal fun NovaLibraryPortraitToolbarContent(
     identityStatus: @Composable () -> Unit = {},
     onOpenOptions: () -> Unit,
     onOpenSystemMenu: () -> Unit,
+    /** The Last Stream recap, as the bar's second line: the row has no room for it beside the menus. */
+    recapSlot: (@Composable () -> Unit)? = null,
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
     val largeText = LocalDensity.current.fontScale >= 1.5f
@@ -208,38 +210,55 @@ internal fun NovaLibraryPortraitToolbarContent(
             .testTag("nova-library-portrait-toolbar"),
     ) {
         val showMetadata = !largeText && maxWidth >= 400.dp
-        Row(
+        // One frame for the row and the recap's line under it, as in the landscape strip.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = if (largeText) 74.dp else 60.dp)
                 .clip(RoundedCornerShape(NovaRadius.hero))
                 .background(surfaces.panel.copy(alpha = 0.72f * LocalNovaMenuOpacityScale.current))
-                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero))
-                .padding(horizontal = 10.dp, vertical = 5.5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .border(1.dp, surfaces.tileBorder, RoundedCornerShape(NovaRadius.hero)),
         ) {
-            NovaLibraryToolbarIdentity(
-                hostLabel = hostLabel,
-                cinematic = false,
-                modifier = Modifier.weight(1f),
-                statusContent = identityStatus,
-            )
-            if (showMetadata) {
-                NovaLibraryResultAndLayoutMeta(
-                    resultCount = resultCount,
-                    layoutLabel = layoutLabel,
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = if (largeText) 74.dp else 60.dp)
+                    .padding(horizontal = 10.dp, vertical = 5.5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                NovaLibraryToolbarIdentity(
+                    hostLabel = hostLabel,
                     cinematic = false,
+                    modifier = Modifier.weight(1f),
+                    statusContent = identityStatus,
+                )
+                if (showMetadata) {
+                    NovaLibraryResultAndLayoutMeta(
+                        resultCount = resultCount,
+                        layoutLabel = layoutLabel,
+                        cinematic = false,
+                    )
+                }
+                NovaLibraryToolbarOptionsAction(
+                    largeText = largeText,
+                    primary = true,
+                    onClick = onOpenOptions,
+                )
+                NovaLibraryToolbarSystemAction(
+                    onClick = onOpenSystemMenu,
                 )
             }
-            NovaLibraryToolbarOptionsAction(
-                largeText = largeText,
-                primary = true,
-                onClick = onOpenOptions,
-            )
-            NovaLibraryToolbarSystemAction(
-                onClick = onOpenSystemMenu,
-            )
+            if (recapSlot != null) {
+                Box(Modifier.fillMaxWidth().height(NovaPanelMetrics.Hairline).background(surfaces.tileBorder))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 5.5.dp)
+                        .testTag(NOVA_LIBRARY_RECAP_LINE_TAG),
+                ) {
+                    recapSlot()
+                }
+            }
         }
     }
 }
@@ -284,6 +303,13 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
     environmentStatusKnown: Boolean = true,
     environmentChanging: Boolean = false,
     onChooseEnvironment: () -> Unit = {},
+    /** The Last Stream recap's words, so the strip can measure the recap before drawing it. */
+    recapWords: NovaTopBarRecap? = null,
+    /**
+     * The Last Stream recap, given the lines its summary may take: in the strip's middle when no
+     * card is there and the fit has room, otherwise the bar's second line, under the strip.
+     */
+    recapSlot: (@Composable (summaryLines: Int) -> Unit)? = null,
 ) {
     val surfaces = LocalNovaLibrarySurfaces.current
     val largeText = LocalDensity.current.fontScale >= 1.5f
@@ -312,80 +338,106 @@ internal fun NovaLibraryLandscapeShowcaseStripContent(
             hostStatus = hostStatus,
             environment = environment,
             continueCard = if (continueSlot != null) continueCard else null,
+            recap = if (recapSlot != null) recapWords else null,
         )
-        Row(
+        // One frame holds the strip and, when the recap has no room in the strip's middle, the
+        // recap's line under it: the host bar, not a second card under it.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText).dp)
                 .clip(shape)
                 .background(surfaces.panel.copy(alpha = 0.34f * LocalNovaMenuOpacityScale.current))
-                .border(1.dp, surfaces.tileBorder, shape)
-                .padding(horizontal = NOVA_TOP_BAR_HORIZONTAL_PADDING, vertical = 5.5.dp)
-                .testTag("nova-library-landscape-toolbar"),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(NOVA_TOP_BAR_GAP),
+                .border(1.dp, surfaces.tileBorder, shape),
         ) {
-            // The host and what is running take whatever the right-hand cluster leaves: Row
-            // measures unweighted children first, so Options and System always get their width.
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText).dp)
+                    .padding(horizontal = NOVA_TOP_BAR_HORIZONTAL_PADDING, vertical = 5.5.dp)
+                    .testTag("nova-library-landscape-toolbar"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(NOVA_TOP_BAR_GAP),
             ) {
-                NovaLibraryToolbarIdentity(
-                    hostLabel = shownHost,
-                    cinematic = true,
-                    modifier = Modifier.widthIn(max = minOf(NOVA_TOP_BAR_IDENTITY_CAP, fit.identityMax).dp),
-                    statusContent = {
-                        if (hostStatus != null && fit.showHostStatus) {
-                            Text(
-                                text = hostStatus,
-                                color = LocalNovaComposeColors.current.textSecondary,
-                                fontSize = 10.sp,
-                                lineHeight = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                // The host and what is running take whatever the right-hand cluster leaves: Row
+                // measures unweighted children first, so Options and System always get their width.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NOVA_TOP_BAR_GAP),
+                ) {
+                    NovaLibraryToolbarIdentity(
+                        hostLabel = shownHost,
+                        cinematic = true,
+                        modifier = Modifier.widthIn(max = minOf(NOVA_TOP_BAR_IDENTITY_CAP, fit.identityMax).dp),
+                        statusContent = {
+                            if (hostStatus != null && fit.showHostStatus) {
+                                Text(
+                                    text = hostStatus,
+                                    color = LocalNovaComposeColors.current.textSecondary,
+                                    fontSize = 10.sp,
+                                    lineHeight = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
+                    )
+                    if (continueSlot != null) {
+                        // The card's existing fill-height children keep the normal strip budget.
+                        // Only this bounded card can grow for an intersecting camera; the strip
+                        // itself wraps its tallest child instead of filling the window height.
+                        Row(Modifier.weight(1f).novaAvoidCameraCutout()
+                            .height((NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 11f).dp)) {
+                            continueSlot(fit)
                         }
-                    },
-                )
-                if (continueSlot != null) {
-                    // The card's existing fill-height children keep the normal strip budget.
-                    // Only this bounded card can grow for an intersecting camera; the strip
-                    // itself wraps its tallest child instead of filling the window height.
-                    Row(Modifier.weight(1f).novaAvoidCameraCutout()
-                        .height((NovaLibraryUiStateMapper.landscapeShowcaseStripHeightDp(largeText) - 11f).dp)) {
-                        continueSlot(fit)
+                    } else if (recapSlot != null && fit.showRecap) {
+                        // The room the row leaves over, measured to hold the recap's words whole.
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            recapSlot(fit.recapSummaryLines)
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                } else {
-                    Spacer(modifier = Modifier.weight(1f))
+                }
+                if (environments != null) {
+                    // Directly left of Options, with the same gap as Options and System: the Space is
+                    // something to change, like the menus beside it. Sized to its content beside the
+                    // host, it read as floating in the middle of the strip.
+                    NovaEnvironmentBar(
+                        spaces = environments,
+                        enabled = environmentEnabled,
+                        statusKnown = environmentStatusKnown,
+                        changing = environmentChanging,
+                        onChoose = onChooseEnvironment,
+                        modifier = Modifier.widthIn(max = minOf(280f * fontScale, fit.spaceWidth).dp),
+                        compact = true,
+                        showCaption = fit.showSpaceCaption,
+                        compactStatus = fit.compactSpaceStatus,
+                        showName = fit.showSpaceName,
+                    )
+                }
+                NovaLibraryToolbarOptionsAction(
+                    largeText = largeText,
+                    primary = false,
+                    onClick = onOpenOptions,
+                )
+                NovaLibraryToolbarSystemAction(
+                    onClick = onOpenSystemMenu,
+                )
+            }
+            if (recapSlot != null && !fit.showRecap) {
+                // No room in the middle, or a card holds it: the recap's own line, under a
+                // hairline, where its words wrap instead of squeezing the strip above.
+                Box(Modifier.fillMaxWidth().height(NovaPanelMetrics.Hairline).background(surfaces.tileBorder))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = NOVA_TOP_BAR_HORIZONTAL_PADDING, vertical = 5.5.dp)
+                        .testTag(NOVA_LIBRARY_RECAP_LINE_TAG),
+                ) {
+                    recapSlot(Int.MAX_VALUE)
                 }
             }
-            if (environments != null) {
-                // Directly left of Options, with the same gap as Options and System: the Space is
-                // something to change, like the menus beside it. Sized to its content beside the
-                // host, it read as floating in the middle of the strip.
-                NovaEnvironmentBar(
-                    spaces = environments,
-                    enabled = environmentEnabled,
-                    statusKnown = environmentStatusKnown,
-                    changing = environmentChanging,
-                    onChoose = onChooseEnvironment,
-                    modifier = Modifier.widthIn(max = minOf(280f * fontScale, fit.spaceWidth).dp),
-                    compact = true,
-                    showCaption = fit.showSpaceCaption,
-                    compactStatus = fit.compactSpaceStatus,
-                    showName = fit.showSpaceName,
-                )
-            }
-            NovaLibraryToolbarOptionsAction(
-                largeText = largeText,
-                primary = false,
-                onClick = onOpenOptions,
-            )
-            NovaLibraryToolbarSystemAction(
-                onClick = onOpenSystemMenu,
-            )
         }
     }
 }
@@ -435,6 +487,7 @@ private fun rememberNovaLibraryTopBarFit(
     hostStatus: String?,
     environment: NovaEnvironmentStrings?,
     continueCard: NovaTopBarContinue?,
+    recap: NovaTopBarRecap?,
 ): NovaTopBarFit {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -444,9 +497,13 @@ private fun rememberNovaLibraryTopBarFit(
     val systemLabel = stringResource(R.string.nova_system_menu_title)
     // End Session is a split confirm in the strip's own button style, with its mark.
     val splitStyle = novaLibraryStripButtonStyle().text
+    // The recap's words in the styles its card draws them in.
+    val recapLabelStyle = novaStreamRecapLabelStyle()
+    val recapSummaryStyle = novaStreamRecapSummaryStyle()
     return remember(
         available, largeText, hostLabel, hostStatus, environment, continueCard,
         density, base, buttonStyle, optionsLabel, systemLabel, splitStyle,
+        recap, recapLabelStyle, recapSummaryStyle,
     ) {
         novaLibraryTopBarMeasuredFit(
             measure = NovaTopBarTextMeasurer(measurer),
@@ -462,6 +519,9 @@ private fun rememberNovaLibraryTopBarFit(
             splitStyle = splitStyle,
             optionsLabel = optionsLabel,
             systemLabel = systemLabel,
+            recap = recap,
+            recapLabelStyle = recapLabelStyle,
+            recapSummaryStyle = recapSummaryStyle,
         )
     }
 }
@@ -486,6 +546,9 @@ internal fun novaLibraryTopBarMeasuredFit(
     splitStyle: TextStyle,
     optionsLabel: String,
     systemLabel: String,
+    recap: NovaTopBarRecap? = null,
+    recapLabelStyle: TextStyle = TextStyle.Default,
+    recapSummaryStyle: TextStyle = TextStyle.Default,
 ): NovaTopBarFit {
     if (available == Dp.Infinity || available <= 0.dp) return NovaTopBarFit()
     return with(density) {
@@ -527,6 +590,16 @@ internal fun novaLibraryTopBarMeasuredFit(
             return wide
         }
         fun titleWidth(title: String, lines: Int): Float = wordsWidth(title, titleStyle, lines)
+        // The recap's label on one line over its summary, on the lines the strip's height leaves
+        // it. With none, its words cannot be whole in the strip and it takes the bar's own line.
+        val recapLabel = base.merge(recapLabelStyle)
+        val recapSummary = base.merge(recapSummaryStyle)
+        val recapLines = recap?.let { words ->
+            novaTopBarTitleLines(
+                stripInside - measure.height(words.label, recapLabel) - NOVA_STREAM_RECAP_WORDS_GAP.toPx(),
+                measure.height("Ag", recapSummary).toFloat(),
+            )
+        } ?: 0
         val fit = novaLibraryTopBarFit(
             NovaTopBarWidths(
                 available = available.value,
@@ -589,6 +662,20 @@ internal fun novaLibraryTopBarMeasuredFit(
                 },
                 options = button(optionsLabel, 11.sp),
                 system = button(systemLabel, 10.sp),
+                recap = recap?.let { words ->
+                    NovaTopBarRecapWidths(
+                        textMin = if (recapLines > 0) {
+                            maxOf(width(words.label, recapLabel), wordsWidth(words.summary, recapSummary, recapLines)) +
+                                NOVA_TOP_BAR_WORDS_ROOM
+                        } else {
+                            available.value * 2
+                        },
+                        gap = NovaPanelMetrics.SpaceSm.value,
+                        // NovaActionSurface's 12 dp content padding each side, as Options and System have.
+                        view = width(words.viewLabel, recapSummary) + NOVA_TOP_BAR_BUTTON_PADDING,
+                        dismiss = width(words.dismissLabel, recapSummary) + NOVA_TOP_BAR_BUTTON_PADDING,
+                    )
+                },
             ),
         )
         fit.copy(
@@ -602,6 +689,7 @@ internal fun novaLibraryTopBarMeasuredFit(
                 fit.showContinueEyebrow -> refusalLinesOverTitle.coerceAtLeast(1)
                 else -> refusalLinesAlone
             },
+            recapSummaryLines = recapLines.coerceAtLeast(1),
         )
     }
 }

@@ -1907,6 +1907,10 @@ class NovaLibraryActivity : NovaActivity() {
                                 layoutMode = model.optionsState.layoutMode,
                                 hasActiveSession = activeSession != null,
                             ) && NovaLibraryUiStateMapper.showTopBarCard(model.hero)
+                            // The last stream's recap, if this host has one: in the host bar, optional,
+                            // never focused first, and never in the place of Resume and End.
+                            val recap = lastStreamRecap
+                            val recapWords = recap?.let { novaStreamRecapWords(it) }
                             NovaLibraryLandscapeShowcaseStripContent(
                                 environments = environments,
                                 environmentEnabled = !choosingSpace,
@@ -1946,6 +1950,20 @@ class NovaLibraryActivity : NovaActivity() {
                                 } else {
                                     null
                                 },
+                                recapWords = recapWords,
+                                recapSlot = if (recap != null) {
+                                    { summaryLines ->
+                                        NovaStreamRecapCard(
+                                            recap = recap,
+                                            onView = { viewStreamRecap(recap) },
+                                            onDismiss = { dismissStreamRecap(recap) },
+                                            summaryLines = summaryLines,
+                                            preparedWords = recapWords,
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                             )
                             // A search in force says so above what it narrows, and A there clears it (N12).
                             if (searchQuery.isNotBlank()) NovaLibrarySearchChip(
@@ -1957,18 +1975,6 @@ class NovaLibraryActivity : NovaActivity() {
                                     vertical = 4.dp,
                                 ),
                             )
-                            // The last stream's recap, if this host has one: optional, never focused first.
-                            lastStreamRecap?.let { recap ->
-                                NovaStreamRecapCard(
-                                    recap = recap,
-                                    onView = { viewStreamRecap(recap) },
-                                    onDismiss = { dismissStreamRecap(recap) },
-                                    modifier = Modifier.padding(
-                                        horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
-                                        vertical = 4.dp,
-                                    ),
-                                )
-                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -2064,18 +2070,6 @@ class NovaLibraryActivity : NovaActivity() {
                                     vertical = 4.dp,
                                 ),
                             )
-                            // The last stream's recap, if this host has one: optional, never focused first.
-                            lastStreamRecap?.let { recap ->
-                                NovaStreamRecapCard(
-                                    recap = recap,
-                                    onView = { viewStreamRecap(recap) },
-                                    onDismiss = { dismissStreamRecap(recap) },
-                                    modifier = Modifier.padding(
-                                        horizontal = NovaLibraryUiStateMapper.libraryBarContentInsetDp().dp,
-                                        vertical = 4.dp,
-                                    ),
-                                )
-                            }
                             NovaLibraryContent(
                                 modifier = Modifier.weight(1f),
                                 model = model,
@@ -2259,6 +2253,9 @@ class NovaLibraryActivity : NovaActivity() {
         onOpenSystemMenu: () -> Unit
     ) {
         val hasFilters = hasClearableFilters(searchQuery, filterState)
+        // The last stream's recap, if this host has one: the header's second line, optional and
+        // never focused first, above the hero's Resume and End rather than in their place.
+        val recap = lastStreamRecap
         NovaLibraryPortraitToolbarContent(
             hostLabel = serverName?.takeIf { it.isNotBlank() } ?: serverHost,
             resultCount = model.resultCount,
@@ -2274,6 +2271,17 @@ class NovaLibraryActivity : NovaActivity() {
             },
             onOpenOptions = onOpenOptions,
             onOpenSystemMenu = onOpenSystemMenu,
+            recapSlot = if (recap != null) {
+                {
+                    NovaStreamRecapCard(
+                        recap = recap,
+                        onView = { viewStreamRecap(recap) },
+                        onDismiss = { dismissStreamRecap(recap) },
+                    )
+                }
+            } else {
+                null
+            },
         )
     }
 
