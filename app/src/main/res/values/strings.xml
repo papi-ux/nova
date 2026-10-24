@@ -1255,8 +1255,8 @@
     <string name="nova_working_baseline_reading_control_rtt">Control-channel round trip (not video latency)</string>
     <string name="nova_working_baseline_reading_control_rtt_variance">Control-channel round-trip variance</string>
     <string name="nova_recap_card_title">Last stream</string>
-    <string name="nova_recap_card_summary">Ended %1$s (UTC) · %2$s · %3$d client samples</string>
-    <string name="nova_recap_card_summary_no_samples">Ended %1$s (UTC) · %2$s · no client video samples</string>
+    <!-- The host bar's one line: what ended the stream, then when, in this device's time. -->
+    <string name="nova_recap_card_summary">%1$s · %2$s</string>
     <string name="nova_recap_view">View</string>
     <string name="nova_recap_dismiss">Dismiss</string>
     <string name="nova_recap_page_title">Last Stream</string>

@@ -35,6 +35,12 @@ package com.papi.nova.ui
  *
  * Options and System never shrink or move: the composable measures the right cluster before the
  * left, so a residual mismatch squeezes the host side, never the menus.
+ *
+ * The Last Stream recap gives nothing else up. It takes the strip's middle only while no card is
+ * there and only when what is left over holds its words whole beside View and Dismiss; otherwise
+ * it is the bar's second line, under the strip, where its words wrap. A live session's Resume and
+ * End keep the middle. It used to be a row of its own under the strip, unreadable there, and papi
+ * asked for it in the host bar (screenshot of 2026-10-23 23:34).
  */
 
 /**
@@ -114,7 +120,33 @@ internal data class NovaTopBarWidths(
     val continueCard: NovaTopBarContinueWidths?,
     val options: Float,
     val system: Float,
+    /** Null when this host has no Last Stream recap to show. */
+    val recap: NovaTopBarRecapWidths? = null,
 )
+
+/** The Last Stream recap's parts, in dp: its words, then View and Dismiss, [gap] apart. */
+internal data class NovaTopBarRecapWidths(
+    /** The width the label and the summary need to be read whole, on the lines the strip has. */
+    val textMin: Float,
+    val gap: Float,
+    val view: Float,
+    val dismiss: Float,
+)
+
+/** The recap's width in the strip's middle. */
+internal fun novaTopBarRecapWidth(recap: NovaTopBarRecapWidths): Float =
+    recap.textMin + recap.view + recap.dismiss + recap.gap * 2
+
+/**
+ * Whether the recap sits in the strip's middle under [fit]: never beside a card, and only in the
+ * room the row leaves over, so it never costs the host, the Space or the menus anything.
+ */
+internal fun novaTopBarRecapFits(widths: NovaTopBarWidths, fit: NovaTopBarFit): Boolean {
+    val recap = widths.recap ?: return false
+    if (widths.continueCard != null) return false
+    val room = widths.available - novaTopBarRequiredWidth(widths, fit)
+    return room + NOVA_TOP_BAR_EPSILON >= novaTopBarRecapWidth(recap)
+}
 
 /** What the strip shows once it fits. */
 internal data class NovaTopBarFit(
@@ -139,6 +171,10 @@ internal data class NovaTopBarFit(
     val continueTitleLines: Int = 1,
     /** How many lines the eyebrow may take: one, or a refused End's reason's lines. Set where measured. */
     val continueEyebrowLines: Int = 1,
+    /** The recap sits in the strip's middle; without room it is the bar's second line. */
+    val showRecap: Boolean = false,
+    /** How many lines the recap's summary may take in the strip's middle. Set where measured. */
+    val recapSummaryLines: Int = 1,
 ) {
     val showSpaceName: Boolean get() = spaceNameMax >= NOVA_TOP_BAR_NAME_MIN
 }
@@ -208,6 +244,17 @@ internal data class NovaTopBarContinue(
 )
 
 /**
+ * The Last Stream recap's words, so the strip can measure the recap before drawing it: the label
+ * over the summary, then the two actions.
+ */
+internal data class NovaTopBarRecap(
+    val label: String,
+    val summary: String,
+    val viewLabel: String,
+    val dismissLabel: String,
+)
+
+/**
  * The continue card's words for [hero], by the same rules the card draws with: a cover when there
  * is a game to show, and End Session only when the hero offers that action.
  */
@@ -224,8 +271,14 @@ internal fun NovaLibraryHeroState.topBarContinue(): NovaTopBarContinue = NovaTop
 internal fun novaLibraryTopBarFit(widths: NovaTopBarWidths): NovaTopBarFit {
     val fit = fitTopBar(widths)
     // Once the name has been cut the control needs an exact width so the name ellipsizes there.
-    val space = widths.space ?: return fit
-    return if (fit.spaceNameMax.isFinite()) fit.copy(spaceWidth = novaTopBarSpaceWidth(space, fit) + 1f) else fit
+    val space = widths.space
+    val sized = if (space != null && fit.spaceNameMax.isFinite()) {
+        fit.copy(spaceWidth = novaTopBarSpaceWidth(space, fit) + 1f)
+    } else {
+        fit
+    }
+    // The recap is decided last, from what the fitted row leaves over.
+    return sized.copy(showRecap = novaTopBarRecapFits(widths, sized))
 }
 
 private fun fitTopBar(widths: NovaTopBarWidths): NovaTopBarFit {
