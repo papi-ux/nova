@@ -16,4 +16,12 @@ Nova works best with Polaris because Polaris can provide richer library metadata
 
 Nova does not provide cloud gaming by itself. You need a PC or compatible host on your network. Polaris-related tuning indicators are local host state, not a cloud AI service.
 
-This is an early public release. It is usable, but there will still be bugs and device-specific rough edges while the Android client and Polaris integration continue to mature.
+Optional permissions:
+
+- Camera access scans a host-pairing QR code. You can add and pair a host manually without it.
+- The accessibility helper forwards physical keyboard keys during a connected stream, including shortcuts Android would otherwise intercept. You choose whether to enable it in Android settings. Its declared capabilities include key filtering and window-content access; it is not required for ordinary streaming.
+- Bluetooth access supports compatible controllers. The built-in updater can request permission to open an APK in Android's installer after you choose to download it.
+
+Permission, network and repository-readiness details: https://github.com/papi-ux/nova/blob/master/docs/fdroid.md
+
+This listing describes Nova for Android. Native Linux/Steam Deck and Steam Frame builds are available separately from the project.
