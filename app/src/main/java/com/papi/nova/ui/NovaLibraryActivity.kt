@@ -1910,6 +1910,7 @@ class NovaLibraryActivity : NovaActivity() {
                             // The last stream's recap, if this host has one: in the host bar, optional,
                             // never focused first, and never in the place of Resume and End.
                             val recap = lastStreamRecap
+                            val recapWords = recap?.let { novaStreamRecapWords(it) }
                             NovaLibraryLandscapeShowcaseStripContent(
                                 environments = environments,
                                 environmentEnabled = !choosingSpace,
@@ -1949,7 +1950,7 @@ class NovaLibraryActivity : NovaActivity() {
                                 } else {
                                     null
                                 },
-                                recapWords = recap?.let { novaStreamRecapWords(it) },
+                                recapWords = recapWords,
                                 recapSlot = if (recap != null) {
                                     { summaryLines ->
                                         NovaStreamRecapCard(
@@ -1957,6 +1958,7 @@ class NovaLibraryActivity : NovaActivity() {
                                             onView = { viewStreamRecap(recap) },
                                             onDismiss = { dismissStreamRecap(recap) },
                                             summaryLines = summaryLines,
+                                            preparedWords = recapWords,
                                         )
                                     }
                                 } else {

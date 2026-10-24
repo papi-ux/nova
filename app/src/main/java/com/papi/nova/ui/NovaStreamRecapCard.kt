@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.diagnostics.NovaStreamRecap
@@ -48,10 +49,12 @@ internal fun NovaStreamRecapCard(
     modifier: Modifier = Modifier,
     /** The lines the summary may take: the strip's measured room, or all it needs on its own line. */
     summaryLines: Int = Int.MAX_VALUE,
+    /** Reuse the exact words the landscape strip measured, including their formatted date. */
+    preparedWords: NovaTopBarRecap? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val focusManager = LocalFocusManager.current
-    val words = novaStreamRecapWords(recap)
+    val words = preparedWords ?: novaStreamRecapWords(recap)
     val title = stringResource(R.string.nova_recap_card_title)
     val summaryStyle = novaStreamRecapSummaryStyle()
     Row(
@@ -69,12 +72,14 @@ internal fun NovaStreamRecapCard(
                 style = novaStreamRecapLabelStyle(),
                 color = colors.accent,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = words.summary,
                 style = summaryStyle,
                 color = colors.textPrimary,
                 maxLines = summaryLines,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag(NOVA_STREAM_RECAP_SUMMARY_TAG),
             )
         }
