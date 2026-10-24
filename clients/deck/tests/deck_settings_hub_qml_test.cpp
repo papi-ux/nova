@@ -203,7 +203,17 @@ int main(int argc, char** argv) {
     };
     const auto capture = [&](const char* name) { if (argc > 1) { QDir().mkpath(argv[1]); check(window->grabWindow().save(QString::fromLocal8Bit(argv[1]) + "/" + name + ".png"), "capture failed"); } };
     const auto query = [&](const char* text) { auto* s = item("settings-search"); s->forceActiveFocus(); s->setProperty("text", text); settle(); };
-    const auto within = [&](const char* name) { auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect()); check(r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width(), "control outside window"); };
+    const auto describe = [&](const char* name, const QRectF& r, const QRectF& bounds) {
+        std::cerr << name << " rect=" << r.x() << ',' << r.y() << ' ' << r.width() << 'x' << r.height()
+                  << " bounds=" << bounds.x() << ',' << bounds.y() << ' ' << bounds.width() << 'x' << bounds.height()
+                  << " window=" << window->width() << 'x' << window->height() << std::endl;
+    };
+    const auto within = [&](const char* name) {
+        auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect());
+        const bool inside = r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width();
+        if (!inside) describe(name, r, QRectF(0, 0, window->width(), window->height()));
+        check(inside, "control outside window");
+    };
     settle();
     check(root->property("themeId") == "polaris" && root->property("fontScale").toDouble() == 1.3,
           "retired theme did not fall back without resetting text size");
@@ -253,6 +263,17 @@ int main(int argc, char** argv) {
             current["restartRequired"]=true; current["canFinish"]=true; current["canCheck"]=false;
             current["message"]="Update installed. Close and reopen Nova to use it.";
             setState(current); openUpdates(); focused("update-back"); within("update-back"); status("ready");
+            {
+                // Ready adds Finish above Back while the sheet is closed. The focused Back
+                // must be inside the sheet's visible area in this first frame, not later.
+                auto* sheet = root->findChild<QObject*>("update-settings"); check(sheet, "Updates sheet missing");
+                auto* viewport = sheet->property("contentItem").value<QQuickItem*>(); check(viewport, "Updates viewport missing");
+                auto* back = item("update-back");
+                const auto r = back->mapRectToScene(QRectF(0, 0, back->width(), back->height()));
+                const auto visible = viewport->mapRectToScene(QRectF(0, 0, viewport->width(), viewport->height())).adjusted(-1, -1, 1, 1);
+                if (!visible.contains(r)) describe("update-back", r, visible);
+                check(visible.contains(r), "focused Back was outside the visible Updates sheet after opening");
+            }
             check(root->property("updateFinishes").toInt() == 0, "update completion closed Nova automatically");
             capture(("updates-ready-" + QByteArray::number(size.width())).constData()); controllerBack();
             current["supported"]=false; current["restartRequired"]=false; current["canFinish"]=false;

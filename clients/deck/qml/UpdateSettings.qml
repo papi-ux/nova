@@ -95,7 +95,13 @@ Popup {
         wrapMode: Text.WordWrap
         Layout.fillWidth: true
     }
-    component Action: NovaButton { unit: updates.unit; Layout.fillWidth: true }
+    // A state change while the sheet is closed is laid out only after it opens and
+    // focus is placed, so the focused action can still move. Keep it in view as
+    // soon as layout moves it, in the same frame.
+    component Action: NovaButton {
+        unit: updates.unit; Layout.fillWidth: true
+        onYChanged: if (activeFocus) updates.contentItem.revealFocus()
+    }
     contentItem: NovaScrollColumn {
         spacing: 12 * updates.unit
         Copy { text: "Nova Updates"; font.bold: true; font.pixelSize: 28 * updates.unit * NovaTheme.fontScale }
@@ -180,11 +186,6 @@ Popup {
             text: "When enabled, Nova installs updates after 15 seconds idle. A new stream waits until installation finishes. Nova never closes itself automatically."
             color: NovaTheme.secondary
         }
-        Copy {
-            objectName: "update-channel"
-            text: updates.channelNote
-            color: NovaTheme.secondary
-        }
         Action {
             id: finish; objectName: "update-finish"
             visible: !!updates.current.restartRequired
@@ -201,6 +202,13 @@ Popup {
             onClicked: Qt.openUrlExternally("https://github.com/papi-ux/nova/releases")
             KeyNavigation.up: back
             KeyNavigation.down: back
+        }
+        // Channel guidance follows the actions it explains, so Finish and Downloads
+        // stay near the status. Back remains last and keeps this text in view.
+        Copy {
+            objectName: "update-channel"
+            text: updates.channelNote
+            color: NovaTheme.secondary
         }
         Action {
             id: back; objectName: "update-back"
