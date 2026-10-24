@@ -3,6 +3,12 @@
 ## Unreleased
 
 - On Linux, Updates distinguishes an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. Copies without an update channel point to manual downloads, including the ARM64 Frame bundle.
+- Android adds a native Steam Controller (2026) driver, with trackpad modes, grip mappings, motion and basic rumble. USB controllers can navigate Library after access is allowed, including **Y** to change its layout. Wired controls and rumble worked on the SHIELD tested; its Puck did not work and Bluetooth input was limited. Wireless support remains under investigation, and Linux, Steam Deck and Steam Frame keep their existing input paths. See the [Android controller guide](docs/steam-controller-android.md).
+- Command Center takes native controller input while it is open instead of sending menu presses to the game. Held buttons must be released before they can act when the menu closes. Play Setup also keeps D-pad navigation after using a trackpad or mouse.
+- On Android, USB controller changes no longer recreate Library and its game page, which could leave a slow or blank library after ending a stream. The current screen, selection and controller navigation stay in place.
+- **Guide button shortcuts** can be turned off to send Guide and held Guide combinations to the host during gameplay. Start + Select still opens Command Center. The option is on by default; it changes Nova's shortcuts, not the controller's host identity. Thanks to timshen91 for [PR #375](https://github.com/papi-ux/nova/pull/375).
+- Android build tools now resolve Bouncy Castle 1.85 consistently instead of retaining older transitive build dependencies. Nova's runtime cryptography was already on 1.85; this correction does not change it or add app permissions.
+- The Android repository-packaging guide now records the work needed before an IzzyOnDroid re-review after stable 1.5.0. Eligibility and a clean final release APK are still separate requirements; Nova is not listed in IzzyOnDroid or F-Droid main.
 
 ## 1.5.0 - 2026-10-12
 
