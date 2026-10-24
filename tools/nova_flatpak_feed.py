@@ -105,28 +105,63 @@ def descriptors(url, key, channel):
     return repo, ref
 
 
-def write_site(repository, site, previous, channel, version, url, key, architecture="x86_64"):
-    catalog_path(channel, architecture)  # Validate selection before repository I/O.
+def repository_catalogs(repository):
     refs = subprocess.check_output(["ostree", f"--repo={repository}", "refs"], text=True).splitlines()
-    if f"app/{APP}/{architecture}/{channel}" not in refs:
-        raise ValueError("Selected architecture/channel is missing from the exported repository")
     entries = []
     for arch in ARCHITECTURES:
-        for branch in CHANNELS:
-            ref = f"app/{APP}/{arch}/{branch}"
-            if ref not in refs:
-                continue
-            revision = subprocess.check_output(["ostree", f"--repo={repository}", "rev-parse", ref], text=True).strip()
-            path = catalog_path(branch, arch)
-            if (arch, branch) == (architecture, channel):
-                data = catalog(branch, revision, version, arch)
-            else:
-                # Validate every retained architecture/channel independently
-                # against its own signature-verified ref, even for equal commits.
-                data = json.loads((previous / path).read_text())
-                if data != catalog(branch, revision, data.get("version", ""), arch):
-                    raise ValueError("Previous catalog does not match its signed architecture/channel commit")
-            entries.append((arch, branch, path, data))
+        for channel in CHANNELS:
+            ref = f"app/{APP}/{arch}/{channel}"
+            if ref in refs:
+                revision = subprocess.check_output(["ostree", f"--repo={repository}", "rev-parse", ref], text=True).strip()
+                if not COMMIT.fullmatch(revision):
+                    raise ValueError("Invalid repository commit")
+                entries.append((arch, channel, catalog_path(channel, arch), revision))
+    return entries
+
+
+def validate_catalog(data, channel, revision, architecture):
+    if not isinstance(data, dict) or not isinstance(data.get("version"), str):
+        raise ValueError("Invalid previous catalog")
+    if data != catalog(channel, revision, data["version"], architecture):
+        raise ValueError("Previous catalog does not match its signed architecture/channel commit")
+    return data
+
+
+def preserve_catalogs(repository, previous, url):
+    # The caller must first pull the signature-verified repository. Its refs,
+    # not catalog contents, select every architecture/channel worth retaining.
+    url = feed_url(url)
+    entries = []
+    for arch, channel, path, revision in repository_catalogs(repository):
+        raw = subprocess.check_output(["curl", "--disable", "--fail", "--silent", "--show-error",
+                                       "--retry", "0", "--proto", "=https", "--max-time", "30",
+                                       "--max-filesize", "65536", f"{url}/{path.as_posix()}"], text=True)
+        if len(raw.encode("utf-8")) > 65536:
+            raise ValueError("Oversized previous catalog")
+        data = validate_catalog(json.loads(raw), channel, revision, arch)
+        entries.append((path, data))
+    # Fetch and validate the entire set before replacing any destination file.
+    for path, data in entries:
+        output = previous / path; output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def write_site(repository, site, previous, channel, version, url, key, architecture="x86_64"):
+    catalog_path(channel, architecture)  # Validate selection before repository I/O.
+    # Validate descriptor inputs before any output is overwritten, too.
+    descriptors(url, key, channel)
+    refs = repository_catalogs(repository)
+    if not any((arch, branch) == (architecture, channel) for arch, branch, _, _ in refs):
+        raise ValueError("Selected architecture/channel is missing from the exported repository")
+    entries = []
+    for arch, branch, path, revision in refs:
+        if (arch, branch) == (architecture, channel):
+            data = catalog(branch, revision, version, arch)
+        else:
+            # Validate every retained architecture/channel independently
+            # against its own signature-verified ref, even for equal commits.
+            data = validate_catalog(json.loads((previous / path).read_text()), branch, revision, arch)
+        entries.append((arch, branch, path, data))
     site.mkdir(parents=True, exist_ok=True)
     links = []
     for arch, branch, path, data in entries:
@@ -176,6 +211,10 @@ def main():
     site_cmd.add_argument("--version", required=True)
     site_cmd.add_argument("--url", required=True)
     site_cmd.add_argument("--arch", choices=ARCHITECTURES, default="x86_64")
+    preserve_cmd = commands.add_parser("preserve-catalogs")
+    preserve_cmd.add_argument("--repository", type=Path, required=True)
+    preserve_cmd.add_argument("--previous", type=Path, required=True)
+    preserve_cmd.add_argument("--url", required=True)
     args = parser.parse_args()
     if args.command == "validate-release":
         validate_release(json.loads(args.release.read_text()), args.channel)
@@ -187,6 +226,8 @@ def main():
         manifest = json.loads(args.manifest.read_text())
         prepared = prepare(manifest, args.channel, args.url, args.version) if args.command == "prepare" else prepare_release(manifest, args.version)
         args.output.write_text(json.dumps(prepared, indent=2) + "\n")
+    elif args.command == "preserve-catalogs":
+        preserve_catalogs(args.repository, args.previous, args.url)
     else:
         write_site(args.repository, args.site, args.previous, args.channel, args.version, args.url, args.key.read_bytes(), args.arch)
 
