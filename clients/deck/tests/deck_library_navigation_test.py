@@ -407,8 +407,13 @@ def appearance_navigation(wait, keys, state, save_capture, window):
     command("xdotool", "windowsize", window, "960", "600")
     wait(lambda s: s.get("focusVisible"))
     save_capture("appearance-large-text-960.png")
-    # Text size is followed by visibility, opacity and the shortcut hint.
-    keys("Down", "Down", "Down", "Down", "Return")
+    # Follow the controls after Text Size, including Reduce Motion, and
+    # observe Done before activating it so a new row cannot toggle a setting.
+    for target in ("appearance-reduce-motion", "appearance-command-center-button",
+                   "appearance-menu-opacity", "appearance-shortcut-hint", "appearance-done"):
+        keys("Down")
+        wait(lambda s: s.get("focus") == target and s.get("focusVisible"))
+    keys("Return")
     wait(lambda s: not s.get("appearanceOpen") and s.get("focus") == "library-appearance" and s.get("focusVisible"))
     keys("Escape", "Down")
     wait(lambda s: s.get("focus") == s.get("game") and s.get("launchEnabled"))
