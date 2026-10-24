@@ -264,15 +264,30 @@ int main(int argc, char** argv) {
             current["message"]="Update installed. Close and reopen Nova to use it.";
             setState(current); openUpdates(); focused("update-back"); within("update-back"); status("ready");
             {
-                // Ready adds Finish above Back while the sheet is closed. The focused Back
-                // must be inside the sheet's visible area in this first frame, not later.
+                // Back is a fixed footer outside the scrolling body by design. In this first
+                // frame it must sit inside the sheet's content area below the body, and no
+                // clipping parent may hide it.
+                const auto scene = [](QQuickItem* p) { return p->mapRectToScene(QRectF(0, 0, p->width(), p->height())); };
                 auto* sheet = root->findChild<QObject*>("update-settings"); check(sheet, "Updates sheet missing");
-                auto* viewport = sheet->property("contentItem").value<QQuickItem*>(); check(viewport, "Updates viewport missing");
-                auto* back = item("update-back");
-                const auto r = back->mapRectToScene(QRectF(0, 0, back->width(), back->height()));
-                const auto visible = viewport->mapRectToScene(QRectF(0, 0, viewport->width(), viewport->height())).adjusted(-1, -1, 1, 1);
-                if (!visible.contains(r)) describe("update-back", r, visible);
-                check(visible.contains(r), "focused Back was outside the visible Updates sheet after opening");
+                auto* content = sheet->property("contentItem").value<QQuickItem*>(); check(content, "Updates content area missing");
+                auto* body = item("update-body"); auto* back = item("update-back");
+                const auto r = scene(back), area = scene(content).adjusted(-1, -1, 1, 1), viewport = scene(body);
+                if (!area.contains(r)) describe("update-back", r, area);
+                check(area.contains(r), "Back footer was outside the Updates sheet");
+                if (r.top() < viewport.bottom() - 1) describe("update-back", r, viewport);
+                check(r.top() >= viewport.bottom() - 1, "Back footer overlapped the scrolling Updates body");
+                for (auto* ancestor = back->parentItem(); ancestor; ancestor = ancestor->parentItem()) {
+                    if (!ancestor->clip()) continue;
+                    const auto clipRect = scene(ancestor).adjusted(-1, -1, 1, 1);
+                    if (!clipRect.contains(r)) describe("update-back", r, clipRect);
+                    check(clipRect.contains(r), "a clipping parent hid the Back footer");
+                }
+                // Controller: Up reaches Finish, revealed inside the visible body; Down returns to Back.
+                key(Qt::Key_Up); focused("update-finish");
+                const auto f = scene(item("update-finish")), shown = scene(body).adjusted(-1, -1, 1, 1);
+                if (!shown.contains(f)) describe("update-finish", f, shown);
+                check(shown.contains(f), "focused Finish was outside the visible Updates body");
+                key(Qt::Key_Down); focused("update-back"); within("update-back");
             }
             check(root->property("updateFinishes").toInt() == 0, "update completion closed Nova automatically");
             capture(("updates-ready-" + QByteArray::number(size.width())).constData()); controllerBack();

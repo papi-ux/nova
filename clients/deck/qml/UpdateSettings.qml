@@ -95,15 +95,17 @@ Popup {
         wrapMode: Text.WordWrap
         Layout.fillWidth: true
     }
-    // A state change while the sheet is closed is laid out only after it opens and
-    // focus is placed, so the focused action can still move. Keep it in view as
-    // soon as layout moves it, in the same frame.
-    component Action: NovaButton {
-        unit: updates.unit; Layout.fillWidth: true
-        onYChanged: if (activeFocus) updates.contentItem.revealFocus()
-    }
-    contentItem: NovaScrollColumn {
+    component Action: NovaButton { unit: updates.unit; Layout.fillWidth: true }
+    // Status, actions and guidance scroll; Back to Settings is a fixed footer, so
+    // it stays visible however tall the body is.
+    contentItem: ColumnLayout {
         spacing: 12 * updates.unit
+        NovaScrollColumn {
+            objectName: "update-body"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 0
+            spacing: 12 * updates.unit
         Copy { text: "Nova Updates"; font.bold: true; font.pixelSize: 28 * updates.unit * NovaTheme.fontScale }
         Copy {
             text: "Running: " + (updates.current.version || "Development build")
@@ -203,16 +205,21 @@ Popup {
             KeyNavigation.up: back
             KeyNavigation.down: back
         }
-        // Channel guidance follows the actions it explains, so Finish and Downloads
-        // stay near the status. Back remains last and keeps this text in view.
+        // Channel guidance follows the actions it explains and ends the body, so
+        // Finish and Downloads stay near the status.
         Copy {
             objectName: "update-channel"
             text: updates.channelNote
             color: NovaTheme.secondary
         }
+        }
         Action {
             id: back; objectName: "update-back"
             text: "Back to Settings"
+            // Never squeezed by a tall body, and as wide as the body's actions,
+            // which leave room for the scroll bar.
+            Layout.minimumHeight: implicitHeight
+            Layout.rightMargin: 12
             onClicked: updates.close()
             KeyNavigation.up: finish.visible && finish.enabled ? finish : automatic.visible ? automatic : downloads
             KeyNavigation.down: check.visible && check.enabled ? check : automatic.visible ? automatic : downloads
