@@ -21,9 +21,48 @@ Popup {
         checking: ["Checking", "Checking for updates"],
         available: ["Update available", "A Nova update is available"],
         failed: ["Couldn't check", "Couldn't check for updates"],
-        current: ["Up to date", "Up to date on the " + (current.channel || "installed") + " channel"],
+        current: ["Up to date", "Up to date on the " + (channelName || current.channel || "installed") + " channel"],
         unchecked: ["Not checked yet", "Updates haven't been checked yet"]
     })[stateId]
+    readonly property string channelName: current.channel === "beta" ? "Beta" : current.channel === "stable" ? "Stable" : ""
+    // Linux channels are branches of the same app, so pairing and settings carry
+    // over. This view cannot know whether the other channel's installer is
+    // published, so it never claims one is, and it switches nothing.
+    readonly property string channelNote: !current.supported
+        ? "Stable and Beta channels use the same Nova app, pairing and settings. Once the channel installer you want is published on Nova Downloads, installing it turns on updates here. Until then, install newer releases for your device from there; Steam Frame uses its own ARM64 download."
+        : channelName === "Beta"
+            ? "You're on Beta. Stable uses the same Nova app, pairing and settings. Once a Stable channel installer is published on Nova Downloads, installing it lets you return to Stable; check its release notes first. Nova never switches channels by itself."
+            : "You're on Stable. Beta uses the same Nova app, pairing and settings. Once a Beta channel installer is published on Nova Downloads, installing it lets you choose Beta. Nova never switches channels by itself."
+    // New status copy settles in briefly. Errors, an update that ends without
+    // finishing, Reduce Motion and a closed popup show at once. Buttons, focus
+    // and progress never wait for it.
+    property real statusOpacity: 1
+    property string shownState: ""
+    Component.onCompleted: shownState = stateId
+    onStateIdChanged: {
+        const interrupted = shownState === "updating" && stateId !== "ready"
+        shownState = stateId
+        statusFade.stop()
+        if (opened && NovaTheme.motionDuration > 0 && stateId !== "failed" && !interrupted)
+            statusFade.start()
+        else
+            statusOpacity = 1
+    }
+    NumberAnimation {
+        id: statusFade
+        target: updates; property: "statusOpacity"
+        from: 0.4; to: 1
+        duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing
+    }
+    // A zero duration only affects the next fade, so settle one already running.
+    Connections {
+        target: NovaTheme
+        function onReduceMotionChanged() {
+            if (!NovaTheme.reduceMotion) return
+            statusFade.stop()
+            updates.statusOpacity = 1
+        }
+    }
     function primary() { return current.canInstall ? install : current.canCheck ? check : back }
     function keepFocus() {
         if (!opened) return
@@ -43,7 +82,11 @@ Popup {
     closePolicy: Popup.CloseOnEscape
     enter: Transition { }
     exit: Transition { }
-    onOpened: primary().forceActiveFocus()
+    onOpened: {
+        statusFade.stop()
+        statusOpacity = 1
+        primary().forceActiveFocus()
+    }
     background: Rectangle { color: NovaTheme.panel; radius: 12; border.color: NovaTheme.divider }
     component Copy: Label {
         textFormat: Text.PlainText
@@ -53,12 +96,20 @@ Popup {
         Layout.fillWidth: true
     }
     component Action: NovaButton { unit: updates.unit; Layout.fillWidth: true }
-    contentItem: NovaScrollColumn {
+    // Status, actions and guidance scroll; Back to Settings is a fixed footer, so
+    // it stays visible however tall the body is.
+    contentItem: ColumnLayout {
         spacing: 12 * updates.unit
+        NovaScrollColumn {
+            objectName: "update-body"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 0
+            spacing: 12 * updates.unit
         Copy { text: "Nova Updates"; font.bold: true; font.pixelSize: 28 * updates.unit * NovaTheme.fontScale }
         Copy {
             text: "Running: " + (updates.current.version || "Development build")
-                + (updates.current.supported ? " · " + updates.current.channel + " channel" : "")
+                + (updates.current.supported ? " · " + (updates.channelName || updates.current.channel) + " channel" : "")
             color: NovaTheme.secondary
         }
         Copy {
@@ -66,21 +117,28 @@ Popup {
             readonly property string stateId: updates.stateId
             text: updates.presentation[0]
             color: updates.stateId === "failed" ? NovaTheme.warning : NovaTheme.secondary
+            opacity: updates.statusOpacity
             font.bold: true
             font.pixelSize: 14 * updates.unit * NovaTheme.fontScale
         }
         Copy {
             objectName: "update-headline"
             text: updates.presentation[1]
+            opacity: updates.statusOpacity
             font.bold: true
             font.pixelSize: 24 * updates.unit * NovaTheme.fontScale
         }
-        Copy { objectName: "update-status"; text: updates.current.message || "Updates aren't available for this installation." }
+        Copy {
+            objectName: "update-status"
+            text: updates.current.message || "Updates aren't available for this installation."
+            opacity: updates.statusOpacity
+        }
         Copy {
             visible: !!updates.current.available && !!updates.current.latestVersion && !updates.current.restartRequired
             objectName: "update-latest"
             text: "Latest on this channel: " + (updates.current.latestVersion || "")
             color: NovaTheme.secondary
+            opacity: updates.statusOpacity
         }
         ProgressBar {
             objectName: "update-progress"
@@ -147,9 +205,21 @@ Popup {
             KeyNavigation.up: back
             KeyNavigation.down: back
         }
+        // Channel guidance follows the actions it explains and ends the body, so
+        // Finish and Downloads stay near the status.
+        Copy {
+            objectName: "update-channel"
+            text: updates.channelNote
+            color: NovaTheme.secondary
+        }
+        }
         Action {
             id: back; objectName: "update-back"
             text: "Back to Settings"
+            // Never squeezed by a tall body, and as wide as the body's actions,
+            // which leave room for the scroll bar.
+            Layout.minimumHeight: implicitHeight
+            Layout.rightMargin: 12
             onClicked: updates.close()
             KeyNavigation.up: finish.visible && finish.enabled ? finish : automatic.visible ? automatic : downloads
             KeyNavigation.down: check.visible && check.enabled ? check : automatic.visible ? automatic : downloads

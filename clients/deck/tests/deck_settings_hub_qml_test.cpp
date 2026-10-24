@@ -183,6 +183,7 @@ int main(int argc, char** argv) {
             function controllerBack() { hub.back() }
             function openUpdates() { hub.openUpdates() }
             function resetUpdateNavigation() { hub.selectCategory("all") }
+            function reduceMotion(value) { NovaTheme.setReduceMotion(value) }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
             SettingsHub { id:hub; updateController:updatesAvailable ? updater : null; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
@@ -202,7 +203,17 @@ int main(int argc, char** argv) {
     };
     const auto capture = [&](const char* name) { if (argc > 1) { QDir().mkpath(argv[1]); check(window->grabWindow().save(QString::fromLocal8Bit(argv[1]) + "/" + name + ".png"), "capture failed"); } };
     const auto query = [&](const char* text) { auto* s = item("settings-search"); s->forceActiveFocus(); s->setProperty("text", text); settle(); };
-    const auto within = [&](const char* name) { auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect()); check(r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width(), "control outside window"); };
+    const auto describe = [&](const char* name, const QRectF& r, const QRectF& bounds) {
+        std::cerr << name << " rect=" << r.x() << ',' << r.y() << ' ' << r.width() << 'x' << r.height()
+                  << " bounds=" << bounds.x() << ',' << bounds.y() << ' ' << bounds.width() << 'x' << bounds.height()
+                  << " window=" << window->width() << 'x' << window->height() << std::endl;
+    };
+    const auto within = [&](const char* name) {
+        auto* p = item(name); const auto r = p->mapRectToScene(p->boundingRect());
+        const bool inside = r.top() >= 0 && r.bottom() <= window->height() && r.left() >= 0 && r.right() <= window->width();
+        if (!inside) describe(name, r, QRectF(0, 0, window->width(), window->height()));
+        check(inside, "control outside window");
+    };
     settle();
     check(root->property("themeId") == "polaris" && root->property("fontScale").toDouble() == 1.3,
           "retired theme did not fall back without resetting text size");
@@ -252,6 +263,32 @@ int main(int argc, char** argv) {
             current["restartRequired"]=true; current["canFinish"]=true; current["canCheck"]=false;
             current["message"]="Update installed. Close and reopen Nova to use it.";
             setState(current); openUpdates(); focused("update-back"); within("update-back"); status("ready");
+            {
+                // Back is a fixed footer outside the scrolling body by design. In this first
+                // frame it must sit inside the sheet's content area below the body, and no
+                // clipping parent may hide it.
+                const auto scene = [](QQuickItem* p) { return p->mapRectToScene(QRectF(0, 0, p->width(), p->height())); };
+                auto* sheet = root->findChild<QObject*>("update-settings"); check(sheet, "Updates sheet missing");
+                auto* content = sheet->property("contentItem").value<QQuickItem*>(); check(content, "Updates content area missing");
+                auto* body = item("update-body"); auto* back = item("update-back");
+                const auto r = scene(back), area = scene(content).adjusted(-1, -1, 1, 1), viewport = scene(body);
+                if (!area.contains(r)) describe("update-back", r, area);
+                check(area.contains(r), "Back footer was outside the Updates sheet");
+                if (r.top() < viewport.bottom() - 1) describe("update-back", r, viewport);
+                check(r.top() >= viewport.bottom() - 1, "Back footer overlapped the scrolling Updates body");
+                for (auto* ancestor = back->parentItem(); ancestor; ancestor = ancestor->parentItem()) {
+                    if (!ancestor->clip()) continue;
+                    const auto clipRect = scene(ancestor).adjusted(-1, -1, 1, 1);
+                    if (!clipRect.contains(r)) describe("update-back", r, clipRect);
+                    check(clipRect.contains(r), "a clipping parent hid the Back footer");
+                }
+                // Controller: Up reaches Finish, revealed inside the visible body; Down returns to Back.
+                key(Qt::Key_Up); focused("update-finish");
+                const auto f = scene(item("update-finish")), shown = scene(body).adjusted(-1, -1, 1, 1);
+                if (!shown.contains(f)) describe("update-finish", f, shown);
+                check(shown.contains(f), "focused Finish was outside the visible Updates body");
+                key(Qt::Key_Down); focused("update-back"); within("update-back");
+            }
             check(root->property("updateFinishes").toInt() == 0, "update completion closed Nova automatically");
             capture(("updates-ready-" + QByteArray::number(size.width())).constData()); controllerBack();
             current["supported"]=false; current["restartRequired"]=false; current["canFinish"]=false;
@@ -260,6 +297,61 @@ int main(int argc, char** argv) {
                 && !find(window->contentItem(), "update-automatic"), "manual install offered automatic updates");
             controllerBack(); controllerBack(); focused("open-settings");
         }
+        // Status copy may ease in, but an error, an update that ends without finishing
+        // and Reduce Motion show at once. Controls and focus never wait for it.
+        window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme"); settle();
+        const auto settled = [&](const char* message) {
+            for (const auto* name : {"update-state", "update-headline", "update-status"})
+                check(item(name)->property("opacity").toReal() == 1.0, message);
+        };
+        auto motion = original; setState(motion); openUpdates(); focused("update-install"); settled("opening Updates faded its status in");
+        motion["available"]=false; motion["canInstall"]=false; motion["checking"]=true; motion["canCheck"]=false; setState(motion);
+        status("checking"); focused("update-back");
+        motion["checking"]=false; motion["canCheck"]=true; motion["lastCheck"]="failed"; setState(motion);
+        status("failed"); settled("a failed check eased in instead of appearing at once");
+        focused("update-back"); check(item("update-check")->isEnabled(), "a failed check delayed Check for Updates");
+        setState(original); click("update-install"); status("updating"); focused("update-back");
+        motion = root->property("updateState").toMap();
+        motion["installing"]=false; motion["canInstall"]=true; motion["canCheck"]=true;
+        motion["message"]="The system updater disconnected. Check for updates to try again."; setState(motion);
+        status("available"); settled("an interrupted update eased in instead of appearing at once");
+        focused("update-back"); check(item("update-install")->isEnabled(), "an interrupted update delayed Update Nova");
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, true)), "cannot reduce motion"); settle();
+        motion["available"]=false; motion["canInstall"]=false; motion["lastCheck"]="succeeded"; setState(motion);
+        status("current"); settled("Reduce Motion still eased in new status");
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "cannot restore motion"); settle();
+        // Turning Reduce Motion on settles a fade that is already running. Focus,
+        // buttons and progress stay as they are, and nothing moves afterwards.
+        auto* updatesPopup = root->findChild<QObject*>("update-settings"); check(updatesPopup, "Updates popup missing");
+        motion = original; motion["installing"]=true; motion["canInstall"]=false; motion["canCheck"]=false; motion["progress"]=35;
+        motion["message"]="Updating Nova… Keep Nova open until this finishes.";
+        root->setProperty("updateState", motion);  // No frame yet: the calm fade has just started.
+        check(updatesPopup->property("statusOpacity").toReal() < 1.0, "a calm state change did not start a status fade");
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, true)), "cannot reduce motion");
+        check(updatesPopup->property("statusOpacity").toReal() == 1.0, "Reduce Motion left the running status fade in place");
+        settle(); status("updating"); settled("Reduce Motion left status copy partly faded");
+        focused("update-back"); check(!item("update-install")->isEnabled(), "Reduce Motion re-enabled Update Nova during an install");
+        check(item("update-progress")->property("value").toInt() == 35 && !item("update-progress")->property("indeterminate").toBool(),
+              "Reduce Motion changed the reported progress");
+        for (int frame = 0; frame < 12; ++frame) { QTest::qWait(25); settled("status copy kept moving after Reduce Motion"); }
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "cannot restore motion"); settle();
+        // Both channels stay named. Linux channels share the app and its data, and an
+        // installer only applies once it is published; copies without one say so.
+        const auto channelNote = [&](std::initializer_list<const char*> present, std::initializer_list<const char*> absent) {
+            const auto text = item("update-channel")->property("text").toString();
+            for (const auto* fragment : present) check(text.contains(QString::fromUtf8(fragment)), "channel guidance lost a required fact");
+            for (const auto* fragment : absent) check(!text.contains(QString::fromUtf8(fragment)), "channel guidance made an unsupported claim");
+        };
+        auto channel = original; channel["available"]=false; channel["canInstall"]=false; channel["lastCheck"]="succeeded"; setState(channel);
+        channelNote({"You're on Beta", "Stable", "same Nova app, pairing and settings", "published on Nova Downloads", "never switches channels"},
+                    {"separate installation", "You're on Stable"});
+        channel["channel"]="stable"; setState(channel);
+        channelNote({"You're on Stable", "Beta", "same Nova app, pairing and settings", "published on Nova Downloads", "never switches channels"},
+                    {"separate installation", "You're on Beta"});
+        channel["supported"]=false; setState(channel); status("manual");
+        channelNote({"Stable and Beta", "same Nova app, pairing and settings", "published on Nova Downloads", "for your device", "ARM64"},
+                    {"separate installation", "You're on"});
+        controllerBack(); controllerBack(); focused("open-settings");
         setState(original); root->setProperty("updateChecks", 0); root->setProperty("updateInstalls", 0);
         window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme");
         // The new update cases select App; restore the initial category before
