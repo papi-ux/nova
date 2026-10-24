@@ -183,6 +183,7 @@ int main(int argc, char** argv) {
             function controllerBack() { hub.back() }
             function openUpdates() { hub.openUpdates() }
             function resetUpdateNavigation() { hub.selectCategory("all") }
+            function reduceMotion(value) { NovaTheme.setReduceMotion(value) }
             function syncPreferences() { NovaTheme.preferences.sync(); NovaHudPreferences.preferences.sync(); NovaStreamPreferences.preferences.sync(); prefs.sync() }
             NovaButton { id:open; objectName:"open-settings"; text:"Settings"; onClicked:hub.open() }
             SettingsHub { id:hub; updateController:updatesAvailable ? updater : null; desktopInput:input; windowController:windowMode; settingsProvider:provider; hostController:host; libraryPreferences:prefs; hostAvailable:available; onClosed:open.forceActiveFocus() }
@@ -260,6 +261,30 @@ int main(int argc, char** argv) {
                 && !find(window->contentItem(), "update-automatic"), "manual install offered automatic updates");
             controllerBack(); controllerBack(); focused("open-settings");
         }
+        // Status copy may ease in, but an error, an update that ends without finishing
+        // and Reduce Motion show at once. Controls and focus never wait for it.
+        window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme"); settle();
+        const auto settled = [&](const char* message) {
+            for (const auto* name : {"update-state", "update-headline", "update-status"})
+                check(item(name)->property("opacity").toReal() == 1.0, message);
+        };
+        auto motion = original; setState(motion); openUpdates(); focused("update-install"); settled("opening Updates faded its status in");
+        motion["available"]=false; motion["canInstall"]=false; motion["checking"]=true; motion["canCheck"]=false; setState(motion);
+        status("checking"); focused("update-back");
+        motion["checking"]=false; motion["canCheck"]=true; motion["lastCheck"]="failed"; setState(motion);
+        status("failed"); settled("a failed check eased in instead of appearing at once");
+        focused("update-back"); check(item("update-check")->isEnabled(), "a failed check delayed Check for Updates");
+        setState(original); click("update-install"); status("updating"); focused("update-back");
+        motion = root->property("updateState").toMap();
+        motion["installing"]=false; motion["canInstall"]=true; motion["canCheck"]=true;
+        motion["message"]="The system updater disconnected. Check for updates to try again."; setState(motion);
+        status("available"); settled("an interrupted update eased in instead of appearing at once");
+        focused("update-back"); check(item("update-install")->isEnabled(), "an interrupted update delayed Update Nova");
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, true)), "cannot reduce motion"); settle();
+        motion["available"]=false; motion["canInstall"]=false; motion["lastCheck"]="succeeded"; setState(motion);
+        status("current"); settled("Reduce Motion still eased in new status");
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "cannot restore motion"); settle();
+        controllerBack(); controllerBack(); focused("open-settings");
         setState(original); root->setProperty("updateChecks", 0); root->setProperty("updateInstalls", 0);
         window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme");
         // The new update cases select App; restore the initial category before

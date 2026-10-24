@@ -19,6 +19,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <utility>
 
 namespace {
 void require(bool value, const char* message) {
@@ -36,18 +37,20 @@ QVariantMap saved() {
     for (const auto& key : settings.allKeys()) result[key] = settings.value(key);
     return result;
 }
-void seed(const QString& config, const QString& name, int percent) {
+void seedText(const QString& config, const QString& name, const QByteArray& ini) {
     // Each application name has a new native INI store. Write raw bytes before
-    // any QSettings/QQmlEngine read, so cold numeric strings cannot be hidden by
+    // any QSettings/QQmlEngine read, so cold string values cannot be hidden by
     // a same-process typed setter cache.
     const auto filename = QDir(config).filePath("NovaDeckTests/" + name + ".conf");
     require(QDir().mkpath(QFileInfo(filename).absolutePath()), "raw appearance store directory failed");
     QFile file(filename); require(file.open(QIODevice::WriteOnly), "raw appearance store open failed");
-    const auto ini = QString("[Appearance]\ntextScale=%1\n\n[InGameControls]\ncommandCenterButton=false\nshortcutHint=false\nmenuOpacityPercent=64\n\n[Unrelated]\nsentinel=preserve-me\n")
-        .arg(QString::number(percent / 100., 'g', 4)).toUtf8();
     require(file.write(ini) == ini.size(), "raw appearance store write failed"); file.close();
     QSettings settings;
     require(QFileInfo(settings.fileName()).absoluteFilePath() == QFileInfo(filename).absoluteFilePath(), "raw INI did not address the actual native store");
+}
+void seed(const QString& config, const QString& name, int percent) {
+    seedText(config, name, QString("[Appearance]\ntextScale=%1\n\n[InGameControls]\ncommandCenterButton=false\nshortcutHint=false\nmenuOpacityPercent=64\n\n[Unrelated]\nsentinel=preserve-me\n")
+        .arg(QString::number(percent / 100., 'g', 4)).toUtf8());
 }
 QQuickItem* visual(QQuickItem* root, const QString& name) {
     if (!root->isVisible()) return nullptr;
@@ -82,6 +85,8 @@ ApplicationWindow {
     function changeControl(value) { NovaTheme.setControlSize(value) }
     function state() {
         return {font:NovaTheme.fontScale, theme:NovaTheme.themeId, label:NovaTheme.label,
+            reduceMotion:typeof NovaTheme.reduceMotion === "undefined" ? "missing" : NovaTheme.reduceMotion,
+            motion:typeof NovaTheme.motionDuration === "undefined" ? -1 : NovaTheme.motionDuration,
             size:typeof NovaTheme.controlSize === "undefined" ? "missing" : NovaTheme.controlSize,
             scale:typeof NovaTheme.controlScale === "undefined" ? -1 : NovaTheme.controlScale,
             opacity:typeof NovaStreamPreferences.menuOpacityPercent === "undefined" ? -1 : NovaStreamPreferences.menuOpacityPercent,
@@ -163,6 +168,8 @@ void fresh(const QString& captures) {
     require(near(state["font"].toDouble(), .8), "fresh Linux appearance did not default to 80% text");
     require(state["size"] == "standard" && near(state["scale"].toDouble(), .88), "fresh Linux appearance lost Standard density");
     require(state["opacity"].toInt() == 64, "fresh menu opacity did not default to 64%");
+    require(state["reduceMotion"].typeId() == QMetaType::Bool && !state["reduceMotion"].toBool() && state["motion"].toInt() == 180,
+        "fresh Linux appearance did not start with the restrained 180 ms motion");
     ui.contained(ui.item("appearance-probe-button")); ui.capture("appearance-fresh-80"); ui.clean();
 }
 void legacy(const QString& config) {
@@ -173,7 +180,8 @@ void legacy(const QString& config) {
           require(near(state["font"].toDouble(), percent / 100.), "restart migration changed saved 100/115/130% text");
           require(state["size"] == "standard" && near(state["scale"].toDouble(), .88), "legacy partial record lost Standard density");
           require(!state["commandButton"].toBool() && !state["shortcut"].toBool(), "appearance startup rewrote unrelated in-game choices");
-          require(state["opacity"].toInt() == 64, "cold INI opacity did not load its exact saved percentage"); ui.clean(); }
+          require(state["opacity"].toInt() == 64, "cold INI opacity did not load its exact saved percentage");
+          require(state["reduceMotion"].typeId() == QMetaType::Bool && !state["reduceMotion"].toBool(), "a record without Reduce Motion did not keep motion on"); ui.clean(); }
         require(before == saved(), "appearance startup changed partial or unrelated persisted values");
     }
 }
@@ -260,10 +268,50 @@ void popups(const QString& captures) {
     require(ui.state()["opacity"].toInt() == 64 && saved()["InGameControls/menuOpacityPercent"] == 64, "menu reset Save did not persist64%");
     ui.capture("appearance-menu-reset-saved"); ui.clean();
 }
+void motion(const QString& config, const QString& captures) {
+    {
+        Scene ui(captures); ui.call("openAppearance");
+        auto* appearance = ui.popup("appearance-settings-popup"); wait([&] { return appearance->property("opened").toBool(); });
+        ui.focus("appearance-text-size"); QTest::keyClick(ui.window, Qt::Key_Down); settle();
+        require(ui.window->activeFocusItem() == ui.item("appearance-reduce-motion"), "D-pad did not reach Reduce Motion from Text Size");
+        QTest::keyClick(ui.window, Qt::Key_Down); settle();
+        require(ui.window->activeFocusItem() == ui.item("appearance-command-center-button"), "D-pad did not continue from Reduce Motion to in-game controls");
+        QTest::keyClick(ui.window, Qt::Key_Up); settle();
+        require(ui.window->activeFocusItem() == ui.item("appearance-reduce-motion"), "D-pad did not return to Reduce Motion");
+        const auto before = ui.state();
+        ui.activate("appearance-reduce-motion");
+        auto state = ui.state();
+        require(state["reduceMotion"].toBool() && state["motion"].toInt() == 0 && saved()["Appearance/reduceMotion"].toBool(),
+            "Reduce Motion did not zero motion or persist the choice");
+        require(state["font"] == before["font"] && state["size"] == before["size"] && state["theme"] == before["theme"],
+            "Reduce Motion changed another appearance choice");
+        require(ui.item("appearance-reduce-motion")->property("text") == "Reduce Motion: On" &&
+                ui.window->activeFocusItem() == ui.item("appearance-reduce-motion"), "Reduce Motion lost its state label or focus");
+        ui.capture("appearance-reduce-motion-on");
+        ui.activate("appearance-reduce-motion", true);
+        state = ui.state();
+        require(!state["reduceMotion"].toBool() && state["motion"].toInt() == 180 && !saved()["Appearance/reduceMotion"].toBool(),
+            "touch did not turn Reduce Motion off and persist it");
+        ui.clean();
+    }
+    // A cold INI store returns the saved choice as text. Only "true" turns motion off,
+    // and reading it never rewrites the store.
+    for (const auto& [raw, expected] : {std::pair{QStringLiteral("true"), true}, std::pair{QStringLiteral("false"), false},
+             std::pair{QStringLiteral("yes"), false}}) {
+        const auto name = "Appearance367-motion-" + raw; QCoreApplication::setApplicationName(name);
+        seedText(config, name, ("[Appearance]\nreduceMotion=" + raw + "\n\n[Unrelated]\nsentinel=preserve-me\n").toUtf8());
+        const auto before = saved();
+        { Scene ui; const auto state = ui.state();
+          require(state["reduceMotion"].toBool() == expected && state["motion"].toInt() == (expected ? 0 : 180),
+              "restart did not restore the exact saved Reduce Motion choice");
+          ui.clean(); }
+        require(before == saved(), "appearance startup rewrote the saved Reduce Motion value");
+    }
+}
 void portrait(const QString& captures) {
     Scene ui(captures); ui.window->resize(400, 640); ui.call("changeFont", 1.3); ui.call("changeControl", QStringLiteral("large"));
     ui.call("openAppearance"); wait([&] { return ui.popup("appearance-settings-popup")->property("opened").toBool(); });
-    for (const auto& name : {QString("appearance-theme-director"), QString("appearance-control-size-large"), QString("appearance-text-size"), QString("appearance-menu-opacity"), QString("appearance-done")}) {
+    for (const auto& name : {QString("appearance-theme-director"), QString("appearance-control-size-large"), QString("appearance-text-size"), QString("appearance-reduce-motion"), QString("appearance-menu-opacity"), QString("appearance-done")}) {
         ui.focus(name); ui.contained(ui.item(name));
     }
     ui.capture("appearance-400-130-large");
@@ -287,14 +335,15 @@ int main(int argc, char** argv) {
         else if (arguments[i] == "--capture-dir" && i + 1 < arguments.size()) captures = arguments[++i];
         else require(false, "unknown appearance fixture argument");
     }
-    require(QStringList{"all", "fresh", "legacy", "controls", "popups", "portrait"}.contains(selected), "unknown appearance fixture case");
-    for (const auto& name : {QString("fresh"), QString("legacy"), QString("controls"), QString("popups"), QString("portrait")}) {
+    require(QStringList{"all", "fresh", "legacy", "controls", "popups", "motion", "portrait"}.contains(selected), "unknown appearance fixture case");
+    for (const auto& name : {QString("fresh"), QString("legacy"), QString("controls"), QString("popups"), QString("motion"), QString("portrait")}) {
         if (selected != "all" && selected != name) continue;
         QCoreApplication::setApplicationName("Appearance247-" + name);
         if (name == "fresh") fresh(captures);
         else if (name == "legacy") legacy(config.path());
         else if (name == "controls") controls(captures);
         else if (name == "popups") popups(captures);
+        else if (name == "motion") motion(config.path(), captures);
         else portrait(captures);
         require(!saved().contains("Unrelated/sentinel") || saved()["Unrelated/sentinel"] == "preserve-me", "appearance callbacks corrupted unrelated preferences");
         std::cout << "Appearance247 " << name.toStdString() << " passed\n";

@@ -21,9 +21,38 @@ Popup {
         checking: ["Checking", "Checking for updates"],
         available: ["Update available", "A Nova update is available"],
         failed: ["Couldn't check", "Couldn't check for updates"],
-        current: ["Up to date", "Up to date on the " + (current.channel || "installed") + " channel"],
+        current: ["Up to date", "Up to date on the " + (channelName || current.channel || "installed") + " channel"],
         unchecked: ["Not checked yet", "Updates haven't been checked yet"]
     })[stateId]
+    readonly property string channelName: current.channel === "beta" ? "Beta" : current.channel === "stable" ? "Stable" : ""
+    // Channels are separate installations. Nothing here switches one, and a copy
+    // without a channel says where both kinds of release come from.
+    readonly property string channelNote: !current.supported
+        ? "Nova Downloads offers both Stable and Beta releases. Choose the one you want there; Nova never switches channels by itself."
+        : channelName === "Beta"
+            ? "You're on Beta, for early builds. Stable is a separate installation, offered on Nova Downloads. Nova never switches channels by itself."
+            : "You're on Stable, for tested releases. Beta is a separate installation, offered on Nova Downloads. Nova never switches channels by itself."
+    // New status copy settles in briefly. Errors, an update that ends without
+    // finishing, Reduce Motion and a closed popup show at once. Buttons, focus
+    // and progress never wait for it.
+    property real statusOpacity: 1
+    property string shownState: ""
+    Component.onCompleted: shownState = stateId
+    onStateIdChanged: {
+        const interrupted = shownState === "updating" && stateId !== "ready"
+        shownState = stateId
+        statusFade.stop()
+        if (opened && NovaTheme.motionDuration > 0 && stateId !== "failed" && !interrupted)
+            statusFade.start()
+        else
+            statusOpacity = 1
+    }
+    NumberAnimation {
+        id: statusFade
+        target: updates; property: "statusOpacity"
+        from: 0.4; to: 1
+        duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing
+    }
     function primary() { return current.canInstall ? install : current.canCheck ? check : back }
     function keepFocus() {
         if (!opened) return
@@ -43,7 +72,11 @@ Popup {
     closePolicy: Popup.CloseOnEscape
     enter: Transition { }
     exit: Transition { }
-    onOpened: primary().forceActiveFocus()
+    onOpened: {
+        statusFade.stop()
+        statusOpacity = 1
+        primary().forceActiveFocus()
+    }
     background: Rectangle { color: NovaTheme.panel; radius: 12; border.color: NovaTheme.divider }
     component Copy: Label {
         textFormat: Text.PlainText
@@ -58,7 +91,7 @@ Popup {
         Copy { text: "Nova Updates"; font.bold: true; font.pixelSize: 28 * updates.unit * NovaTheme.fontScale }
         Copy {
             text: "Running: " + (updates.current.version || "Development build")
-                + (updates.current.supported ? " · " + updates.current.channel + " channel" : "")
+                + (updates.current.supported ? " · " + (updates.channelName || updates.current.channel) + " channel" : "")
             color: NovaTheme.secondary
         }
         Copy {
@@ -66,21 +99,28 @@ Popup {
             readonly property string stateId: updates.stateId
             text: updates.presentation[0]
             color: updates.stateId === "failed" ? NovaTheme.warning : NovaTheme.secondary
+            opacity: updates.statusOpacity
             font.bold: true
             font.pixelSize: 14 * updates.unit * NovaTheme.fontScale
         }
         Copy {
             objectName: "update-headline"
             text: updates.presentation[1]
+            opacity: updates.statusOpacity
             font.bold: true
             font.pixelSize: 24 * updates.unit * NovaTheme.fontScale
         }
-        Copy { objectName: "update-status"; text: updates.current.message || "Updates aren't available for this installation." }
+        Copy {
+            objectName: "update-status"
+            text: updates.current.message || "Updates aren't available for this installation."
+            opacity: updates.statusOpacity
+        }
         Copy {
             visible: !!updates.current.available && !!updates.current.latestVersion && !updates.current.restartRequired
             objectName: "update-latest"
             text: "Latest on this channel: " + (updates.current.latestVersion || "")
             color: NovaTheme.secondary
+            opacity: updates.statusOpacity
         }
         ProgressBar {
             objectName: "update-progress"
@@ -128,6 +168,11 @@ Popup {
         Copy {
             visible: !!updates.current.supported
             text: "When enabled, Nova installs updates after 15 seconds idle. A new stream waits until installation finishes. Nova never closes itself automatically."
+            color: NovaTheme.secondary
+        }
+        Copy {
+            objectName: "update-channel"
+            text: updates.channelNote
             color: NovaTheme.secondary
         }
         Action {

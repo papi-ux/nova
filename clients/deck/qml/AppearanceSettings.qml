@@ -72,7 +72,25 @@ Popup {
             text: "Text Size: " + Math.round(NovaTheme.fontScale * 100) + "%"
             onClicked: textEditor.open()
             Keys.onUpPressed: sizes.itemAt(sizes.count - 1).forceActiveFocus()
+            Keys.onDownPressed: reduceMotion.forceActiveFocus()
+        }
+        NovaButton {
+            id: reduceMotion
+            objectName: "appearance-reduce-motion"
+            unit: appearance.unit
+            Layout.fillWidth: true
+            text: "Reduce Motion: " + (NovaTheme.reduceMotion ? "On" : "Off")
+            Accessible.checkable: true
+            Accessible.checked: NovaTheme.reduceMotion
+            onClicked: NovaTheme.setReduceMotion(!NovaTheme.reduceMotion)
+            Keys.onUpPressed: textSize.forceActiveFocus()
             Keys.onDownPressed: commandCenterButton.forceActiveFocus()
+        }
+        Label {
+            Layout.fillWidth: true
+            text: "Turns off Nova's interface transitions. Progress, buttons and controller focus work the same."
+            color: NovaTheme.secondary; wrapMode: Text.WordWrap
+            font.pixelSize: 16 * appearance.unit * NovaTheme.fontScale
         }
         Label {
             Layout.fillWidth: true
@@ -89,7 +107,7 @@ Popup {
             Accessible.checkable: true
             Accessible.checked: NovaStreamPreferences.commandCenterButton
             onClicked: NovaStreamPreferences.setCommandCenterButton(!NovaStreamPreferences.commandCenterButton)
-            Keys.onUpPressed: textSize.forceActiveFocus()
+            Keys.onUpPressed: reduceMotion.forceActiveFocus()
             Keys.onDownPressed: menuOpacity.forceActiveFocus()
         }
         NovaButton {
