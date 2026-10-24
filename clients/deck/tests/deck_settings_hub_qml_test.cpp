@@ -284,6 +284,37 @@ int main(int argc, char** argv) {
         motion["available"]=false; motion["canInstall"]=false; motion["lastCheck"]="succeeded"; setState(motion);
         status("current"); settled("Reduce Motion still eased in new status");
         check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "cannot restore motion"); settle();
+        // Turning Reduce Motion on settles a fade that is already running. Focus,
+        // buttons and progress stay as they are, and nothing moves afterwards.
+        auto* updatesPopup = root->findChild<QObject*>("update-settings"); check(updatesPopup, "Updates popup missing");
+        motion = original; motion["installing"]=true; motion["canInstall"]=false; motion["canCheck"]=false; motion["progress"]=35;
+        motion["message"]="Updating Nova… Keep Nova open until this finishes.";
+        root->setProperty("updateState", motion);  // No frame yet: the calm fade has just started.
+        check(updatesPopup->property("statusOpacity").toReal() < 1.0, "a calm state change did not start a status fade");
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, true)), "cannot reduce motion");
+        check(updatesPopup->property("statusOpacity").toReal() == 1.0, "Reduce Motion left the running status fade in place");
+        settle(); status("updating"); settled("Reduce Motion left status copy partly faded");
+        focused("update-back"); check(!item("update-install")->isEnabled(), "Reduce Motion re-enabled Update Nova during an install");
+        check(item("update-progress")->property("value").toInt() == 35 && !item("update-progress")->property("indeterminate").toBool(),
+              "Reduce Motion changed the reported progress");
+        for (int frame = 0; frame < 12; ++frame) { QTest::qWait(25); settled("status copy kept moving after Reduce Motion"); }
+        check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "cannot restore motion"); settle();
+        // Both channels stay named. Linux channels share the app and its data, and an
+        // installer only applies once it is published; copies without one say so.
+        const auto channelNote = [&](std::initializer_list<const char*> present, std::initializer_list<const char*> absent) {
+            const auto text = item("update-channel")->property("text").toString();
+            for (const auto* fragment : present) check(text.contains(QString::fromUtf8(fragment)), "channel guidance lost a required fact");
+            for (const auto* fragment : absent) check(!text.contains(QString::fromUtf8(fragment)), "channel guidance made an unsupported claim");
+        };
+        auto channel = original; channel["available"]=false; channel["canInstall"]=false; channel["lastCheck"]="succeeded"; setState(channel);
+        channelNote({"You're on Beta", "Stable", "same Nova app, pairing and settings", "published on Nova Downloads", "never switches channels"},
+                    {"separate installation", "You're on Stable"});
+        channel["channel"]="stable"; setState(channel);
+        channelNote({"You're on Stable", "Beta", "same Nova app, pairing and settings", "published on Nova Downloads", "never switches channels"},
+                    {"separate installation", "You're on Beta"});
+        channel["supported"]=false; setState(channel); status("manual");
+        channelNote({"Stable and Beta", "same Nova app, pairing and settings", "published on Nova Downloads", "for your device", "ARM64"},
+                    {"separate installation", "You're on"});
         controllerBack(); controllerBack(); focused("open-settings");
         setState(original); root->setProperty("updateChecks", 0); root->setProperty("updateInstalls", 0);
         window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme");

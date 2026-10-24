@@ -846,15 +846,30 @@ FocusScope {
                             id: gameButton
                             focus: true
                             objectName: modelData.id
+                            readonly property real restingY: (gameButton.activeFocus ? -2 : 8) * unit
+                            readonly property real restingScale: activeFocus ? (stageMode ? 1.10 : preferences.layoutMode === "compact" ? 1.06 : 1.08) : 1
+                            readonly property real restingOpacity: activeFocus ? 1 : stageMode ? 0.76 : preferences.layoutMode === "compact" ? 0.82 : 0.84
                             x: 12 * unit
-                            y: (gameButton.activeFocus ? -2 : 8) * unit
+                            y: restingY
                             width: parent.width - 24 * unit
                             height: parent.height - 20 * unit
-                            scale: activeFocus ? (stageMode ? 1.10 : preferences.layoutMode === "compact" ? 1.06 : 1.08) : 1
-                            opacity: activeFocus ? 1 : stageMode ? 0.76 : preferences.layoutMode === "compact" ? 0.82 : 0.84
+                            scale: restingScale
+                            opacity: restingOpacity
                             Behavior on scale { enabled: NovaTheme.motionDuration > 0; NumberAnimation { duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing } }
                             Behavior on y { enabled: NovaTheme.motionDuration > 0; NumberAnimation { duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing } }
                             Behavior on opacity { enabled: NovaTheme.motionDuration > 0; NumberAnimation { duration: NovaTheme.motionDuration } }
+                            // A zero duration only affects the next change. Once the Behaviors
+                            // are off, rebinding writes each resting value through them, which
+                            // stops a focus animation that is already running.
+                            function settleMotion() {
+                                y = Qt.binding(() => restingY)
+                                scale = Qt.binding(() => restingScale)
+                                opacity = Qt.binding(() => restingOpacity)
+                            }
+                            Connections {
+                                target: NovaTheme
+                                function onReduceMotionChanged() { if (NovaTheme.reduceMotion) Qt.callLater(gameButton.settleMotion) }
+                            }
                             padding: 0
                             leftPadding: 0; rightPadding: 0
                             topPadding: 0; bottomPadding: 0

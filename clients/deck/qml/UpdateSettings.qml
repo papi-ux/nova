@@ -25,13 +25,14 @@ Popup {
         unchecked: ["Not checked yet", "Updates haven't been checked yet"]
     })[stateId]
     readonly property string channelName: current.channel === "beta" ? "Beta" : current.channel === "stable" ? "Stable" : ""
-    // Channels are separate installations. Nothing here switches one, and a copy
-    // without a channel says where both kinds of release come from.
+    // Linux channels are branches of the same app, so pairing and settings carry
+    // over. This view cannot know whether the other channel's installer is
+    // published, so it never claims one is, and it switches nothing.
     readonly property string channelNote: !current.supported
-        ? "Nova Downloads offers both Stable and Beta releases. Choose the one you want there; Nova never switches channels by itself."
+        ? "Stable and Beta channels use the same Nova app, pairing and settings. Once the channel installer you want is published on Nova Downloads, installing it turns on updates here. Until then, install newer releases for your device from there; Steam Frame uses its own ARM64 download."
         : channelName === "Beta"
-            ? "You're on Beta, for early builds. Stable is a separate installation, offered on Nova Downloads. Nova never switches channels by itself."
-            : "You're on Stable, for tested releases. Beta is a separate installation, offered on Nova Downloads. Nova never switches channels by itself."
+            ? "You're on Beta. Stable uses the same Nova app, pairing and settings. Once a Stable channel installer is published on Nova Downloads, installing it lets you return to Stable; check its release notes first. Nova never switches channels by itself."
+            : "You're on Stable. Beta uses the same Nova app, pairing and settings. Once a Beta channel installer is published on Nova Downloads, installing it lets you choose Beta. Nova never switches channels by itself."
     // New status copy settles in briefly. Errors, an update that ends without
     // finishing, Reduce Motion and a closed popup show at once. Buttons, focus
     // and progress never wait for it.
@@ -52,6 +53,15 @@ Popup {
         target: updates; property: "statusOpacity"
         from: 0.4; to: 1
         duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing
+    }
+    // A zero duration only affects the next fade, so settle one already running.
+    Connections {
+        target: NovaTheme
+        function onReduceMotionChanged() {
+            if (!NovaTheme.reduceMotion) return
+            statusFade.stop()
+            updates.statusOpacity = 1
+        }
     }
     function primary() { return current.canInstall ? install : current.canCheck ? check : back }
     function keepFocus() {
