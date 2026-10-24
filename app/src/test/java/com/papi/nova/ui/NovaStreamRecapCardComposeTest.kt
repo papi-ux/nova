@@ -200,9 +200,20 @@ class NovaStreamRecapCardComposeTest {
         strip(live = false) { withRecap }
         val parts = listOf("nova-library-toolbar-identity", "nova-library-toolbar-options", "nova-library-toolbar-system-menu")
         val before = parts.map { bounds(it) }
+        val stripBefore = bounds("nova-library-landscape-toolbar")
         rule.runOnIdle { withRecap = true }
         rule.waitForIdle()
-        assertEquals("the host, Options and System keep their places", before, parts.map { bounds(it) })
+        val after = parts.map { bounds(it) }
+        assertEquals("the strip keeps its height and width", stripBefore, bounds("nova-library-landscape-toolbar"))
+        assertEquals("Options and System keep their places", before.drop(1), after.drop(1))
+        assertEquals("the host keeps its horizontal position", before[0].left, after[0].left)
+        assertEquals("the host keeps its width", before[0].right - before[0].left, after[0].right - after[0].left)
+        assertEquals("the host keeps its height", before[0].bottom - before[0].top, after[0].bottom - after[0].top)
+        // The left Row centers the host inside a newly taller sibling group. Its own
+        // centering and the outer Row's centering round independently to whole pixels.
+        val onePixelDp = 1f / rule.activity.resources.displayMetrics.density
+        assertTrue("only whole-pixel centering rounding may move the host vertically",
+            kotlin.math.abs((after[0].top - before[0].top).value) <= onePixelDp)
         rule.onAllNodesWithTag(NOVA_STREAM_RECAP_CARD_TAG, useUnmergedTree = true).assertCountEquals(1)
         rule.onNodeWithTag(NOVA_STREAM_RECAP_CARD_TAG, useUnmergedTree = true).assertIsDisplayed()
         // Present, but never focused first: the Library's own focus keeps its place.
