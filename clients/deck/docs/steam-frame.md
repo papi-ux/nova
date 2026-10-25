@@ -15,10 +15,14 @@ Nova 1.5.0-beta.2 attaches `Nova-Linux-aarch64-frame-alpha.flatpak` and its
 checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`, to its release on
 [Nova Releases](https://github.com/papi-ux/nova/releases). It is a native
 ARM64 Beta Flatpak: app `com.papi_ux.Nova`, architecture `aarch64`, branch
-`frame-alpha`. It has no update channel. The signed Linux update feed carries
-the x86_64 build only, so a later Frame Beta is a new manual download.
+`frame-alpha`. It has no update channel. Updates remain manual until the signed
+ARM Beta channel is qualified and announced; source support alone does not make
+that channel available. Frame remains Beta maturity, including if its future
+Beta ref receives stable 1.5.0 source. An ARM Stable feed build is not enabled.
 The filenames, `frame-alpha` branch and installation paths retain their earlier
 names for compatibility; they do not describe the current maturity label.
+Keep the existing Steam identity **Nova Frame Alpha** and launcher path when
+updating that entry; its identity does not become a separate shortcut on migration.
 
 Install it into its own Flatpak installation. It then cannot replace another
 Nova build or change another installation's current branch. Run these commands
@@ -79,6 +83,73 @@ flatpak uninstall --user app/com.papi_ux.Nova/aarch64/frame-alpha
 ```
 
 Then delete its Steam entry and the launcher.
+
+## Signed Beta channel migration
+
+This is a future one-time migration, **only after the ARM signed Beta installer
+is announced and qualified**. Nothing in this source change migrates an existing
+installation. The owner must first verify signatures, exact installed/catalog
+commit, runtime drift, an update/reopen cycle, pairing preservation and rollback
+on Frame. Availability of an ARM container image is not that qualification.
+
+This procedure applies **only** to the manual-guide launcher
+`~/nova-frame-alpha.sh`. Guided-installer users have a managed launcher at
+`~/.local/share/nova-guided/nova-frame-alpha.sh`; they must wait for a versioned
+guided channel migration that preserves their existing **Nova Frame Alpha**
+Steam identity, artwork, pairing and settings. Do not apply this replacement to
+a managed launcher, hand-edit it, or create a duplicate Steam entry. The existing
+bundle/manual update route remains in use until the appropriate migration is
+qualified and available.
+
+Close Nova. Keep the current `~/nova-frame-alpha.sh` as a backup and leave its
+private `nova-frame-alpha-flatpak` installation intact. Install the architecture-
+neutral Beta descriptor into the ordinary user installation, explicitly selecting
+ARM and removing any private installation override for these commands:
+
+```sh
+env -u FLATPAK_USER_DIR flatpak install --user --arch=aarch64 https://updates.papi-ux.com/nova/nova-beta.flatpakref
+env -u FLATPAK_USER_DIR flatpak info --user --arch=aarch64 --show-ref com.papi_ux.Nova//beta
+env -u FLATPAK_USER_DIR flatpak info --user --arch=aarch64 --show-commit com.papi_ux.Nova//beta
+```
+
+The ref must be `app/com.papi_ux.Nova/aarch64/beta`. Verify the `nova` origin,
+`https://updates.papi-ux.com/nova/repo`, signature verification, and the exact
+catalog commit before using it. Installing Beta may change Flatpak's default
+branch; the launcher below always selects its full ref. Beta can carry a
+published stable tag intentionally delivered to it; that does not switch the
+installed branch or qualify Frame as Stable.
+
+Replace the contents of the **same** `~/nova-frame-alpha.sh` launcher after
+keeping its backup. Keep the existing Steam **Nova Frame Alpha** entry and art:
+
+```sh
+#!/bin/sh
+unset FLATPAK_USER_DIR
+# Flatpak has no video-only permission; --device=all applies to this run only.
+exec flatpak run --user --arch=aarch64 --branch=beta --device=all \
+    --env=NOVA_DECK_FRAME_V4L2=1 \
+    --command=sh app/com.papi_ux.Nova/aarch64/beta -c '
+    export XDG_CONFIG_HOME=/var/config/frame-alpha
+    export XDG_DATA_HOME=/var/data/frame-alpha
+    export XDG_CACHE_HOME=/var/cache/frame-alpha
+    export NOVA_DECK_IDENTITY_DIR=/var/config/frame-alpha/nova-deck
+    exec nova-deck --standalone --experimental-vulkan-stream "$@"
+    ' nova-frame-alpha "$@"
+```
+
+The in-sandbox private XDG/identity paths and per-run V4L2/device flags stay the
+same. Flatpak app data lives under `~/.var/app/com.papi_ux.Nova` for the same user
+across these installations. No data copy is intended; verify saved pairing and
+settings after the first run before accepting the migration. Never uninstall
+with `--delete-data`. Do not launch the ordinary Beta ref
+without this wrapper when checking Frame identity preservation.
+
+For rollback, close Nova and restore the backed-up launcher at the same path.
+It again selects the untouched private `frame-alpha` installation and its full
+ref. Verify its recorded commit and pairing before resuming use; no removal of
+either installation or app data is required. Guided Add to Steam channel
+migration is a later qualified delivery version; existing v1/v2 installer pins
+remain frozen.
 
 ## Qualification checkpoint — 2026-10-03
 

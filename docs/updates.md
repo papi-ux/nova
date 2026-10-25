@@ -78,6 +78,11 @@ release. Open **Settings → Nova → Nova Updates** to check or install an upda
 that installed channel. Automatic installation is optional and waits until Nova
 is idle. Reopen Nova when it says the update is ready. Selecting a channel is
 explicit; the app does not switch channels automatically.
+Beta includes prereleases and stable releases deliberately delivered to the Beta
+ref. That lets Beta subscribers receive stable 1.5.0 without switching branches;
+it does not happen merely because the Stable ref was published. Frame support
+remains Beta and uses `aarch64/beta` only after its signed channel is qualified
+and announced. See the [promotion and migration guide](linux-updates.md).
 
 **Downloaded bundles:** an ordinary `.flatpak` bundle may have no update feed.
 Download the bundle from the intended release, verify its checksum, and install

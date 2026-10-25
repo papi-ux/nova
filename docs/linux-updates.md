@@ -17,7 +17,9 @@ or installation command. The app handles offline checks, portal loss and update
 errors without reporting success. An update that requires extra sandbox
 permissions must be completed in the system software manager.
 
-The publication workflow defines **stable** and **beta** channels.
+The publication workflow defines **stable** and **beta** refs. Stable accepts
+stable releases only. Beta includes prereleases and stable releases intentionally
+delivered to that ref; publishing a stable release does not update Beta by itself.
 Use the bundles attached to the selected release until a signed channel installer
 is announced. A channel defined in the workflow is not evidence that its public
 feed exists. Starting with 1.5.0, both channels include PyroWave with a lazy
@@ -28,12 +30,16 @@ builds show installation guidance instead of claiming that a feed is configured.
 
 The Linux and Steam Deck client is in Beta. Its release bundle retains the
 filename `Nova-Linux-x86_64-alpha.flatpak` for compatibility. The separate
-[Steam Frame Beta](../clients/deck/docs/steam-frame.md) uses an ARM64 bundle
-and manual updates, with its own qualification record. ARM-aware updater tests
-do not establish an available ARM64 public update feed or channel installer.
+[Steam Frame Beta](../clients/deck/docs/steam-frame.md) currently uses an ARM64
+bundle and manual updates, with its own qualification record. The feed workflow
+can stage `aarch64/beta` on a native ARM runner; `aarch64/stable` is refused until
+separately qualified. A stable source tag on the Beta ref keeps Frame at Beta
+maturity. An available ARM container image and ARM-aware tests do not qualify a
+build, runner, public feed or channel installer.
 Do not install an x86_64 bundle as a Frame update.
 
-For the 1.5.0 candidate, the app uses the production feed address and retains
+For the 1.5.0 candidate, the compiled feed address is
+`https://updates.papi-ux.com/nova`, and the app retains
 Retry after a failed check. An ordinary private or downloaded bundle can still
 show installation guidance because no signed channel was configured for it.
 Preparing source or a private rehearsal does not publish a feed.
@@ -45,53 +51,111 @@ the first public channel is available:
 
 1. Merge the updater and publish a reviewed release containing it, version 1.5.0
    or later. Feed preparation requires the standard package with PyroWave, so
-   1.4.13 is not eligible for the first feed publication. Use an
-   explicitly marked prerelease for beta. Before tagging, include
-   the [Linux update channels](https://papi-ux.github.io/nova/) link in that
+   1.4.13 is not eligible for the first feed publication. Use the exact published
+   tag: its stable/beta/RC suffix and GitHub prerelease flag must agree. Before
+   tagging, include the [Linux update channels](https://updates.papi-ux.com/nova/) link in that
    release's checked-in notes so **Open Nova Downloads** leads users to the
    installer. Publish the feed before announcing the channel's availability.
 2. Enable GitHub Pages for this repository with **GitHub Actions** as its source.
-   The workflow targets `https://papi-ux.github.io/nova`.
+   Configure DNS, its custom domain `updates.papi-ux.com`, and direct HTTPS
+   **before any rooted-feed workflow run**, including a `publish=false`,
+   `bootstrap=true` rehearsal. DNS/TLS/transport failures remain fatal; they are
+   never treated as the HTTP 404 that permits a first-feed bootstrap.
+   The artifact is rooted at `site/nova/`; the fixed root index links to the
+   existing product page `https://papi-ux.com/nova/`, which is not replaced.
+   Verify that the final feed URL serves directly without redirects: the app
+   does not follow catalog redirects. DNS/Pages changes are owner activation,
+   not an effect of preparing this source.
 3. Keep a durable backup of a dedicated Flatpak signing key. Store its base64
-   encoded private export in the repository secret `FLATPAK_GPG_PRIVATE_KEY`.
+   encoded private export under the workflow's existing secret name
+   `FLATPAK_GPG_PRIVATE_KEY`.
    The workflow expects one primary signing key usable noninteractively. Never
    commit private signing material. Keep this key across releases; changing it
-   is a separate trust migration.
+   is a separate trust migration. The owner must publish the public fingerprint
+   here before announcing availability; no production fingerprint is recorded
+   yet. Descriptors embed the public key. A production signing environment or
+   reviewer is an owner configuration choice at activation; this source adds
+   no manual approval gate or environment prerequisite to private rehearsal.
 4. Run **Stage or publish Linux updates** from master with the published tag,
-   the intended channel, `bootstrap=true`, and `publish=false`. Inspect the
+   the intended channel and architecture, `bootstrap=true`, and `publish=false`.
+   Supported builds are `x86_64/stable`, `x86_64/beta` and `aarch64/beta`; the job
+   checks that its native runner matches the selected architecture. Inspect the
    staged site and bundle. The job verifies the generated repository's summary
    and commit signatures using a separate repository.
 5. Run with `publish=true` when ready to publish. Subsequent updates require
    `bootstrap=false`; the workflow pulls the existing signature-verified feed
-   and preserves the other channels. A network error or bad signature aborts
+   and preserves every other supported architecture/channel ref and catalog.
+   A network error, missing/stale catalog or bad signature aborts
    publication. Bootstrap is accepted only when no existing summary is present.
 
 The workflow checks out the release's resolved commit, builds the app with its
 channel, signs it, creates `.flatpakref` installers and a `.flatpakrepo`, and
 stages the complete site as a Pages artifact. It also retains a bundle that
 includes the repository URL and public key. Publication is an explicit workflow
-input, separate from ordinary PR builds and Android releases.
+input, off by default and separate from ordinary PR builds and Android releases.
 The channel installer is also retained as a review artifact. Public installers
 are served by Pages; existing release assets retain their eight-file contract.
 This workflow does not create or publish a release tag or change release notes.
 
+### Deliver a stable release to Beta subscribers
+
+Choose the published stable tag (for example `v1.5.0`) and dispatch separately
+for each intended target ref: `x86_64/stable`, `x86_64/beta`, and, after ARM
+qualification, `aarch64/beta`. Each dispatch resolves and builds that exact tag's
+commit. A Beta-target build from stable source reports `1.5.0`, without an
+invented `-beta.N` suffix, and still installs/updates branch `beta`. The release
+flag remains stable. A prerelease cannot enter the Stable ref, and inconsistent
+tag/flag metadata is refused on either ref.
+
+There is no automatic promotion, branch switch or old-beta seed. Select the new
+tag and target deliberately, review a `publish=false` artifact first, then use
+the separately authorized publication step. Publishing Stable alone leaves Beta
+subscribers on their current Beta ref until that ref receives the intended
+release. Frame stays Beta even when its Beta ref carries stable 1.5.0 source.
+
+Each selected architecture/channel must advance to a strictly newer canonical
+release version before catalog, descriptor or page outputs are written. Numeric
+major/minor/patch and suffix numbers are compared, with beta before RC before
+stable for the same release number. Equal-version rebuilds and older versions
+are refused, with no rollback override. A genuinely new selected ref without a
+prior catalog remains eligible for the existing bootstrap flow; other refs have
+independent floors and retain their existing validation/preservation.
+The previous selected catalog is validated against its own prior commit, already
+bound to the signature-verified mirror by the preservation step. Its commit is
+not compared with the intentionally different newly exported selected commit.
+
 ## Existing bundle installations
 
 Existing standalone `.flatpak` downloads need a one-time channel installation.
+Guided-installer x86 shortcuts pin `--branch=master` and must wait for a versioned
+guided channel migration that preserves the same Steam identity, artwork,
+pairing and settings. Do not hand-edit a managed launcher or create a duplicate
+Steam entry. Until that migration is qualified, continue using the existing
+bundle/manual update route.
+
 Once the feed is published, open its `nova-beta.flatpakref` (or the chosen channel)
-in the software manager from Desktop Mode. For example:
+in the software manager from Desktop Mode for an independent manual installation.
+For example:
 
 ```sh
-flatpak install --user https://papi-ux.github.io/nova/nova-beta.flatpakref
-flatpak run com.papi_ux.Nova//beta --standalone
+flatpak install --user https://updates.papi-ux.com/nova/nova-beta.flatpakref
+flatpak run --user --arch=x86_64 --branch=beta app/com.papi_ux.Nova/x86_64/beta --standalone
 ```
 
-Use the new channel once before reopening the existing Steam shortcut. Nova
-keeps the same app ID and data directory, preserving pairing and preferences.
+Launch the selected channel explicitly; installing it does not migrate an
+existing Steam shortcut. Nova keeps the same app ID and data directory.
 Do not uninstall with `--delete-data`. User and system installations can coexist;
-verify the intended channel with `flatpak info com.papi_ux.Nova//beta` rather
+verify the intended channel with `flatpak info --user --arch=x86_64 com.papi_ux.Nova//beta` rather
 than deleting the older installation as part of an update. The app's Updates
 screen shows its channel.
+These examples are for Linux/Deck x86_64; use the separate
+[Frame migration](../clients/deck/docs/steam-frame.md#signed-beta-channel-migration)
+for its ARM Beta and private identity paths. Installing another branch can
+change Flatpak's default branch, so channel launchers select the full ref
+explicitly. This source changes neither existing remotes nor application data.
+The optional guided installer/Add to Steam companion is separate; signed
+`.flatpakref` installers open in the system software manager without PyGObject.
+Existing pinned v1/v2 installer deliveries are not changed by this feed source.
 
 The feed's package upgrade, signature rejection, channel preservation and
 existing user/system installation migration should be qualified before calling

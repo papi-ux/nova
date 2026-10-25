@@ -30,14 +30,23 @@ def feed_url(value):
 
 
 def validate_release(release, channel):
-    if channel not in CHANNELS or not TAG.fullmatch(release.get("tag_name", "")):
+    if channel not in CHANNELS or not BUILD_TAG.fullmatch(release.get("tag_name", "")):
         raise ValueError("Select a versioned Nova release and a known channel")
-    if release.get("draft") or not release.get("published_at"):
+    if release.get("draft") is not False or not release.get("published_at"):
         raise ValueError("Only a published release may enter the update feed")
+    if type(release.get("prerelease")) is not bool or release["prerelease"] != bool(version_suffix(release["tag_name"])):
+        raise ValueError("The published release flag must match its stable, beta or RC tag")
     if channel == "stable" and release.get("prerelease"):
         raise ValueError("A prerelease cannot enter the stable channel")
-    if channel != "stable" and not release.get("prerelease"):
-        raise ValueError("The beta channel requires an explicitly marked prerelease")
+    # Beta includes prereleases; an owner can intentionally promote the same stable
+    # source to its beta ref without changing installed subscribers' branch.
+
+
+def validate_build_target(architecture, channel):
+    if architecture not in ARCHITECTURES or channel not in CHANNELS:
+        raise ValueError("Select x86_64 or aarch64 and a known update channel")
+    if (architecture, channel) == ("aarch64", "stable"):
+        raise ValueError("aarch64 Stable is not qualified; Frame remains on Beta")
 
 
 def version_suffix(tag):
@@ -45,6 +54,17 @@ def version_suffix(tag):
     if not match:
         raise ValueError("Use vMAJOR.MINOR.PATCH with an optional numbered -beta.N or -rc.N suffix")
     return match.group("suffix") or ""
+
+
+def version_key(tag):
+    if not isinstance(tag, str):
+        raise ValueError("Invalid feed version")
+    suffix = version_suffix(tag)
+    numbers = tag[1:].split("-", 1)[0].split(".")
+    if any(str(int(number)) != number for number in numbers):
+        raise ValueError("Feed versions must use canonical numeric components")
+    stage, number = suffix[1:].split(".") if suffix else ("stable", "0")
+    return (*map(int, numbers), {"beta": 0, "rc": 1, "stable": 2}[stage], int(number))
 
 
 def prepare_release(manifest, version=None):
@@ -66,8 +86,8 @@ def prepare_release(manifest, version=None):
 def prepare(manifest, channel, url, version):
     if channel not in CHANNELS:
         raise ValueError("Wrong channel")
-    if bool(version_suffix(version)) != (channel == "beta"):
-        raise ValueError("The release tag must match the selected update channel")
+    if version_suffix(version) and channel == "stable":
+        raise ValueError("A prerelease cannot enter the stable channel")
     manifest = prepare_release(manifest, version)
     module = next(item for item in manifest["modules"] if isinstance(item, dict) and item.get("name") == "nova-deck")
     opts = module["config-opts"]
@@ -147,9 +167,22 @@ def preserve_catalogs(repository, previous, url):
 
 
 def write_site(repository, site, previous, channel, version, url, key, architecture="x86_64"):
-    catalog_path(channel, architecture)  # Validate selection before repository I/O.
+    selected = catalog_path(channel, architecture)
     # Validate descriptor inputs before any output is overwritten, too.
     descriptors(url, key, channel)
+    target_version = version_key(version)
+    try:
+        prior = json.loads((previous / selected).read_text())
+    except FileNotFoundError:
+        pass  # A genuinely new ref has no prior catalog, including first-feed bootstrap.
+    else:
+        if not isinstance(prior, dict) or not isinstance(prior.get("commit"), str) or not COMMIT.fullmatch(prior["commit"]):
+            raise ValueError("Invalid previous selected catalog commit")
+        # preserve_catalogs already bound this catalog to the signature-verified
+        # previous mirror. Validate its own old commit, not the newly exported ref.
+        validate_catalog(prior, channel, prior["commit"], architecture)
+        if target_version <= version_key(prior["version"]):
+            raise ValueError("Selected architecture/channel must advance to a strictly newer version")
     refs = repository_catalogs(repository)
     if not any((arch, branch) == (architecture, channel) for arch, branch, _, _ in refs):
         raise ValueError("Selected architecture/channel is missing from the exported repository")
@@ -179,7 +212,8 @@ def write_site(repository, site, previous, channel, version, url, key, architect
         '<title>Nova for Linux</title><main><h1>Nova for Linux</h1>'
         '<p>Choose a channel and open its installer in your software manager. '
         'Nova can then check for updates from Settings → Nova Updates.</p><ul>' + "".join(links) + '</ul>'
-        '<p>Beta builds are previews. Both channels include PyroWave; '
+        '<p>Beta includes prereleases and stable releases intentionally delivered to that branch. '
+        'Frame support remains Beta. Both channels include PyroWave; '
         'Nova checks your device only when you choose it.</p>'
         '<p>Your pairing and settings are kept when updating the same Nova app. '
         'Existing standalone downloads need this one-time channel installation.</p>'

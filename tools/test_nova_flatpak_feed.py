@@ -1,7 +1,10 @@
 import json
+import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
+import textwrap
 import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
@@ -10,6 +13,31 @@ from tools import nova_flatpak_feed as feed
 
 
 class FeedTests(unittest.TestCase):
+    def test_beta_accepts_a_published_stable_release_without_changing_its_identity(self):
+        release = dict(tag_name="v1.5.0", published_at="2026-01-01", draft=False, prerelease=False)
+        original = release.copy()
+        feed.validate_release(release, "beta")
+        self.assertEqual(release, original)
+
+    def test_stable_source_can_build_the_beta_ref_without_inventing_a_beta_version(self):
+        root = Path(__file__).resolve().parents[1]
+        source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
+        result = feed.prepare(source, "beta", "https://example.org/nova", "v1.5.0")
+        self.assertEqual(result["branch"], "beta")
+        opts = result["modules"][-1]["config-opts"]
+        self.assertIn("-DNOVA_DECK_UPDATE_CHANNEL=beta", opts)
+        self.assertIn("-DNOVA_DECK_VERSION_SUFFIX=", opts)
+        self.assertEqual(result["finish-args"], source["finish-args"])
+        self.assertNotIn("branch", source)
+
+    def test_release_flag_must_match_the_numbered_tag_on_either_channel(self):
+        release = dict(tag_name="v1.5.0", published_at="2026-01-01", draft=False, prerelease=False)
+        for tag, marked in [("v1.5.0", True), ("v1.5.0-beta.1", False), ("v1.5.0-rc.2", False),
+                            ("v1.5.0-beta", True), ("v1.5.0-beta.0", True), ("v1.5.0", None)]:
+            for channel in feed.CHANNELS:
+                with self.subTest(tag=tag, marked=marked, channel=channel), self.assertRaises(ValueError):
+                    feed.validate_release(release | dict(tag_name=tag, prerelease=marked), channel)
+
     def test_generated_appstream_changes_only_the_current_release_version(self):
         project = Path(__file__).resolve().parents[1] / "clients/deck"
         source = project / "packaging/flatpak/com.papi_ux.Nova.metainfo.xml"
@@ -49,10 +77,10 @@ class FeedTests(unittest.TestCase):
     def test_feed_build_requires_the_exact_release_channel_and_number(self):
         root = Path(__file__).resolve().parents[1]
         source = json.loads((root / "clients/deck/packaging/flatpak/com.papi_ux.Nova.json").read_text())
-        for channel, tag, suffix in [("stable", "v1.5.0", ""), ("beta", "v1.5.0-beta.1", "-beta.1"), ("beta", "v1.5.0-rc.2", "-rc.2")]:
+        for channel, tag, suffix in [("stable", "v1.5.0", ""), ("beta", "v1.5.0", ""), ("beta", "v1.5.0-beta.1", "-beta.1"), ("beta", "v1.5.0-rc.2", "-rc.2")]:
             result = feed.prepare(source, channel, "https://example.org/nova", tag)
             self.assertIn("-DNOVA_DECK_VERSION_SUFFIX=" + suffix, result["modules"][-1]["config-opts"])
-        for channel, tag in [("stable", "v1.5.0-beta.1"), ("beta", "v1.5.0"), ("beta", "v1.5.0-beta"), ("beta", "v1.5.0-beta.0")]:
+        for channel, tag in [("stable", "v1.5.0-beta.1"), ("beta", "v1.5.0-beta"), ("beta", "v1.5.0-beta.0")]:
             with self.subTest(channel=channel, tag=tag), self.assertRaises(ValueError):
                 feed.prepare(source, channel, "https://example.org/nova", tag)
 
@@ -83,6 +111,16 @@ class FeedTests(unittest.TestCase):
             with self.subTest(channel=channel, changes=changes), self.assertRaises(ValueError):
                 feed.validate_release(release | changes, channel)
         feed.validate_release(release | dict(prerelease=False, tag_name="v1.4.13"), "stable")
+
+    def test_build_target_admission_does_not_remove_catalog_preservation_support(self):
+        for arch, channel in [("x86_64", "stable"), ("x86_64", "beta"), ("aarch64", "beta")]:
+            feed.validate_build_target(arch, channel)
+        for arch, channel in [("aarch64", "stable"), ("arm64", "beta"), ("riscv64", "beta"),
+                              ("x86_64", "preview"), ("aarch64\n", "beta")]:
+            with self.subTest(arch=arch, channel=channel), self.assertRaises(ValueError):
+                feed.validate_build_target(arch, channel)
+        # Unselected signed refs remain preservable even though new ARM Stable builds are gated.
+        self.assertEqual(feed.catalog_path("stable", "aarch64"), Path("aarch64/stable.json"))
 
     def test_standard_manifest_includes_pyrowave_in_both_channels(self):
         root = Path(__file__).resolve().parents[1] / "clients/deck/packaging/flatpak"
@@ -220,6 +258,107 @@ class CatalogPreservationTests(unittest.TestCase):
             return refs[args[-1]] + "\n"
         return output
 
+    def test_selected_version_floor_refuses_equal_or_older_before_output(self):
+        for arch in feed.ARCHITECTURES:
+            for channel in feed.CHANNELS:
+                for version in ["v1.5.1", "v1.5.0"]:
+                    with self.subTest(arch=arch, channel=channel, version=version), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory); refs = self.repository(); old = self.catalogs(refs)
+                        selected = feed.catalog_path(channel, arch)
+                        old[selected]["version"] = "v1.5.1"
+                        for path, data in old.items():
+                            target = root / "previous" / path; target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_text(json.dumps(data))
+                        refs[f"app/{feed.APP}/{arch}/{channel}"] = "e" * 64
+                        site = root / "site"; site.mkdir(); sentinel = site / "stable.json"
+                        sentinel.write_bytes(b"existing output must survive")
+                        with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, [])) as query:
+                            with self.assertRaises(ValueError):
+                                feed.write_site(root / "repo", site, root / "previous", channel, version,
+                                                "https://example.org/nova", b"public fixture", arch)
+                            query.assert_not_called()
+                        self.assertEqual(sentinel.read_bytes(), b"existing output must survive")
+                        self.assertEqual(list(site.rglob("*")), [sentinel])
+
+    def test_selected_floor_orders_numeric_beta_rc_and_stable_versions(self):
+        cases = [("v1.5.0-beta.2", "v1.5.0-beta.10", True), ("v1.5.0-beta.10", "v1.5.0-rc.1", True),
+                 ("v1.5.0-rc.10", "v1.5.0", True), ("v1.5.0", "v1.5.1-beta.1", True),
+                 ("v1.9.9", "v1.10.0-beta.1", True), ("v1.5.9", "v1.6.0-rc.1", True),
+                 ("v1.9.9", "v2.0.0-beta.1", True), ("v1.5.0-beta.10", "v1.5.0-beta.2", False),
+                 ("v1.5.0-rc.1", "v1.5.0-beta.99", False), ("v1.5.0", "v1.5.0-rc.99", False),
+                 ("v1.5.1-beta.1", "v1.5.0", False), ("v1.10.0", "v1.9.99", False)]
+        for old_version, version, accepted in cases:
+            with self.subTest(previous=old_version, version=version), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); previous = root / "previous"; previous.mkdir()
+                (previous / "beta.json").write_text(json.dumps(feed.catalog("beta", "a" * 64, old_version)))
+                refs = {f"app/{feed.APP}/x86_64/beta": "b" * 64}  # New and previous commits deliberately differ.
+                site = root / "site"; site.mkdir(); sentinel = site / "beta.json"; sentinel.write_bytes(b"keep")
+                with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, {}, [])) as query:
+                    if accepted:
+                        feed.write_site(root / "repo", site, previous, "beta", version, "https://example.org/nova", b"public fixture")
+                        self.assertEqual(json.loads(sentinel.read_text()), feed.catalog("beta", "b" * 64, version))
+                    else:
+                        with self.assertRaises(ValueError):
+                            feed.write_site(root / "repo", site, previous, "beta", version, "https://example.org/nova", b"public fixture")
+                        query.assert_not_called()
+                        self.assertEqual(sentinel.read_bytes(), b"keep")
+                        self.assertEqual(list(site.iterdir()), [sentinel])
+
+    def test_selected_floor_is_independent_and_absent_prior_allows_bootstrap(self):
+        for arch in feed.ARCHITECTURES:
+            for channel in feed.CHANNELS:
+                for prior_exists in [True, False]:
+                    with self.subTest(arch=arch, channel=channel, prior=prior_exists), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory); refs = self.repository(); old = self.catalogs(refs)
+                        selected = feed.catalog_path(channel, arch)
+                        for path, data in old.items():
+                            data["version"] = "v1.5.0" if path == selected else "v9.0.0"
+                            if path == selected and not prior_exists: continue
+                            target = root / "previous" / path; target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_text(json.dumps(data))
+                        refs[f"app/{feed.APP}/{arch}/{channel}"] = "e" * 64
+                        with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, [])):
+                            feed.write_site(root / "repo", root / "site", root / "previous", channel, "v1.5.1",
+                                            "https://example.org/nova", b"public fixture", arch)
+                        for path, data in old.items():
+                            expected = feed.catalog(channel, "e" * 64, "v1.5.1", arch) if path == selected else data
+                            self.assertEqual(json.loads((root / "site" / path).read_text()), expected)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); refs = {f"app/{feed.APP}/aarch64/beta": "e" * 64}
+            with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, {}, [])):
+                feed.write_site(root / "repo", root / "site", root / "no-previous-directory", "beta", "v1.5.0",
+                                "https://example.org/nova", b"public fixture", "aarch64")
+            self.assertEqual(json.loads((root / "site/aarch64/beta.json").read_text()), feed.catalog("beta", "e" * 64, "v1.5.0", "aarch64"))
+
+    def test_selected_floor_rejects_malformed_prior_or_dispatched_version_before_output(self):
+        valid = feed.catalog("beta", "a" * 64, "v1.5.0")
+        malformed = [None, [], {}, valid | {"appId": "org.example.Other"}, valid | {"channel": "stable"},
+                     valid | {"arch": "aarch64"}, valid | {"commit": "z" * 64}, valid | {"commit": None},
+                     valid | {"extra": "field"}, valid | {"version": 1}, valid | {"version": "v1.5.0-nightly.1"},
+                     valid | {"version": "v1.5.0-beta.0"}, valid | {"version": "v01.5.0"}]
+        cases = [(json.dumps(data), "v1.5.1") for data in malformed] + [("{", "v1.5.1")]
+        cases += [(json.dumps(valid), version) for version in
+                  [None, "1.5.1", "v1.5", "v1.5.1-nightly.1", "v1.5.1-beta", "v1.5.1-beta.0", "v01.5.1", "v1.05.1", "v1.5.1\n"]]
+        for prior_text, version in cases:
+            with self.subTest(prior=prior_text, version=version), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); previous = root / "previous"; previous.mkdir(); (previous / "beta.json").write_text(prior_text)
+                site = root / "site"; site.mkdir(); sentinel = site / "beta.json"; sentinel.write_bytes(b"keep")
+                with patch.object(feed.subprocess, "check_output") as query:
+                    with self.assertRaises(ValueError):
+                        feed.write_site(root / "repo", site, previous, "beta", version, "https://example.org/nova", b"public fixture")
+                    query.assert_not_called()
+                self.assertEqual(sentinel.read_bytes(), b"keep")
+                self.assertEqual(list(site.iterdir()), [sentinel])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); site = root / "must-not-be-created"
+            with patch.object(feed.subprocess, "check_output") as query:
+                with self.assertRaises(ValueError):
+                    feed.write_site(root / "repo", site, root / "no-prior", "beta", "v1.5.1-nightly.1",
+                                    "https://example.org/nova", b"public fixture")
+                query.assert_not_called()
+            self.assertFalse(site.exists())
+
     def test_either_architecture_publish_preserves_all_other_architecture_channels(self):
         for selected_arch in feed.ARCHITECTURES:
             for selected_channel in feed.CHANNELS:
@@ -238,6 +377,7 @@ class CatalogPreservationTests(unittest.TestCase):
                         expected = feed.catalog(selected_channel, "e" * 64, "v1.5.1", selected_arch) if path == selected else data
                         self.assertEqual(json.loads((root / "site" / path).read_text()), expected)
                     self.assertFalse((root / "site/x86_64").exists())
+                    self.assertIn("stable releases intentionally delivered to that branch", (root / "site/index.html").read_text())
                     for channel in feed.CHANNELS:
                         repo, descriptor = feed.descriptors("https://example.org/nova", b"public fixture", channel)
                         self.assertEqual((root / "site/nova.flatpakrepo").read_text(), repo)
@@ -307,6 +447,61 @@ class CatalogPreservationTests(unittest.TestCase):
             with patch("sys.argv", argv), patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, requested)):
                 feed.main()
             self.assertEqual(set(requested), {"https://example.org/nova/" + path.as_posix() for path in old})
+
+
+class WorkflowTests(unittest.TestCase):
+    root = Path(__file__).resolve().parents[1]
+
+    def test_workflow_and_compiled_default_use_the_same_final_feed_address(self):
+        workflow = (self.root / ".github/workflows/flatpak-feed.yml").read_text()
+        cmake = (self.root / "clients/deck/CMakeLists.txt").read_text()
+        workflow_url = re.search(r"^      NOVA_FEED_URL: (\S+)$", workflow, re.MULTILINE).group(1)
+        cmake_url = re.search(r'set\(NOVA_DECK_UPDATE_URL "([^"]+)" CACHE STRING', cmake).group(1)
+        self.assertEqual(workflow_url, cmake_url)
+        self.assertEqual(cmake_url, "https://updates.papi-ux.com/nova")
+
+    def test_actual_workflow_preflight_refuses_unsupported_inputs_before_release_requests(self):
+        workflow = (self.root / ".github/workflows/flatpak-feed.yml").read_text()
+        preflight = textwrap.dedent(re.search(r"python3 - <<'PY'\n(.*?)\n          PY", workflow, re.DOTALL).group(1))
+        for arch, channel, tag, accepted in [("x86_64", "stable", "v1.5.0", True),
+                                              ("x86_64", "beta", "v1.5.0", True),
+                                              ("aarch64", "beta", "v1.5.0", True),
+                                              ("aarch64", "beta", "v1.5.0-rc.2", True),
+                                              ("aarch64", "stable", "v1.5.0", False),
+                                              ("arm64", "beta", "v1.5.0", False),
+                                              ("x86_64", "unknown", "v1.5.0", False),
+                                              ("x86_64", "beta", "v1.5.0-beta.0", False),
+                                              ("x86_64", "beta", "master", False)]:
+            with self.subTest(arch=arch, channel=channel, tag=tag), patch.dict(os.environ, NOVA_ARCH=arch, NOVA_CHANNEL=channel, NOVA_TAG=tag):
+                if accepted:
+                    exec(preflight, {})
+                else:
+                    with self.assertRaises((ValueError, SystemExit)):
+                        exec(preflight, {})
+
+    def test_native_architecture_and_nested_artifact_keep_existing_signature_guards(self):
+        workflow = (self.root / ".github/workflows/flatpak-feed.yml").read_text()
+        self.assertIn("options: [x86_64, aarch64]", workflow)
+        self.assertIn("runs-on: ${{ inputs.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}", workflow)
+        for binding in ['test "$(uname -m)" = "$NOVA_ARCH"', 'feed-build-${NOVA_ARCH}.json',
+                        'flatpak-builder --user --arch="$NOVA_ARCH"', 'ref="app/com.papi_ux.Nova/$NOVA_ARCH/$NOVA_CHANNEL"',
+                        '--url "$NOVA_FEED_URL" --arch "$NOVA_ARCH"', 'flatpak build-bundle --arch="$NOVA_ARCH"',
+                        'Nova-Linux-${NOVA_ARCH}-${NOVA_CHANNEL}.flatpak',
+                        'nova-linux-${{ inputs.arch }}-${{ inputs.channel }}-installer',
+                        '--repository site/nova/repo --site site/nova', 'file://$PWD/site/nova/repo',
+                        'path: site/nova/nova-${{ inputs.channel }}.flatpakref',
+                        '<a href="https://papi-ux.com/nova/">Nova product page</a>']:
+            self.assertIn(binding, workflow)
+        self.assertNotIn('site/repo', workflow)
+        # Source changes retain the existing off-by-default publish and verified preservation path.
+        self.assertRegex(workflow, r"publish:\n(?:.*\n){0,4}        default: false")
+        self.assertIn('if: inputs.publish', workflow)
+        self.assertIn('--set=gpg-verify=true --set=gpg-verify-summary=true', workflow)
+        self.assertIn('pull --untrusted candidate "$ref"', workflow)
+        self.assertIn('--repository site/nova/repo --previous previous', workflow)
+        self.assertIn('cancel-in-progress: false', workflow)
+        build_job = workflow.split('  build:\n', 1)[1].split('  publish:\n', 1)[0]
+        self.assertIsNone(re.search(r"^    environment:", build_job, re.MULTILINE), 'Private rehearsal must not gain an approval environment')
 
 
 if __name__ == "__main__":
