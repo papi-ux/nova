@@ -57,7 +57,10 @@ the first public channel is available:
    release's checked-in notes so **Open Nova Downloads** leads users to the
    installer. Publish the feed before announcing the channel's availability.
 2. Enable GitHub Pages for this repository with **GitHub Actions** as its source.
-   Configure its custom domain `updates.papi-ux.com` and HTTPS before activation.
+   Configure DNS, its custom domain `updates.papi-ux.com`, and direct HTTPS
+   **before any rooted-feed workflow run**, including a `publish=false`,
+   `bootstrap=true` rehearsal. DNS/TLS/transport failures remain fatal; they are
+   never treated as the HTTP 404 that permits a first-feed bootstrap.
    The artifact is rooted at `site/nova/`; the fixed root index links to the
    existing product page `https://papi-ux.com/nova/`, which is not replaced.
    Verify that the final feed URL serves directly without redirects: the app
@@ -110,19 +113,37 @@ the separately authorized publication step. Publishing Stable alone leaves Beta
 subscribers on their current Beta ref until that ref receives the intended
 release. Frame stays Beta even when its Beta ref carries stable 1.5.0 source.
 
+Each selected architecture/channel must advance to a strictly newer canonical
+release version before catalog, descriptor or page outputs are written. Numeric
+major/minor/patch and suffix numbers are compared, with beta before RC before
+stable for the same release number. Equal-version rebuilds and older versions
+are refused, with no rollback override. A genuinely new selected ref without a
+prior catalog remains eligible for the existing bootstrap flow; other refs have
+independent floors and retain their existing validation/preservation.
+The previous selected catalog is validated against its own prior commit, already
+bound to the signature-verified mirror by the preservation step. Its commit is
+not compared with the intentionally different newly exported selected commit.
+
 ## Existing bundle installations
 
 Existing standalone `.flatpak` downloads need a one-time channel installation.
+Guided-installer x86 shortcuts pin `--branch=master` and must wait for a versioned
+guided channel migration that preserves the same Steam identity, artwork,
+pairing and settings. Do not hand-edit a managed launcher or create a duplicate
+Steam entry. Until that migration is qualified, continue using the existing
+bundle/manual update route.
+
 Once the feed is published, open its `nova-beta.flatpakref` (or the chosen channel)
-in the software manager from Desktop Mode. For example:
+in the software manager from Desktop Mode for an independent manual installation.
+For example:
 
 ```sh
 flatpak install --user https://updates.papi-ux.com/nova/nova-beta.flatpakref
 flatpak run --user --arch=x86_64 --branch=beta app/com.papi_ux.Nova/x86_64/beta --standalone
 ```
 
-Use the new channel once before reopening the existing Steam shortcut. Nova
-keeps the same app ID and data directory, preserving pairing and preferences.
+Launch the selected channel explicitly; installing it does not migrate an
+existing Steam shortcut. Nova keeps the same app ID and data directory.
 Do not uninstall with `--delete-data`. User and system installations can coexist;
 verify the intended channel with `flatpak info --user --arch=x86_64 com.papi_ux.Nova//beta` rather
 than deleting the older installation as part of an update. The app's Updates

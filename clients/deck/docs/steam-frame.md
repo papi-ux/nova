@@ -92,6 +92,15 @@ installation. The owner must first verify signatures, exact installed/catalog
 commit, runtime drift, an update/reopen cycle, pairing preservation and rollback
 on Frame. Availability of an ARM container image is not that qualification.
 
+This procedure applies **only** to the manual-guide launcher
+`~/nova-frame-alpha.sh`. Guided-installer users have a managed launcher at
+`~/.local/share/nova-guided/nova-frame-alpha.sh`; they must wait for a versioned
+guided channel migration that preserves their existing **Nova Frame Alpha**
+Steam identity, artwork, pairing and settings. Do not apply this replacement to
+a managed launcher, hand-edit it, or create a duplicate Steam entry. The existing
+bundle/manual update route remains in use until the appropriate migration is
+qualified and available.
+
 Close Nova. Keep the current `~/nova-frame-alpha.sh` as a backup and leave its
 private `nova-frame-alpha-flatpak` installation intact. Install the architecture-
 neutral Beta descriptor into the ordinary user installation, explicitly selecting

@@ -258,6 +258,107 @@ class CatalogPreservationTests(unittest.TestCase):
             return refs[args[-1]] + "\n"
         return output
 
+    def test_selected_version_floor_refuses_equal_or_older_before_output(self):
+        for arch in feed.ARCHITECTURES:
+            for channel in feed.CHANNELS:
+                for version in ["v1.5.1", "v1.5.0"]:
+                    with self.subTest(arch=arch, channel=channel, version=version), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory); refs = self.repository(); old = self.catalogs(refs)
+                        selected = feed.catalog_path(channel, arch)
+                        old[selected]["version"] = "v1.5.1"
+                        for path, data in old.items():
+                            target = root / "previous" / path; target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_text(json.dumps(data))
+                        refs[f"app/{feed.APP}/{arch}/{channel}"] = "e" * 64
+                        site = root / "site"; site.mkdir(); sentinel = site / "stable.json"
+                        sentinel.write_bytes(b"existing output must survive")
+                        with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, [])) as query:
+                            with self.assertRaises(ValueError):
+                                feed.write_site(root / "repo", site, root / "previous", channel, version,
+                                                "https://example.org/nova", b"public fixture", arch)
+                            query.assert_not_called()
+                        self.assertEqual(sentinel.read_bytes(), b"existing output must survive")
+                        self.assertEqual(list(site.rglob("*")), [sentinel])
+
+    def test_selected_floor_orders_numeric_beta_rc_and_stable_versions(self):
+        cases = [("v1.5.0-beta.2", "v1.5.0-beta.10", True), ("v1.5.0-beta.10", "v1.5.0-rc.1", True),
+                 ("v1.5.0-rc.10", "v1.5.0", True), ("v1.5.0", "v1.5.1-beta.1", True),
+                 ("v1.9.9", "v1.10.0-beta.1", True), ("v1.5.9", "v1.6.0-rc.1", True),
+                 ("v1.9.9", "v2.0.0-beta.1", True), ("v1.5.0-beta.10", "v1.5.0-beta.2", False),
+                 ("v1.5.0-rc.1", "v1.5.0-beta.99", False), ("v1.5.0", "v1.5.0-rc.99", False),
+                 ("v1.5.1-beta.1", "v1.5.0", False), ("v1.10.0", "v1.9.99", False)]
+        for old_version, version, accepted in cases:
+            with self.subTest(previous=old_version, version=version), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); previous = root / "previous"; previous.mkdir()
+                (previous / "beta.json").write_text(json.dumps(feed.catalog("beta", "a" * 64, old_version)))
+                refs = {f"app/{feed.APP}/x86_64/beta": "b" * 64}  # New and previous commits deliberately differ.
+                site = root / "site"; site.mkdir(); sentinel = site / "beta.json"; sentinel.write_bytes(b"keep")
+                with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, {}, [])) as query:
+                    if accepted:
+                        feed.write_site(root / "repo", site, previous, "beta", version, "https://example.org/nova", b"public fixture")
+                        self.assertEqual(json.loads(sentinel.read_text()), feed.catalog("beta", "b" * 64, version))
+                    else:
+                        with self.assertRaises(ValueError):
+                            feed.write_site(root / "repo", site, previous, "beta", version, "https://example.org/nova", b"public fixture")
+                        query.assert_not_called()
+                        self.assertEqual(sentinel.read_bytes(), b"keep")
+                        self.assertEqual(list(site.iterdir()), [sentinel])
+
+    def test_selected_floor_is_independent_and_absent_prior_allows_bootstrap(self):
+        for arch in feed.ARCHITECTURES:
+            for channel in feed.CHANNELS:
+                for prior_exists in [True, False]:
+                    with self.subTest(arch=arch, channel=channel, prior=prior_exists), tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory); refs = self.repository(); old = self.catalogs(refs)
+                        selected = feed.catalog_path(channel, arch)
+                        for path, data in old.items():
+                            data["version"] = "v1.5.0" if path == selected else "v9.0.0"
+                            if path == selected and not prior_exists: continue
+                            target = root / "previous" / path; target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_text(json.dumps(data))
+                        refs[f"app/{feed.APP}/{arch}/{channel}"] = "e" * 64
+                        with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, old, [])):
+                            feed.write_site(root / "repo", root / "site", root / "previous", channel, "v1.5.1",
+                                            "https://example.org/nova", b"public fixture", arch)
+                        for path, data in old.items():
+                            expected = feed.catalog(channel, "e" * 64, "v1.5.1", arch) if path == selected else data
+                            self.assertEqual(json.loads((root / "site" / path).read_text()), expected)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); refs = {f"app/{feed.APP}/aarch64/beta": "e" * 64}
+            with patch.object(feed.subprocess, "check_output", side_effect=self.backend(refs, {}, [])):
+                feed.write_site(root / "repo", root / "site", root / "no-previous-directory", "beta", "v1.5.0",
+                                "https://example.org/nova", b"public fixture", "aarch64")
+            self.assertEqual(json.loads((root / "site/aarch64/beta.json").read_text()), feed.catalog("beta", "e" * 64, "v1.5.0", "aarch64"))
+
+    def test_selected_floor_rejects_malformed_prior_or_dispatched_version_before_output(self):
+        valid = feed.catalog("beta", "a" * 64, "v1.5.0")
+        malformed = [None, [], {}, valid | {"appId": "org.example.Other"}, valid | {"channel": "stable"},
+                     valid | {"arch": "aarch64"}, valid | {"commit": "z" * 64}, valid | {"commit": None},
+                     valid | {"extra": "field"}, valid | {"version": 1}, valid | {"version": "v1.5.0-nightly.1"},
+                     valid | {"version": "v1.5.0-beta.0"}, valid | {"version": "v01.5.0"}]
+        cases = [(json.dumps(data), "v1.5.1") for data in malformed] + [("{", "v1.5.1")]
+        cases += [(json.dumps(valid), version) for version in
+                  [None, "1.5.1", "v1.5", "v1.5.1-nightly.1", "v1.5.1-beta", "v1.5.1-beta.0", "v01.5.1", "v1.05.1", "v1.5.1\n"]]
+        for prior_text, version in cases:
+            with self.subTest(prior=prior_text, version=version), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); previous = root / "previous"; previous.mkdir(); (previous / "beta.json").write_text(prior_text)
+                site = root / "site"; site.mkdir(); sentinel = site / "beta.json"; sentinel.write_bytes(b"keep")
+                with patch.object(feed.subprocess, "check_output") as query:
+                    with self.assertRaises(ValueError):
+                        feed.write_site(root / "repo", site, previous, "beta", version, "https://example.org/nova", b"public fixture")
+                    query.assert_not_called()
+                self.assertEqual(sentinel.read_bytes(), b"keep")
+                self.assertEqual(list(site.iterdir()), [sentinel])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); site = root / "must-not-be-created"
+            with patch.object(feed.subprocess, "check_output") as query:
+                with self.assertRaises(ValueError):
+                    feed.write_site(root / "repo", site, root / "no-prior", "beta", "v1.5.1-nightly.1",
+                                    "https://example.org/nova", b"public fixture")
+                query.assert_not_called()
+            self.assertFalse(site.exists())
+
     def test_either_architecture_publish_preserves_all_other_architecture_channels(self):
         for selected_arch in feed.ARCHITECTURES:
             for selected_channel in feed.CHANNELS:

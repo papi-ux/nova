@@ -56,6 +56,17 @@ def version_suffix(tag):
     return match.group("suffix") or ""
 
 
+def version_key(tag):
+    if not isinstance(tag, str):
+        raise ValueError("Invalid feed version")
+    suffix = version_suffix(tag)
+    numbers = tag[1:].split("-", 1)[0].split(".")
+    if any(str(int(number)) != number for number in numbers):
+        raise ValueError("Feed versions must use canonical numeric components")
+    stage, number = suffix[1:].split(".") if suffix else ("stable", "0")
+    return (*map(int, numbers), {"beta": 0, "rc": 1, "stable": 2}[stage], int(number))
+
+
 def prepare_release(manifest, version=None):
     if manifest.get("app-id") != APP:
         raise ValueError("Wrong app")
@@ -156,9 +167,22 @@ def preserve_catalogs(repository, previous, url):
 
 
 def write_site(repository, site, previous, channel, version, url, key, architecture="x86_64"):
-    catalog_path(channel, architecture)  # Validate selection before repository I/O.
+    selected = catalog_path(channel, architecture)
     # Validate descriptor inputs before any output is overwritten, too.
     descriptors(url, key, channel)
+    target_version = version_key(version)
+    try:
+        prior = json.loads((previous / selected).read_text())
+    except FileNotFoundError:
+        pass  # A genuinely new ref has no prior catalog, including first-feed bootstrap.
+    else:
+        if not isinstance(prior, dict) or not isinstance(prior.get("commit"), str) or not COMMIT.fullmatch(prior["commit"]):
+            raise ValueError("Invalid previous selected catalog commit")
+        # preserve_catalogs already bound this catalog to the signature-verified
+        # previous mirror. Validate its own old commit, not the newly exported ref.
+        validate_catalog(prior, channel, prior["commit"], architecture)
+        if target_version <= version_key(prior["version"]):
+            raise ValueError("Selected architecture/channel must advance to a strictly newer version")
     refs = repository_catalogs(repository)
     if not any((arch, branch) == (architecture, channel) for arch, branch, _, _ in refs):
         raise ValueError("Selected architecture/channel is missing from the exported repository")
