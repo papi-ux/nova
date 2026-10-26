@@ -97,6 +97,13 @@ void parserAndReducer() {
     o["tuning"] = QJsonObject{{"adaptive_bitrate_enabled", false}};
     require(view(o).value("tuningLabel") == "Tuning: Off (legacy)", "nested legacy preference lost precedence");
     require(!parseHostTelemetry("[]") && !parseHostTelemetry("{") && !parseHostTelemetry(std::string(128*1024+1, ' ')), "unbounded or invalid JSON accepted");
+    const auto padded = [](std::size_t size) {
+        std::string json = R"({"padding":")";
+        json.append(size - json.size() - 2, 'x');
+        return json + "\"}";
+    };
+    require(parseHostTelemetry(padded(128*1024+1)) && parseHostTelemetry(padded(2*1024*1024))
+        && !parseHostTelemetry(padded(2*1024*1024+1)), "valid status JSON outside the finite 2 MiB budget");
 
     for (const auto& pair : std::initializer_list<std::pair<QString, QJsonValue>>{
         {"owned_by_client", false}, {"owned_by_client", "true"}, {"client_role", "viewer"},

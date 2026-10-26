@@ -45,7 +45,7 @@ std::optional<DeckLiveTuningTelemetry> parseLiveTuningTelemetry(const QJsonObjec
     return v;
 }
 std::optional<DeckHostTelemetry> parseHostTelemetry(std::string_view json) {
-    if (json.size() > 128 * 1024) return {};
+    if (json.size() > 2 * 1024 * 1024) return {};
     QJsonParseError error;
     const auto doc = QJsonDocument::fromJson(QByteArray(json.data(), static_cast<qsizetype>(json.size())), &error);
     if (error.error != QJsonParseError::NoError || !doc.isObject()) return {};

@@ -1570,7 +1570,9 @@ DeckPolarisResult<bool> DeckPolarisClient::uploadClientMedia(const DeckClientMed
 }
 
 DeckPolarisResult<DeckHostTelemetry> DeckPolarisClient::fetchHostTelemetry(const std::function<bool()>& cancelled) const {
-    auto raw = request("/polaris/v1/session/status", 128 * 1024, false, cancelled);
+    // The same finite budget as the other reads of this endpoint: Polaris repeats
+    // its Doctor report, Live Tuning history included, in several sections.
+    auto raw = request("/polaris/v1/session/status", 2 * 1024 * 1024, false, cancelled);
     if (raw.ok() && raw.httpStatus != 200) { raw.status = DeckPolarisRequestStatus::HttpError; raw.value.reset(); }
     return parsed<DeckHostTelemetry>(std::move(raw), parseHostTelemetry);
 }

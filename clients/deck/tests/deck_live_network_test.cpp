@@ -1125,6 +1125,53 @@ void testHudStatusRead() {
     https.dribbleReply = false;
     https.handler = [](const QUrl&) -> std::pair<int, QByteArray> { return {200, QByteArray(128 * 1024 + 1, ' ')}; };
     require(transport.fetchHostTelemetry().status == DeckPolarisRequestStatus::MalformedBody);
+
+    // A healthy status is larger than 128 KiB: Polaris repeats its Doctor report,
+    // with up to 64 Live Tuning history entries, in four sections of it.
+    QJsonArray history;
+    for (int i = 0; i < 64; ++i) history.append(QJsonObject{{"sequence", i + 1}, {"host_elapsed_ms", 1000 * i},
+        {"last_host_elapsed_ms", 1000 * i + 500}, {"kind", "decision"}, {"cause", "packet_loss"}, {"state", "adjusting"},
+        {"reason", "finding_the_link"}, {"requested_bitrate_kbps", 27101}, {"applied_proof", "encoder_confirmed"},
+        {"applied_bitrate_kbps", 20992}, {"operator_revision", i}, {"applied_revision", i}, {"repeat_count", 2},
+        {"feedback_initialized", true}, {"ewma_packet_loss_percent", 1.5}, {"ewma_rtt_ms", 3.5},
+        {"callback", QJsonObject{{"bitrate_kbps", 20992}, {"revision", i}}},
+        {"input", QJsonObject{{"packet_loss_percent", 6.5}, {"rtt_ms", 3}}}});
+    auto doctor = doctor_fixture::doctor();
+    auto evidence = doctor["evidence"].toArray();
+    for (int i = 0; i < 18; ++i) evidence.append(QJsonObject{{"id", QStringLiteral("fixture_evidence_") + QString::number(i)},
+        {"source", "stream_stats"}, {"status", "pass"}, {"value", i}, {"summary", "Fixture evidence that stays within its "
+        "expected range for this stream and needs no action from the player or the host."}});
+    doctor["evidence"] = evidence;
+    doctor["advanced_evidence"] = QJsonObject{{"live_tuning_history",
+        QJsonObject{{"version", 1}, {"capacity", 64}, {"entries", history}}}};
+    auto status = doctor_fixture::envelope();
+    status["doctor"] = doctor;
+    status["health"] = QJsonObject{{"doctor", doctor}};
+    status["client_settings"] = QJsonObject{{"health", status.value("health")}, {"doctor", doctor}};
+    const auto realistic = QJsonDocument(status).toJson(QJsonDocument::Compact);
+    require(realistic.size() > 128 * 1024 && realistic.size() < 2 * 1024 * 1024);
+    https.handler = [realistic](const QUrl&) -> std::pair<int, QByteArray> { return {200, realistic}; };
+    const auto large = transport.fetchHostTelemetry();
+    require(large.ok() && large.value->authorityValid && large.value->gameId == 17 && large.value->live);
+
+    // Valid JSON throughout, so only the finite 2 MiB budget can refuse it.
+    const auto padded = [&](qsizetype size) {
+        QByteArray body = sample.chopped(1) + R"(,"padding":")";
+        body += QByteArray(size - body.size() - 2, 'x');
+        return body + R"("})";
+    };
+    for (const qsizetype size : {qsizetype(2 * 1024 * 1024), qsizetype(2 * 1024 * 1024 + 1)}) {
+        const auto body = padded(size);
+        require(body.size() == size);
+        https.handler = [body](const QUrl&) -> std::pair<int, QByteArray> { return {200, body}; };
+        const int sent = https.requests;
+        const auto bounded = transport.fetchHostTelemetry();
+        require(https.requests == sent + 1);
+        if (size == 2 * 1024 * 1024) require(bounded.ok() && bounded.value->authorityValid && bounded.value->gameId == 17);
+        else require(bounded.status == DeckPolarisRequestStatus::MalformedBody && bounded.httpStatus == 200
+            && bounded.detail == "the host response exceeded the size limit");
+    }
+
     const auto derived = createDerivedServer(directory.path());
     TlsServer wrong(derived); wrong.trustClient(client.cert);
     require(wrong.listen(QHostAddress::LocalHost, 0));
