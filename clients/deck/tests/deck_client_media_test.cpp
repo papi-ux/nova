@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QThread>
 #include <atomic>
+#include <array>
 #include <cstdlib>
 #include <iostream>
 using namespace nova::deck::polaris;
@@ -135,22 +136,141 @@ void staleOrRevokedRead() {
         else require(uploads == 0, "stale/revoked blocked read dispatched telemetry");
     }
 }
-void unsupportedStopsUploads() {
-    std::atomic<int> uploads{0};
+void permanentStopsUploads() {
+    for (const auto& result : std::array{
+        DeckPolarisResult<bool>{DeckPolarisRequestStatus::HttpError, 404},
+        DeckPolarisResult<bool>{DeckPolarisRequestStatus::HttpError, 405},
+        DeckPolarisResult<bool>{DeckPolarisRequestStatus::Unauthorized, 401},
+        DeckPolarisResult<bool>{DeckPolarisRequestStatus::CertMismatch},
+        DeckPolarisResult<bool>{DeckPolarisRequestStatus::InvalidIdentity}}) {
+        std::atomic<int> uploads{0};
+        DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
+            DeckHudHostTarget t; t.identityValid = [] { return true; };
+            t.fetch = [](const auto&) { return success(owned()); };
+            t.uploadMedia = [&](const auto&, const auto&, const auto&) { ++uploads; return result; };
+            return t;
+        }, {17, "game", "token"}, {20, 100, 100});
+        until([&] { return observer.snapshot().value("hostFresh").toBool(); });
+        require(observer.submitClientMedia(sample()), "initial advertised upload refused"); until([&] { return uploads == 1; });
+        QThread::msleep(40);
+        require(observer.snapshot().value("hostFresh").toBool() && !observer.submitClientMedia(sample()) && uploads == 1,
+            "permanent media result retried or failed optional host readings");
+    }
+}
+void feedbackAcrossEncoderChanges() {
+    // Same four target changes within nine seconds as S1. The one-second
+    // spacing is bounded harness input, not a reconstruction of runtime cause.
+    constexpr std::array rates{34988, 20992, 34988, 27101, 20992};
+    std::atomic<int> phase{0}, reads{0}, uploads{0}, command{0}, delivered{0}, pendingSeen{0}, settledSeen{0};
+    std::atomic<bool> pending{false}, listening{false};
+    std::atomic<qint64> previousAttempt{0}, firstRecovery{0}, lastSuccess{0};
     DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
         DeckHudHostTarget t; t.identityValid = [] { return true; };
-        t.fetch = [](const auto&) { return success(owned()); };
-        t.uploadMedia = [&](const auto&, const auto&, const auto&) { ++uploads; return DeckPolarisResult<bool>{DeckPolarisRequestStatus::HttpError, 404, {}, {}}; };
+        t.fetch = [&](const auto&) {
+            auto h = owned(); h.eventsHttpsPort = 47990; h.encoderCodec = "hevc";
+            h.hostTuningAllowed = h.livePresent = true;
+            const int step = phase.load(); const bool applying = pending.load();
+            DeckLiveTuningTelemetry live;
+            live.enabled = live.supported = true; live.state = applying ? "applying" : "adjusting";
+            live.instance = "feedback-host"; live.appSession = h.appSession; live.generation = *h.generation;
+            live.sequence = ++reads; live.qualityLimit = rates[0]; live.requested = rates[step];
+            // Typed null applied_bitrate_kbps is represented as zero.
+            live.applied = applying ? 0 : rates[step]; h.live = live;
+            (applying ? pendingSeen : settledSeen).fetch_or(1 << step);
+            return success(h);
+        };
+        t.events = [&](int, const auto& refresh, const auto& stop) {
+            listening = true;
+            while (!stop()) {
+                const int next = command.load();
+                if (next > delivered) { refresh(); delivered = next; }
+                QThread::msleep(1);
+            }
+            return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Timeout};
+        };
+        t.uploadMedia = [&](const auto& s, const auto& scope, const auto& cancelled) {
+            require(!cancelled() && scope == DeckClientMediaScope{"token", 41} &&
+                freshClientMedia(s, clientMediaMonotonicMs()), "transition upload lost identity/scope/freshness");
+            require(s.atMs > previousAttempt.exchange(s.atMs), "transition replayed a sample");
+            const int attempt = ++uploads;
+            if (attempt == 1) return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true};
+            if (attempt == 2) {
+                firstRecovery = clientMediaMonotonicMs();
+                return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Timeout};
+            }
+            if (attempt == 3) return DeckPolarisResult<bool>{DeckPolarisRequestStatus::HttpError, 400};
+            if (attempt == 4) return DeckPolarisResult<bool>{DeckPolarisRequestStatus::HttpError, 409};
+            lastSuccess = clientMediaMonotonicMs();
+            return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true};
+        };
         return t;
-    }, {17, "game", "token"}, {20, 100, 100});
-    until([&] { return observer.snapshot().value("hostFresh").toBool(); });
-    require(observer.submitClientMedia(sample()), "initial advertised upload refused"); until([&] { return uploads == 1; });
-    QThread::msleep(40);
-    require(observer.snapshot().value("hostFresh").toBool() && !observer.submitClientMedia(sample()) && uploads == 1,
-        "unsupported telemetry retried or failed optional host readings");
+    }, {17, "game", "token"}, {20, 200, 100});
+    until([&] { return listening && observer.snapshot().value("hostFresh").toBool(); });
+    require(observer.submitClientMedia(sample()), "initial transition sample refused");
+    until([&] { return uploads == 1; });
+    QElapsedTimer elapsed; elapsed.start(); qint64 firstChange = 0, lastChange = 0;
+    for (int tick = 1; tick <= 8; ++tick) {
+        // The epoch fence is strictly >5000 ms, including on fast machines.
+        until([&] { return elapsed.elapsed() >= tick * 1000 + 20; });
+        if (tick <= 4) {
+            if (tick == 1) firstChange = clientMediaMonotonicMs();
+            pending = true; phase = tick; command = tick * 2 - 1;
+            until([&] { return delivered == tick * 2 - 1 && (pendingSeen & (1 << tick)) &&
+                observer.snapshot().value("hostFresh").toBool(); });
+            require(observer.snapshot().value("appliedBitrateKbps").toInt() == 0, "pending encoder fabricated acknowledgement");
+        }
+        auto s = sample(); s.counts.decoderGeneration = phase + 1;
+        s.counts.expected += tick * 90; s.counts.received += tick * 90;
+        require(observer.submitClientMedia(s), "fresh transition sample refused");
+        if (tick <= 4) {
+            // Wait for this queued sample to be consumed before settling status.
+            const int before = reads; until([&] { return reads > before + 1; });
+            require(uploads == 1, "decoder transition crossed the five-second baseline fence");
+            pending = false; command = tick * 2;
+            until([&] { return delivered == tick * 2 && (settledSeen & (1 << tick)) &&
+                observer.snapshot().value("appliedBitrateKbps").toInt() == rates[tick]; });
+            lastChange = clientMediaMonotonicMs();
+        } else {
+            until([&] { return uploads == tick - 3; });
+        }
+    }
+    require(firstRecovery >= lastChange && lastSuccess >= firstRecovery && lastSuccess - lastChange <= 6000 && uploads == 5,
+        "steady reporting did not recover through timeout/400/409 to success");
+    require((pendingSeen & 30) == 30 && (settledSeen & 31) == 31 && lastChange - firstChange <= 9000,
+        "four target/pending/event transitions were not exercised within nine seconds");
+}
+void retiredEventResult() {
+    std::atomic<int> port{47990}, listens{0}, uploads{0};
+    std::atomic<bool> failCurrent{false}, oldReturned{false};
+    DeckHudHostObserver observer([&]() -> std::optional<DeckHudHostTarget> {
+        DeckHudHostTarget t; t.identityValid = [] { return true; };
+        t.fetch = [&](const auto&) { auto h = owned(); h.eventsHttpsPort = port; return success(h); };
+        t.events = [&](int advertised, const auto&, const auto& stop) {
+            ++listens;
+            while (!stop() && !(advertised == 47991 && failCurrent)) QThread::msleep(1);
+            if (advertised == 47990) oldReturned = true;
+            return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Unauthorized, 401};
+        };
+        t.uploadMedia = [&](const auto&, const auto& scope, const auto& cancelled) {
+            require(!cancelled() && scope == DeckClientMediaScope{"token", 41}, "retired event changed media scope");
+            ++uploads; return DeckPolarisResult<bool>{DeckPolarisRequestStatus::Ok, 200, {}, true};
+        };
+        return t;
+    }, {17, "game", "token"}, {20, 200, 100});
+    until([&] { return listens == 1 && observer.snapshot().value("hostFresh").toBool(); });
+    port = 47991;
+    until([&] { return oldReturned && listens == 2 && observer.snapshot().value("hostFresh").toBool(); });
+    require(observer.submitClientMedia(sample()), "retired event unauthorized poisoned current scope");
+    until([&] { return uploads == 1; });
+    failCurrent = true;
+    until([&] { const auto v = observer.snapshot(); return !v.value("hostFresh").toBool() &&
+        !v.value("canRefreshDiagnostics").toBool() && !v.value("diagnosticsRefreshing").toBool(); });
+    require(!observer.submitClientMedia(sample()) && uploads == 1 && listens == 2,
+        "current event unauthorized failed open or retried");
 }
 }
 int main(int argc, char** argv) {
-    QCoreApplication app(argc, argv); countersAndWire(); admission(); onceAndSwap(); staleOrRevokedRead(); unsupportedStopsUploads();
+    QCoreApplication app(argc, argv); countersAndWire(); admission(); onceAndSwap(); staleOrRevokedRead(); permanentStopsUploads();
+    feedbackAcrossEncoderChanges(); retiredEventResult();
     std::cout << "Video sequence epochs, raw schema, advertisement, owner/freshness fences and no replay passed\n";
 }

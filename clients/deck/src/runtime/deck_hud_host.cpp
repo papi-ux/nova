@@ -2,11 +2,14 @@
 #include "runtime/deck_doctor_actions.h"
 #include "runtime/deck_doctor_receipts.h"
 #include <QDateTime>
+#include <QDebug>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <algorithm>
+#include <string_view>
 #include <utility>
 
 namespace nova::deck::runtime {
@@ -141,6 +144,51 @@ struct DeckHudHostObserver::Shared {
     std::optional<polaris::DeckClientMediaScope> mediaScope, mediaPinned;
     bool mediaSupported = false;
     qint64 mediaLastQueued = 0;
+    // Diagnostic state only, under mutex. Coalesce transitions for five seconds
+    // per stage; retain the last failure even if recovery precedes the log.
+    enum class MediaStage { Source, Submit, Upload, Status, Events, Count };
+    struct MediaTransition {
+        const char* reason = nullptr;
+        std::optional<DeckPolarisRequestStatus> status, failure;
+        int http = 0, failureHttp = 0;
+        qint64 emittedAt = 0;
+        quint64 changes = 0;
+        bool pending = false;
+    };
+    std::array<MediaTransition, static_cast<size_t>(MediaStage::Count)> mediaTransitions;
+    qint64 mediaSampleAt = 0, mediaFrameAt = 0;
+    quint64 mediaSubmissions = 0, mediaAttempts = 0, mediaAccepted = 0;
+    void flushMediaTransitions() {
+        const auto now = nowMs();
+        const auto age = [now](qint64 at) -> qint64 { return at > 0 && now >= at ? now - at : -1; };
+        constexpr std::array names{"source", "submit", "upload", "status", "events"};
+        for (size_t i = 0; i < mediaTransitions.size(); ++i) {
+            auto& entry = mediaTransitions[i];
+            if (!entry.pending || (entry.emittedAt && now - entry.emittedAt < 5000)) continue;
+            // All strings are local symbols, never transport detail or identity.
+            qInfo("Native media feedback: stage=%s reason=%s status=%s http=%d last_failure=%s last_failure_http=%d "
+                  "sample_age_ms=%lld frame_age_ms=%lld host_age_ms=%lld submitted=%llu attempted=%llu accepted=%llu transitions=%llu",
+                names[i], entry.reason, entry.status ? describe(*entry.status).data() : "none", entry.http,
+                entry.failure ? describe(*entry.failure).data() : "none", entry.failureHttp,
+                static_cast<long long>(age(mediaSampleAt)), static_cast<long long>(age(mediaFrameAt)),
+                static_cast<long long>(observed == Clock::time_point{} ? -1 :
+                    std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - observed).count()),
+                static_cast<unsigned long long>(mediaSubmissions), static_cast<unsigned long long>(mediaAttempts),
+                static_cast<unsigned long long>(mediaAccepted), static_cast<unsigned long long>(entry.changes));
+            entry.pending = false; entry.emittedAt = now;
+        }
+    }
+    void mediaTransition(MediaStage stage, const char* reason,
+        std::optional<DeckPolarisRequestStatus> status = {}, int http = 0, bool terminal = false) {
+        auto& entry = mediaTransitions[static_cast<size_t>(stage)];
+        if (!entry.reason || std::string_view(entry.reason) != reason || entry.status != status || entry.http != http) {
+            entry.reason = reason; entry.status = status; entry.http = http; ++entry.changes; entry.pending = true;
+            if (status && *status != DeckPolarisRequestStatus::Ok) { entry.failure = status; entry.failureHttp = http; }
+            // A terminal closure occurs once per stage and must survive teardown.
+            if (terminal) entry.emittedAt = 0;
+        }
+        flushMediaTransitions();
+    }
     struct Profile { QString display; bool clear = false; QVariantMap reviewed; };
     struct Intent { bool enabled; DeckLiveTuningTelemetry observed; int bitrateKbps = 0; std::optional<Profile> profile; std::optional<DeckBitrateUnits> units; QString mode; int requestKbps = 0; };
     std::atomic_bool stopped{false};
@@ -256,8 +304,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                         if (result.status == DeckPolarisRequestStatus::Unauthorized ||
                             result.status == DeckPolarisRequestStatus::CertMismatch ||
                             result.status == DeckPolarisRequestStatus::InvalidIdentity) {
-                            state->eventFatal = true; state->wake.notify_all(); break;
+                            state->eventFatal = true; state->wake.notify_all();
+                            { const std::lock_guard lock(state->mutex);
+                                state->mediaTransition(Shared::MediaStage::Events, "permanent", result.status, result.httpStatus, true); }
+                            break;
                         }
+                        { const std::lock_guard lock(state->mutex);
+                            state->mediaTransition(Shared::MediaStage::Events, "disconnected", result.status, result.httpStatus); }
                         // Unsupported/invalid event services fall back to the regular
                         // paired status poll. Only a new advertised endpoint retries.
                         if (result.status == DeckPolarisRequestStatus::MalformedBody ||
@@ -301,6 +354,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     if (!state->mediaPinned) state->mediaPinned = scope;
                     if (*state->mediaPinned == scope) state->mediaScope = scope;
                 }
+                state->mediaTransition(Shared::MediaStage::Status,
+                    state->eventFatal ? "events_fatal" : !current ? "refresh_changed" : !result.ok() ? "read_failed" :
+                    !state->mediaSupported ? "media_disabled" : !view.value("hostFresh").toBool() ? "host_unavailable" :
+                    !state->mediaScope ? "scope_unavailable" : "scope_ready", result.status, result.httpStatus,
+                    permanent(result));
+                state->mediaTransition(Shared::MediaStage::Source,
+                    !state->mediaSampleAt ? "waiting_for_sample" : nowMs() - state->mediaSampleAt > 2500 ? "sample_missing" : "sample_recent");
 
                 const bool doctorAuthorized = current && view.value("canTune").toBool() && bool(target->doctorAction);
                 if (recoveryPending && doctorAuthorized && result.value->live) {
@@ -365,21 +425,43 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 publish(result, view, version);
                 bool stop = permanent(result);
                 confirmBitrate(result, view, version);
-                if (media && target->uploadMedia && !stop && Clock::now() >= nextMediaUpload &&
-                    polaris::clientMediaEpochReady(media->sample, lastMediaAttempt)) {
-                    const auto mediaCancelled = [&] {
-                        if (!valid() || !polaris::freshClientMedia(media->sample, polaris::clientMediaMonotonicMs())) return true;
+                if (media) {
+                    const char* gate = !target->uploadMedia ? "unadvertised" : stop ? "status_permanent" :
+                        Clock::now() < nextMediaUpload ? "interval_wait" :
+                        !polaris::clientMediaEpochReady(media->sample, lastMediaAttempt) ? "decoder_epoch_wait" : nullptr;
+                    if (gate) {
                         const std::lock_guard lock(state->mutex);
-                        return !state->mediaScope || *state->mediaScope != media->scope || state->refreshVersion != media->version ||
-                            state->eventFatal || !state->mediaSupported;
-                    };
-                    if (!mediaCancelled()) {
-                        nextMediaUpload = Clock::now() + std::chrono::milliseconds(900);
-                        lastMediaAttempt = media->sample;
-                        const auto uploaded = target->uploadMedia(media->sample, media->scope, mediaCancelled);
-                        // Each sample is attempted once. Unsupported/revoked transport
-                        // disables uploads without failing the optional host observer.
-                        if (permanent(uploaded)) { const std::lock_guard lock(state->mutex); state->mediaSupported = false; state->mediaScope.reset(); }
+                        state->mediaTransition(Shared::MediaStage::Upload, gate);
+                    } else {
+                        const char* cancellationReason = nullptr;
+                        const auto mediaCancelled = [&] {
+                            if (!valid()) { cancellationReason = "observer_invalid"; return true; }
+                            if (!polaris::freshClientMedia(media->sample, polaris::clientMediaMonotonicMs())) {
+                                cancellationReason = "sample_stale"; return true;
+                            }
+                            const std::lock_guard lock(state->mutex);
+                            cancellationReason = !state->mediaScope || *state->mediaScope != media->scope ? "scope_changed" :
+                                state->refreshVersion != media->version ? "refresh_changed" : state->eventFatal ? "events_fatal" :
+                                !state->mediaSupported ? "media_disabled" : nullptr;
+                            return cancellationReason != nullptr;
+                        };
+                        if (!mediaCancelled()) {
+                            nextMediaUpload = Clock::now() + std::chrono::milliseconds(900);
+                            lastMediaAttempt = media->sample;
+                            { const std::lock_guard lock(state->mutex); ++state->mediaAttempts; }
+                            const auto uploaded = target->uploadMedia(media->sample, media->scope, mediaCancelled);
+                            // Each sample is attempted once. Unsupported/revoked transport
+                            // disables uploads without failing the optional host observer.
+                            const std::lock_guard lock(state->mutex);
+                            if (permanent(uploaded)) { state->mediaSupported = false; state->mediaScope.reset(); }
+                            if (uploaded.ok() && *uploaded.value) ++state->mediaAccepted;
+                            state->mediaTransition(Shared::MediaStage::Upload, permanent(uploaded) ? "permanent" :
+                                cancellationReason ? cancellationReason : uploaded.ok() && *uploaded.value ? "accepted" : "failed",
+                                uploaded.status, uploaded.httpStatus, permanent(uploaded));
+                        } else {
+                            const std::lock_guard lock(state->mutex);
+                            state->mediaTransition(Shared::MediaStage::Upload, cancellationReason);
+                        }
                     }
                 }
 
@@ -540,8 +622,13 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                     return state->stopped || state->eventFatal || state->pending.has_value() || state->mediaPending.has_value() || state->refreshRequested || state->doctor.busy();
                 });
             }
-        } catch (...) { /* No raw network/identity exception enters the HUD. */ }
+        } catch (...) {
+            const std::lock_guard lock(state->mutex);
+            state->mediaTransition(Shared::MediaStage::Status, "observer_exception", {}, 0, true);
+        }
         const std::lock_guard lock(state->mutex);
+        state->mediaTransition(Shared::MediaStage::Source,
+            state->stopped ? "observer_stopped" : state->eventFatal ? "events_fatal" : "observer_ended", {}, 0, true);
         state->view = DeckHudHostReducer::unavailable(); state->live.reset(); state->pending.reset(); state->mediaPending.reset(); state->mediaScope.reset();
         if (state->busy) state->message = "Couldn't confirm the change. Check the connection before trying again.";
         if (state->busy && state->syncChange) state->syncResult("unconfirmed", "The session ended or became unavailable. The profile change wasn't confirmed. Review it after reconnecting; Nova will not resend it.");
@@ -552,11 +639,18 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
     worker_->start();
 }
 bool DeckHudHostObserver::submitClientMedia(const polaris::DeckClientMediaSample& sample) {
-    if (!polaris::freshClientMedia(sample, polaris::clientMediaMonotonicMs())) return false;
+    const bool fresh = polaris::freshClientMedia(sample, polaris::clientMediaMonotonicMs());
     const std::lock_guard lock(shared_->mutex);
-    if (shared_->stopped || shared_->eventFatal || !shared_->mediaSupported || !shared_->mediaScope ||
-        !shared_->view.value("hostFresh").toBool() || Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) ||
-        sample.atMs <= shared_->mediaLastQueued || !polaris::clientMediaBody(sample, *shared_->mediaScope)) return false;
+    const char* gate = !fresh ? "sample_stale_or_invalid" : shared_->stopped ? "observer_stopped" :
+        shared_->eventFatal ? "events_fatal" : !shared_->mediaSupported ? "media_disabled" : !shared_->mediaScope ? "scope_unavailable" :
+        !shared_->view.value("hostFresh").toBool() ? "host_unavailable" :
+        Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs) ? "host_stale" :
+        sample.atMs <= shared_->mediaLastQueued ? "sample_not_new" :
+        !polaris::clientMediaBody(sample, *shared_->mediaScope) ? "sample_invalid" : nullptr;
+    if (fresh) { shared_->mediaSampleAt = sample.atMs; shared_->mediaFrameAt = sample.counts.lastFrameAtMs; }
+    if (gate) { shared_->mediaTransition(Shared::MediaStage::Submit, gate); return false; }
+    ++shared_->mediaSubmissions;
+    shared_->mediaTransition(Shared::MediaStage::Submit, "queued");
     shared_->mediaLastQueued = sample.atMs;
     shared_->mediaPending = Shared::MediaIntent{sample, *shared_->mediaScope, shared_->refreshVersion};
     shared_->wake.notify_all();
