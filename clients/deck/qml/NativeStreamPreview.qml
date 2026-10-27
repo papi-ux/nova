@@ -284,6 +284,8 @@ Popup {
             id: streamHud
             visible: nativePreview.attempted && nativePlaying && !session.controlsVisible && NovaHudPreferences.enabled
             readings: session.hud || ({})
+            // Already bound to the window presenting this stream, QSG or Vulkan.
+            displayMode: nativePreview.displayCapabilities
             unit: nativePreview.unit
             onCommandCenterRequested: session.showControls()
         }

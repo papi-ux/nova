@@ -732,6 +732,14 @@ int main(int argc, char** argv) {
     focused(*window, hudAction, "HUD Back lost its Command Center row");
     session.resumeInput(); settle();
     require(hud->isVisible() && root->findChild<QQuickItem*>("hud-fps")->property("text") == "59.8", "active game did not show live HUD");
+    // The display-mode chip reads the capabilities bound to the presenting window, and only
+    // beside fresh stream readings.
+    reportedRefresh = 90; display.refresh();
+    session.tuning["fresh"] = true; emit session.hudChanged(); settle();
+    require(hud->property("displayModeHz").toInt() == 90, "the presenting window's display mode did not reach the HUD");
+    session.tuning.remove("fresh"); emit session.hudChanged(); settle();
+    require(hud->property("displayModeHz").toInt() == 0, "a display mode outlived fresh stream readings");
+    reportedRefresh = 60; display.refresh(); settle();
     screenshot("native-hud-minimal-1280.png");
     QMetaObject::invokeMethod(hud, "commandCenterRequested"); settle();
     require(session.controlsVisible() && !hud->isVisible(), "HUD hold failed to open Command Center safely");

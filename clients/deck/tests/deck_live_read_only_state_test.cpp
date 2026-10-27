@@ -411,6 +411,44 @@ void testSpaceFailureCannotResurrectUnscopedCache() {
     }
 }
 
+void testPresenceSaysOnlyWhatTheSelectedHostAnswered() {
+    auto identity = pairedIdentity(); identity.hosts.resize(1);
+    const auto presence = [&](const DeckPolarisRequestStatus status, const std::optional<int> game) {
+        const auto snapshot = buildLiveSnapshot(identity, [status, game](const auto&, const bool wantLibrary) {
+            DeckLivePolarisFetch fetch; fetch.status = status;
+            if (wantLibrary) fetch.currentGame = game;
+            return fetch;
+        });
+        assert(snapshot.probes.size() == 1 && snapshot.probes.front().currentGame == game);
+        return hostPresence(snapshot.probes.front());
+    };
+    assert(presence(DeckPolarisRequestStatus::Ok, 0) == DeckHostPresence::Available);
+    assert(presence(DeckPolarisRequestStatus::Ok, 7) == DeckHostPresence::GameRunning);
+    // An unread, refused or contradicted answer is never Available, and silence is never asleep.
+    assert(presence(DeckPolarisRequestStatus::Ok, std::nullopt) == DeckHostPresence::Unknown);
+    for (const auto status : {DeckPolarisRequestStatus::Unauthorized, DeckPolarisRequestStatus::CertMismatch,
+             DeckPolarisRequestStatus::InvalidIdentity, DeckPolarisRequestStatus::HttpError, DeckPolarisRequestStatus::MalformedBody})
+        assert(presence(status, std::nullopt) == DeckHostPresence::Unknown);
+    assert(presence(DeckPolarisRequestStatus::Timeout, 0) == DeckHostPresence::Unknown);
+    assert(presence(DeckPolarisRequestStatus::Timeout, std::nullopt) == DeckHostPresence::Offline);
+    assert(presence(DeckPolarisRequestStatus::Unreachable, std::nullopt) == DeckHostPresence::Offline);
+
+    // Only the selected PC's own refresh speaks for it, and only while that refresh is recent.
+    const auto at = std::chrono::steady_clock::now();
+    auto snapshot = buildLiveSnapshot(identity, [at](const auto&, const bool wantLibrary) {
+        DeckLivePolarisFetch fetch; fetch.status = DeckPolarisRequestStatus::Ok;
+        if (wantLibrary) { fetch.currentGame = 7; fetch.presenceCheckedAt = at; }
+        return fetch;
+    });
+    const auto id = snapshot.selectedHostId;
+    const std::chrono::milliseconds interval(30000);
+    assert(!id.empty() && selectedHostPresence(snapshot, id, at + interval, interval) == DeckHostPresence::GameRunning);
+    assert(selectedHostPresence(snapshot, id, at + interval + std::chrono::milliseconds(1), interval) == DeckHostPresence::Unknown);
+    assert(selectedHostPresence(snapshot, "office-uuid", at, interval) == DeckHostPresence::Unknown);
+    snapshot.probes.front().presenceCheckedAt.reset(); // as the startup chooser leaves it
+    assert(selectedHostPresence(snapshot, id, at, interval) == DeckHostPresence::Unknown);
+}
+
 } // namespace
 
 int main() {
@@ -425,5 +463,6 @@ int main() {
     testTerminalSummaryIsSanitized();
     testStandardLibraryAndPrecedence();
     testSpaceFailureCannotResurrectUnscopedCache();
+    testPresenceSaysOnlyWhatTheSelectedHostAnswered();
     return 0;
 }

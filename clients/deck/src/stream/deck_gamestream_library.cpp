@@ -15,7 +15,26 @@ struct Document {
     int status = 0;
     Fields host;
     std::vector<Fields> apps;
+    // A repeated, namespaced, nested or overlong running-game field. It never fails the
+    // document, the pairing or the library; it only leaves the running game unknown.
+    bool sessionConflict = false;
 };
+
+bool sessionField(const QString& name) { return name == "currentgame" || name == "session_cleanup_pending"; }
+
+// The running game only from a whole, settled answer: one unsigned decimal that fits an int,
+// with no session cleanup reported in progress. Anything else is unknown, never 0.
+std::optional<int> sessionGame(const Document& document) {
+    if (document.sessionConflict || !document.host.contains("currentgame")) return std::nullopt;
+    if (document.host.contains("session_cleanup_pending") && document.host.value("session_cleanup_pending").trimmed() != "0")
+        return std::nullopt;
+    const auto value = document.host.value("currentgame").trimmed();
+    if (value.isEmpty() || value.size() > 10) return std::nullopt;
+    for (const auto c : value) if (c < '0' || c > '9') return std::nullopt;
+    bool ok = false;
+    const int game = value.toInt(&ok);
+    return ok ? std::optional<int>(game) : std::nullopt;
+}
 
 std::optional<Document> readDocument(std::string_view xml, bool appList) {
     if (xml.empty() || xml.size() > (appList ? kStandardAppListLimit : kStandardServerInfoLimit)) return std::nullopt;
@@ -31,7 +50,12 @@ std::optional<Document> readDocument(std::string_view xml, bool appList) {
         if (++nodes > 65536 || token == QXmlStreamReader::DTD || token == QXmlStreamReader::EntityReference)
             return std::nullopt;
         if (token == QXmlStreamReader::StartElement) {
-            if (++depth > 16 || !field.isEmpty()) return std::nullopt;
+            if (++depth > 16) return std::nullopt;
+            if (!field.isEmpty()) {
+                // Only a running-game field may hold something odd without failing the document.
+                if (appList || !sessionField(field)) return std::nullopt;
+                document.sessionConflict = true; field.clear(); fieldDepth = 0;
+            }
             const auto name = reader.name().toString();
             if (depth == 1) {
                 if (rootSeen || name != "root" || !reader.namespaceUri().isEmpty()) return std::nullopt;
@@ -47,8 +71,11 @@ std::optional<Document> readDocument(std::string_view xml, bool appList) {
             }
             const bool knownAppField = appList && inApp && depth == 3 &&
                 (name == "ID" || name == "AppTitle" || name == "IsHdrSupported");
-            const bool knownHostField = !appList && depth == 2 && (name == "uniqueid" || name == "PairStatus" || name == "ServerCodecModeSupport");
-            if (knownAppField || knownHostField) {
+            const bool knownHostField = !appList && depth == 2 &&
+                (name == "uniqueid" || name == "PairStatus" || name == "ServerCodecModeSupport" || sessionField(name));
+            if (knownHostField && sessionField(name) && (document.host.contains(name) || !reader.namespaceUri().isEmpty())) {
+                document.sessionConflict = true; // Its text is skipped like any other unknown field.
+            } else if (knownAppField || knownHostField) {
                 auto& values = appList ? app : document.host;
                 if (values.contains(name) || !reader.namespaceUri().isEmpty()) return std::nullopt;
                 values.insert(name, {});
@@ -59,7 +86,10 @@ std::optional<Document> readDocument(std::string_view xml, bool appList) {
             if (!field.isEmpty()) {
                 auto& text = (appList ? app : document.host)[field];
                 text += reader.text();
-                if (text.size() > (field == "AppTitle" ? 1024 : 128)) return std::nullopt;
+                if (text.size() > (field == "AppTitle" ? 1024 : 128)) {
+                    if (appList || !sessionField(field)) return std::nullopt;
+                    document.sessionConflict = true; field.clear(); fieldDepth = 0;
+                }
             } else if (depth <= 1 && !reader.isWhitespace()) return std::nullopt;
         } else if (token == QXmlStreamReader::EndElement) {
             if (depth == fieldDepth) { field.clear(); fieldDepth = 0; }
@@ -107,7 +137,7 @@ polaris::DeckPolarisResult<DeckStandardHostInfo> parseStandardHostInfo(std::stri
         capabilities.h264 = mask == 0 || (mask & SCM_H264);
         capabilities.hevc = (mask & SCM_HEVC) != 0;
     }
-    result.value = DeckStandardHostInfo{id.toStdString(), paired == "1", capabilities};
+    result.value = DeckStandardHostInfo{id.toStdString(), paired == "1", capabilities, sessionGame(*document)};
     return result;
 }
 

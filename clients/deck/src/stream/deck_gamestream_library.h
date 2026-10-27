@@ -10,6 +10,11 @@ struct DeckStandardHostInfo {
     std::string id;
     bool paired = false;
     DeckStreamCapabilities streamCapabilities;
+    // The game the host reports running as this paired client sees it (0 for none): a
+    // Polaris worker profile reports only this client's own session, so it is not an
+    // inventory of every user. Unset when absent, malformed, repeated or while the host is
+    // still cleaning up a session, never a guessed 0. Meaningful only over paired HTTPS.
+    std::optional<int> currentGame;
 };
 struct DeckStandardApp {
     int id = 0;

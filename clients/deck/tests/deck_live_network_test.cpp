@@ -1,5 +1,6 @@
 // Real loopback transport regression: silent HTTP must not suppress pinned HTTPS.
 #include "backend/deck_live_read_only_state.h"
+#include "runtime/deck_library_controller.h"
 #include "runtime/deck_native_target.h"
 #include "deck_doctor_fixture.h"
 #include "deck_host_settings_fixture.h"
@@ -24,6 +25,7 @@
 #include <QJsonArray>
 
 #include <cstdlib>
+#include <atomic>
 #include <functional>
 #include <chrono>
 #include <iostream>
@@ -695,6 +697,115 @@ void testStandardHostLibraryAndLaunch() {
             if (scenario == 13) require(https.paths.empty() && fetch.status == DeckPolarisRequestStatus::CertMismatch);
         }
     }
+}
+
+void testSelectedPresenceUsesPinnedHttps() {
+    using namespace nova::deck;
+    using polaris::DeckPolarisRequestStatus;
+    QTemporaryDir directory;
+    require(directory.isValid());
+    const auto server = createIdentity(directory.path(), "presence-server");
+    const auto client = createIdentity(directory.path(), "presence-client");
+    TlsServer https(server);
+    https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    QTcpServer http;
+    require(http.listen(QHostAddress::LocalHost, 0));
+    int httpRequests = 0;
+    QObject::connect(&http, &QTcpServer::newConnection, &http, [&] {
+        while (auto* socket = http.nextPendingConnection()) {
+            QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            QObject::connect(socket, &QTcpSocket::readyRead, socket,
+                [&, socket, request = QByteArray{}, completed = false]() mutable {
+                    if (completed) return;
+                    request += socket->readAll();
+                    if (!request.contains("\r\n\r\n")) return;
+                    completed = true;
+                    require(request.startsWith("GET /serverinfo HTTP/"));
+                    ++httpRequests;
+                    // Discovery can name the HTTPS port, but its game value is not trusted.
+                    const QByteArray body = "<root status_code=\"200\"><HttpsPort>" + QByteArray::number(https.serverPort())
+                        + "</HttpsPort><uniqueid>presence-selected</uniqueid><PairStatus>1</PairStatus><currentgame>0</currentgame></root>";
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size())
+                        + "\r\nConnection: close\r\n\r\n" + body);
+                    socket->disconnectFromHost();
+                });
+        }
+    });
+    identity::DeckMoonlightIdentity identity;
+    identity.loaded = true; identity.sourceLabel = "nova-native";
+    identity.clientCertificatePem = client.cert.toStdString();
+    identity.clientPrivateKeyPemForBackendOnly = client.key.toStdString();
+    identity::DeckMoonlightHostRecord host;
+    host.uuid = "presence-selected"; host.hostname = "Selected PC";
+    host.manualAddress = "127.0.0.1"; host.manualPort = http.serverPort();
+    host.nativeHttpsPort = https.serverPort(); host.serverCertificatePem = server.cert.toStdString();
+    auto other = host; other.uuid = "presence-other"; other.hostname = "Other PC";
+    identity.hosts = {other, host}; // Selecting the second PC must not probe the first.
+    bool standardHost = false;
+    https.handler = [&](const QUrl& url) -> std::pair<int, QByteArray> {
+        const auto path = url.path();
+        if (path == "/polaris/v1/capabilities") return standardHost
+            ? std::pair<int, QByteArray>{404, "<root status_code=\"404\"/>"}
+            : std::pair<int, QByteArray>{200, R"({"server":"polaris","version":"test","features":{"game_library":true}})"};
+        if (path == "/polaris/v1/games") {
+            require(!standardHost);
+            return {200, R"({"games":[{"id":"test-game","name":"Test game"}],"total":1})"};
+        }
+        const QUrlQuery query(url);
+        require(query.queryItemValue("uniqueid").toStdString() == identity.clientCertificateFingerprintSha256());
+        require(!query.queryItemValue("uuid").isEmpty() && query.queryItemValue("devicename") == "Nova Linux");
+        if (path == "/serverinfo") return {200,
+            "<root status_code=\"200\"><uniqueid>presence-selected</uniqueid><PairStatus>1</PairStatus><currentgame>7</currentgame></root>"};
+        require(standardHost && path == "/applist");
+        return {200, "<root status_code=\"200\"><App><ID>7</ID><AppTitle>Test game</AppTitle></App></root>"};
+    };
+    const auto timeout = std::chrono::milliseconds(700);
+    backend::DeckLiveHostLibrarySnapshot initial;
+    initial.selectedHostId = other.stableId();
+    std::atomic<int> factories{0};
+    runtime::DeckLibraryController controller(identity, initial, [&] { return std::optional{identity}; },
+        [&](const auto& selectedIdentity) {
+            require(selectedIdentity.hosts.size() == 1 && selectedIdentity.hosts.front().stableId() == host.stableId());
+            ++factories;
+            return backend::polarisNetworkFetcher(selectedIdentity, timeout, true);
+        });
+    // Use the real selected-PC worker and publication path, with no automatic refresh.
+    require(controller.selectHost(QString::fromStdString(host.stableId())));
+    QElapsedTimer elapsed; elapsed.start();
+    while (controller.busy() && elapsed.elapsed() < 3000) { QCoreApplication::processEvents(); QThread::msleep(1); }
+    require(!controller.busy() && !controller.state().value("failed").toBool() && factories.load() == 1);
+    const auto& snapshot = controller.snapshot();
+    require(snapshot.selectedHostId == host.stableId() && snapshot.probes.size() == 1);
+    require(snapshot.probes.front().hostId == host.stableId() && snapshot.probes.front().currentGame == 7
+        && snapshot.probes.front().presenceCheckedAt.has_value());
+    require(snapshot.library.games.size() == 1 && snapshot.library.games.front().id == "test-game");
+    require(httpRequests == 1 && https.requests == 3);
+    require(https.paths == std::vector<QString>{"/polaris/v1/capabilities", "/serverinfo", "/polaris/v1/games"});
+    require(https.methods == std::vector<QByteArray>{"GET", "GET", "GET"});
+
+    const auto fetcher = backend::polarisNetworkFetcher(identity, timeout, true);
+    https.paths.clear(); https.methods.clear();
+    const auto unselected = fetcher(host, false);
+    require(unselected.status == DeckPolarisRequestStatus::Ok && unselected.games.empty()
+        && !unselected.currentGame && !unselected.presenceCheckedAt);
+    require(httpRequests == 2 && https.requests == 4);
+    require(https.paths == std::vector<QString>{"/polaris/v1/capabilities"} && https.methods == std::vector<QByteArray>{"GET"});
+
+    standardHost = true;
+    https.paths.clear(); https.methods.clear();
+    const auto standard = fetcher(host, true);
+    require(standard.status == DeckPolarisRequestStatus::Ok && standard.standardHost && standard.currentGame == 7
+        && standard.presenceCheckedAt && standard.games.size() == 1 && standard.games.front().appId == 7);
+    require(httpRequests == 3 && https.requests == 7);
+    require(https.paths == std::vector<QString>{"/polaris/v1/capabilities", "/serverinfo", "/applist"});
+    require(https.methods == std::vector<QByteArray>{"GET", "GET", "GET"});
+
+    https.paths.clear(); https.methods.clear();
+    auto wrongPin = host; wrongPin.serverCertificatePem = client.cert.toStdString();
+    const auto rejected = fetcher(wrongPin, true);
+    require(rejected.status == DeckPolarisRequestStatus::CertMismatch && !rejected.currentGame && rejected.games.empty());
+    require(httpRequests == 4 && https.requests == 7 && https.paths.empty() && https.methods.empty());
 }
 
 } // namespace
@@ -1889,6 +2000,7 @@ int main(int argc, char** argv) {
     testDerivedCertificateCannotReceiveHttp();
     testSlowHostShutdownKeepsItsReceipt();
     testStandardHostLibraryAndLaunch();
+    testSelectedPresenceUsesPinnedHttps();
     testResponseDeadlineSurvivesIncomingBytes();
     testFreshLaunchModeAuthority();
     testPinnedOwnedResume();

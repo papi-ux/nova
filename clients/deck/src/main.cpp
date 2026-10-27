@@ -99,6 +99,35 @@ public:
     }
 };
 
+// The line beside Sleep Host and Wake PC. QML asks once, when the System menu that shows it
+// opens. The library refresh pauses while that menu is open, so the selected PC's answer
+// counts only while its own refresh began within one automatic refresh interval, on the same
+// monotonic clock that stamped it. Never asleep, never streaming.
+class QtHostPresenceBridge final : public QObject {
+    Q_OBJECT
+public:
+    explicit QtHostPresenceBridge(const nova::deck::runtime::DeckLibraryController& library, QObject* parent = nullptr)
+        : QObject(parent), library_(library) {}
+    void setMaxAge(const std::chrono::milliseconds maxAge) { maxAge_ = maxAge; }
+
+    // "available", "gameRunning", "offline" or "unknown" for the PC the menu is showing.
+    Q_INVOKABLE QString presence(const QString& hostId) const {
+        using nova::deck::backend::DeckHostPresence;
+        switch (nova::deck::backend::selectedHostPresence(library_.snapshot(), hostId.toStdString(),
+                    std::chrono::steady_clock::now(), maxAge_)) {
+        case DeckHostPresence::Available: return QStringLiteral("available");
+        case DeckHostPresence::GameRunning: return QStringLiteral("gameRunning");
+        case DeckHostPresence::Offline: return QStringLiteral("offline");
+        case DeckHostPresence::Unknown: break;
+        }
+        return QStringLiteral("unknown");
+    }
+
+private:
+    const nova::deck::runtime::DeckLibraryController& library_;
+    std::chrono::milliseconds maxAge_{0}; // Zero until a standalone refresh interval is configured.
+};
+
 
 class QtBackendPreviewBridge final : public QObject {
     Q_OBJECT
@@ -1684,14 +1713,18 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
         liveSnapshot.value_or(nova::deck::backend::DeckLiveHostLibrarySnapshot{}),
         [nativeDirectory] { return nova::deck::identity::loadNativeIdentity(nativeDirectory).identity; },
         [](const auto& identity) {
-            return nova::deck::backend::polarisNetworkFetcher(identity, std::chrono::milliseconds(4000));
+            // The controller's refresh probes only the selected PC, so only that PC also gives
+            // its running game.
+            return nova::deck::backend::polarisNetworkFetcher(identity, std::chrono::milliseconds(4000), true);
         });
+    QtHostPresenceBridge hostPresenceBridge(libraryRefresh);
     if (standalone) {
         // Short intervals are only for explicit local UI smoke observations.
         const int interval = appArguments.contains("--frontend-smoke-library-state")
             ? std::clamp(intArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-library-refresh-ms"), 30000), 100, 30000)
             : 30000;
         libraryRefresh.configureAutomaticRefresh(interval, interval * 4);
+        hostPresenceBridge.setMaxAge(std::chrono::milliseconds(interval));
     }
     nova::deck::runtime::DeckDisplayCapabilities displayCapabilities;
     nova::deck::runtime::DeckNativeSessionController nativeSession(nativeUi && !fixtureVideoSupport,
@@ -1806,6 +1839,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaSteamControl", &steamControl);
     engine.rootContext()->setContextProperty("novaHostPower", &hostPower);
     engine.rootContext()->setContextProperty("novaHostWake", &hostWake);
+    engine.rootContext()->setContextProperty("novaHostPresence", &hostPresenceBridge);
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
     engine.rootContext()->setContextProperty("novaUpdates", &updates);

@@ -26,6 +26,12 @@ struct DeckLivePolarisFetch {
     bool standardHost = false;
     bool spacesSupported = false;
     std::optional<polaris::DeckSpaces> spaces;
+    /// The running game from this pairing's own HTTPS serverinfo, read only on the selected
+    /// PC's refresh. Unset when not asked or not readable.
+    std::optional<int> currentGame;
+    /// When the selected PC's refresh began asking this host (monotonic). Unset for every other
+    /// probe, so only that refresh can speak for presence, and a copied older probe keeps its age.
+    std::optional<std::chrono::steady_clock::time_point> presenceCheckedAt;
 };
 
 /// Probe one host. `wantLibrary` is true only for the host expected to supply the library; the others are asked
@@ -45,7 +51,22 @@ struct DeckLiveHostProbe {
     bool standardHost = false;
     bool spacesSupported = false;
     std::optional<polaris::DeckSpaces> spaces;
+    std::optional<int> currentGame;  ///< see DeckLivePolarisFetch::currentGame
+    std::optional<std::chrono::steady_clock::time_point> presenceCheckedAt;  ///< see DeckLivePolarisFetch
 };
+
+/// What the line beside Sleep Host and Wake PC may say about a probed PC. Offline means it did
+/// not answer, never that it is asleep; a running game is never called a stream; anything the
+/// probe cannot show stays Unknown rather than becoming Available.
+enum class DeckHostPresence { Unknown, Available, GameRunning, Offline };
+DeckHostPresence hostPresence(const DeckLiveHostProbe& probe);
+
+struct DeckLiveHostLibrarySnapshot;
+/// Presence for the PC the menu shows, judged once at @p now on the same monotonic clock the
+/// refresh stamped: Unknown unless @p hostId is the snapshot's selected PC, its probe came
+/// from that PC's own refresh, and that refresh began no more than @p maxAge earlier.
+DeckHostPresence selectedHostPresence(const DeckLiveHostLibrarySnapshot& snapshot, const std::string& hostId,
+    std::chrono::steady_clock::time_point now, std::chrono::milliseconds maxAge);
 
 struct DeckLiveHostLibrarySnapshot {
     bool identityLoaded = false;
@@ -81,7 +102,12 @@ polaris::DeckPolarisClient polarisClientForHost(
     std::chrono::milliseconds timeout);
 
 /// A fetcher that talks to Polaris with the identity's certificate and the host's pinned server certificate.
-DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, std::chrono::milliseconds timeout);
+/// `readSelectedPresence` is set only for the selected PC's refresh, whose identity holds that one
+/// host: the host asked for its library then also gives its running game, through one paired HTTPS
+/// serverinfo on the same client, deadline and response bound (a standard host's existing one is
+/// reused), with no retry.
+DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, std::chrono::milliseconds timeout,
+    bool readSelectedPresence = false);
 
 /// Load the default Moonlight identity and probe its hosts over the network. Never throws; an absent identity yields an empty snapshot.
 DeckLiveHostLibrarySnapshot buildLiveSnapshotFromDefaultIdentity(std::chrono::milliseconds timeout);

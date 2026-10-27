@@ -60,6 +60,22 @@ int main(int argc, char** argv) {
     require(!parseStandardHostInfo(root("<uniqueid>A</uniqueid><uniqueid>B</uniqueid><PairStatus>1</PairStatus>")).ok(),
         "ambiguous host identity accepted");
     require(!parseStandardHostInfo(root("<uniqueid>A</uniqueid>")).ok(), "missing pairing state accepted");
+    // The running game is optional. When it cannot be read whole it is unknown, never 0, and
+    // it never breaks the host answer the pairing and library rely on.
+    const auto session = [](const std::string& extra) {
+        return parseStandardHostInfo(root("<uniqueid>saved-host</uniqueid><PairStatus>1</PairStatus>" + extra));
+    };
+    require(session("<currentgame>0</currentgame>").value->currentGame == 0 &&
+        session("<currentgame> 2147483647 </currentgame>").value->currentGame == 2147483647, "a reported running game was lost");
+    for (const std::string odd : {std::string(), std::string("<currentgame></currentgame>"), std::string("<currentgame>-1</currentgame>"),
+            std::string("<currentgame>+7</currentgame>"), std::string("<currentgame>2147483648</currentgame>"),
+            std::string("<currentgame>7</currentgame><currentgame>7</currentgame>"),
+            std::string("<currentgame>0</currentgame><session_cleanup_pending>1</session_cleanup_pending>"),
+            std::string("<currentgame><x>7</x></currentgame>"), "<currentgame>" + std::string(200, '1') + "</currentgame>",
+            std::string("<n:currentgame xmlns:n=\"urn:x\">7</n:currentgame>")}) {
+        const auto info = session(odd);
+        require(info.ok() && info.value->paired && !info.value->currentGame, "an unreadable running game became a value or broke the host answer");
+    }
     const QUrl url(QString::fromStdString(standardHostTarget("/launch?appid=7", "public&id")));
     const QUrlQuery query(url);
     require(url.path() == "/launch" && query.queryItemValue("appid") == "7" &&

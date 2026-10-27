@@ -104,9 +104,15 @@ int main(int argc, char** argv) {
         libraryScene.setData("import QtQuick\nimport QtQuick.Controls\nimport \"" + QUrl::fromLocalFile(NOVA_DECK_QML_DIRECTORY).toEncoded() + "\"\n" + R"(
             ApplicationWindow {
                 width:400; height:800; visible:true
+                QtObject {
+                    id:presenceStub; objectName:"presence-stub"
+                    property string answer:"gameRunning"; property int asks:0
+                    function presence(id) { asks++; return id === "host" ? answer : "unknown" }
+                }
                 LibraryBrowser {
                     id:library; objectName:"parity-library"; anchors.fill:parent
                     settingsProvider:settings
+                    hostPresence:presenceStub
                     host:({id:"host",displayName:"A long living room computer name"})
                     refreshState:({busy:false,automatic:false,failed:false,destinationPlayable:true,destinationName:"Desktop"})
                     games:[{id:"one",title:"First game",hdrSupported:true},{id:"two",title:"Second game",hdrSupported:false}]
@@ -143,6 +149,31 @@ int main(int argc, char** argv) {
                 const auto bounds = control->mapRectToScene(control->boundingRect());
                 check(bounds.left() >= 0 && bounds.right() <= surface->width() && bounds.top() >= 0 && bounds.bottom() <= surface->height(), "portrait library action escaped its actual window");
             }
+            // The presence line is asked once per opening of the System menu, says one of four
+            // labels and nothing else, and is copy rather than another stop for focus.
+            auto* stub = scene->findChild<QObject*>("presence-stub"); check(stub, "presence stub missing");
+            auto* systemMenu = scene->findChild<QObject*>("library-system-popup"); check(systemMenu, "System menu missing");
+            check(!find(surface->contentItem(), "library-host-presence") && stub->property("asks").toInt() == 0,
+                "presence was shown or asked before the System menu opened");
+            const auto openWith = [&](const char* answer) {
+                stub->setProperty("answer", answer);
+                check(QMetaObject::invokeMethod(find(surface->contentItem(), "library-system"), "clicked"), "cannot open the System menu");
+                settle();
+                auto* line = find(surface->contentItem(), "library-host-presence");
+                const auto shown = std::make_pair(line ? line->property("text").toString() : QString(),
+                    line && (line->activeFocusOnTab() || line->hasActiveFocus()));
+                check(QMetaObject::invokeMethod(systemMenu, "close"), "cannot close the System menu"); settle();
+                return shown;
+            };
+            const std::pair<const char*, const char*> labels[] = {
+                {"available", "Available"}, {"gameRunning", "Game running"}, {"offline", "Offline"}, {"unknown", "Status unknown"}};
+            int opened = 0;
+            for (const auto& [answer, label] : labels) {
+                const auto [text, focusable] = openWith(answer);
+                check(text == label && !focusable && stub->property("asks").toInt() == ++opened,
+                    "presence line said something else, took focus or was asked more than once per opening");
+            }
+            check(openWith("asleep").first.isEmpty(), "a presence word outside the four labels reached the screen");
             surface->resize(1280,800); settle();
             check(snapshot().value("stageVisible").toBool() && snapshot().value("layout") == "stage", "landscape did not restore saved Stage");
         }
