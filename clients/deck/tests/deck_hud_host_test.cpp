@@ -656,8 +656,100 @@ void requestUnitWrites() {
     }
 }
 
+DeckLiveTuningTelemetry reading(const char* state, int applied, int requested = 0) {
+    DeckLiveTuningTelemetry v;
+    v.enabled = v.supported = true; v.state = state; v.revision = QString(64, 'a');
+    v.instance = "host-a"; v.appSession = "session-a"; v.generation = 7; v.sequence = 1;
+    v.qualityLimit = 34988; v.requested = requested ? requested : applied; v.applied = applied;
+    return v;
+}
+void liveTuningLines() {
+    const auto feed = [](DeckTuningLines& lines, qint64 at, DeckLiveTuningTelemetry v, bool video = true) {
+        return lines.observe(&v, video, at);
+    };
+    // One reading a second, as the observer polls; the number of lines emitted.
+    const auto hold = [&](DeckTuningLines& lines, qint64 from, qint64 to, const DeckLiveTuningTelemetry& v, bool video = true) {
+        int emitted = 0;
+        for (qint64 at = from; at <= to; at += 1000) emitted += feed(lines, at, v, video).has_value();
+        return emitted;
+    };
+    {
+        DeckTuningLines lines;
+        require(!feed(lines, 0, reading("stable", 34988)), "Live Tuning baseline emitted a line");
+        require(!hold(lines, 1000, 9000, reading("applying", 34988, 29739)), "a pending request named a rate");
+        require(!feed(lines, 10000, reading("adjusting", 29739)) && !feed(lines, 11000, reading("adjusting", 29739)),
+            "an ease was announced before its dwell");
+        const auto line = feed(lines, 12000, reading("adjusting", 29739));
+        require(line && line->kind == "eased" && line->text == "Eased to 30 Mbps", "an acknowledged ease was not announced");
+        require(!hold(lines, 13000, 60000, reading("adjusting", 29739)), "one reading was announced twice");
+    }
+    for (const char* held : {"applying", "measuring"}) {
+        DeckTuningLines lines;
+        feed(lines, 0, reading("stable", 34988)); feed(lines, 1000, reading("adjusting", 29739));
+        feed(lines, 2000, reading(held, 29739, 25279)); feed(lines, 2500, reading("adjusting", 29739));
+        require(!feed(lines, 3500, reading("adjusting", 29739)), "a pending or measuring reading did not restart the dwell");
+        const auto line = feed(lines, 4500, reading("adjusting", 29739));
+        require(line && line->kind == "eased", "a pending or measuring reading lost the announced baseline");
+    }
+    {
+        DeckTuningLines lines;
+        feed(lines, 0, reading("stable", 34988)); feed(lines, 2000, reading("adjusting", 29739));
+        require(feed(lines, 4000, reading("adjusting", 29739)).has_value(), "the ease was not announced");
+        require(!hold(lines, 5000, 39000, reading("adjusting", 29739)) &&
+            !hold(lines, 40000, 49000, reading("stable", 34988)), "full quality was announced early");
+        const auto line = feed(lines, 50000, reading("stable", 34988));
+        require(line && line->kind == "full" && line->text == "Back to full quality", "the recovery was not announced");
+        DeckTuningLines startedLow;
+        feed(startedLow, 0, reading("adjusting", 30000));
+        require(!hold(startedLow, 1000, 30000, reading("stable", 34988)), "full quality was announced without an ease");
+    }
+    {
+        auto moved = reading("adjusting", 20000); moved.instance = "host-b";
+        DeckTuningLines lines; feed(lines, 0, reading("stable", 34988));
+        require(!hold(lines, 1000, 10000, moved), "a new host instance was compared with the old one");
+        DeckTuningLines silent; feed(silent, 0, reading("stable", 34988));
+        require(!hold(silent, 4000, 15000, reading("adjusting", 20000)), "readings were compared across a stale gap");
+    }
+    {
+        // Without video units nothing is said, and a known ease never becomes a lone Back.
+        DeckTuningLines unknown; feed(unknown, 0, reading("stable", 34988), false);
+        require(!hold(unknown, 1000, 30000, reading("adjusting", 29739), false) &&
+            !hold(unknown, 31000, 60000, reading("stable", 34988), false), "a stream without video units announced a line");
+        DeckTuningLines switched;
+        feed(switched, 0, reading("stable", 34988)); feed(switched, 2000, reading("adjusting", 29739));
+        require(feed(switched, 4000, reading("adjusting", 29739)).has_value(), "the known ease was not announced");
+        require(!hold(switched, 5000, 20000, reading("stable", 34988), false) && !hold(switched, 21000, 40000, reading("stable", 34988)),
+            "an ease survived a switch away from video units");
+    }
+    // The reducer shows a line from its emission only, and a new stream's reducer never reuses a serial.
+    QFile file(QStringLiteral(NOVA_DECK_TUNING_FIXTURE)); require(file.open(QIODevice::ReadOnly), "fixture missing");
+    QJsonObject stable;
+    for (const auto& entry : QJsonDocument::fromJson(file.readAll()).array())
+        if (entry.toObject().value("name") == "stable") stable = entry.toObject().value("live_tuning").toObject();
+    auto o = envelope(); o["live_tuning"] = stable;
+    auto sample = parse(o);
+    qint64 clock = 0;
+    const auto at = [&](DeckHudHostReducer& reducer, qint64 ms, int applied, const char* state) {
+        clock = ms; ++sample.live->sequence; sample.live->state = state;
+        sample.live->requested = sample.live->applied = applied;
+        return reducer.accept(sample);
+    };
+    const auto ease = [&](DeckHudHostReducer& reducer, qint64 from) {
+        at(reducer, from, 20000, "stable"); at(reducer, from + 1000, 14000, "adjusting"); at(reducer, from + 2000, 14000, "adjusting");
+        return at(reducer, from + 3000, 14000, "adjusting");
+    };
+    DeckHudHostReducer first(context, [&clock] { return clock; });
+    const auto shown = ease(first, 0);
+    require(shown.value("tuningLine") == "Eased to 14 Mbps" && shown.value("tuningLineKind") == "eased" &&
+        shown.value("tuningLineUntilMs").toLongLong() == 3000 + DeckTuningLines::visibleMs, "the reducer did not show the line");
+    require(at(first, 6000, 14000, "adjusting").contains("tuningLine"), "the line left before its time");
+    require(!at(first, 7000, 14000, "adjusting").contains("tuningLine"), "the line outlived its emission");
+    DeckHudHostReducer next(context, [&clock] { return clock; });
+    require(ease(next, 10000).value("tuningLineSerial").toULongLong() > shown.value("tuningLineSerial").toULongLong(),
+        "a new stream's reducer reused a line serial");
+}
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
-    parserAndReducer(); requestUnitWrites(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves();
+    parserAndReducer(); requestUnitWrites(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves(); liveTuningLines();
     std::cout << "HUD host telemetry passed: Android contract, session authority, provenance, staleness, worker isolation and cancellation\n";
 }

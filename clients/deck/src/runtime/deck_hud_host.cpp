@@ -67,13 +67,13 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
     auto out = unavailable();
     if (!s.authorityValid || !s.active || s.ending || !s.owned || s.role != "owner" || context_.gameId <= 0 ||
         context_.gameUuid.isEmpty() || context_.sessionToken.isEmpty() || s.gameId != context_.gameId ||
-        s.gameUuid != context_.gameUuid || s.sessionToken != context_.sessionToken) return out;
+        s.gameUuid != context_.gameUuid || s.sessionToken != context_.sessionToken) { lines_.interrupt(); return out; }
     // The whole response is delayed when its typed tuning observation regresses.
     // Never refresh a newer Doctor/bitrate reading with that old response.
     if (s.live) {
         const auto& live = *s.live;
         if (!s.generation || *s.generation != live.generation || s.appSession.isEmpty() || s.appSession != live.appSession ||
-            retired_.contains(live.instance)) return out;
+            retired_.contains(live.instance)) { lines_.interrupt(); return out; }
         if (last_ && last_->instance == live.instance && (live.sequence <= last_->sequence ||
             live.generation != last_->generation || live.appSession != last_->appSession)) return out;
         if (last_ && last_->instance != live.instance) {
@@ -111,11 +111,19 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
             : !live.supported ? QVariant("This encoder cannot change bitrate during the stream.")
             : !live.applied ? QVariant("Waiting for the encoder's current bitrate.")
             : QVariant("Choose a fixed bitrate. Applying it turns Live Tuning off.");
+        // Presentation only: a line lasts visibleMs from its emission, never from when QML shows it.
+        const qint64 now = clock_ ? clock_() : nowMs();
+        lines_.observe(&live, oneOf(s.encoderCodec, {"h264", "hevc", "av1"}), now);
+        if (const auto& line = lines_.line(); line && now - line->emittedAtMs < DeckTuningLines::visibleMs) {
+            out["tuningLine"] = line->text; out["tuningLineKind"] = line->kind; out["tuningLineSerial"] = line->serial;
+            out["tuningLineUntilMs"] = line->emittedAtMs + DeckTuningLines::visibleMs;
+        }
     } else if (!s.livePresent && s.legacyTuning) {
         out["tuningLabel"] = *s.legacyTuning ? "Tuning: On (legacy)" : "Tuning: Off (legacy)";
         out["tuningTone"] = *s.legacyTuning ? "info" : "muted";
         out["tuningCopy"] = "Update Polaris to change Live Tuning from this device.";
     }
+    if (!s.live) lines_.interrupt();
     out["hostFresh"] = true;
     out["doctor"] = s.doctor;
     const bool observation = oneOf(s.primaryIssue, {"network_observation", "control_channel_observation"});
@@ -327,6 +335,7 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
             }
             DeckHudHostReducer reducer(context);
             const auto project = [&](const DeckPolarisResult<DeckHostTelemetry>& result) {
+                if (!result.ok()) reducer.interrupt();
                 auto view = result.ok() ? reducer.accept(*result.value) : DeckHudHostReducer::unavailable();
                 if (!target->setEnabled) view["canTune"] = false;
                 if (!target->setBitrate) view["canSetBitrate"] = false;
@@ -731,6 +740,10 @@ QVariantMap DeckHudHostObserver::snapshot() const {
     const std::lock_guard lock(shared_->mutex);
     auto view = shared_->stopped || Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs)
         ? DeckHudHostReducer::unavailable() : shared_->view;
+    // The session reads this every frame, so a Live Tuning line leaves on time without a new poll.
+    if (view.take("tuningLineUntilMs").toLongLong() <= nowMs()) {
+        view.remove("tuningLine"); view.remove("tuningLineKind"); view.remove("tuningLineSerial");
+    }
     view["tuningBusy"] = shared_->busy;
     view["bitrateBusy"] = shared_->busy && shared_->fixedChange;
     view["bitrateRequestKbps"] = shared_->requestedBitrate;

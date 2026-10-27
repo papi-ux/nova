@@ -38,6 +38,7 @@ class NovaStreamHud(
     private val hudState = mutableStateOf(NovaHudUiState.empty())
     private val sessionStats = NovaHudSessionStats()
     private val eventTrail = NovaHudEventTrail()
+    private val liveTuningLines = NovaLiveTuningLines()
     private val longPressHandler = Handler(Looper.getMainLooper())
 
     private var currentMode = NovaHudMode.MINIMAL
@@ -60,6 +61,8 @@ class NovaStreamHud(
             longPressHandler.postDelayed(this, 1_000L)
         }
     }
+    // Clears a Live Tuning line on time even when no other reading republishes the HUD.
+    private val liveTuningLineExpiry = Runnable { if (hudView != null) publishState() }
     private var lastFps = Double.NaN
     private var lastLatency = 0.0
     private var lastLowOnePercentFps = 0.0
@@ -186,6 +189,7 @@ class NovaStreamHud(
         height = 0
         sparklineData.clear()
         eventTrail.clear()
+        liveTuningLines.reset()
         lastLowOnePercentFps = 0.0
         lastDecodeTimeMs = 0.0
         lastHostLatencyMs = null
@@ -443,6 +447,11 @@ class NovaStreamHud(
             // Historical recovery receipts are observational/deprecated and
             // never become a current or next-launch HUD event.
             eventTrail.retireRecoveryProfile()
+            if (liveTuningLines.observe(status?.liveTuning, status?.encoder?.codec.orEmpty(),
+                    SystemClock.elapsedRealtime()) != null) {
+                longPressHandler.removeCallbacks(liveTuningLineExpiry)
+                longPressHandler.postDelayed(liveTuningLineExpiry, NovaLiveTuningLines.VISIBLE_MS)
+            }
             if (streamPolicy.effectiveBitrateKbps > 0) {
                 currentBitrateKbps = streamPolicy.effectiveBitrateKbps
             }
@@ -510,6 +519,7 @@ class NovaStreamHud(
             status = lastSessionStatus,
             sparklineSamples = sparklineData.snapshot(),
             eventBreadcrumbLabel = eventTrail.latestLabel,
+            liveTuningLine = liveTuningLines.visibleLine(now),
             lowOnePercentFps = lastLowOnePercentFps,
             decodeTimeMs = lastDecodeTimeMs,
             hostProcessingLatencyMs = lastHostLatencyMs,
@@ -656,6 +666,7 @@ class NovaStreamHud(
             hudView = null
             cancelLongPress()
             longPressHandler.removeCallbacks(freshnessTick)
+            longPressHandler.removeCallbacks(liveTuningLineExpiry)
             positionRoot?.removeOnLayoutChangeListener(positionListener)
             positionRoot = null
             view?.removeOnLayoutChangeListener(positionListener)

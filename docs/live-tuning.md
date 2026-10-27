@@ -15,6 +15,18 @@ an explicit fixed live bitrate also turns tuning off and supersedes a pending
 Doctor bitrate action. Auto, Quality, High FPS, and Stability launch presets still
 apply at the next explicit launch.
 
+The Performance and Debug HUD show a brief line when Live Tuning eases the
+bitrate, such as "Eased to 14 Mbps", and "Back to full quality" when the
+confirmed bitrate reaches the quality limit again. Lines come only from the status
+Nova already reads. A pending request or a measuring stream never counts, a change
+must hold for 2 seconds (10 seconds for full quality), and lines are at least 30
+seconds apart. A new session, host restart, changed setting or quality limit, or a
+gap in readings starts over without a line. A line lasts 4 seconds from when Nova
+decided it, fades over 180 ms, and appears without fading when animations are off
+or Reduce Motion is on. It never names a cause. Lines appear only for H.264, HEVC
+and AV1, where Live Tuning's rate is the encoder's video bitrate; other codecs,
+including PyroWave, show none.
+
 ## API contract
 
 `GET /api/live-tuning` requires web administrator authentication. Its response
