@@ -9,8 +9,8 @@ namespace nova::deck::runtime {
 enum class DeckStreamRecapEnd { EndGame, Disconnect };
 
 // The first and last worker samples the GUI accepted for one run, and whether
-// every step between them was continuous. It holds nothing else and collects
-// nothing: the existing poll hands it samples it already accepted.
+// every step between them was continuous, retaining the last reported frame
+// epoch across absent media. The existing poll hands it samples it already accepted.
 class DeckStreamRecapSpan {
 public:
     void reset() { *this = {}; }
@@ -23,6 +23,7 @@ private:
     friend QVariantMap deckStreamRecap(const DeckStreamRecapSpan&, DeckStreamRecapEnd, std::uint64_t,
         const QString&, const QString&);
     std::optional<DeckHudSample> first_, last_;
+    std::optional<std::uint64_t> decoderGeneration_;
     int samples_ = 0;
     bool continuous_ = true, restarted_ = false, ended_ = false, endCurrent_ = false;
 };

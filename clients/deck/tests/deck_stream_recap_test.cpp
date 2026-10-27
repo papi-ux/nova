@@ -70,6 +70,16 @@ int main() {
     const auto sequence = recap(span({sample(0, 90), sample(1000, 150, 1), sample(2000, 210, 2)}));
     require(!sequence["rates"].isValid() && sequence["missingFrames"].toMap()["partial"].toBool(),
         "sequence restart produced a rate or a whole-run loss");
+    // Regular clocks and monotonic counters cannot hide a sequence epoch across absent media.
+    auto absent = sample(1000, 150); absent.media.reset();
+    require(recap(span({sample(0, 90), absent, sample(2000, 210)}))["rates"].isValid(),
+        "an absent media reading alone broke a continuous counter span");
+    auto startup = sample(0, 0); startup.media.reset();
+    require(near(recap(span({startup, sample(1000, 60)}))["rates"].toMap()["receivedFps"], 60),
+        "healthy startup absence invented an epoch change or a zero rate");
+    const auto hiddenSequence = recap(span({sample(0, 90, 1), absent, sample(2000, 210, 2)}));
+    require(!hiddenSequence["rates"].isValid() && hiddenSequence["missingFrames"].toMap()["partial"].toBool(),
+        "sequence restart across absent media produced a rate");
     require(!recap(span({sample(1000, 90), sample(1000, 90)}))["rates"].isValid(), "repeated clock produced a rate");
     require(!recap(span({sample(1000, 90), sample(500, 150)}))["rates"].isValid(), "backwards clock produced a rate");
 

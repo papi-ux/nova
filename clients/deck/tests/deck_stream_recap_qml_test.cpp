@@ -16,6 +16,13 @@
 #include <memory>
 namespace {
 void require(bool ok,const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
+// Repeater delegates belong to the Quick visual tree, which need not match
+// QObject ownership. Use the same childItems traversal as the existing HUD test.
+QQuickItem* visual(QQuickItem* parent, const QString& name) {
+    if (parent->objectName() == name) return parent;
+    for (auto* child : parent->childItems()) if (auto* found = visual(child, name)) return found;
+    return nullptr;
+}
 // Clearly synthetic readings, shaped as the controller freezes them.
 QVariantMap recap(const QString& generation, const QString& end = "end_game", const QString& host = "fixture-host") {
     return {{"generation",generation},{"hostId",host},{"gameId","fixture-game"},{"end",end},{"measuredForMs",723400},{"restarted",false},
@@ -49,14 +56,20 @@ ApplicationWindow {
     NativeStreamPreview { id:preview; session:testSession; inputHub:testPlayers; settingsProvider:testSettings
         hostId:"fixture-host"; gameId:"fixture-game"; gameTitle:"Moonlit Harbor"; hostName:"Living Room PC" }
     function reduceMotion(on) { NovaTheme.setReduceMotion(on) }
+    function changeFont(value) { NovaTheme.setFontScale(value) }
     Component.onCompleted: { preview.open(); preview.attempted=true }
 })",QUrl::fromLocalFile(QStringLiteral(NOVA_DECK_QML_DIRECTORY)+"/StreamRecapTest.qml"));
     auto root = std::unique_ptr<QObject>(component.create()); require(bool(root),qPrintable(component.errorString()));
     auto* window = qobject_cast<QQuickWindow*>(root.get()); require(window,"window missing"); QTest::qWait(150);
-    const auto item = [&](const char* name) { auto* found=root->findChild<QQuickItem*>(name); require(found,name); return found; };
+    const auto item = [&](const char* name) { auto* found=visual(window->contentItem(),QString::fromUtf8(name)); require(found,name); return found; };
     const auto text = [&](const char* name) { return item(name)->property("text").toString(); };
     auto* preview = root->findChild<QObject*>("native-stream-preview"); require(preview,"preview missing");
     auto* card = item("stream-recap"); auto* primary = item("native-preview-action");
+    auto* scroll = item("stream-recap-scroll");
+    const auto revealed = [&](QQuickItem* reading) {
+        const auto top = reading->mapToItem(scroll, QPointF(0,0)).y();
+        return top >= -1 && top + reading->height() <= scroll->height() + 1;
+    };
     const auto focusName = [&] { return window->activeFocusItem() ? window->activeFocusItem()->objectName() : QString{}; };
     const auto press = [&](Qt::Key key) { QTest::keyClick(window,key); QTest::qWait(80); };
     const auto settle = [] { QTest::qWait(80); };
@@ -87,8 +100,9 @@ ApplicationWindow {
         "per-frame means lost their own coverage");
     capture("stream-recap-ended-1280.png");
     press(Qt::Key_Up); require(focusName()=="stream-recap-dismiss","Up from Back did not reach Dismiss");
-    press(Qt::Key_Down); require(focusName()=="native-preview-action","Down from Dismiss did not return to Back");
-    press(Qt::Key_Up); press(Qt::Key_Return);
+    press(Qt::Key_Down); require(focusName()=="stream-recap-received","Down from Dismiss did not reach the readings");
+    press(Qt::Key_Up); require(focusName()=="stream-recap-dismiss","Up from the first reading did not reach Dismiss");
+    press(Qt::Key_Return);
     require(session.recapDismissals==1 && session.recapDismissedGeneration=="1" && !card->isVisible() && focusName()=="native-preview-action",
         "Dismiss lost its generation, kept the card or dropped focus");
     require(lifecycleUntouched(1,0),"recap invoked lifecycle, report or tuning actions");
@@ -101,6 +115,11 @@ ApplicationWindow {
     preview->setProperty("gameId","other-game"); settle();
     require(!card->isVisible() && focusName()=="native-preview-action","changed selection kept the card or dropped focus");
     preview->setProperty("gameId","fixture-game"); settle();
+    primary->forceActiveFocus(); press(Qt::Key_Up); press(Qt::Key_Down);
+    require(focusName()=="stream-recap-received","reading focus setup failed");
+    preview->setProperty("gameId","other-game"); settle();
+    require(!card->isVisible() && focusName()=="native-preview-action","hiding a focused reading dropped focus");
+    preview->setProperty("gameId","fixture-game"); settle();
     session.sleeping=true; session.transition("stopped",false,"Stream ended."); settle();
     require(!card->isVisible(),"recap shown while sleeping");
     session.sleeping=false; session.transition("stopped",false,"Stream ended."); settle();
@@ -112,8 +131,33 @@ ApplicationWindow {
     require(card->isVisible() && primary->property("text")=="Resume game" && item("native-resume-return")->isVisible() &&
         text("stream-recap-summary").contains("without asking the PC to quit"), "disconnect recap or recovery actions wrong");
     capture("stream-recap-disconnected-1280.png");
+    // A short screen with large text really overflows. Every controller focus
+    // target must be revealed, including both video and scope text at the end.
+    window->resize(960,600);
+    require(QMetaObject::invokeMethod(root.get(),"changeFont",Q_ARG(QVariant,1.3)),"large text setup failed");
+    QTest::qWait(150);
+    require(scroll->property("contentHeight").toDouble() > scroll->height(),"short recap fixture did not overflow");
     primary->forceActiveFocus(); settle(); press(Qt::Key_Up); require(focusName()=="stream-recap-dismiss","Dismiss unreachable beside Resume");
-    press(Qt::Key_Down); press(Qt::Key_Return);
+    for (const char* key : {"received","payload","missing","host","work"}) {
+        press(Qt::Key_Down);
+        const auto name = QStringLiteral("stream-recap-") + key;
+        require(focusName()==name && revealed(item(qPrintable(name))),"controller did not focus and reveal a recap metric");
+    }
+    press(Qt::Key_Down);
+    require(focusName()=="stream-recap-footer" && revealed(item("stream-recap-video")) && revealed(item("stream-recap-scope")) &&
+        scroll->property("contentY").toDouble() > 0,"controller did not reveal the footer and scope");
+    press(Qt::Key_Up); require(focusName()=="stream-recap-work","footer Up did not return to the last reading");
+    press(Qt::Key_Down); press(Qt::Key_Down);
+    require(focusName()=="native-preview-action","footer Down did not return to Resume");
+    item("stream-recap-footer")->forceActiveFocus(); settle();
+    session.setStreamRecap({}); settle();
+    require(!card->isVisible() && focusName()=="native-preview-action","clearing a focused footer dropped focus");
+    session.setStreamRecap(recap("2","disconnect")); settle();
+    require(card->isVisible() && focusName()=="native-preview-action","returning recap stole focus");
+    require(lifecycleUntouched(1,0),"reading traversal invoked a lifecycle or report action");
+    require(QMetaObject::invokeMethod(root.get(),"changeFont",Q_ARG(QVariant,0.8)),"text reset failed");
+    window->resize(1280,800); QTest::qWait(150);
+    press(Qt::Key_Return);
     require(session.resumes==1 && session.streamRecap().isEmpty() && !card->isVisible(),"fresh resume kept the previous run's recap");
     require(lifecycleUntouched(1,1),"recap changed lifecycle outside the explicit Resume");
 

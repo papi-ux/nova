@@ -21,6 +21,9 @@ bool setUp(const DeckHudSample& s) { return s.width > 0 && s.height > 0; }
 
 void DeckStreamRecapSpan::accept(const DeckHudSample& s) {
     ++samples_;
+    // A stalled frame count can disappear from the HUD without ending its epoch.
+    const bool sequence = s.media && decoderGeneration_ && s.media->counts.decoderGeneration != *decoderGeneration_;
+    if (s.media) decoderGeneration_ = s.media->counts.decoderGeneration;
     if (!last_) { first_ = last_ = s; return; }
     const auto& p = *last_;
     // A repeated decoder setup zeroes the counters, or changes the format it records.
@@ -28,7 +31,6 @@ void DeckStreamRecapSpan::accept(const DeckHudSample& s) {
         s.videoWorkMicros < p.videoWorkMicros || s.videoWorkSamples < p.videoWorkSamples ||
         s.hostLatencyTenths < p.hostLatencyTenths || s.hostLatencySamples < p.hostLatencySamples ||
         s.width != p.width || s.height != p.height || s.codec != p.codec;
-    const bool sequence = s.media && p.media && s.media->counts.decoderGeneration != p.media->counts.decoderGeneration;
     const auto elapsed = s.atMs - p.atMs;
     if (reset) restarted_ = true;
     if (reset || sequence || elapsed <= 0 || elapsed > kMaxSampleGapMs) continuous_ = false;
