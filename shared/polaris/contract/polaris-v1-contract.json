@@ -1,0 +1,1556 @@
+{
+  "$comment": [
+    "Fields Polaris serves to Nova, per response object.",
+    "",
+    "Nova and Polaris ship from separate repositories on separate schedules, and both",
+    "sides address these fields by string literal. Nothing in either build can see the",
+    "other, so a rename on one side degrades silently: a reader falls back to its",
+    "default and the feature quietly stops working rather than failing.",
+    "",
+    "This manifest is the shared record. tests/integration/test_nova_contract.cpp keeps",
+    "Polaris honest about it, and scripts/check-nova-contract.py diffs it against a Nova",
+    "checkout. Adding a field to a response means adding it here in the same commit.",
+    "",
+    "Drift found when this manifest was introduced, on 2026-08-06, is recorded under",
+    "known_drift so it is tracked rather than rediscovered.",
+    "",
+    "Schema format 2 is additive: ordered fields and legacy nova_reader entries remain. Only generated:true objects use generated names in S1a; wire object versions are unchanged."
+  ],
+  "version": 2,
+  "objects": {
+    "live_tuning_history_entry": {
+      "$comment": [
+        "One entry of live_tuning_history, bounded to 64 entries with version 1. Diagnostic kind/cause are open strings, distinct from Live Tuning status states.",
+        "fec_transition is optional allocation/encoder evidence, not delivered parity or physical FEC benefit. No Nova production reader at exact 3f6b6908 consumes history."
+      ],
+      "fields": [
+        "applied_bitrate_kbps",
+        "applied_proof",
+        "applied_revision",
+        "callback",
+        "cause",
+        "ewma_packet_loss_percent",
+        "ewma_rtt_ms",
+        "fec_transition",
+        "feedback_initialized",
+        "host_elapsed_ms",
+        "input",
+        "kind",
+        "last_host_elapsed_ms",
+        "operator_revision",
+        "reason",
+        "repeat_count",
+        "requested_bitrate_kbps",
+        "sequence",
+        "state"
+      ],
+      "optional": [
+        "callback",
+        "fec_transition",
+        "last_host_elapsed_ms"
+      ],
+      "nullable": [
+        "applied_bitrate_kbps",
+        "input"
+      ],
+      "polaris_emitter": {
+        "file": "src/stream_stats.cpp",
+        "function": "live_tuning_history_entry_json",
+        "variable": "out",
+        "style": "subscript"
+      }
+    },
+    "live_tuning_fec_transition": {
+      "$comment": [
+        "Optional history-entry fec_transition. Integers describe nominal configured/published actuator allocation; phases are fixed, lowering_rate or raising_rate.",
+        "Pending percentages are integer or explicit null (no pending transaction). A positive from_frame_index is present only for actual published raises at their accepted next-frame boundary.",
+        "For example, restoring parity from 15 to 10 precedes the higher encoder ACK; restored confirmation from 10 to 10 has no new publication boundary. Absence means unavailable, never zero."
+      ],
+      "fields": [
+        "configured_percentage",
+        "from_frame_index",
+        "pending_percentage_after",
+        "pending_percentage_before",
+        "percentage_after",
+        "percentage_before",
+        "phase_after",
+        "phase_before"
+      ],
+      "optional": [
+        "from_frame_index"
+      ],
+      "nullable": [
+        "pending_percentage_before",
+        "pending_percentage_after"
+      ],
+      "polaris_emitter": {
+        "file": "src/stream_stats.cpp",
+        "function": "fec_transition_json",
+        "variable": "out",
+        "style": "subscript"
+      }
+    },
+    "spaces_snapshot": {
+      "$comment": [
+        "GET /polaris/v1/spaces, and the body of POST /polaris/v1/spaces/select. What one",
+        "paired device may see, and why what it cannot do is off. schema stays 1: every key",
+        "added after nova#308 is optional, and the six state words on each space never grow,",
+        "because PolarisSpaces.parse nulls the whole payload on a value it does not know."
+      ],
+      "fields": [
+        "available",
+        "can_switch",
+        "capacity",
+        "default_space_id",
+        "desktop_allowed",
+        "enabled",
+        "schema",
+        "selected_space_id",
+        "spaces",
+        "status",
+        "switch_blocked_reason",
+        "unavailable_reason"
+      ],
+      "optional": [
+        "capacity",
+        "default_space_id",
+        "desktop_allowed",
+        "switch_blocked_reason",
+        "unavailable_reason"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisSpaces.kt",
+        "function": "parse",
+        "receiver": "json"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "spaces_snapshot_json",
+        "declaration": "nlohmann::json body {",
+        "style": "initializer_list"
+      }
+    },
+    "spaces_capacity": {
+      "$comment": "The capacity object of spaces_snapshot and of the console's /api/multiseat/profiles: the trusted seat budget summed over every GPU, so a client can say \"one Space at a time\" before a launch is refused.",
+      "fields": [
+        "concurrent_active",
+        "concurrent_limit"
+      ],
+      "polaris_emitter": [
+        {
+          "file": "src/nvhttp.cpp",
+          "function": "spaces_capacity_json",
+          "declaration": "return {",
+          "style": "initializer_list"
+        },
+        {
+          "file": "src/confighttp.cpp",
+          "function": "getMultiseatProfiles",
+          "declaration": "output[\"capacity\"] = {",
+          "style": "initializer_list"
+        }
+      ],
+      "generated": true,
+      "required_present": [
+        "concurrent_active",
+        "concurrent_limit"
+      ],
+      "types": {
+        "concurrent_active": "integer",
+        "concurrent_limit": "integer"
+      },
+      "consumers": {
+        "nova_android": {
+          "file": "app/src/main/java/com/papi/nova/api/PolarisSpaces.kt",
+          "function": "parse",
+          "receiver": "raw",
+          "style": "kotlin_org_json",
+          "reads": [
+            "concurrent_active",
+            "concurrent_limit"
+          ]
+        },
+        "polaris_web": [
+          {
+            "file": "src_assets/common/assets/web/spaces-access.js",
+            "function": "validSnapshot",
+            "receiver": "next.capacity",
+            "style": "javascript",
+            "reads": [
+              "concurrent_active",
+              "concurrent_limit"
+            ],
+            "scope_start": "export function validSnapshot(",
+            "scope_end": "export function "
+          },
+          {
+            "file": "src_assets/common/assets/web/spaces-diagnostics.js",
+            "function": "spacesDiagnostics",
+            "receiver": "state.capacity",
+            "style": "javascript",
+            "reads": [
+              "concurrent_active",
+              "concurrent_limit"
+            ]
+          },
+          {
+            "file": "src_assets/common/assets/web/components/MultiseatAssignments.vue",
+            "style": "javascript",
+            "receiver": "state.capacity",
+            "scope_start": "<template>",
+            "scope_end": "</template>",
+            "reads": [
+              "concurrent_active",
+              "concurrent_limit"
+            ]
+          }
+        ]
+      }
+    },
+    "space": {
+      "$comment": "One entry of spaces_snapshot.spaces. state is one of ready, starting, running, stopping, in_use, unavailable and must stay so; can_open and blocked_reason carry what state cannot (a full budget).",
+      "fields": [
+        "blocked_reason",
+        "can_open",
+        "id",
+        "library_enabled",
+        "name",
+        "selected",
+        "state"
+      ],
+      "optional": [
+        "blocked_reason"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisSpaces.kt",
+        "function": "parse",
+        "receiver": "entry"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "space_json",
+        "declaration": "nlohmann::json entry {",
+        "style": "initializer_list"
+      }
+    },
+    "space_library": {
+      "$comment": "GET /polaris/v1/spaces/library?space_id=. The games are space_library_game objects.",
+      "fields": [
+        "games",
+        "library_available",
+        "schema",
+        "space_id",
+        "space_name",
+        "status",
+        "total"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "getSpaceLibrary",
+        "receiver": "json"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "space_library_json",
+        "declaration": "return {",
+        "style": "initializer_list"
+      }
+    },
+    "space_library_game": {
+      "$comment": [
+        "One game of a Space library, id space.<profile>.<target>. Nova reads it through the",
+        "same PolarisGameJsonAdapter.fromJson as game, which reads every field the host game",
+        "object serves, so a reader entry here would report those as drift; the adapter is",
+        "audited under game and space_ref."
+      ],
+      "fields": [
+        "app_id",
+        "artwork",
+        "cover_url",
+        "hdr_supported",
+        "id",
+        "installed",
+        "launch_mode",
+        "name",
+        "source",
+        "space",
+        "steam_appid"
+      ],
+      "optional": [
+        "artwork"
+      ],
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "space_library_game_json",
+        "declaration": "nlohmann::json entry {",
+        "style": "initializer_list"
+      }
+    },
+    "space_ref": {
+      "$comment": "The space object of space_library_game. Nova requires it on every space.* id and checks id and target against the id it parsed.",
+      "fields": [
+        "id",
+        "name",
+        "target"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "fromJson",
+        "receiver": "context"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "space_ref_json",
+        "declaration": "return {",
+        "style": "initializer_list"
+      }
+    },
+    "space_launch_mode": {
+      "$comment": "The launch_mode of a Space game, fixed to gamescope_stream; a four-field subset of launch_mode read by the same modeJson reader. Space entries deliberately omit follows_host_default, launch_as, launch_as_available and launch_as_unavailable_reason, and that shared reader defaults each one when absent: follows_host_default to true, launch_as to no app launch-as contract (it checks whether any of the three launch_as keys exists first), launch_as_available to null and launch_as_unavailable_reason to an empty string. The four intentional omissions and their exact reader defaults are declared in known_drift with a per-object reason. Format 2 records these same intentional omissions and exact reader defaults under subset_of/omitted; known_drift.$detail preserves the prior source-reconciliation reason.",
+      "fields": [
+        "allowed_modes",
+        "mode_reason",
+        "preferred_mode",
+        "recommended_mode"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "fromJson",
+        "receiver": "modeJson"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "space_launch_mode_json",
+        "declaration": "return {",
+        "style": "initializer_list"
+      },
+      "generated": true,
+      "required_present": [
+        "allowed_modes",
+        "mode_reason",
+        "preferred_mode",
+        "recommended_mode"
+      ],
+      "types": {
+        "allowed_modes": "array<string>",
+        "mode_reason": "string",
+        "preferred_mode": "string",
+        "recommended_mode": "string"
+      },
+      "consumers": {
+        "nova_android": {
+          "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+          "function": "fromJson",
+          "receiver": "modeJson",
+          "style": "kotlin_org_json",
+          "reads": [
+            "allowed_modes",
+            "follows_host_default",
+            "launch_as",
+            "launch_as_available",
+            "launch_as_unavailable_reason",
+            "mode_reason",
+            "preferred_mode",
+            "recommended_mode"
+          ]
+        },
+        "nova_shared": {
+          "file": "shared/polaris/model/src/commonMain/kotlin/com/papi/nova/shared/polaris/model/PolarisGame.kt",
+          "style": "kotlin_serial_name",
+          "scope_start": "data class LaunchModeContract(",
+          "scope_end": ") {",
+          "reads": [
+            "allowed_modes",
+            "follows_host_default",
+            "launch_as",
+            "launch_as_available",
+            "launch_as_unavailable_reason",
+            "mode_reason",
+            "preferred_mode",
+            "recommended_mode"
+          ]
+        },
+        "nova_deck": {
+          "file": "clients/deck/src/polaris/deck_polaris_client.cpp",
+          "function": "parseGame",
+          "receiver": "launchMode",
+          "style": "qt_json",
+          "reads": [
+            "allowed_modes",
+            "follows_host_default",
+            "launch_as",
+            "launch_as_available",
+            "launch_as_unavailable_reason",
+            "mode_reason",
+            "preferred_mode",
+            "recommended_mode"
+          ]
+        }
+      },
+      "subset_of": "launch_mode",
+      "omitted": {
+        "follows_host_default": {
+          "reason": "Space mode is fixed to gamescope_stream and the legacy readers take an absent follows_host_default as true. This preserves current UI behavior; changing its meaning is a separate owner decision.",
+          "reader_defaults": {
+            "nova_android": true,
+            "nova_shared": true,
+            "nova_deck": true
+          }
+        },
+        "launch_as": {
+          "reason": "None of the three per-app Launch As keys is served, so all readers use the older-host path rather than inventing a per-app Launch As contract.",
+          "reader_defaults": {
+            "nova_android": null,
+            "nova_shared": null,
+            "nova_deck": {
+              "launch_as_present": false,
+              "launch_as": ""
+            }
+          }
+        },
+        "launch_as_available": {
+          "reason": "No per-app Launch As availability is declared for this Space entry.",
+          "reader_defaults": {
+            "nova_android": null,
+            "nova_shared": null,
+            "nova_deck": null
+          }
+        },
+        "launch_as_unavailable_reason": {
+          "reason": "With no per-app Launch As contract, the old reader default is the empty string.",
+          "reader_defaults": {
+            "nova_android": "",
+            "nova_shared": "",
+            "nova_deck": ""
+          }
+        }
+      }
+    },
+    "space_legacy_game": {
+      "$comment": "The one entry GET /polaris/v1/games serves to a device routed to a Space on a host without the Space library: the fixed profile app identity that NovaSpaceUiState.singleSpace opens.",
+      "fields": [
+        "app_id",
+        "cover_url",
+        "hdr_supported",
+        "id",
+        "installed",
+        "launch_mode",
+        "name",
+        "source",
+        "worker_profile"
+      ],
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "space_legacy_game_json",
+        "declaration": "return {",
+        "style": "initializer_list"
+      }
+    },
+    "game": {
+      "$comment": "Emitted per app by the game library endpoint.",
+      "fields": [
+        "app_id",
+        "artwork",
+        "beat_time",
+        "category",
+        "cover_url",
+        "display_planner",
+        "emulator",
+        "genres",
+        "hdr_supported",
+        "id",
+        "installed",
+        "last_launched",
+        "launch_mode",
+        "mangohud",
+        "name",
+        "platform",
+        "platform_label",
+        "play_time",
+        "runtime",
+        "runtime_label",
+        "source",
+        "steam_appid",
+        "steam_big_picture",
+        "steam_launch",
+        "steam_lifecycle"
+      ],
+      "optional": [
+        "beat_time",
+        "emulator",
+        "platform",
+        "platform_label",
+        "play_time",
+        "runtime",
+        "runtime_label",
+        "steam_big_picture"
+      ],
+      "nova_reader": {
+        "$comment": [
+          "Scoped to the function, not the file and not the receiver variable.",
+          "PolarisGameJsonAdapter.kt defines fromJson, parseArtworkManifest, finiteDouble and",
+          "parseArtworkAsset, and all four name their parameter `json`. Scoping by receiver",
+          "therefore reports artwork-manifest fields as game fields, which is how an earlier",
+          "version of this manifest recorded drift that did not exist."
+        ],
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "fromJson",
+        "receiver": "json"
+      },
+      "required_by_nova": {
+        "$comment": "Fields Nova reads. Anything else Polaris serves here is informational.",
+        "note": "Nova reads every field this object serves."
+      },
+      "polaris_emitter": [
+        {
+          "file": "src/nvhttp.cpp",
+          "variable": "game",
+          "style": "subscript"
+        },
+        {
+          "file": "src/process.cpp",
+          "function": "launcher_metadata_for_app",
+          "variable": "metadata",
+          "style": "subscript",
+          "note": "Merged into game by nvhttp.cpp with game.update(), so its keys are served fields."
+        }
+      ]
+    },
+    "launch_mode": {
+      "$comment": "Nested under game, built by build_launch_mode_contract. Aligned in both directions. An earlier revision recorded drift here because the field list was extracted from the thin launch_mode_contract_for_app wrapper, and the range ran on into steam_launch_contract_for_app and reported that object's fields instead. Space entries omit launch_as, launch_as_available and launch_as_unavailable_reason.",
+      "fields": [
+        "allowed_modes",
+        "follows_host_default",
+        "launch_as",
+        "launch_as_available",
+        "launch_as_unavailable_reason",
+        "mode_reason",
+        "preferred_mode",
+        "recommended_mode"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "fromJson",
+        "receiver": "modeJson"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "build_launch_mode_contract",
+        "variable": "launch_mode",
+        "style": "subscript"
+      },
+      "generated": true,
+      "required_present": [
+        "allowed_modes",
+        "follows_host_default",
+        "launch_as",
+        "launch_as_available",
+        "launch_as_unavailable_reason",
+        "mode_reason",
+        "preferred_mode",
+        "recommended_mode"
+      ],
+      "types": {
+        "allowed_modes": "array<string>",
+        "follows_host_default": "boolean",
+        "launch_as": "string",
+        "launch_as_available": "boolean",
+        "launch_as_unavailable_reason": "string",
+        "mode_reason": "string",
+        "preferred_mode": "string",
+        "recommended_mode": "string"
+      },
+      "consumers": {
+        "nova_android": {
+          "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+          "function": "fromJson",
+          "receiver": "modeJson",
+          "style": "kotlin_org_json",
+          "reads": [
+            "allowed_modes",
+            "follows_host_default",
+            "launch_as",
+            "launch_as_available",
+            "launch_as_unavailable_reason",
+            "mode_reason",
+            "preferred_mode",
+            "recommended_mode"
+          ]
+        },
+        "nova_shared": {
+          "file": "shared/polaris/model/src/commonMain/kotlin/com/papi/nova/shared/polaris/model/PolarisGame.kt",
+          "style": "kotlin_serial_name",
+          "scope_start": "data class LaunchModeContract(",
+          "scope_end": ") {",
+          "reads": [
+            "allowed_modes",
+            "follows_host_default",
+            "launch_as",
+            "launch_as_available",
+            "launch_as_unavailable_reason",
+            "mode_reason",
+            "preferred_mode",
+            "recommended_mode"
+          ]
+        },
+        "nova_deck": {
+          "file": "clients/deck/src/polaris/deck_polaris_client.cpp",
+          "function": "parseGame",
+          "receiver": "launchMode",
+          "style": "qt_json",
+          "reads": [
+            "allowed_modes",
+            "follows_host_default",
+            "launch_as",
+            "launch_as_available",
+            "launch_as_unavailable_reason",
+            "mode_reason",
+            "preferred_mode",
+            "recommended_mode"
+          ]
+        }
+      }
+    },
+    "steam_launch": {
+      "$comment": "Nested under game. The reference case: identical shape to launch_mode and currently aligned in both directions.",
+      "fields": [
+        "allowed_modes",
+        "available",
+        "mode",
+        "mode_reason",
+        "recommended_mode"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "fromJson",
+        "receiver": "launchJson"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "steam_launch_contract_for_app",
+        "variable": "contract",
+        "style": "subscript"
+      }
+    },
+    "artwork_choices": {
+      "$comment": [
+        "The response of POST /polaris/v1/games/<uuid>/artwork/choices/<kind>: up to five",
+        "SteamGridDB images of one kind for the match named in the body. Nova drops the whole",
+        "list unless status is true and kind is the kind it asked for, then keeps at most five."
+      ],
+      "fields": [
+        "choices",
+        "kind",
+        "status"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseArtworkChoices",
+        "receiver": "json"
+      },
+      "polaris_emitter": {
+        "file": "src/game_artwork_manual.cpp",
+        "function": "artwork_choices_json",
+        "declaration": "nlohmann::json body {",
+        "style": "initializer_list"
+      }
+    },
+    "artwork_choice": {
+      "$comment": [
+        "One entry of artwork_choices. selection_token is 32 lowercase hex characters and is the",
+        "only thing a pick sends back to POST .../artwork/match under selections. Nova drops an",
+        "entry whose preview is not exactly /polaris/v1/games/<uuid>/artwork/candidate/<token>/<kind>,",
+        "the host path the candidate preview route serves. expires_at is epoch milliseconds."
+      ],
+      "fields": [
+        "expires_at",
+        "preview",
+        "selection_token"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseArtworkChoices",
+        "receiver": "item"
+      },
+      "polaris_emitter": {
+        "file": "src/game_artwork_manual.cpp",
+        "function": "artwork_choice_json",
+        "declaration": "nlohmann::json body {",
+        "style": "initializer_list"
+      }
+    },
+    "display_planner": {
+      "$comment": [
+        "Nested under game. Per-host, computed once per request from the same fallback",
+        "display mode the web planner plans from, and attached to every game unchanged.",
+        "Nova's adapter reads it since papi-ux/nova#197, and Play Setup's Resolution row",
+        "gates on `available`. The shared model's contract test pins the 2560x1600x90",
+        "fixture on the Nova side; tests/unit/test_display_planner.cpp pins it here.",
+        "Unlike the web planner, `hidden` here means unsafe and nothing else; the",
+        "advanced flag is its own axis so a client can offer its own advanced toggle."
+      ],
+      "fields": [
+        "advanced_scale_factors",
+        "available",
+        "choices",
+        "recommended_id",
+        "recommended_mode",
+        "recommended_title",
+        "source_aspect_ratio",
+        "source_fps",
+        "source_mode"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "parseDisplayPlanner",
+        "receiver": "plannerJson"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "display_planner_contract_json",
+        "variable": "planner",
+        "style": "subscript"
+      }
+    },
+    "display_planner_choice": {
+      "$comment": "One entry of display_planner.choices: a preset of the ported web planner.",
+      "fields": [
+        "advanced",
+        "aspect_ratio",
+        "badge",
+        "custom",
+        "hidden",
+        "id",
+        "intent",
+        "reason",
+        "safe",
+        "scale_factor",
+        "target_mode",
+        "title"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "parseDisplayPlannerChoices",
+        "receiver": "choiceJson"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "display_planner_choice_json",
+        "variable": "choice",
+        "style": "subscript"
+      }
+    },
+    "display_planner_scale_choice": {
+      "$comment": "One entry of display_planner.advanced_scale_factors.",
+      "fields": [
+        "label",
+        "safe",
+        "scale_factor",
+        "target_mode"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisGameJsonAdapter.kt",
+        "function": "parseDisplayPlannerScaleChoices",
+        "receiver": "scaleJson"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "display_planner_scale_option_json",
+        "variable": "scale_option",
+        "style": "subscript"
+      }
+    },
+    "session_capture": {
+      "$comment": [
+        "The `capture` object of /polaris/v1/session/status.",
+        "Most of this is diagnostic and going unread is not a defect. The exceptions are",
+        "called out in informational_ok below."
+      ],
+      "fields": [
+        "backend",
+        "cpu_copy",
+        "cross_gpu_dmabuf_risk",
+        "device",
+        "effective_headless",
+        "encoder_adapter",
+        "format",
+        "gpu_native",
+        "gpu_native_override_active",
+        "path",
+        "reason",
+        "reason_message",
+        "requested_headless",
+        "residency",
+        "resolution",
+        "transport"
+      ],
+      "informational_ok": [
+        "backend",
+        "cpu_copy",
+        "device",
+        "effective_headless",
+        "encoder_adapter",
+        "reason_message",
+        "requested_headless",
+        "resolution",
+        "cross_gpu_dmabuf_risk",
+        "gpu_native",
+        "gpu_native_override_active"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseSessionStatusResponse",
+        "receiver": "capture"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "variable": "capture_info",
+        "style": "subscript"
+      }
+    },
+    "session_encoder": {
+      "$comment": "The `encoder` object of /polaris/v1/session/status. encode_time_ms is the host's measured encoder work time, declared here for that endpoint's diagnostics; no Nova reader has ever consumed it, so it is informational.",
+      "fields": [
+        "active_backend",
+        "bitrate_kbps",
+        "codec",
+        "effective_backend",
+        "encode_target_fps",
+        "encode_time_ms",
+        "fallback_allowed",
+        "fps",
+        "optimization_cache_status",
+        "optimization_confidence",
+        "optimization_normalization_reason",
+        "optimization_reasoning",
+        "optimization_source",
+        "pacing_policy",
+        "recommendation_version",
+        "requested_backend",
+        "requested_client_fps",
+        "selection",
+        "session_override",
+        "session_target_fps",
+        "target_device",
+        "target_format",
+        "target_residency"
+      ],
+      "informational_ok": [
+        "active_backend",
+        "effective_backend",
+        "encode_time_ms",
+        "fallback_allowed",
+        "requested_backend",
+        "session_override",
+        "selection"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseSessionStatusResponse",
+        "receiver": "encoder"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "variable": "encoder",
+        "style": "subscript"
+      }
+    },
+    "session_encoder_selection": {
+      "$comment": [
+        "Nested under session_encoder.selection. This explains the deterministic host-side",
+        "Auto policy, its runtime-selected encoder, and whether an exact live probe used the",
+        "documented fallback. Nova, Doctor, and the web UI consume the same informational",
+        "evidence without giving any surface control over launch behavior."
+      ],
+      "fields": [
+        "exact_live_probe_required",
+        "fallback_encoder",
+        "fallback_used",
+        "gpu_driver",
+        "mode",
+        "policy",
+        "preferred_encoder",
+        "reason",
+        "selected_encoder"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseSessionStatusResponse",
+        "receiver": "encoderSelection"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "encoder_selection_json",
+        "declaration": "return {",
+        "style": "initializer_list"
+      }
+    },
+    "linux_gpu_profile": {
+      "$comment": [
+        "The `linux_gpu_profile` object of /polaris/v1/session/status.",
+        "This is where Nova gets its authoritative GPU-native answer, not from the capture",
+        "object, which is why capture.gpu_native and capture.cross_gpu_dmabuf_risk going",
+        "unread is redundancy rather than a gap."
+      ],
+      "fields": [
+        "adapter_matches_capture_device",
+        "adapter_matches_wayland_main_device",
+        "adapter_pairing_device",
+        "adapter_pairing_device_source",
+        "adapter_pairing_status",
+        "capture_device",
+        "capture_forecast",
+        "compositor_render_device",
+        "configuration_warnings",
+        "cross_gpu_dmabuf_risk",
+        "encoder_adapter",
+        "encoder_adapter_effective",
+        "encoder_adapter_source",
+        "encoder_api",
+        "gpu_native_attempted",
+        "gpu_native_requested",
+        "gpu_native_succeeded",
+        "vaapi_vendor",
+        "wayland_main_device"
+      ],
+      "informational_ok": [
+        "adapter_matches_wayland_main_device",
+        "adapter_pairing_device",
+        "adapter_pairing_device_source",
+        "adapter_pairing_status",
+        "capture_forecast",
+        "compositor_render_device",
+        "configuration_warnings",
+        "encoder_adapter_effective",
+        "encoder_adapter_source",
+        "wayland_main_device"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseLinuxGpuProfile",
+        "receiver": "json"
+      },
+      "polaris_emitter": {
+        "file": "src/stream_stats.cpp",
+        "function": "linux_gpu_profile_json",
+        "declaration": "nlohmann::json profile = {",
+        "style": "initializer_list"
+      }
+    },
+    "session_timing": {
+      "$comment": [
+        "The response of GET /polaris/v1/session/timing (Nordstern P0-3, scoped",
+        "per-session by P0-3A after a same-day design review found the original",
+        "process-lifetime rings could commingle concurrent sessions - Polaris runs",
+        "one independent encoder per client, default max_sessions 2). Host-side",
+        "T0-T2 stage timing for the calling cert's own session only. No nova_reader",
+        "yet: this shipped ahead of any consumer, same situation display_planner was",
+        "in before papi-ux/nova#197 - see known_drift.polaris_sends_nova_never_reads",
+        "for that precedent. Add nova_reader here once a Nova build actually reads",
+        "this endpoint."
+      ],
+      "fields": [
+        "capture_to_encode",
+        "capture_to_send",
+        "encode_to_send",
+        "ring_complete",
+        "session_active",
+        "session_generation",
+        "stage_vocabulary"
+      ],
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "build_session_timing_json",
+        "variable": "output",
+        "style": "subscript"
+      }
+    },
+    "client_settings_mode_option": {
+      "$comment": [
+        "One entry of capabilities.modes in GET /polaris/v1/client-settings - the",
+        "host-authoritative launch-mode catalog (per-mode availability, server",
+        "labels, disable reasons, and the private/host grouping). Guarded because",
+        "the client-settings surface carried the picker feed with zero drift",
+        "protection (roadmap item: server-authoritative mode pickers). The POST",
+        "validator accepts exactly the ids this catalog can advertise as",
+        "available - stream_display_policy::selection_valid is the shared truth.",
+        "group/unavailable_reason and the runtime/capture/topology vocabulary",
+        "ship ahead of their Nova consumer - see known_drift."
+      ],
+      "fields": [
+        "available",
+        "badge",
+        "capture",
+        "group",
+        "label",
+        "reason",
+        "restart_required",
+        "runtime",
+        "session_overridable",
+        "topology",
+        "unavailable_reason",
+        "value"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseModeOptions",
+        "receiver": "mode"
+      },
+      "polaris_emitter": {
+        "file": "src/settings_metadata.cpp",
+        "function": "stream_display_mode_options_json",
+        "style": "initializer_list",
+        "declaration": "modes.push_back({"
+      }
+    },
+    "client_settings_encoder_option": {
+      "$comment": [
+        "One entry of capabilities.encoders in GET /polaris/v1/client-settings and",
+        "encoder_backends in GET /polaris/v1/capabilities. Availability describes",
+        "what the running build can select; every request is validated again against",
+        "the live capture route at launch. Auto alone may fall back."
+      ],
+      "fields": [
+        "available",
+        "experimental",
+        "fallback_allowed",
+        "label",
+        "reason",
+        "runtime_validation",
+        "value"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseEncoderOptions",
+        "receiver": "encoder"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "encoder_backend_options_json",
+        "style": "initializer_list",
+        "declaration": "options.push_back({"
+      }
+    },
+    "optimization": {
+      "$comment": [
+        "Top-level GET /optimize deterministic launch resolver response.",
+        "append_deterministic_optimization_json emits the selected preset, the",
+        "authoritative nested field provenance, and temporary flat compatibility",
+        "values. History, recovery records, and AI output cannot define these",
+        "settings. ai_explanation is typed informational output only."
+      ],
+      "fields": [
+        "ai_explanation",
+        "auto_action",
+        "auto_mode",
+        "cache_status",
+        "color_range",
+        "confidence",
+        "display_mode",
+        "encoder_backend",
+        "encoder_options",
+        "encoder_resolution",
+        "hdr",
+        "limiting_factor",
+        "nvenc_tune",
+        "preferred_codec",
+        "preset",
+        "profile_state",
+        "reasoning",
+        "reasoning_summary",
+        "recommendation_version",
+        "recovery_policy",
+        "resolved_profile",
+        "signals_used",
+        "source",
+        "stability",
+        "target_bitrate_kbps",
+        "topology_resolution"
+      ],
+      "informational_ok": [
+        "ai_explanation",
+        "auto_action",
+        "auto_mode",
+        "color_range",
+        "encoder_backend",
+        "encoder_options",
+        "encoder_resolution",
+        "hdr",
+        "limiting_factor",
+        "nvenc_tune",
+        "preset",
+        "reasoning_summary",
+        "recommendation_version",
+        "recovery_policy",
+        "signals_used",
+        "topology_resolution"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt",
+        "function": "buildOptimizationState",
+        "receiver": "opt"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "append_deterministic_optimization_json",
+        "style": "assignments",
+        "variable": "output"
+      }
+    },
+    "optimization_encoder_resolution": {
+      "$comment": [
+        "The exact session encoder selection nested under encoder_resolution in a",
+        "deterministic /optimize response. Nova binds requested, resolved, lock, and",
+        "fallback policy to the final launch. The concrete active backend remains",
+        "informational because Auto is resolved only by the live launch probe."
+      ],
+      "fields": [
+        "active_backend",
+        "fallback_allowed",
+        "locked",
+        "reason_code",
+        "requested",
+        "resolved",
+        "runtime_validation",
+        "source",
+        "strict_runtime_validation"
+      ],
+      "informational_ok": [
+        "active_backend",
+        "reason_code",
+        "runtime_validation",
+        "source",
+        "strict_runtime_validation"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/manager/NovaEncoderLaunchContract.kt",
+        "function": "honors",
+        "receiver": "resolution"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "optimization_encoder_resolution_json",
+        "style": "initializer_list",
+        "declaration": "return {"
+      }
+    },
+    "optimization_topology_resolution": {
+      "$comment": [
+        "Exact app and topology identity bound to a deterministic optimize result.",
+        "Nova rejects a preflight or fresh result unless the canonical app id,",
+        "host-default or explicit topology request, lock state, and Steam desktop",
+        "choice all match the launch that will consume it. Source, reason, and",
+        "normalization metadata make paired, app, and host capability decisions",
+        "auditable without allowing them to become client-authored policy."
+      ],
+      "fields": [
+        "app_id",
+        "app_uuid",
+        "force_private_after_steam_close_requested",
+        "locked",
+        "mirror_desktop_requested",
+        "normalized",
+        "reason_code",
+        "requested",
+        "resolved",
+        "source"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/manager/LaunchTopologyEnvelope.kt",
+        "function": "matches",
+        "receiver": "topologyResolution"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "optimization_topology_resolution_json",
+        "style": "initializer_list",
+        "declaration": "return {"
+      }
+    },
+    "optimization_resolved_field": {
+      "$comment": [
+        "One entry in resolved_profile.fields. Nova rejects the value unless",
+        "all provenance metadata is present with the expected primitive types.",
+        "A trusted launch envelope requires display_mode plus display_width,",
+        "display_height, target_fps, target_bitrate_kbps, and hdr. Component",
+        "display provenance is authoritative when a preset composes paired",
+        "dimensions with an explicit cadence lock. Source is allowlisted and",
+        "history or AI provenance is never accepted as launch authority."
+      ],
+      "fields": [
+        "locked",
+        "normalized",
+        "reason_code",
+        "source",
+        "value"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/manager/StreamSyncManager.kt",
+        "function": "validResolvedField",
+        "receiver": "detail"
+      },
+      "polaris_emitter": {
+        "file": "src/launch_profile.cpp",
+        "function": "add_field",
+        "style": "initializer_list",
+        "declaration": "fields[name] = {"
+      }
+    },
+    "host_power": {
+      "$comment": "Served on the capabilities response and on GET /polaris/v1/host/power. Tells a client whether to offer a sleep control at all: sleep_supported is what logind answers, sleep_enabled is the host owner's opt in, and sleep_permitted is whether this client may control the host rather than only watch it. All three have to be true before the control is worth showing. The last_sleep_* fields carry what became of the previous request, which is a different fact from whether it was accepted: logind returns as soon as a suspend is queued, and a task that will not freeze can abort the suspend afterwards.",
+      "fields": [
+        "last_sleep_at",
+        "last_sleep_message",
+        "last_sleep_outcome",
+        "last_sleep_reason",
+        "sleep_blocked_message",
+        "sleep_blocked_reason",
+        "sleep_enabled",
+        "sleep_endpoint",
+        "sleep_permitted",
+        "sleep_supported"
+      ],
+      "nova_reader": {
+        "file": "app/src/main/java/com/papi/nova/api/PolarisApiClient.kt",
+        "function": "parseHostPower",
+        "receiver": "json"
+      },
+      "polaris_emitter": {
+        "file": "src/nvhttp.cpp",
+        "function": "build_host_power_contract",
+        "variable": "host_power",
+        "style": "subscript"
+      }
+    },
+    "pyrowave_bitrate": {
+      "$comment": [
+        "The pyrowave_bitrate object of GET /polaris/v1/session/status, present only while the stream",
+        "codec is PyroWave. The advice fields are PyroWave's model for the stream's shape, as",
+        "requests: what a client sets so the encoder lands on the model's rate after FEC, audio and",
+        "overhead. advice_far_kbps is H 2.875, a device's own screen, at far_target_db, 31 dB,",
+        "calibrated on a Retroid Pocket 6, and the lower figure; advice_near_kbps is H 2.0, a",
+        "television or monitor, at target_db, the author's 35 dB. Both are the model's readouts and",
+        "neither is capped. What the host recommends is raise_goal_kbps, what Doctor raises to: the",
+        "far figure capped at cap_kbps and max_bitrate. encoder_kbps is the rate the encoder runs at",
+        "now, and request_kbps the same rate as a request, what a client sets to land the encoder",
+        "there. ceiling_frame_share is the share of recent frames at 99% of the byte budget (null",
+        "while unknown). It never makes a stream starved, and decides only Doctor's finding for a",
+        "stream the cap or max_bitrate holds below advice_far_kbps. starved is the host's verdict:",
+        "request_kbps is below 90% of raise_goal_kbps. assumes names the FEC share and audio cost the",
+        "requests were grossed up for: the stream's own, as its bitrate_units carry them, and the",
+        "host's FEC share with stereo in high quality until its handshake is recorded. No",
+        "nova_reader yet: Nova builds against it for 1.5.0."
+      ],
+      "fields": [
+        "advice_far_kbps",
+        "advice_near_kbps",
+        "assumes",
+        "cap_kbps",
+        "cap_set_aside",
+        "ceiling_frame_share",
+        "chroma",
+        "encoder_kbps",
+        "far_target_db",
+        "fps",
+        "height",
+        "live_tuning_floor_encoder_kbps",
+        "model",
+        "raise_goal_kbps",
+        "raise_goal_limited_by",
+        "request_cap",
+        "request_kbps",
+        "rule",
+        "starved",
+        "target_db",
+        "version",
+        "width"
+      ],
+      "polaris_emitter": [
+        {
+          "file": "src/pyrowave_advice.cpp",
+          "function": "advice_json",
+          "style": "initializer_list",
+          "declaration": "return {"
+        },
+        {
+          "file": "src/stream_stats.cpp",
+          "function": "pyrowave_bitrate_json",
+          "variable": "value",
+          "style": "subscript"
+        }
+      ]
+    },
+    "pyrowave_advice": {
+      "$comment": [
+        "The response of GET /polaris/v1/pyrowave/advice?width=&height=&fps=&chroma=420|444, announced",
+        "by features.pyrowave_advice_v1. The same advice fields as pyrowave_bitrate, without the live",
+        "ones, for a shape a client is about to ask for: the model's readouts uncapped, and",
+        "raise_goal_kbps, the one the host recommends. available is false with a reason and a",
+        "message when the host cannot serve PyroWave: not_built carries no figures, no_vulkan_device",
+        "still carries them. assumes names the FEC share and audio cost the requests were grossed up",
+        "for: the asking client's own stream's, as its bitrate_units carry them, when it streams",
+        "here, and the host's FEC share with stereo in high quality when it does not. No nova_reader",
+        "yet."
+      ],
+      "fields": [
+        "advice_far_kbps",
+        "advice_near_kbps",
+        "assumes",
+        "available",
+        "cap_kbps",
+        "chroma",
+        "far_target_db",
+        "fps",
+        "height",
+        "message",
+        "model",
+        "raise_goal_kbps",
+        "raise_goal_limited_by",
+        "reason",
+        "rule",
+        "target_db",
+        "version",
+        "width"
+      ],
+      "polaris_emitter": [
+        {
+          "file": "src/pyrowave_advice.cpp",
+          "function": "advice_json",
+          "style": "initializer_list",
+          "declaration": "return {"
+        },
+        {
+          "file": "src/pyrowave_advice.cpp",
+          "function": "advice_reply",
+          "variable": "reply",
+          "style": "subscript"
+        }
+      ]
+    },
+    "bitrate_units": {
+      "$comment": [
+        "The bitrate_units object of GET /polaris/v1/session/status, announced by",
+        "features.bitrate_units_v1 and present for every stream whatever its codec, once the stream's",
+        "handshake is recorded. A client's request covers the video, its FEC, the audio and packet",
+        "overhead, and the handshake hands the encoder what is left by the arithmetic formula names,",
+        "stream_bitrate_v1 (src/stream_bitrate.h): encoder_kbps_for_wire(split_kbps, fec_percentage,",
+        "audio_kbps) is encoder_kbps whenever split_kbps is not null, and wire_kbps_for_encoder",
+        "inverts it. requested_kbps is the client's own request, 0 when it sent none. split_kbps is",
+        "requested_kbps times warp_factor, cut to cap_kbps when a cap did (cap_kbps and cap_source",
+        "are null when none did), and null for a stream whose encoder rate is no split of its own",
+        "request: a watcher at its owner's rate, or a client that sent no bitrate. encoder_kbps is",
+        "where the handshake left the encoder, live_encoder_kbps the rate the encoder runs at now",
+        "after a live bitrate, Live Tuning or Doctor, fec_percentage the host's share when the",
+        "stream started. A client with a stream here gets that stream or nothing; one with no stream",
+        "here gets the first stream that recorded its handshake. A Space's stream carries none yet.",
+        "features.manual_bitrate_max_kbps, a number rather than a flag, is the most a client may set",
+        "by hand through client settings, a live bitrate, a resolved launch, a Space's resolver or the",
+        "launch profile route: 500000 from 1.5.0. A host without it takes 300000, so a client offers",
+        "more only to a host that announces it. No nova_reader yet."
+      ],
+      "fields": [
+        "audio_kbps",
+        "cap_kbps",
+        "cap_source",
+        "encoder_kbps",
+        "fec_percentage",
+        "formula",
+        "live_encoder_kbps",
+        "requested_kbps",
+        "split_kbps",
+        "version",
+        "warp_factor"
+      ],
+      "polaris_emitter": {
+        "file": "src/stream_stats.cpp",
+        "function": "bitrate_units_json",
+        "style": "initializer_list",
+        "declaration": "return {"
+      },
+      "generated": true,
+      "required_present": [
+        "audio_kbps",
+        "cap_kbps",
+        "cap_source",
+        "encoder_kbps",
+        "fec_percentage",
+        "formula",
+        "live_encoder_kbps",
+        "requested_kbps",
+        "split_kbps",
+        "version",
+        "warp_factor"
+      ],
+      "nullable": [
+        "cap_kbps",
+        "cap_source",
+        "split_kbps"
+      ],
+      "types": {
+        "audio_kbps": "integer",
+        "cap_kbps": "integer",
+        "cap_source": "string",
+        "encoder_kbps": "integer",
+        "fec_percentage": "integer",
+        "formula": "string",
+        "live_encoder_kbps": "integer",
+        "requested_kbps": "integer",
+        "split_kbps": "integer",
+        "version": "integer",
+        "warp_factor": "integer"
+      },
+      "consumers": {
+        "nova_android": {
+          "file": "app/src/main/java/com/papi/nova/api/PolarisBitrateUnits.kt",
+          "function": "parse",
+          "receiver": "json",
+          "style": "kotlin_org_json",
+          "reads": [
+            "audio_kbps",
+            "cap_kbps",
+            "cap_source",
+            "encoder_kbps",
+            "fec_percentage",
+            "formula",
+            "live_encoder_kbps",
+            "requested_kbps",
+            "split_kbps",
+            "version",
+            "warp_factor"
+          ],
+          "literal_key_list_helper": "integer"
+        },
+        "nova_deck": {
+          "file": "clients/deck/src/polaris/deck_bitrate_advice.cpp",
+          "function": "parseBitrateUnits",
+          "receiver": "o",
+          "style": "qt_json",
+          "reads": [
+            "audio_kbps",
+            "cap_kbps",
+            "cap_source",
+            "encoder_kbps",
+            "fec_percentage",
+            "formula",
+            "live_encoder_kbps",
+            "requested_kbps",
+            "split_kbps",
+            "version",
+            "warp_factor"
+          ],
+          "literal_key_list": true
+        }
+      }
+    }
+  },
+  "known_drift": {
+    "$comment": [
+      "Corrected 2026-08-07. The first version of this file was written against the",
+      "working tree of a Nova checkout that was 295 commits divergent from origin/master,",
+      "and scoped reads by receiver name rather than by function. Both errors inflated it.",
+      "Verified against origin/master with function scoping, Nova reads every field Polaris",
+      "serves; only the reverse direction drifts."
+    ],
+    "nova_reads_polaris_never_sends": {
+      "$comment": "Nova defaults each of these, so platform and runtime resolve to \"unknown\" and the labels to empty strings rather than failing.",
+      "game": [
+        "launcher_source",
+        "launcher_detail",
+        "space"
+      ],
+      "optimization": [
+        "effective_target_fps",
+        "generated_at",
+        "normalization_reason",
+        "requested_target_fps"
+      ]
+    },
+    "polaris_sends_nova_never_reads": {
+      "$comment": [
+        "emulator is the ROM folder preset id, served ahead of a client reader for a later",
+        "per-game readiness cue; Nova reads platform_label and runtime_label for the badge",
+        "instead. display_planner sat here for the day it was served ahead of its consumer;",
+        "papi-ux/nova#197 wired the adapter and the records moved back out, with the",
+        "nova_reader entries above repointed at the functions that now read it.",
+        "steam_big_picture sat here until Nova 1.4.9's Play Setup read it, and moved back out."
+      ],
+      "game": [
+        "emulator"
+      ],
+      "spaces_snapshot": [
+        "available",
+        "can_switch",
+        "default_space_id",
+        "enabled",
+        "switch_blocked_reason",
+        "unavailable_reason"
+      ],
+      "space": [
+        "blocked_reason"
+      ],
+      "space_library": [
+        "library_available",
+        "schema",
+        "space_name",
+        "total"
+      ],
+      "space_legacy_game": [
+        "worker_profile"
+      ],
+      "session_capture": [],
+      "client_settings_mode_option": [
+        "badge",
+        "capture",
+        "runtime",
+        "topology"
+      ],
+      "optimization": [
+        "display_mode",
+        "preferred_codec",
+        "profile_state",
+        "target_bitrate_kbps"
+      ]
+    },
+    "$detail": {
+      "spaces_snapshot": [
+        "At Nova 3f6b6908, enabled, available and can_switch are read through PolarisSpaces.parse flag(), whose variable key this accessor scan cannot see.",
+        "Space id, name and state are read explicitly with getString; can_open uses has/opt/getBoolean, and the top-level capacity is read with json.opt. The eight-entry stale-declaration cleanup removes these five from known unread fields.",
+        "default_space_id, unavailable_reason, switch_blocked_reason and blocked_reason are read through optionalWord, which this scan does not resolve. Their remaining known entries describe a scanner limitation, not absent runtime consumers.",
+        "library_available, space_name and total on space_library are informational; Nova checks status and space_id and reads the games. worker_profile on the legacy entry is never read: NovaSpaceUiState.singleSpace keys on the fixed id.",
+        "game.space is read by the shared adapter and served only on space_library_game, where it is declared; the ordinary library never carries it. serverinfo PolarisSpacesAvailable is XML written through the property tree, outside this manifest extraction."
+      ],
+      "session_capture": [
+        "Corrected. Nova reads gpu_native_succeeded and cross_gpu_dmabuf_risk from the",
+        "linux_gpu_profile object instead, so the same fields on capture are redundant rather",
+        "than missed. An earlier revision recorded them as drift because linux_gpu_profile was",
+        "not modelled at all."
+      ],
+      "linux_gpu_profile": [
+        "Resolved. Nova read vaapi_vendor and Polaris never served it; vaapi.cpp logged the",
+        "string at encoder creation without publishing it. It is now recorded in stats and",
+        "served in this object, which is what names the driver generation in a crash report."
+      ],
+      "game": [
+        "platform and runtime are served from the Lutris runner persisted at import, and for",
+        "ROM folder entries from the emulator preset (switch, gamecube-wii, wiiu, psx, ps2,",
+        "psp, gba as platform; the preset id as runtime), with platform_label and",
+        "runtime_label carrying the console and emulator names so Nova renders a value it",
+        "does not map. All are omitted where nothing is recorded, which Nova renders as no",
+        "badge. launcher_source and launcher_detail stay unserved: the first falls back to",
+        "source in Nova and would only matter if Polaris distinguished imported-from vs",
+        "launched-via, the second has no host-side value."
+      ],
+      "optimization": [
+        "The containment resolver serves resolved_profile directly from deterministic",
+        "policy. Remaining top-level compatibility fields are informational only; Nova",
+        "requires the typed resolved-profile envelope before they can affect launch."
+      ],
+      "space_launch_mode": [
+        "Space games deliberately serve only preferred_mode, allowed_modes, recommended_mode and mode_reason. Nova uses the shared modeJson adapter and tolerates the four omitted fields: follows_host_default defaults to true, launch_as is null when none of the three launch_as keys exists, launch_as_available defaults to null, and launch_as_unavailable_reason defaults to an empty string. These are declared compatibility defaults, not evidence of hardware or UI acceptance. Source recon: Polaris a44c39bf / src/nvhttp.cpp space_launch_mode_json; Nova 3f6b6908 / PolarisGameJsonAdapter.fromJson."
+      ],
+      "stale_entries_removed_2026_10_26": [
+        "The format-2 actual-reader audit against immutable Nova 3f6b6908 found eight obsolete declarations. spaces_snapshot.capacity and space.can_open/id/name/state are consumed; optimization.ai_recommended_mode/consecutive_poor_outcomes/effective_profile are no longer read in the scoped reader. Their entries were removed, not exempted. The historical Spaces notes above describe why older scans missed reads; this correction changes no wire field, fallback or runtime behavior."
+      ]
+    }
+  }
+}

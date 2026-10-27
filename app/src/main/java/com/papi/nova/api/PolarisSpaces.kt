@@ -1,5 +1,6 @@
 package com.papi.nova.api
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import org.json.JSONObject
@@ -107,7 +108,7 @@ data class PolarisSpaces(
                 ?.also { require(it == "desktop" || idPattern.matches(it)) }
             val capacity = json.opt("capacity")?.takeUnless { it == JSONObject.NULL }?.let { raw ->
                 require(raw is JSONObject)
-                val limit = raw.opt("concurrent_limit"); val active = raw.opt("concurrent_active")
+                val limit = raw.opt(PolarisV1.SpacesCapacity.CONCURRENT_LIMIT); val active = raw.opt(PolarisV1.SpacesCapacity.CONCURRENT_ACTIVE)
                 require(limit is Int && active is Int && limit >= 0 && active >= 0)
                 PolarisSpacesCapacity(limit, active)
             }

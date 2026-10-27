@@ -1,13 +1,27 @@
 #include "polaris/deck_bitrate_advice.h"
 #include <QCoreApplication>
 #include <QFile>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <cstdlib>
 #include <iostream>
 using namespace nova::deck::polaris;
 void require(bool b,const char* m) { if (!b) { std::cerr<<m<<'\n';std::exit(1); } }
+void testRequiredNullableBitrateKeys() {
+ const auto literal = QJsonDocument::fromJson(R"({"version":1,"formula":"stream_bitrate_v1","requested_kbps":20000,
+     "encoder_kbps":17888,"live_encoder_kbps":17888,"audio_kbps":512,"fec_percentage":10,
+     "warp_factor":1,"split_kbps":null,"cap_kbps":null,"cap_source":null})").object();
+ const auto parsed = parseBitrateUnits(literal);
+ require(parsed && parsed->requested == 20000 && !parsed->split && !parsed->cap && parsed->capSource.isEmpty(),
+     "explicit null bitrate fields lost their valid metadata");
+ for (const auto* key : {"split_kbps", "cap_kbps", "cap_source"}) {
+  auto missing = literal; missing.remove(key);
+  require(!parseBitrateUnits(missing), "missing bitrate key accepted as explicit null");
+ }
+}
 int main(int argc,char** argv) {
  QCoreApplication app(argc,argv);
+ testRequiredNullableBitrateKeys();
  QFile fixture(NOVA_DECK_RATE_FIXTURE);require(fixture.open(QIODevice::ReadOnly),"shared upstream fixture missing");
  int rows=0;
  while (!fixture.atEnd()) {

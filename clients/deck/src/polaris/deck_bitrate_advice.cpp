@@ -1,8 +1,10 @@
 #include "polaris/deck_bitrate_advice.h"
+#include "generated/polaris_v1_contract.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 namespace nova::deck::polaris {
+namespace v1 = ::polaris::contract::v1;
 namespace {
 std::optional<int> number(const QJsonValue& v, int min = 0, int max = std::numeric_limits<int>::max()) {
     const auto n = v.toDouble(-1);
@@ -42,15 +44,15 @@ int DeckBitrateUnits::requestFor(int value) const {
     return std::abs(raw-grid)<=1 ? grid : raw;
 }
 std::optional<DeckBitrateUnits> parseBitrateUnits(const QJsonObject& o) {
-    if (number(o.value("version")) != 1 || o.value("formula") != "stream_bitrate_v1") return {};
+    if (number(o.value(v1::bitrate_units::version)) != 1 || o.value(v1::bitrate_units::formula) != "stream_bitrate_v1") return {};
     DeckBitrateUnits v;
-    for (const auto* key : {"split_kbps","cap_kbps","cap_source"}) if (!o.contains(key)) return {};
-    auto request=number(o.value("requested_kbps")), encoder=number(o.value("encoder_kbps")), live=number(o.value("live_encoder_kbps"));
-    auto audio=number(o.value("audio_kbps"),0,100000), fec=number(o.value("fec_percentage"),0,255), warp=number(o.value("warp_factor"),1);
+    for (const auto* key : {v1::bitrate_units::split_kbps,v1::bitrate_units::cap_kbps,v1::bitrate_units::cap_source}) if (!o.contains(key)) return {};
+    auto request=number(o.value(v1::bitrate_units::requested_kbps)), encoder=number(o.value(v1::bitrate_units::encoder_kbps)), live=number(o.value(v1::bitrate_units::live_encoder_kbps));
+    auto audio=number(o.value(v1::bitrate_units::audio_kbps),0,100000), fec=number(o.value(v1::bitrate_units::fec_percentage),0,255), warp=number(o.value(v1::bitrate_units::warp_factor),1);
     if (!request || !encoder || !live || !audio || !fec || !warp) return {};
-    if (!o.value("split_kbps").isNull()) { v.split=number(o.value("split_kbps"),1); if (!v.split) return {}; }
-    if (!o.value("cap_kbps").isNull()) { v.cap=number(o.value("cap_kbps"),1); if (!v.cap) return {}; }
-    if (!o.value("cap_source").isNull()) { if (!o.value("cap_source").isString()) return {}; v.capSource=o.value("cap_source").toString(); if (v.capSource.trimmed().isEmpty() || v.capSource.size()>128) return {}; }
+    if (!o.value(v1::bitrate_units::split_kbps).isNull()) { v.split=number(o.value(v1::bitrate_units::split_kbps),1); if (!v.split) return {}; }
+    if (!o.value(v1::bitrate_units::cap_kbps).isNull()) { v.cap=number(o.value(v1::bitrate_units::cap_kbps),1); if (!v.cap) return {}; }
+    if (!o.value(v1::bitrate_units::cap_source).isNull()) { if (!o.value(v1::bitrate_units::cap_source).isString()) return {}; v.capSource=o.value(v1::bitrate_units::cap_source).toString(); if (v.capSource.trimmed().isEmpty() || v.capSource.size()>128) return {}; }
     if (v.cap.has_value() != !v.capSource.isEmpty()) return {};
     v.requested=*request;v.encoder=*encoder;v.liveEncoder=*live;v.audio=*audio;v.fec=*fec;v.warp=*warp;return v;
 }

@@ -22,6 +22,26 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class PolarisGameJsonAdapterTest {
 
+    @Test
+    fun spaceLaunchModeKeepsAllFourOmittedFieldDefaults() {
+        // Literal Space wire shape: the four omitted keys must stay omitted here.
+        val game = PolarisGameJsonAdapter.fromJson(JSONObject("""
+            {"id":"space.Alex.1234","app_id":1347244801,"name":"Space Game",
+             "space":{"id":"Alex","name":"Alex","target":"1234"},
+             "launch_mode":{"preferred_mode":"gamescope_stream","recommended_mode":"gamescope_stream",
+                            "allowed_modes":["gamescope_stream"],"mode_reason":"Space launcher"}}
+        """.trimIndent()))
+        val mode = requireNotNull(game.launchMode)
+        assertEquals("gamescope_stream", mode.preferredMode)
+        assertEquals("gamescope_stream", mode.recommendedMode)
+        assertEquals(listOf("gamescope_stream"), mode.allowedModes)
+        assertEquals("Space launcher", mode.modeReason)
+        assertTrue(mode.followsHostDefault)
+        assertNull(mode.launchAs)
+        assertNull(mode.launchAsAvailable)
+        assertEquals("", mode.launchAsUnavailableReason)
+    }
+
     private fun plannerGameJson(): JSONObject = JSONObject(
         """
         {

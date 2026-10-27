@@ -5,6 +5,15 @@ import org.junit.Test
 @org.robolectric.annotation.Config(sdk = [33])
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class PolarisSpacesTest {
+    @Test fun capacityDistinguishesAnObjectFromAbsentAndExplicitNull() {
+        val absent = """{"schema":1,"status":true,"enabled":true,"available":true,"can_switch":true,"selected_space_id":"a","spaces":[{"id":"a","name":"Alex","state":"ready","selected":true}]}"""
+        val explicitNull = """{"schema":1,"status":true,"enabled":true,"available":true,"can_switch":true,"selected_space_id":"a","spaces":[{"id":"a","name":"Alex","state":"ready","selected":true}],"capacity":null}"""
+        val objectValue = """{"schema":1,"status":true,"enabled":true,"available":true,"can_switch":true,"selected_space_id":"a","spaces":[{"id":"a","name":"Alex","state":"ready","selected":true}],"capacity":{"concurrent_limit":2,"concurrent_active":1}}"""
+        assertNull(requireNotNull(PolarisSpaces.parse(absent)).capacity)
+        assertNull(requireNotNull(PolarisSpaces.parse(explicitNull)).capacity)
+        assertEquals(PolarisSpacesCapacity(2, 1), requireNotNull(PolarisSpaces.parse(objectValue)).capacity)
+    }
+
     private val valid = """{"schema":1,"status":true,"enabled":true,"available":true,"can_switch":true,"selected_space_id":"a","spaces":[{"id":"a","name":"Alex","state":"ready","selected":true},{"id":"b","name":"Sam","state":"in_use","selected":false}]}"""
     @Test fun parsesPermissionScopedChoicesAndActivity() {
         val result = requireNotNull(PolarisSpaces.parse(valid))

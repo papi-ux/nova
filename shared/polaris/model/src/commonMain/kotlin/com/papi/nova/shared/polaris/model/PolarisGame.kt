@@ -1,5 +1,6 @@
 package com.papi.nova.shared.polaris.model
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -193,10 +194,10 @@ data class PolarisGame(
     )
     @Serializable
     data class LaunchModeContract(
-        @SerialName("preferred_mode") val preferredMode: String = "",
-        @SerialName("recommended_mode") val recommendedMode: String = "",
-        @SerialName("allowed_modes") val allowedModes: List<String> = emptyList(),
-        @SerialName("mode_reason") val modeReason: String = "",
+        @SerialName(PolarisV1.LaunchMode.PREFERRED_MODE) val preferredMode: String = "",
+        @SerialName(PolarisV1.LaunchMode.RECOMMENDED_MODE) val recommendedMode: String = "",
+        @SerialName(PolarisV1.LaunchMode.ALLOWED_MODES) val allowedModes: List<String> = emptyList(),
+        @SerialName(PolarisV1.LaunchMode.MODE_REASON) val modeReason: String = "",
         /**
          * Whether this entry takes the host's configured display when nobody chose for it.
          *
@@ -204,11 +205,11 @@ data class PolarisGame(
          * a preference inherited from however the host prefers to run games. Defaults true, which is
          * both what every other entry wants and what a host too old to say anything meant.
          */
-        @SerialName("follows_host_default") val followsHostDefault: Boolean = true,
+        @SerialName(PolarisV1.LaunchMode.FOLLOWS_HOST_DEFAULT) val followsHostDefault: Boolean = true,
         /** Null means an older host. Explicit values retain the host's canonical spelling. */
-        @SerialName("launch_as") val launchAs: String? = null,
-        @SerialName("launch_as_available") val launchAsAvailable: Boolean? = null,
-        @SerialName("launch_as_unavailable_reason") val launchAsUnavailableReason: String = ""
+        @SerialName(PolarisV1.LaunchMode.LAUNCH_AS) val launchAs: String? = null,
+        @SerialName(PolarisV1.LaunchMode.LAUNCH_AS_AVAILABLE) val launchAsAvailable: Boolean? = null,
+        @SerialName(PolarisV1.LaunchMode.LAUNCH_AS_UNAVAILABLE_REASON) val launchAsUnavailableReason: String = ""
     ) {
         fun allows(mode: String): Boolean = normalizeLaunchModes(allowedModes).contains(normalizeLaunchMode(mode))
 

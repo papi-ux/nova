@@ -1,4 +1,5 @@
 #include "polaris/deck_polaris_client.h"
+#include "generated/polaris_v1_contract.h"
 #include "polaris/deck_session_events.h"
 
 #include <QByteArray>
@@ -29,6 +30,7 @@
 #include <utility>
 
 namespace nova::deck::polaris {
+namespace v1 = ::polaris::contract::v1;
 
 namespace {
 
@@ -140,26 +142,26 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
     game.spaceName = context.value("name").toString().toStdString();
 
     const auto launchMode = object.value(QStringLiteral("launch_mode")).toObject();
-    game.launchPreferredMode = toStd(launchMode.value(QStringLiteral("preferred_mode")).toString());
-    game.launchRecommendedMode = toStd(launchMode.value(QStringLiteral("recommended_mode")).toString());
-    game.launchAllowedModes = stringList(launchMode.value(QStringLiteral("allowed_modes")));
-    game.launchModeReason = toStd(launchMode.value(QStringLiteral("mode_reason")).toString());
+    game.launchPreferredMode = toStd(launchMode.value(v1::launch_mode::preferred_mode).toString());
+    game.launchRecommendedMode = toStd(launchMode.value(v1::launch_mode::recommended_mode).toString());
+    game.launchAllowedModes = stringList(launchMode.value(v1::launch_mode::allowed_modes));
+    game.launchModeReason = toStd(launchMode.value(v1::launch_mode::mode_reason).toString());
     const auto contract = object.value("launch_mode");
     game.launchContractValid = contract.isUndefined() || contract.isObject();
-    game.launchFollowsHostDefault = launchMode.value("follows_host_default") != QJsonValue(false);
-    game.launchAsPresent = launchMode.contains("launch_as") || launchMode.contains("launch_as_available") ||
-        launchMode.contains("launch_as_unavailable_reason");
+    game.launchFollowsHostDefault = launchMode.value(v1::launch_mode::follows_host_default) != QJsonValue(false);
+    game.launchAsPresent = launchMode.contains(v1::launch_mode::launch_as) || launchMode.contains(v1::launch_mode::launch_as_available) ||
+        launchMode.contains(v1::launch_mode::launch_as_unavailable_reason);
     if (game.launchAsPresent) {
-        const auto pin = launchMode.value("launch_as");
+        const auto pin = launchMode.value(v1::launch_mode::launch_as);
         game.launchAs = toStd(pin.toString());
-        const auto available = launchMode.value("launch_as_available");
+        const auto available = launchMode.value(v1::launch_mode::launch_as_available);
         if (available.isBool()) game.launchAsAvailable = available.toBool();
-        game.launchAsUnavailableReason = toStd(launchMode.value("launch_as_unavailable_reason").toString());
+        game.launchAsUnavailableReason = toStd(launchMode.value(v1::launch_mode::launch_as_unavailable_reason).toString());
         game.launchContractValid = game.launchContractValid && pin.isString() &&
             (game.launchAs == "host_default" || isSessionLaunchMode(game.launchAs));
         game.launchFollowsHostDefault = game.launchAs == "host_default";
     }
-    const auto allowed = launchMode.value("allowed_modes");
+    const auto allowed = launchMode.value(v1::launch_mode::allowed_modes);
     if (!allowed.isUndefined()) {
         game.launchContractValid = game.launchContractValid && allowed.isArray();
         std::set<std::string> seen;

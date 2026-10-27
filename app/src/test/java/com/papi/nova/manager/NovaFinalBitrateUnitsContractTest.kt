@@ -13,6 +13,19 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[33])
 class NovaFinalBitrateUnitsContractTest {
+    @Test fun explicitNullBitrateFieldsArePresentButAbsentFieldsAreRejected() {
+        val literal = """{"version":1,"formula":"stream_bitrate_v1","requested_kbps":20000,
+            "encoder_kbps":17888,"live_encoder_kbps":17888,"audio_kbps":512,"fec_percentage":10,
+            "warp_factor":1,"split_kbps":null,"cap_kbps":null,"cap_source":null}"""
+        val parsed = requireNotNull(PolarisBitrateUnits.parse(JSONObject(literal)))
+        assertEquals(20000, parsed.requestedKbps)
+        assertNull(parsed.splitKbps); assertNull(parsed.capKbps); assertNull(parsed.capSource)
+        for (key in listOf("split_kbps", "cap_kbps", "cap_source")) {
+            val missing = JSONObject(literal).apply { remove(key) }
+            assertNull("Missing $key must not be treated as explicit null", PolarisBitrateUnits.parse(missing))
+        }
+    }
+
     private fun units(request:Int=20000,split:Int?=40000,warp:Int=2,cap:Int?=null,source:String?=null,
         encoder:Int=NovaBitrateAdvice.encoderForRequest(split ?: 40000),live:Int=encoder)=JSONObject()
         .put("version",1).put("formula","stream_bitrate_v1").put("requested_kbps",request)

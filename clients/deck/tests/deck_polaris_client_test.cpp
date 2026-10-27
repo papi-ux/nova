@@ -465,8 +465,28 @@ void testAppLaunchAsAuthority() {
     assert(policy.known && policy.hostDefault == "desktop_display" && policy.allowed.size() == 3);
 }
 
+void testSpaceLaunchModeOmissionsKeepLegacyDefaults() {
+    const auto page = parseGamesPage(R"({"games":[
+        {"id":"space.Alex.1234","app_id":1347244801,"name":"Space Game",
+         "space":{"id":"Alex","name":"Alex","target":"1234"},
+         "launch_mode":{"preferred_mode":"gamescope_stream","recommended_mode":"gamescope_stream",
+                        "allowed_modes":["gamescope_stream"],"mode_reason":"Space launcher"}}
+    ]})");
+    assert(page && page->games.size() == 1);
+    const auto& game = page->games.front();
+    assert(game.launchContractValid);
+    assert(game.launchPreferredMode == "gamescope_stream" && game.launchRecommendedMode == "gamescope_stream");
+    assert(game.launchAllowedModes == std::vector<std::string>{"gamescope_stream"});
+    assert(game.launchModeReason == "Space launcher");
+    assert(game.launchFollowsHostDefault);
+    assert(!game.launchAsPresent && game.launchAs.empty());
+    assert(!game.launchAsAvailable.has_value());
+    assert(game.launchAsUnavailableReason.empty());
+}
+
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
+    testSpaceLaunchModeOmissionsKeepLegacyDefaults();
     testParsesCapabilities();
     testLaunchModeAuthority();
     testPyrowaveCaptureRefusalContract();

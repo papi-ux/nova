@@ -1,5 +1,6 @@
 package com.papi.nova.api
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import com.papi.nova.shared.polaris.model.PolarisGame
 import org.json.JSONArray
 import org.json.JSONObject
@@ -12,17 +13,17 @@ object PolarisGameJsonAdapter {
             throw IllegalArgumentException("Missing Space game context")
         val source = json.optString("source", "other")
         val launchMode = json.optJSONObject("launch_mode")?.let { modeJson ->
-            val hasAppLaunchAsContract = modeJson.has("launch_as") || modeJson.has("launch_as_available") ||
-                modeJson.has("launch_as_unavailable_reason")
+            val hasAppLaunchAsContract = modeJson.has(PolarisV1.LaunchMode.LAUNCH_AS) || modeJson.has(PolarisV1.LaunchMode.LAUNCH_AS_AVAILABLE) ||
+                modeJson.has(PolarisV1.LaunchMode.LAUNCH_AS_UNAVAILABLE_REASON)
             PolarisGame.LaunchModeContract(
-                preferredMode = PolarisGame.normalizeLaunchMode(modeJson.optString("preferred_mode", "")),
-                recommendedMode = PolarisGame.normalizeLaunchMode(modeJson.optString("recommended_mode", "")),
-                allowedModes = PolarisGame.normalizeLaunchModes(fetchStringArray(modeJson.optJSONArray("allowed_modes")), defaultWhenEmpty = !hasAppLaunchAsContract),
-                modeReason = modeJson.optString("mode_reason", ""),
-                followsHostDefault = modeJson.optBoolean("follows_host_default", true),
-                launchAs = if (hasAppLaunchAsContract) modeJson.opt("launch_as") as? String ?: "" else null,
-                launchAsAvailable = modeJson.opt("launch_as_available") as? Boolean,
-                launchAsUnavailableReason = modeJson.optString("launch_as_unavailable_reason", "")
+                preferredMode = PolarisGame.normalizeLaunchMode(modeJson.optString(PolarisV1.LaunchMode.PREFERRED_MODE, "")),
+                recommendedMode = PolarisGame.normalizeLaunchMode(modeJson.optString(PolarisV1.LaunchMode.RECOMMENDED_MODE, "")),
+                allowedModes = PolarisGame.normalizeLaunchModes(fetchStringArray(modeJson.optJSONArray(PolarisV1.LaunchMode.ALLOWED_MODES)), defaultWhenEmpty = !hasAppLaunchAsContract),
+                modeReason = modeJson.optString(PolarisV1.LaunchMode.MODE_REASON, ""),
+                followsHostDefault = modeJson.optBoolean(PolarisV1.LaunchMode.FOLLOWS_HOST_DEFAULT, true),
+                launchAs = if (hasAppLaunchAsContract) modeJson.opt(PolarisV1.LaunchMode.LAUNCH_AS) as? String ?: "" else null,
+                launchAsAvailable = modeJson.opt(PolarisV1.LaunchMode.LAUNCH_AS_AVAILABLE) as? Boolean,
+                launchAsUnavailableReason = modeJson.optString(PolarisV1.LaunchMode.LAUNCH_AS_UNAVAILABLE_REASON, "")
             )
         }
         val steamLaunch = json.optJSONObject("steam_launch")?.let { launchJson ->

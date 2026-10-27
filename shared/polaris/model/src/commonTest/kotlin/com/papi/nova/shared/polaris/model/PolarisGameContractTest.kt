@@ -14,6 +14,25 @@ class PolarisGameContractTest {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     @Test
+    fun spaceLaunchModeKeepsAllFourOmittedFieldDefaults() {
+        val game = json.decodeFromString<PolarisGame>("""
+            {"id":"space.Alex.1234","app_id":1347244801,"name":"Space Game",
+             "space":{"id":"Alex","name":"Alex","target":"1234"},
+             "launch_mode":{"preferred_mode":"gamescope_stream","recommended_mode":"gamescope_stream",
+                            "allowed_modes":["gamescope_stream"],"mode_reason":"Space launcher"}}
+        """.trimIndent())
+        val mode = assertNotNull(game.launchMode)
+        assertEquals("gamescope_stream", mode.preferredMode)
+        assertEquals("gamescope_stream", mode.recommendedMode)
+        assertEquals(listOf("gamescope_stream"), mode.allowedModes)
+        assertEquals("Space launcher", mode.modeReason)
+        assertTrue(mode.followsHostDefault)
+        assertNull(mode.launchAs)
+        assertNull(mode.launchAsAvailable)
+        assertEquals("", mode.launchAsUnavailableReason)
+    }
+
+    @Test
     fun emulatorEntriesReadTheHostLabels() {
         val game = json.decodeFromString<PolarisGame>(
             """
