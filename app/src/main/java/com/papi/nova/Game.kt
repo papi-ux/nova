@@ -6125,7 +6125,7 @@ spinner = null
 // A connection the player asked for is felt and named once; a reconnect adds nothing (#386).
 val confirmed = connectionConfirmation.take()
 if (confirmed) com.papi.nova.ui.NovaConfirmation.haptic(streamContainer)
-novaProgressOverlay?.updateState("input_ready", if (confirmed) com.papi.nova.ui.NovaConfirmation.connectedTo(this@Game, pcName) else "")
+novaProgressOverlay?.updateState("input_ready", localConnectionTitle = if (confirmed) com.papi.nova.ui.NovaConfirmation.connectedTo(this@Game, pcName) else null)
 timerHandler?.postDelayed(object : Runnable {
 override fun run() {
 novaProgressOverlay?.dismiss()

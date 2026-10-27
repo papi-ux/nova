@@ -64,10 +64,10 @@ class SessionProgressOverlay(private val activity: Activity) {
         }
     }
 
-    fun updateState(state: String, message: String = "") {
+    fun updateState(state: String, message: String = "", localConnectionTitle: String? = null) {
         activity.runOnUiThread {
             val nextState = if (spaceSession) NovaSessionProgressUiState.fromSpace(state) ?: return@runOnUiThread
-                else NovaSessionProgressUiState.from(state, message)
+                else NovaSessionProgressUiState.from(state, message, localConnectionTitle)
             if (nextState.progressFraction >= overlayState.value.progressFraction) {
                 overlayState.value = nextState
             }

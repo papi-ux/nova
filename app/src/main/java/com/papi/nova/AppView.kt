@@ -602,6 +602,9 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
      */
     private fun sayPairedWithWhenVisible() {
         val message = pairedWith ?: return
+        // A service/list callback can arrive after pause or while another window has focus.
+        // Keep the words pending for the existing focus-return callback in either case.
+        if (!inForeground || !hasWindowFocus()) return
         if (!appListShown || isFinishing || isDestroyed || blockingLoadSpinner != null) return
         if (NovaSurfaces.existing(this)?.controllerInputOwner != null) return
         pairedWith = null

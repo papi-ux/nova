@@ -21,7 +21,10 @@ import org.mockito.Mockito.*
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowDialog
+import org.robolectric.shadows.ShadowViewRootImpl
+import org.robolectric.util.ReflectionHelpers
 
 /**
  * #386: a host with no saved app list loads under a Busy page in its own window, and a snackbar
@@ -31,13 +34,16 @@ import org.robolectric.shadows.ShadowDialog
  * and focus has come back, and says it once.
  *
  * Like NovaPanelWindowTest, this calls NovaSurfaces.onWindowIdle itself, as the window's content
- * does once nothing is left to show, instead of waiting for a composition. It also calls
- * onWindowFocusChanged itself, which Robolectric does not deliver when a dialog closes.
+ * does once nothing is left to show, instead of waiting for a composition. Like the native
+ * controller window tests, it delivers focus through ShadowViewRootImpl: Robolectric does not
+ * focus the activity on dialog close. This changes actual window focus without idling the
+ * looper, so the composition cannot close the modal halfway through its assertions.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AppViewPairingConfirmationTest {
-    private val activity = Robolectric.buildActivity(AppView::class.java).get()
+    private val controller = Robolectric.buildActivity(AppView::class.java)
+    private val activity = controller.get()
     private val computer = ComputerDetails().apply { uuid = "host-id" }
     private val binder = mock(ComputerManagerService.ComputerManagerBinder::class.java)
 
@@ -56,6 +62,9 @@ class AppViewPairingConfirmationTest {
         // What onCreate took off the Hosts launch; NovaConfirmationTest holds that it is taken once.
         set("pairedWith", "Paired with Den")
         NovaSnackbar.dismissActive()
+        // As in the existing isolated Game fixtures, attach the window without starting services.
+        controller.visible()
+        focus(true)
     }
 
     @After fun tearDown() = NovaSnackbar.dismissActive()
@@ -66,8 +75,9 @@ class AppViewPairingConfirmationTest {
         val window = ShadowDialog.getLatestDialog()
         assertTrue("the first load is a Busy page", surfaces.states.value.any { it is NovaStatePage.Busy })
         assertTrue("in its own window", window.isShowing)
-        activity.onWindowFocusChanged(true)
+        focus(true)
         assertNull("focus before any list is on screen says nothing", active())
+        focus(false)
 
         val listener = pollListener()
         computer.rawAppList = LIST
@@ -84,15 +94,15 @@ class AppViewPairingConfirmationTest {
         assertNull(surfaces.controllerInputOwner)
         assertNull("it is the focus coming back that says it", active())
 
-        activity.onWindowFocusChanged(true)
+        focus(true)
         val said = active()
         assertEquals("Paired with Den", said?.let { text(it) })
 
         // The next list, and focus coming and going, say nothing more.
         computer.rawAppList = LIST.replace("<App>", "\n<App>")
         listener.notifyComputerUpdated(computer)
-        activity.onWindowFocusChanged(false)
-        activity.onWindowFocusChanged(true)
+        focus(false)
+        focus(true)
         assertSame(said, active())
     }
 
@@ -100,6 +110,61 @@ class AppViewPairingConfirmationTest {
         // A saved list is on screen as the grid attaches, with no Busy page or window over it.
         call("onAppListShown")
         assertEquals("Paired with Den", active()?.let { text(it) })
+    }
+
+    @Test fun aDelayedListAfterPauseKeepsThePairingUntilForegroundAndFocusReturn() {
+        val listener = pollListener()
+        call("onPause")
+        assertEquals(false, field("inForeground"))
+        // Pause can arrive before window focus loss. Foreground is an independent guard.
+        assertTrue(activity.hasWindowFocus())
+        computer.rawAppList = LIST
+        listener.notifyComputerUpdated(computer)
+
+        assertNull("the callback in the paused activity is silent", active())
+        assertEquals("Paired with Den", field("pairedWith"))
+        assertEquals(true, field("appListShown"))
+
+        // The foreground state onResume restores, without this isolated fixture's theme/service work.
+        set("inForeground", true)
+        focus(false)
+        focus(true)
+        val said = active()
+        assertEquals("Paired with Den", said?.let { text(it) })
+        assertNull(field("pairedWith"))
+
+        computer.rawAppList = LIST.replace("<App>", "\n<App>")
+        listener.notifyComputerUpdated(computer)
+        focus(false)
+        focus(true)
+        assertSame("the later list and focus return cannot replay it", said, active())
+    }
+
+    @Test fun anUnfocusedCachedGridKeepsThePairingUntilItsWindowHasFocus() {
+        focus(false)
+        assertEquals(true, field("inForeground"))
+        assertNull("no Nova modal is hiding this window", NovaSurfaces.existing(activity)?.controllerInputOwner)
+        // The same hook the service's cached-grid attachment calls, after the window lost focus.
+        call("onAppListShown")
+
+        assertNull("a list callback alone cannot confirm a covered window", active())
+        assertEquals("Paired with Den", field("pairedWith"))
+
+        focus(true)
+        val said = active()
+        assertEquals("Paired with Den", said?.let { text(it) })
+        assertNull(field("pairedWith"))
+        call("onAppListShown")
+        focus(false)
+        focus(true)
+        assertSame(said, active())
+    }
+
+    private fun focus(hasFocus: Boolean) {
+        val root = ReflectionHelpers.callInstanceMethod<Any>(activity.window.decorView, "getViewRootImpl")
+        assertNotNull("the activity window is attached before focus is delivered", root)
+        Shadow.extract<ShadowViewRootImpl>(root).callWindowFocusChanged(hasFocus)
+        assertEquals("the framework window, not only the callback, changed focus", hasFocus, activity.hasWindowFocus())
     }
 
     private fun set(name: String, value: Any) {

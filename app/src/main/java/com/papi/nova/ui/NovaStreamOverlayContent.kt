@@ -192,7 +192,7 @@ data class NovaSessionProgressUiState(
             return NovaSessionProgressUiState(normalized, title, "Opening Space", emptyList(), title, detail, order, true)
         }
 
-        fun from(state: String, message: String = ""): NovaSessionProgressUiState {
+        fun from(state: String, message: String = "", localConnectionTitle: String? = null): NovaSessionProgressUiState {
             val normalizedState = state.trim().lowercase().ifBlank { "initializing" }
             val index = stages.indexOfFirst { stage ->
                 stage.state == normalizedState || normalizedState in stage.aliases
@@ -201,9 +201,13 @@ data class NovaSessionProgressUiState(
             // An unrecognized state must never surface its raw protocol token as the
             // headline; a non-empty host message still wins. Empty words are filled from
             // resources where the overlay draws them.
-            // input_ready is Nova's own, from connectionStarted, and its message names the
-            // host the player asked for. The "connected" alias a host could send keeps "Ready".
-            val title = if (normalizedState == "input_ready" && message.isNotBlank()) message else stage?.title ?: message
+            // Only native connectionStarted supplies this local title. Host messages, including
+            // literal input_ready and its connected alias, keep the known stage's own words.
+            val title = if (normalizedState == "input_ready" && !localConnectionTitle.isNullOrBlank()) {
+                localConnectionTitle
+            } else {
+                stage?.title ?: message
+            }
             val completed = if (index >= 0) {
                 stages.take(index).map { it.title }
             } else {
