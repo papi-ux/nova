@@ -186,7 +186,8 @@ ApplicationWindow {
         item("hud-health-label")->property("text") == "Display override", "HUD lost host state or applied bitrate");
     {
         // Live Tuning's line shows in Performance and Debug only, and leaves with its reading.
-        const auto base = root->property("sample").value<QJSValue>().toVariant().toMap();
+        const QVariant original = root->property("sample");
+        const auto base = original.value<QJSValue>().toVariant().toMap();
         const auto mode = [&](const char* value) {
             require(QMetaObject::invokeMethod(root.get(), "setMode", Q_ARG(QVariant, QString::fromUtf8(value))), "cannot set HUD mode"); settle();
         };
@@ -200,7 +201,7 @@ ApplicationWindow {
             mode(quiet); require(!item("hud-tuning-line")->isVisible(), "a quiet HUD mode showed the Live Tuning line");
         }
         mode("performance"); require(item("hud-tuning-line")->isVisible(), "Performance HUD lost the Live Tuning line");
-        root->setProperty("sample", base); settle();
+        root->setProperty("sample", original); settle();
         require(!item("hud-tuning-line")->isVisible(), "an expired Live Tuning line stayed under Reduce Motion");
         require(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "Reduce Motion could not be restored");
         mode("debug"); settle();
