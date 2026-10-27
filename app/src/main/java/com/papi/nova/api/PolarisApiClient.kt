@@ -1,5 +1,6 @@
 package com.papi.nova.api
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import android.graphics.Bitmap
 import android.content.Context
 import com.papi.nova.binding.PlatformBinding
@@ -443,21 +444,21 @@ class PolarisApiClient @JvmOverloads constructor(
         ): List<PolarisArtworkChoice> {
             if (!isSafeArtworkGameId(gameId)) return emptyList()
             val kind = requestedKind.trim().lowercase()
-            if (kind !in ARTWORK_KINDS || json.opt("status") != true || json.optString("kind") != kind) {
+            if (kind !in ARTWORK_KINDS || json.opt(PolarisV1.ArtworkChoices.STATUS) != true || json.optString(PolarisV1.ArtworkChoices.KIND) != kind) {
                 return emptyList()
             }
-            val values = json.optJSONArray("choices") ?: return emptyList()
+            val values = json.optJSONArray(PolarisV1.ArtworkChoices.CHOICES) ?: return emptyList()
             val prefix = "/polaris/v1/games/$gameId/artwork/candidate/"
             return (0 until values.length()).asSequence()
                 .mapNotNull { values.optJSONObject(it) }
                 .mapNotNull { item ->
-                    val token = item.optString("selection_token")
+                    val token = item.optString(PolarisV1.ArtworkChoice.SELECTION_TOKEN)
                     if (!OPAQUE_SELECTION_TOKEN.matches(token)) return@mapNotNull null
-                    val path = item.optString("preview")
+                    val path = item.optString(PolarisV1.ArtworkChoice.PREVIEW)
                     if (path != "$prefix$token/$kind") return@mapNotNull null
                     val url = resolveManifestPath(host, port, path) ?: return@mapNotNull null
                     if (!isTrustedCandidatePreviewUrl(url, host, port)) return@mapNotNull null
-                    PolarisArtworkChoice(kind, token, url, item.optLong("expires_at", 0L))
+                    PolarisArtworkChoice(kind, token, url, item.optLong(PolarisV1.ArtworkChoice.EXPIRES_AT, 0L))
                 }
                 .distinctBy { it.selectionToken }
                 .take(5)
@@ -795,14 +796,14 @@ class PolarisApiClient @JvmOverloads constructor(
             return (0 until array.length()).mapNotNull { index ->
                 array.optJSONObject(index)?.let { mode ->
                     PolarisClientSettings.ModeOption(
-                        value = mode.optString("value", ""),
-                        label = mode.optString("label", ""),
-                        available = mode.optBoolean("available", true),
-                        restartRequired = mode.optBoolean("restart_required", true),
-                        reason = mode.optString("reason", ""),
-                        group = mode.optString("group", ""),
-                        unavailableReason = mode.optString("unavailable_reason", ""),
-                        sessionOverridable = mode.optBoolean("session_overridable", true)
+                        value = mode.optString(PolarisV1.ClientSettingsModeOption.VALUE, ""),
+                        label = mode.optString(PolarisV1.ClientSettingsModeOption.LABEL, ""),
+                        available = mode.optBoolean(PolarisV1.ClientSettingsModeOption.AVAILABLE, true),
+                        restartRequired = mode.optBoolean(PolarisV1.ClientSettingsModeOption.RESTART_REQUIRED, true),
+                        reason = mode.optString(PolarisV1.ClientSettingsModeOption.REASON, ""),
+                        group = mode.optString(PolarisV1.ClientSettingsModeOption.GROUP, ""),
+                        unavailableReason = mode.optString(PolarisV1.ClientSettingsModeOption.UNAVAILABLE_REASON, ""),
+                        sessionOverridable = mode.optBoolean(PolarisV1.ClientSettingsModeOption.SESSION_OVERRIDABLE, true)
                     )
                 }
             }
@@ -814,17 +815,17 @@ class PolarisApiClient @JvmOverloads constructor(
             return (0 until array.length()).mapNotNull { index ->
                 val encoder = array.optJSONObject(index) ?: return@mapNotNull null
                 val value = PolarisClientSettings.normalizeEncoderBackend(
-                    encoder.opt("value") as? String,
+                    encoder.opt(PolarisV1.ClientSettingsEncoderOption.VALUE) as? String,
                 ) ?: return@mapNotNull null
                 if (!seen.add(value)) return@mapNotNull null
                 PolarisClientSettings.EncoderOption(
                     value = value,
-                    label = (encoder.opt("label") as? String).orEmpty(),
-                    available = encoder.opt("available") as? Boolean ?: false,
-                    experimental = encoder.opt("experimental") as? Boolean ?: false,
-                    fallbackAllowed = encoder.opt("fallback_allowed") as? Boolean ?: false,
-                    runtimeValidation = (encoder.opt("runtime_validation") as? String).orEmpty(),
-                    reason = (encoder.opt("reason") as? String).orEmpty(),
+                    label = (encoder.opt(PolarisV1.ClientSettingsEncoderOption.LABEL) as? String).orEmpty(),
+                    available = encoder.opt(PolarisV1.ClientSettingsEncoderOption.AVAILABLE) as? Boolean ?: false,
+                    experimental = encoder.opt(PolarisV1.ClientSettingsEncoderOption.EXPERIMENTAL) as? Boolean ?: false,
+                    fallbackAllowed = encoder.opt(PolarisV1.ClientSettingsEncoderOption.FALLBACK_ALLOWED) as? Boolean ?: false,
+                    runtimeValidation = (encoder.opt(PolarisV1.ClientSettingsEncoderOption.RUNTIME_VALIDATION) as? String).orEmpty(),
+                    reason = (encoder.opt(PolarisV1.ClientSettingsEncoderOption.REASON) as? String).orEmpty(),
                 )
             }
         }
@@ -856,12 +857,12 @@ class PolarisApiClient @JvmOverloads constructor(
             val catalogModes = linkedSetOf<String>()
             for (index in 0 until modes.length()) {
                 val mode = modes.optJSONObject(index) ?: return false
-                val value = (mode.opt("value") as? String)
+                val value = (mode.opt(PolarisV1.ClientSettingsModeOption.VALUE) as? String)
                     ?.let(PolarisGame::normalizeLaunchMode)
                     ?.takeIf { it in knownModes }
                     ?: return false
-                if (mode.opt("available") !is Boolean ||
-                    (mode.has("session_overridable") && mode.opt("session_overridable") !is Boolean) ||
+                if (mode.opt(PolarisV1.ClientSettingsModeOption.AVAILABLE) !is Boolean ||
+                    (mode.has(PolarisV1.ClientSettingsModeOption.SESSION_OVERRIDABLE) && mode.opt(PolarisV1.ClientSettingsModeOption.SESSION_OVERRIDABLE) !is Boolean) ||
                     !catalogModes.add(value)
                 ) {
                     return false
@@ -1137,26 +1138,26 @@ class PolarisApiClient @JvmOverloads constructor(
         private fun parseLinuxGpuProfile(json: JSONObject?): PolarisSessionStatus.LinuxGpuProfile? {
             if (json == null) return null
             val hasAnyField = listOf(
-                "encoder_api",
-                "encoder_adapter",
-                "capture_device",
-                "adapter_matches_capture_device",
-                "gpu_native_requested",
-                "gpu_native_attempted",
-                "gpu_native_succeeded",
-                "vaapi_vendor"
+                PolarisV1.LinuxGpuProfile.ENCODER_API,
+                PolarisV1.LinuxGpuProfile.ENCODER_ADAPTER,
+                PolarisV1.LinuxGpuProfile.CAPTURE_DEVICE,
+                PolarisV1.LinuxGpuProfile.ADAPTER_MATCHES_CAPTURE_DEVICE,
+                PolarisV1.LinuxGpuProfile.GPU_NATIVE_REQUESTED,
+                PolarisV1.LinuxGpuProfile.GPU_NATIVE_ATTEMPTED,
+                PolarisV1.LinuxGpuProfile.GPU_NATIVE_SUCCEEDED,
+                PolarisV1.LinuxGpuProfile.VAAPI_VENDOR
             ).any(json::has)
             if (!hasAnyField) return null
             return PolarisSessionStatus.LinuxGpuProfile(
-                encoderApi = json.optString("encoder_api", ""),
-                encoderAdapter = json.optString("encoder_adapter", ""),
-                captureDevice = json.optString("capture_device", ""),
-                adapterMatchesCaptureDevice = json.optBoolean("adapter_matches_capture_device", true),
-                crossGpuDmabufRisk = json.optBoolean("cross_gpu_dmabuf_risk", false),
-                gpuNativeRequested = json.optBoolean("gpu_native_requested", false),
-                gpuNativeAttempted = json.optBoolean("gpu_native_attempted", false),
-                gpuNativeSucceeded = json.optBoolean("gpu_native_succeeded", false),
-                vaapiVendor = json.optString("vaapi_vendor", "")
+                encoderApi = json.optString(PolarisV1.LinuxGpuProfile.ENCODER_API, ""),
+                encoderAdapter = json.optString(PolarisV1.LinuxGpuProfile.ENCODER_ADAPTER, ""),
+                captureDevice = json.optString(PolarisV1.LinuxGpuProfile.CAPTURE_DEVICE, ""),
+                adapterMatchesCaptureDevice = json.optBoolean(PolarisV1.LinuxGpuProfile.ADAPTER_MATCHES_CAPTURE_DEVICE, true),
+                crossGpuDmabufRisk = json.optBoolean(PolarisV1.LinuxGpuProfile.CROSS_GPU_DMABUF_RISK, false),
+                gpuNativeRequested = json.optBoolean(PolarisV1.LinuxGpuProfile.GPU_NATIVE_REQUESTED, false),
+                gpuNativeAttempted = json.optBoolean(PolarisV1.LinuxGpuProfile.GPU_NATIVE_ATTEMPTED, false),
+                gpuNativeSucceeded = json.optBoolean(PolarisV1.LinuxGpuProfile.GPU_NATIVE_SUCCEEDED, false),
+                vaapiVendor = json.optString(PolarisV1.LinuxGpuProfile.VAAPI_VENDOR, "")
             )
         }
 
@@ -1172,16 +1173,16 @@ class PolarisApiClient @JvmOverloads constructor(
         @JvmStatic
         fun parseHostPower(json: JSONObject): PolarisCapabilities.HostPower =
             PolarisCapabilities.HostPower(
-                sleepSupported = json.optBoolean("sleep_supported", false),
-                sleepEnabled = json.optBoolean("sleep_enabled", false),
-                sleepPermitted = json.optBoolean("sleep_permitted", false),
-                sleepBlockedReason = json.optString("sleep_blocked_reason", ""),
-                sleepBlockedMessage = json.optString("sleep_blocked_message", ""),
-                sleepEndpoint = json.optString("sleep_endpoint", ""),
-                lastSleepOutcome = json.optString("last_sleep_outcome", ""),
-                lastSleepReason = json.optString("last_sleep_reason", ""),
-                lastSleepMessage = json.optString("last_sleep_message", ""),
-                lastSleepAt = json.optLong("last_sleep_at", 0L),
+                sleepSupported = json.optBoolean(PolarisV1.HostPower.SLEEP_SUPPORTED, false),
+                sleepEnabled = json.optBoolean(PolarisV1.HostPower.SLEEP_ENABLED, false),
+                sleepPermitted = json.optBoolean(PolarisV1.HostPower.SLEEP_PERMITTED, false),
+                sleepBlockedReason = json.optString(PolarisV1.HostPower.SLEEP_BLOCKED_REASON, ""),
+                sleepBlockedMessage = json.optString(PolarisV1.HostPower.SLEEP_BLOCKED_MESSAGE, ""),
+                sleepEndpoint = json.optString(PolarisV1.HostPower.SLEEP_ENDPOINT, ""),
+                lastSleepOutcome = json.optString(PolarisV1.HostPower.LAST_SLEEP_OUTCOME, ""),
+                lastSleepReason = json.optString(PolarisV1.HostPower.LAST_SLEEP_REASON, ""),
+                lastSleepMessage = json.optString(PolarisV1.HostPower.LAST_SLEEP_MESSAGE, ""),
+                lastSleepAt = json.optLong(PolarisV1.HostPower.LAST_SLEEP_AT, 0L),
             )
 
         /**
@@ -1848,7 +1849,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 ?: effectiveSettings?.optJSONObject("applied_stream_settings")
             val capture = json.optJSONObject("capture")
             val encoder = json.optJSONObject("encoder")
-            val encoderSelection = encoder?.optJSONObject("selection")
+            val encoderSelection = encoder?.optJSONObject(PolarisV1.SessionEncoder.SELECTION)
             val health = json.optJSONObject("health")
             val doctor = json.optJSONObject("doctor") ?: health?.optJSONObject("doctor")
             val aiDoctor = json.optJSONObject("ai_doctor_explanation")
@@ -2002,44 +2003,44 @@ class PolarisApiClient @JvmOverloads constructor(
                     applied = parseSyncValues(appliedSettings)
                 ),
                 capture = PolarisSessionStatus.CaptureStatus(
-                    backend = capture?.optString("backend", "") ?: "",
-                    resolution = capture?.optString("resolution", "") ?: "",
-                    path = capture?.optString("path", json.optString("capture_path", ""))
+                    backend = capture?.optString(PolarisV1.SessionCapture.BACKEND, "") ?: "",
+                    resolution = capture?.optString(PolarisV1.SessionCapture.RESOLUTION, "") ?: "",
+                    path = capture?.optString(PolarisV1.SessionCapture.PATH, json.optString("capture_path", ""))
                         ?: json.optString("capture_path", ""),
-                    reason = capture?.optString("reason", json.optString("capture_path_reason", ""))
+                    reason = capture?.optString(PolarisV1.SessionCapture.REASON, json.optString("capture_path_reason", ""))
                         ?: json.optString("capture_path_reason", ""),
-                    transport = capture?.optString("transport", "") ?: "",
-                    residency = capture?.optString("residency", "") ?: "",
-                    format = capture?.optString("format", "") ?: ""
+                    transport = capture?.optString(PolarisV1.SessionCapture.TRANSPORT, "") ?: "",
+                    residency = capture?.optString(PolarisV1.SessionCapture.RESIDENCY, "") ?: "",
+                    format = capture?.optString(PolarisV1.SessionCapture.FORMAT, "") ?: ""
                 ),
                 encoder = PolarisSessionStatus.EncoderStatus(
-                    codec = encoder?.optString("codec", "") ?: "",
-                    bitrateKbps = encoder?.optInt("bitrate_kbps", 0) ?: 0,
-                    fps = encoder?.optDouble("fps", 0.0) ?: 0.0,
-                    requestedClientFps = encoder?.optDouble("requested_client_fps", 0.0) ?: 0.0,
-                    sessionTargetFps = encoder?.optDouble("session_target_fps", 0.0) ?: 0.0,
-                    encodeTargetFps = encoder?.optDouble("encode_target_fps", 0.0) ?: 0.0,
-                    pacingPolicy = encoder?.optString("pacing_policy", "") ?: "",
-                    optimizationSource = encoder?.optString("optimization_source", "") ?: "",
-                    optimizationConfidence = encoder?.optString("optimization_confidence", "") ?: "",
-                    optimizationCacheStatus = encoder?.optString("optimization_cache_status", "") ?: "",
-                    optimizationReasoning = encoder?.optString("optimization_reasoning", "") ?: "",
-                    optimizationNormalizationReason = encoder?.optString("optimization_normalization_reason", "") ?: "",
-                    recommendationVersion = encoder?.optInt("recommendation_version", 0) ?: 0,
-                    targetDevice = encoder?.optString("target_device", "") ?: "",
-                    targetResidency = encoder?.optString("target_residency", "") ?: "",
-                    targetFormat = encoder?.optString("target_format", "") ?: "",
-                    activeBackend = strictString(encoder, "active_backend"),
+                    codec = encoder?.optString(PolarisV1.SessionEncoder.CODEC, "") ?: "",
+                    bitrateKbps = encoder?.optInt(PolarisV1.SessionEncoder.BITRATE_KBPS, 0) ?: 0,
+                    fps = encoder?.optDouble(PolarisV1.SessionEncoder.FPS, 0.0) ?: 0.0,
+                    requestedClientFps = encoder?.optDouble(PolarisV1.SessionEncoder.REQUESTED_CLIENT_FPS, 0.0) ?: 0.0,
+                    sessionTargetFps = encoder?.optDouble(PolarisV1.SessionEncoder.SESSION_TARGET_FPS, 0.0) ?: 0.0,
+                    encodeTargetFps = encoder?.optDouble(PolarisV1.SessionEncoder.ENCODE_TARGET_FPS, 0.0) ?: 0.0,
+                    pacingPolicy = encoder?.optString(PolarisV1.SessionEncoder.PACING_POLICY, "") ?: "",
+                    optimizationSource = encoder?.optString(PolarisV1.SessionEncoder.OPTIMIZATION_SOURCE, "") ?: "",
+                    optimizationConfidence = encoder?.optString(PolarisV1.SessionEncoder.OPTIMIZATION_CONFIDENCE, "") ?: "",
+                    optimizationCacheStatus = encoder?.optString(PolarisV1.SessionEncoder.OPTIMIZATION_CACHE_STATUS, "") ?: "",
+                    optimizationReasoning = encoder?.optString(PolarisV1.SessionEncoder.OPTIMIZATION_REASONING, "") ?: "",
+                    optimizationNormalizationReason = encoder?.optString(PolarisV1.SessionEncoder.OPTIMIZATION_NORMALIZATION_REASON, "") ?: "",
+                    recommendationVersion = encoder?.optInt(PolarisV1.SessionEncoder.RECOMMENDATION_VERSION, 0) ?: 0,
+                    targetDevice = encoder?.optString(PolarisV1.SessionEncoder.TARGET_DEVICE, "") ?: "",
+                    targetResidency = encoder?.optString(PolarisV1.SessionEncoder.TARGET_RESIDENCY, "") ?: "",
+                    targetFormat = encoder?.optString(PolarisV1.SessionEncoder.TARGET_FORMAT, "") ?: "",
+                    activeBackend = strictString(encoder, PolarisV1.SessionEncoder.ACTIVE_BACKEND),
                     selection = PolarisSessionStatus.EncoderSelectionStatus(
-                        mode = strictString(encoderSelection, "mode"),
-                        gpuDriver = strictString(encoderSelection, "gpu_driver"),
-                        policy = strictString(encoderSelection, "policy"),
-                        preferredEncoder = strictString(encoderSelection, "preferred_encoder"),
-                        fallbackEncoder = strictString(encoderSelection, "fallback_encoder"),
-                        selectedEncoder = strictString(encoderSelection, "selected_encoder"),
-                        exactLiveProbeRequired = strictBoolean(encoderSelection, "exact_live_probe_required"),
-                        fallbackUsed = strictBoolean(encoderSelection, "fallback_used"),
-                        reason = strictString(encoderSelection, "reason")
+                        mode = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.MODE),
+                        gpuDriver = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.GPU_DRIVER),
+                        policy = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.POLICY),
+                        preferredEncoder = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.PREFERRED_ENCODER),
+                        fallbackEncoder = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.FALLBACK_ENCODER),
+                        selectedEncoder = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.SELECTED_ENCODER),
+                        exactLiveProbeRequired = strictBoolean(encoderSelection, PolarisV1.SessionEncoderSelection.EXACT_LIVE_PROBE_REQUIRED),
+                        fallbackUsed = strictBoolean(encoderSelection, PolarisV1.SessionEncoderSelection.FALLBACK_USED),
+                        reason = strictString(encoderSelection, PolarisV1.SessionEncoderSelection.REASON)
                     )
                 ),
                 linuxGpuProfile = parseLinuxGpuProfile(linuxGpuProfile),
@@ -2603,8 +2604,8 @@ class PolarisApiClient @JvmOverloads constructor(
             val bytes = response.body?.let { PolarisArtworkDiskCache.readBounded(it.byteStream(), 2 * 1024 * 1024) }
                 ?: throw IOException("Empty Space library response.")
             val json = JSONObject(bytes.toString(Charsets.UTF_8))
-            if (json.opt("status") != true || json.optString("space_id") != id) throw IOException("Space identity changed.")
-            val array = json.getJSONArray("games")
+            if (json.opt(PolarisV1.SpaceLibrary.STATUS) != true || json.optString(PolarisV1.SpaceLibrary.SPACE_ID) != id) throw IOException("Space identity changed.")
+            val array = json.getJSONArray(PolarisV1.SpaceLibrary.GAMES)
             if (array.length() > 4097) throw IOException("Space library is too large.")
             val games = (0 until array.length()).map { PolarisGameJsonAdapter.fromJson(array.getJSONObject(it)) }
             if (games.any { it.space?.id != id } || games.map { it.id }.toSet().size != games.size)

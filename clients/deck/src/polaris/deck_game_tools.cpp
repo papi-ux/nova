@@ -1,4 +1,5 @@
 #include "polaris/deck_game_tools.h"
+#include "generated/polaris_v1_contract.h"
 #include "polaris/deck_spaces.h"
 #include "polaris/deck_launch_modes.h"
 #include "polaris/deck_host_settings.h"
@@ -12,6 +13,7 @@
 #include <cmath>
 
 namespace nova::deck::polaris {
+namespace v1 = ::polaris::contract::v1;
 namespace {
 const QStringList kinds{"poster", "hero", "logo", "icon"};
 bool match(const QString& pattern, const QString& value) { return QRegularExpression(pattern).match(value).hasMatch(); }
@@ -106,13 +108,13 @@ std::optional<QVariantMap> gameToolReply(const QString& game, const QString& act
             const auto all = caps.value("encoders").toArray(); if (all.size() > 32) return {};
             QSet<QString> seen;
             for (const auto entry : all) {
-                const auto e = entry.toObject(); const auto id = e.value("value");
+                const auto e = entry.toObject(); const auto id = e.value(v1::client_settings_encoder_option::value);
                 if (!id.isString() || id.toString().isEmpty() || !validEncoderChoice(id.toString()) || seen.contains(id.toString())) return {};
                 seen.insert(id.toString());
-                if (e.value("available") != QJsonValue(true)) continue;
-                const auto label = bounded(e.value("label"), 80);
+                if (e.value(v1::client_settings_encoder_option::available) != QJsonValue(true)) continue;
+                const auto label = bounded(e.value(v1::client_settings_encoder_option::label), 80);
                 encoders.append(QVariantMap{{"encoderBackend", id.toString()}, {"label", label.isEmpty() ? id.toString() : label},
-                    {"detail", bounded(e.value("reason"))}, {"fallbackAllowed", e.value("fallback_allowed") == QJsonValue(true)}});
+                    {"detail", bounded(e.value(v1::client_settings_encoder_option::reason))}, {"fallbackAllowed", e.value(v1::client_settings_encoder_option::fallback_allowed) == QJsonValue(true)}});
             }
         }
         result["encoders"] = encoders;
@@ -128,27 +130,27 @@ std::optional<QVariantMap> gameToolReply(const QString& game, const QString& act
         result["candidates"] = entries;
     } else if (action == "choices") {
         const auto kind = v.value("kind").toString();
-        if (!kinds.contains(kind) || o.value("status") != QJsonValue(true) || o.value("kind") != kind || !o.value("choices").isArray()) return {};
+        if (!kinds.contains(kind) || o.value(v1::artwork_choices::status) != QJsonValue(true) || o.value(v1::artwork_choices::kind) != kind || !o.value(v1::artwork_choices::choices).isArray()) return {};
         QVariantList entries; QSet<QString> seen;
-        for (const auto raw : o.value("choices").toArray()) {
-            const auto c = raw.toObject(); const auto token = c.value("selection_token").toString();
-            const auto path = preview(game, kind, c.value("preview"));
+        for (const auto raw : o.value(v1::artwork_choices::choices).toArray()) {
+            const auto c = raw.toObject(); const auto token = c.value(v1::artwork_choice::selection_token).toString();
+            const auto path = preview(game, kind, c.value(v1::artwork_choice::preview));
             if (!match("^[0-9a-f]{32}$", token) || path != "/polaris/v1/games/" + game + "/artwork/candidate/" + token + "/" + kind || seen.contains(token)) continue;
-            seen.insert(token); entries.append(QVariantMap{{"token", token}, {"kind", kind}, {"previewPath", path}, {"expiresAt", c.value("expires_at").toDouble()}});
+            seen.insert(token); entries.append(QVariantMap{{"token", token}, {"kind", kind}, {"previewPath", path}, {"expiresAt", c.value(v1::artwork_choice::expires_at).toDouble()}});
             if (entries.size() == 24) break;
         }
         result["choices"] = entries;
     } else if (action == "plan") {
-        const auto p = o.value("resolved_profile").toObject();
-        if (o.value("source") != "deterministic_preset_v1" || p.value("policy_version") != QJsonValue(1) || !p.value("fields").isObject()) return {};
+        const auto p = o.value(v1::optimization::resolved_profile).toObject();
+        if (o.value(v1::optimization::source) != "deterministic_preset_v1" || p.value("policy_version") != QJsonValue(1) || !p.value("fields").isObject()) return {};
         QVariantList fields;
         const auto all = p.value("fields").toObject();
         const QStringList sources{"explicit_launch_request", "client_launch_request", "paired_client", "client_profile", "device_profile_v1", "capability_validation", "composed_display_components"};
         const auto field = [&](const char* key) -> QJsonValue {
             const auto f = all.value(key).toObject();
-            if (!sources.contains(f.value("source").toString()) || bounded(f.value("reason_code"), 128).isEmpty() ||
-                !f.value("locked").isBool() || !f.value("normalized").isBool()) return QJsonValue(QJsonValue::Undefined);
-            return f.value("value");
+            if (!sources.contains(f.value(v1::optimization_resolved_field::source).toString()) || bounded(f.value(v1::optimization_resolved_field::reason_code), 128).isEmpty() ||
+                !f.value(v1::optimization_resolved_field::locked).isBool() || !f.value(v1::optimization_resolved_field::normalized).isBool()) return QJsonValue(QJsonValue::Undefined);
+            return f.value(v1::optimization_resolved_field::value);
         };
         const auto width = field("display_width"), height = field("display_height"), fps = field("target_fps"), bitrate = field("target_bitrate_kbps");
         const auto integral = [](QJsonValue value, double lo, double hi) { return value.isDouble() && std::isfinite(value.toDouble()) &&
@@ -160,27 +162,27 @@ std::optional<QVariantMap> gameToolReply(const QString& game, const QString& act
             std::abs(mode[2].toDouble() - fps.toDouble()) > 0.001) return {};
         for (const auto* key : {"display_mode", "target_bitrate_kbps", "target_fps", "preferred_codec", "hdr"}) {
             const auto f = all.value(key).toObject(); const auto value = field(key);
-            if (value.isUndefined() || value.isNull() || value.isObject() || value.isArray() || bounded(f.value("source"), 80).isEmpty()) continue;
+            if (value.isUndefined() || value.isNull() || value.isObject() || value.isArray() || bounded(f.value(v1::optimization_resolved_field::source), 80).isEmpty()) continue;
             auto text = value.toVariant().toString(); if (!clean(text, 128)) continue;
-            fields.append(QVariantMap{{"key", QString::fromLatin1(key)}, {"value", text}, {"source", bounded(f.value("source"), 80)},
-                {"locked", f.value("locked") == QJsonValue(true)}, {"normalized", f.value("normalized") == QJsonValue(true)}});
+            fields.append(QVariantMap{{"key", QString::fromLatin1(key)}, {"value", text}, {"source", bounded(f.value(v1::optimization_resolved_field::source), 80)},
+                {"locked", f.value(v1::optimization_resolved_field::locked) == QJsonValue(true)}, {"normalized", f.value(v1::optimization_resolved_field::normalized) == QJsonValue(true)}});
         }
         if (fields.isEmpty()) return {};
         result = {{"fields", fields}, {"preset", bounded(p.value("preset"), 64)}, {"label", bounded(p.value("preset_label"), 80)}};
         // A displayable preview is not necessarily the profile the player chose.
         // Only an exact, freshly resolved SDR plan can authorize the launch envelope.
-        const auto topology = o.value("topology_resolution").toObject();
-        const auto resolved = bounded(topology.value("resolved"), 64);
+        const auto topology = o.value(v1::optimization::topology_resolution).toObject();
+        const auto resolved = bounded(topology.value(v1::optimization_topology_resolution::resolved), 64);
         const auto requested = v.value("launchMode", "default").toString();
         const auto encoder = v.value("encoderBackend").toString();
-        const auto resolvedEncoder = o.value("encoder_resolution").toObject();
+        const auto resolvedEncoder = o.value(v1::optimization::encoder_resolution).toObject();
         if (gameToolRequest(game, "plan", v) && (isSessionLaunchMode(resolved.toStdString()) || resolved == "headless_dongle") &&
-            topology.value("app_uuid") == game && topology.value("locked").isBool() && topology.value("normalized").isBool() &&
-            !bounded(topology.value("source"), 80).isEmpty() && !bounded(topology.value("reason_code"), 128).isEmpty() &&
-            (requested == "default" || (resolved == requested && topology.value("requested") == requested && topology.value("locked") == QJsonValue(true))) &&
+            topology.value(v1::optimization_topology_resolution::app_uuid) == game && topology.value(v1::optimization_topology_resolution::locked).isBool() && topology.value(v1::optimization_topology_resolution::normalized).isBool() &&
+            !bounded(topology.value(v1::optimization_topology_resolution::source), 80).isEmpty() && !bounded(topology.value(v1::optimization_topology_resolution::reason_code), 128).isEmpty() &&
+            (requested == "default" || (resolved == requested && topology.value(v1::optimization_topology_resolution::requested) == requested && topology.value(v1::optimization_topology_resolution::locked) == QJsonValue(true))) &&
             width.toInt() == v.value("width").toInt() && height.toInt() == v.value("height").toInt() &&
             fps.toDouble() == v.value("fps").toInt() && bitrate.toInt() == v.value("bitrateKbps").toInt() && field("hdr") == QJsonValue(false) &&
-            (encoder.isEmpty() || (resolvedEncoder.value("resolved") == encoder && resolvedEncoder.value("locked") == QJsonValue(true))))
+            (encoder.isEmpty() || (resolvedEncoder.value(v1::optimization_encoder_resolution::resolved) == encoder && resolvedEncoder.value(v1::optimization_encoder_resolution::locked) == QJsonValue(true))))
             result["launchTopology"] = resolved;
     } else if (action == "steam") {
         // The controller independently reads the fresh catalog to confirm the write.

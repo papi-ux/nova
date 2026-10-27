@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import android.app.Dialog
 import androidx.core.content.edit
 import com.papi.nova.NovaActivity
@@ -3359,14 +3360,14 @@ class NovaGameDetailActivity : NovaActivity() {
         // Legacy AI/cache/recovery objects are neither launch inputs nor UI
         // fallbacks in this release.
         val profileState: JSONObject? = null
-        val resolvedProfile = opt.optJSONObject("resolved_profile")
+        val resolvedProfile = opt.optJSONObject(PolarisV1.Optimization.RESOLVED_PROFILE)
         val currentProfile = resolvedProfile
         val resolvedFields = resolvedProfile?.optJSONObject("fields")
         fun resolvedField(name: String): JSONObject? = resolvedFields?.optJSONObject(name)
         val lastResult: JSONObject? = null
-        val source = opt.optString("source", "")
-        val confidence = opt.optString("confidence", "")
-        val cacheStatus = opt.optString("cache_status", "")
+        val source = opt.optString(PolarisV1.Optimization.SOURCE, "")
+        val confidence = opt.optString(PolarisV1.Optimization.CONFIDENCE, "")
+        val cacheStatus = opt.optString(PolarisV1.Optimization.CACHE_STATUS, "")
         val displayMode = resolvedField("display_mode")
             ?.optString("value", "")
             ?.takeIf { it.isNotBlank() }
@@ -3384,7 +3385,7 @@ class NovaGameDetailActivity : NovaActivity() {
             ?.takeIf { it.isNotBlank() }
             .orEmpty()
         val hdr = resolvedField("hdr")?.takeIf { it.has("value") }?.optBoolean("value")
-        val reasoning = opt.optString("reasoning", "")
+        val reasoning = opt.optString(PolarisV1.Optimization.REASONING, "")
         val normalizationReason = opt.optString("normalization_reason", "")
         val generatedAt = opt.optLong("generated_at", 0L)
 
@@ -3407,11 +3408,11 @@ class NovaGameDetailActivity : NovaActivity() {
                     continue
                 }
                 val field = resolvedFields.optJSONObject(fieldName) ?: continue
-                val fieldSource = (field.opt("source") as? String)
+                val fieldSource = (field.opt(PolarisV1.OptimizationResolvedField.SOURCE) as? String)
                     ?.takeIf { it.isNotBlank() } ?: "unknown"
                 val flags = buildList {
-                    if (field.optBoolean("locked", false)) add("locked")
-                    if (field.optBoolean("normalized", false)) add("normalized")
+                    if (field.optBoolean(PolarisV1.OptimizationResolvedField.LOCKED, false)) add("locked")
+                    if (field.optBoolean(PolarisV1.OptimizationResolvedField.NORMALIZED, false)) add("normalized")
                 }
                 provenanceParts += buildString {
                     append(fieldName.replace('_', ' '))
@@ -3495,7 +3496,7 @@ class NovaGameDetailActivity : NovaActivity() {
             null
         }
 
-        val stabilityCard = opt.optJSONObject("stability")?.let { stability ->
+        val stabilityCard = opt.optJSONObject(PolarisV1.Optimization.STABILITY)?.let { stability ->
             val summary = (stability.opt("summary") as? String).orEmpty()
             if (summary.isBlank()) {
                 null

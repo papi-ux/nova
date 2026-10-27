@@ -57,12 +57,12 @@ std::optional<DeckBitrateUnits> parseBitrateUnits(const QJsonObject& o) {
     v.requested=*request;v.encoder=*encoder;v.liveEncoder=*live;v.audio=*audio;v.fec=*fec;v.warp=*warp;return v;
 }
 std::optional<DeckPyrowaveAdvice> parsePyrowaveAdvice(const QJsonObject& o) {
-    if (number(o.value("version")) != 1 || (o.contains("available") && o.value("available") != true)) return {};
-    const auto w=number(o.value("width"),1,16384), h=number(o.value("height"),1,16384), fps=number(o.value("fps"),1,1000);
-    const auto goal=number(o.value("raise_goal_kbps"),1,500000), cap=number(o.value("cap_kbps"),1,500000);
-    const auto limited=o.value("raise_goal_limited_by").toString();
+    if (number(o.value(v1::pyrowave_advice::version)) != 1 || (o.contains(v1::pyrowave_advice::available) && o.value(v1::pyrowave_advice::available) != true)) return {};
+    const auto w=number(o.value(v1::pyrowave_advice::width),1,16384), h=number(o.value(v1::pyrowave_advice::height),1,16384), fps=number(o.value(v1::pyrowave_advice::fps),1,1000);
+    const auto goal=number(o.value(v1::pyrowave_advice::raise_goal_kbps),1,500000), cap=number(o.value(v1::pyrowave_advice::cap_kbps),1,500000);
+    const auto limited=o.value(v1::pyrowave_advice::raise_goal_limited_by).toString();
     if (!w || !h || !fps || !goal || !cap || !QStringList{"advice","cap","max_bitrate"}.contains(limited)) return {};
-    const auto assumes=o.value("assumes").toObject();
+    const auto assumes=o.value(v1::pyrowave_advice::assumes).toObject();
     const auto audio=assumes.contains("audio_kbps") ? number(assumes.value("audio_kbps"),0,100000) : std::optional<int>(512);
     const auto fec=assumes.contains("fec_percentage") ? number(assumes.value("fec_percentage"),0,255) : std::optional<int>(10);
     if (!audio || !fec) return {};

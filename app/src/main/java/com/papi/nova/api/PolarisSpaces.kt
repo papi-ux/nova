@@ -74,39 +74,39 @@ data class PolarisSpaces(
                 visit(0); require(reader.peek() == JsonToken.END_DOCUMENT)
             }
             val json = JSONObject(payload)
-            require(json.opt("schema") is Int && json.getInt("schema") == 1 && json.opt("status") == true)
+            require(json.opt(PolarisV1.SpacesSnapshot.SCHEMA) is Int && json.getInt(PolarisV1.SpacesSnapshot.SCHEMA) == 1 && json.opt(PolarisV1.SpacesSnapshot.STATUS) == true)
             fun flag(key: String): Boolean { require(json.opt(key) is Boolean); return json.getBoolean(key) }
-            val enabled = flag("enabled"); val available = flag("available"); val canSwitch = flag("can_switch")
-            require(json.opt("selected_space_id") is String)
-            val selectedId = json.getString("selected_space_id")
-            val array = json.getJSONArray("spaces"); require(array.length() <= 4096)
+            val enabled = flag(PolarisV1.SpacesSnapshot.ENABLED); val available = flag(PolarisV1.SpacesSnapshot.AVAILABLE); val canSwitch = flag(PolarisV1.SpacesSnapshot.CAN_SWITCH)
+            require(json.opt(PolarisV1.SpacesSnapshot.SELECTED_SPACE_ID) is String)
+            val selectedId = json.getString(PolarisV1.SpacesSnapshot.SELECTED_SPACE_ID)
+            val array = json.getJSONArray(PolarisV1.SpacesSnapshot.SPACES); require(array.length() <= 4096)
             val spaces = (0 until array.length()).map { index ->
                 val entry = array.getJSONObject(index)
-                require(listOf("id", "name", "state").all { entry.opt(it) is String } && entry.opt("selected") is Boolean)
-                val id = entry.getString("id"); val name = entry.getString("name"); val state = entry.getString("state")
+                require(listOf(PolarisV1.Space.ID, PolarisV1.Space.NAME, PolarisV1.Space.STATE).all { entry.opt(it) is String } && entry.opt(PolarisV1.Space.SELECTED) is Boolean)
+                val id = entry.getString(PolarisV1.Space.ID); val name = entry.getString(PolarisV1.Space.NAME); val state = entry.getString(PolarisV1.Space.STATE)
                 require(id != "desktop" && idPattern.matches(id) && name.isNotBlank() && name.toByteArray(Charsets.UTF_8).size <= 128 &&
                     name.none { it.code < 32 || it.code == 127 } && state in states)
-                require(!entry.has("library_enabled") || entry.opt("library_enabled") is Boolean)
-                require(!entry.has("can_open") || entry.opt("can_open") is Boolean)
+                require(!entry.has(PolarisV1.Space.LIBRARY_ENABLED) || entry.opt(PolarisV1.Space.LIBRARY_ENABLED) is Boolean)
+                require(!entry.has(PolarisV1.Space.CAN_OPEN) || entry.opt(PolarisV1.Space.CAN_OPEN) is Boolean)
                 PolarisSpace(
-                    id, name, state, entry.getBoolean("selected"), entry.optBoolean("library_enabled", false),
-                    canOpen = if (entry.has("can_open")) entry.getBoolean("can_open") else state == "ready" || state == "running",
-                    blockedReason = optionalWord(entry, "blocked_reason"),
-                    launcher = decoration(entry, "launcher"),
+                    id, name, state, entry.getBoolean(PolarisV1.Space.SELECTED), entry.optBoolean(PolarisV1.Space.LIBRARY_ENABLED, false),
+                    canOpen = if (entry.has(PolarisV1.Space.CAN_OPEN)) entry.getBoolean(PolarisV1.Space.CAN_OPEN) else state == "ready" || state == "running",
+                    blockedReason = optionalWord(entry, PolarisV1.Space.BLOCKED_REASON),
+                    launcher = decoration(entry, PolarisV1.Space.LAUNCHER),
                 )
             }
             require(spaces.map { it.id }.toSet().size == spaces.size)
             require(!available || enabled)
             require(!canSwitch || available)
-            require(!json.has("desktop_allowed") || json.opt("desktop_allowed") is Boolean)
-            val desktopAllowed = json.optBoolean("desktop_allowed", false)
+            require(!json.has(PolarisV1.SpacesSnapshot.DESKTOP_ALLOWED) || json.opt(PolarisV1.SpacesSnapshot.DESKTOP_ALLOWED) is Boolean)
+            val desktopAllowed = json.optBoolean(PolarisV1.SpacesSnapshot.DESKTOP_ALLOWED, false)
             require(if (available) {
                 if (selectedId == "desktop") desktopAllowed && spaces.none { it.selected }
                 else spaces.count { it.selected } == 1 && spaces.single { it.selected }.id == selectedId
             } else selectedId.isEmpty() && spaces.none { it.selected })
-            val defaultSpaceId = optionalWord(json, "default_space_id")
+            val defaultSpaceId = optionalWord(json, PolarisV1.SpacesSnapshot.DEFAULT_SPACE_ID)
                 ?.also { require(it == "desktop" || idPattern.matches(it)) }
-            val capacity = json.opt("capacity")?.takeUnless { it == JSONObject.NULL }?.let { raw ->
+            val capacity = json.opt(PolarisV1.SpacesSnapshot.CAPACITY)?.takeUnless { it == JSONObject.NULL }?.let { raw ->
                 require(raw is JSONObject)
                 val limit = raw.opt(PolarisV1.SpacesCapacity.CONCURRENT_LIMIT); val active = raw.opt(PolarisV1.SpacesCapacity.CONCURRENT_ACTIVE)
                 require(limit is Int && active is Int && limit >= 0 && active >= 0)
@@ -114,8 +114,8 @@ data class PolarisSpaces(
             }
             PolarisSpaces(
                 enabled, available, canSwitch, selectedId, spaces, desktopAllowed,
-                unavailableReason = optionalWord(json, "unavailable_reason"),
-                switchBlockedReason = optionalWord(json, "switch_blocked_reason"),
+                unavailableReason = optionalWord(json, PolarisV1.SpacesSnapshot.UNAVAILABLE_REASON),
+                switchBlockedReason = optionalWord(json, PolarisV1.SpacesSnapshot.SWITCH_BLOCKED_REASON),
                 defaultSpaceId = defaultSpaceId,
                 capacity = capacity,
             )

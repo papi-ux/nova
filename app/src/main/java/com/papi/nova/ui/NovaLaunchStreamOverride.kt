@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import com.papi.nova.manager.StreamSyncManager
 import org.json.JSONObject
 import kotlin.math.roundToInt
@@ -30,7 +31,7 @@ object NovaLaunchStreamOverride {
     fun automaticFps(raw: JSONObject?, fallbackFps: Int): Int {
         val trustedRaw = raw?.takeIf(::isTrustedDeterministicEnvelope)
         val displayMode = trustedRaw
-            ?.optJSONObject("resolved_profile")
+            ?.optJSONObject(PolarisV1.Optimization.RESOLVED_PROFILE)
             ?.optJSONObject("fields")
             ?.optJSONObject("display_mode")
             ?.optString("value", "")
@@ -60,7 +61,7 @@ object NovaLaunchStreamOverride {
             put("cache_status", "not_applicable")
             put("recommendation_version", 1)
         }
-        val profile = composed.optJSONObject("resolved_profile") ?: JSONObject().also {
+        val profile = composed.optJSONObject(PolarisV1.Optimization.RESOLVED_PROFILE) ?: JSONObject().also {
             composed.put("resolved_profile", it)
         }
         val fields = profile.optJSONObject("fields") ?: JSONObject().also {

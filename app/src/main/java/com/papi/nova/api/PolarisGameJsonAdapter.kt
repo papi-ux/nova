@@ -8,11 +8,11 @@ import org.json.JSONObject
 object PolarisGameJsonAdapter {
     @JvmStatic
     fun fromJson(json: JSONObject): PolarisGame {
-        val spaceIdentity = com.papi.nova.manager.WorkerLaunchContract.libraryIdentity(json.optString("id"))
-        if (spaceIdentity != null && json.optJSONObject("space") == null)
+        val spaceIdentity = com.papi.nova.manager.WorkerLaunchContract.libraryIdentity(json.optString(PolarisV1.Game.ID))
+        if (spaceIdentity != null && json.optJSONObject(PolarisV1.SpaceLibraryGame.SPACE) == null)
             throw IllegalArgumentException("Missing Space game context")
-        val source = json.optString("source", "other")
-        val launchMode = json.optJSONObject("launch_mode")?.let { modeJson ->
+        val source = json.optString(PolarisV1.Game.SOURCE, "other")
+        val launchMode = json.optJSONObject(PolarisV1.Game.LAUNCH_MODE)?.let { modeJson ->
             val hasAppLaunchAsContract = modeJson.has(PolarisV1.LaunchMode.LAUNCH_AS) || modeJson.has(PolarisV1.LaunchMode.LAUNCH_AS_AVAILABLE) ||
                 modeJson.has(PolarisV1.LaunchMode.LAUNCH_AS_UNAVAILABLE_REASON)
             PolarisGame.LaunchModeContract(
@@ -26,34 +26,34 @@ object PolarisGameJsonAdapter {
                 launchAsUnavailableReason = modeJson.optString(PolarisV1.LaunchMode.LAUNCH_AS_UNAVAILABLE_REASON, "")
             )
         }
-        val steamLaunch = json.optJSONObject("steam_launch")?.let { launchJson ->
+        val steamLaunch = json.optJSONObject(PolarisV1.Game.STEAM_LAUNCH)?.let { launchJson ->
             PolarisGame.SteamLaunchContract(
-                available = launchJson.optBoolean("available", false),
-                mode = PolarisGame.SteamLaunchContract.normalizeMode(launchJson.optString("mode", "direct")),
-                recommendedMode = PolarisGame.SteamLaunchContract.normalizeMode(launchJson.optString("recommended_mode", "direct")),
-                allowedModes = normalizeSteamLaunchModes(fetchStringArray(launchJson.optJSONArray("allowed_modes"))),
-                modeReason = launchJson.optString("mode_reason", "")
+                available = launchJson.optBoolean(PolarisV1.SteamLaunch.AVAILABLE, false),
+                mode = PolarisGame.SteamLaunchContract.normalizeMode(launchJson.optString(PolarisV1.SteamLaunch.MODE, "direct")),
+                recommendedMode = PolarisGame.SteamLaunchContract.normalizeMode(launchJson.optString(PolarisV1.SteamLaunch.RECOMMENDED_MODE, "direct")),
+                allowedModes = normalizeSteamLaunchModes(fetchStringArray(launchJson.optJSONArray(PolarisV1.SteamLaunch.ALLOWED_MODES))),
+                modeReason = launchJson.optString(PolarisV1.SteamLaunch.MODE_REASON, "")
             )
         }
 
         return PolarisGame(
-            id = json.optString("id", ""),
-            appId = json.optString("app_id", "").toIntOrNull() ?: json.optInt("app_id", 0),
-            name = if (spaceIdentity?.second == "big-picture-v1") "Steam Big Picture" else json.optString("name", ""),
+            id = json.optString(PolarisV1.Game.ID, ""),
+            appId = json.optString(PolarisV1.Game.APP_ID, "").toIntOrNull() ?: json.optInt(PolarisV1.Game.APP_ID, 0),
+            name = if (spaceIdentity?.second == "big-picture-v1") "Steam Big Picture" else json.optString(PolarisV1.Game.NAME, ""),
             source = source,
             launcherSource = json.optString("launcher_source", source),
             launcherDetail = json.optString("launcher_detail", ""),
-            platform = json.optString("platform", "unknown").lowercase(),
-            runtime = json.optString("runtime", "unknown").lowercase(),
-            platformLabelFromServer = json.optString("platform_label", ""),
-            runtimeLabelFromServer = json.optString("runtime_label", ""),
-            steamAppid = json.optString("steam_appid", ""),
-            category = json.optString("category", ""),
-            installed = json.optBoolean("installed", true),
-            coverUrl = json.optString("cover_url", ""),
-            genres = fetchStringArray(json.optJSONArray("genres")),
-            lastLaunched = json.optLong("last_launched", 0),
-            beatTime = json.optJSONObject("beat_time")?.let { beat ->
+            platform = json.optString(PolarisV1.Game.PLATFORM, "unknown").lowercase(),
+            runtime = json.optString(PolarisV1.Game.RUNTIME, "unknown").lowercase(),
+            platformLabelFromServer = json.optString(PolarisV1.Game.PLATFORM_LABEL, ""),
+            runtimeLabelFromServer = json.optString(PolarisV1.Game.RUNTIME_LABEL, ""),
+            steamAppid = json.optString(PolarisV1.Game.STEAM_APPID, ""),
+            category = json.optString(PolarisV1.Game.CATEGORY, ""),
+            installed = json.optBoolean(PolarisV1.Game.INSTALLED, true),
+            coverUrl = json.optString(PolarisV1.Game.COVER_URL, ""),
+            genres = fetchStringArray(json.optJSONArray(PolarisV1.Game.GENRES)),
+            lastLaunched = json.optLong(PolarisV1.Game.LAST_LAUNCHED, 0),
+            beatTime = json.optJSONObject(PolarisV1.Game.BEAT_TIME)?.let { beat ->
                 PolarisGame.BeatTime(
                     mainSeconds = beat.optLong("main_seconds", 0).coerceAtLeast(0),
                     extrasSeconds = beat.optLong("extras_seconds", 0).coerceAtLeast(0),
@@ -63,32 +63,32 @@ object PolarisGameJsonAdapter {
                     cachedAt = beat.optLong("cached_at", 0).coerceAtLeast(0)
                 )
             },
-            playTime = json.optJSONObject("play_time")?.let { played ->
+            playTime = json.optJSONObject(PolarisV1.Game.PLAY_TIME)?.let { played ->
                 PolarisGame.PlayTime(
                     seconds = played.optLong("seconds", 0).coerceAtLeast(0),
                     source = played.optString("source", ""),
                     readAt = played.optLong("read_at", 0).coerceAtLeast(0)
                 )
             },
-            mangohud = json.optBoolean("mangohud", false),
-            hdrSupported = json.optBoolean("hdr_supported", false),
+            mangohud = json.optBoolean(PolarisV1.Game.MANGOHUD, false),
+            hdrSupported = json.optBoolean(PolarisV1.Game.HDR_SUPPORTED, false),
             launchMode = launchMode,
             steamLaunch = steamLaunch,
-            steamLifecycle = json.optJSONObject("steam_lifecycle")?.takeIf {
+            steamLifecycle = json.optJSONObject(PolarisV1.Game.STEAM_LIFECYCLE)?.takeIf {
                 it.opt("keep_in_host_virtual_display") is Boolean && it.opt("keep_in_desktop_display") is Boolean
             }?.let { PolarisGame.SteamLifecycle(it.getBoolean("keep_in_host_virtual_display"), it.getBoolean("keep_in_desktop_display")) },
-            displayPlanner = parseDisplayPlanner(json.optJSONObject("display_planner")),
-            artwork = parseArtworkManifest(json.optJSONObject("artwork")),
-            space = json.optJSONObject("space")?.let { context ->
-                val identity = com.papi.nova.manager.WorkerLaunchContract.libraryIdentity(json.optString("id"))
-                val id = context.optString("id")
-                val target = context.optString("target")
-                val name = context.optString("name")
+            displayPlanner = parseDisplayPlanner(json.optJSONObject(PolarisV1.Game.DISPLAY_PLANNER)),
+            artwork = parseArtworkManifest(json.optJSONObject(PolarisV1.Game.ARTWORK)),
+            space = json.optJSONObject(PolarisV1.SpaceLibraryGame.SPACE)?.let { context ->
+                val identity = com.papi.nova.manager.WorkerLaunchContract.libraryIdentity(json.optString(PolarisV1.Game.ID))
+                val id = context.optString(PolarisV1.SpaceRef.ID)
+                val target = context.optString(PolarisV1.SpaceRef.TARGET)
+                val name = context.optString(PolarisV1.SpaceRef.NAME)
                 if (identity == null || identity.first != id || identity.second != target || name.isBlank() || name.toByteArray(Charsets.UTF_8).size > 128 || name.any { it.code < 32 || it.code == 127 })
                     throw IllegalArgumentException("Invalid Space game identity")
                 PolarisGame.SpaceContext(id, name, target)
             },
-            steamBigPicture = json.optBoolean("steam_big_picture", false)
+            steamBigPicture = json.optBoolean(PolarisV1.Game.STEAM_BIG_PICTURE, false)
         )
     }
 
@@ -105,15 +105,15 @@ object PolarisGameJsonAdapter {
     internal fun parseDisplayPlanner(plannerJson: JSONObject?): PolarisGame.DisplayPlannerContract? {
         if (plannerJson == null) return null
         return PolarisGame.DisplayPlannerContract(
-            available = plannerJson.optBoolean("available", false),
-            sourceMode = plannerJson.optString("source_mode", ""),
-            sourceAspectRatio = plannerJson.optString("source_aspect_ratio", ""),
-            sourceFps = finiteDouble(plannerJson, "source_fps", 0.0).coerceAtLeast(0.0),
-            recommendedId = plannerJson.optString("recommended_id", ""),
-            recommendedTitle = plannerJson.optString("recommended_title", ""),
-            recommendedMode = plannerJson.optString("recommended_mode", ""),
-            choices = parseDisplayPlannerChoices(plannerJson.optJSONArray("choices")),
-            advancedScaleFactors = parseDisplayPlannerScaleChoices(plannerJson.optJSONArray("advanced_scale_factors"))
+            available = plannerJson.optBoolean(PolarisV1.DisplayPlanner.AVAILABLE, false),
+            sourceMode = plannerJson.optString(PolarisV1.DisplayPlanner.SOURCE_MODE, ""),
+            sourceAspectRatio = plannerJson.optString(PolarisV1.DisplayPlanner.SOURCE_ASPECT_RATIO, ""),
+            sourceFps = finiteDouble(plannerJson, PolarisV1.DisplayPlanner.SOURCE_FPS, 0.0).coerceAtLeast(0.0),
+            recommendedId = plannerJson.optString(PolarisV1.DisplayPlanner.RECOMMENDED_ID, ""),
+            recommendedTitle = plannerJson.optString(PolarisV1.DisplayPlanner.RECOMMENDED_TITLE, ""),
+            recommendedMode = plannerJson.optString(PolarisV1.DisplayPlanner.RECOMMENDED_MODE, ""),
+            choices = parseDisplayPlannerChoices(plannerJson.optJSONArray(PolarisV1.DisplayPlanner.CHOICES)),
+            advancedScaleFactors = parseDisplayPlannerScaleChoices(plannerJson.optJSONArray(PolarisV1.DisplayPlanner.ADVANCED_SCALE_FACTORS))
         )
     }
 
@@ -122,20 +122,20 @@ object PolarisGameJsonAdapter {
         return (0 until array.length()).mapNotNull { index ->
             array.optJSONObject(index)?.let { choiceJson ->
                 PolarisGame.DisplayPlannerChoice(
-                    id = choiceJson.optString("id", ""),
-                    title = choiceJson.optString("title", ""),
-                    intent = choiceJson.optString("intent", ""),
-                    targetMode = choiceJson.optString("target_mode", ""),
-                    badge = choiceJson.optString("badge", ""),
-                    reason = choiceJson.optString("reason", ""),
-                    advanced = choiceJson.optBoolean("advanced", false),
-                    custom = choiceJson.optBoolean("custom", false),
+                    id = choiceJson.optString(PolarisV1.DisplayPlannerChoice.ID, ""),
+                    title = choiceJson.optString(PolarisV1.DisplayPlannerChoice.TITLE, ""),
+                    intent = choiceJson.optString(PolarisV1.DisplayPlannerChoice.INTENT, ""),
+                    targetMode = choiceJson.optString(PolarisV1.DisplayPlannerChoice.TARGET_MODE, ""),
+                    badge = choiceJson.optString(PolarisV1.DisplayPlannerChoice.BADGE, ""),
+                    reason = choiceJson.optString(PolarisV1.DisplayPlannerChoice.REASON, ""),
+                    advanced = choiceJson.optBoolean(PolarisV1.DisplayPlannerChoice.ADVANCED, false),
+                    custom = choiceJson.optBoolean(PolarisV1.DisplayPlannerChoice.CUSTOM, false),
                     // The contract's own defaults: an entry that says nothing is safe and
                     // visible, matching what an older serialisation would have decoded.
-                    safe = choiceJson.optBoolean("safe", true),
-                    hidden = choiceJson.optBoolean("hidden", false),
-                    scaleFactor = finiteDouble(choiceJson, "scale_factor", 1.0),
-                    aspectRatio = choiceJson.optString("aspect_ratio", "")
+                    safe = choiceJson.optBoolean(PolarisV1.DisplayPlannerChoice.SAFE, true),
+                    hidden = choiceJson.optBoolean(PolarisV1.DisplayPlannerChoice.HIDDEN, false),
+                    scaleFactor = finiteDouble(choiceJson, PolarisV1.DisplayPlannerChoice.SCALE_FACTOR, 1.0),
+                    aspectRatio = choiceJson.optString(PolarisV1.DisplayPlannerChoice.ASPECT_RATIO, "")
                 )
             }
         }
@@ -146,10 +146,10 @@ object PolarisGameJsonAdapter {
         return (0 until array.length()).mapNotNull { index ->
             array.optJSONObject(index)?.let { scaleJson ->
                 PolarisGame.DisplayPlannerScaleChoice(
-                    scaleFactor = finiteDouble(scaleJson, "scale_factor", 1.0),
-                    label = scaleJson.optString("label", ""),
-                    targetMode = scaleJson.optString("target_mode", ""),
-                    safe = scaleJson.optBoolean("safe", true)
+                    scaleFactor = finiteDouble(scaleJson, PolarisV1.DisplayPlannerScaleChoice.SCALE_FACTOR, 1.0),
+                    label = scaleJson.optString(PolarisV1.DisplayPlannerScaleChoice.LABEL, ""),
+                    targetMode = scaleJson.optString(PolarisV1.DisplayPlannerScaleChoice.TARGET_MODE, ""),
+                    safe = scaleJson.optBoolean(PolarisV1.DisplayPlannerScaleChoice.SAFE, true)
                 )
             }
         }

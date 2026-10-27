@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import com.papi.nova.R
@@ -105,16 +106,16 @@ internal fun buildNovaLaunchProfileSummary(
     if (optimization == null) return null
     // A choice made here composed onto no host plan, as while the plan is rechecked, is no plan:
     // it read "Profile / 120 FPS" and dropped Launch's preset (in-game smoke #18).
-    if (optimization.optString("source", "") == NovaLaunchStreamOverride.UNVERIFIED_SOURCE) return null
+    if (optimization.optString(PolarisV1.Optimization.SOURCE, "") == NovaLaunchStreamOverride.UNVERIFIED_SOURCE) return null
     val pinnedFps = if (clientFpsPinned && clientAskedFps > 0.0) clientAskedFps else 0.0
-    if (optimization.optString("source", "").equals("deterministic_preset_v1", ignoreCase = true)) {
+    if (optimization.optString(PolarisV1.Optimization.SOURCE, "").equals("deterministic_preset_v1", ignoreCase = true)) {
         return buildDeterministicLaunchPresetSummary(text, optimization, pinnedFps, clientAskedFps, clientAskedHdr, clientCodecLabel)
     }
-    if (optimization.optString("source", "").equals(SPACE_LAUNCH_SOURCE, ignoreCase = true)) {
+    if (optimization.optString(PolarisV1.Optimization.SOURCE, "").equals(SPACE_LAUNCH_SOURCE, ignoreCase = true)) {
         return buildSpaceLaunchSummary(text, optimization, spaceName, clientAskedFps, clientAskedHdr)
     }
 
-    val profileState = optimization.optJSONObject("profile_state")
+    val profileState = optimization.optJSONObject(PolarisV1.Optimization.PROFILE_STATE)
     val currentProfile = profileState?.optJSONObject("current_profile")
         ?: optimization.optJSONObject("effective_profile")
     val requestedProfile = optimization.optJSONObject("preference_requested_profile")
@@ -152,7 +153,7 @@ internal fun buildNovaLaunchProfileSummary(
         selectedProfileFps ?: 0.0,
         strictFiniteNumber(optimization, "effective_target_fps") ?: 0.0,
         parseDisplayModeFps(currentProfile?.optString("display_mode", "")),
-        parseDisplayModeFps(optimization.optString("display_mode", ""))
+        parseDisplayModeFps(optimization.optString(PolarisV1.Optimization.DISPLAY_MODE, ""))
     )
     val highFpsRequestSatisfied = preference == "high_fps" &&
         requestedFps > 0.0 &&
@@ -215,7 +216,7 @@ internal fun buildNovaLaunchProfileSummary(
     val reasonText = profileState
         ?.optString("reason", "")
         ?.takeIf { it.isNotBlank() }
-        ?: optimization.optString("reasoning", "").takeIf { it.isNotBlank() }.orEmpty()
+        ?: optimization.optString(PolarisV1.Optimization.REASONING, "").takeIf { it.isNotBlank() }.orEmpty()
     val reportedIssues = diagnosticIssues(optimization, lastResult)
     val reportedIssue = preferredIssueForDisplay(reportedIssues)
     val healthyPerformanceStatus = healthyPerformanceStatus(
@@ -338,11 +339,11 @@ private fun buildDeterministicLaunchPresetSummary(
     clientAskedHdr: Boolean? = null,
     clientCodecLabel: String? = null,
 ): NovaLaunchProfileSummary? {
-    val resolved = optimization.optJSONObject("resolved_profile") ?: return null
+    val resolved = optimization.optJSONObject(PolarisV1.Optimization.RESOLVED_PROFILE) ?: return null
     if (resolved.optInt("policy_version", 0) != 1) return null
     val fields = resolved.optJSONObject("fields") ?: return null
 
-    val preset = normalized(resolved.optString("preset", optimization.optString("preset", "auto")))
+    val preset = normalized(resolved.optString("preset", optimization.optString(PolarisV1.Optimization.PRESET, "auto")))
     val presetLabel = resolved.optString("preset_label", "").takeIf { it.isNotBlank() }
         ?: ProfileName.Known(preferenceKind(preset)).say(text)
     val resolvedFields = resolvedLaunchFields(text, fields, clientAskedHdr, clientCodecLabel)
@@ -353,7 +354,7 @@ private fun buildDeterministicLaunchPresetSummary(
 
     // Only when the host changed it. Repeating the request back would be noise, and a host that
     // resolved exactly what was asked has nothing to add.
-    val topology = optimization.optJSONObject("topology_resolution")
+    val topology = optimization.optJSONObject(PolarisV1.Optimization.TOPOLOGY_RESOLUTION)
     val requestedTopology = topology?.optString("requested").orEmpty()
     val resolvedTopology = topology?.optString("resolved").orEmpty()
     val resolvedTopologyLabel = if (
@@ -727,19 +728,19 @@ private fun hasCompleteDiagnosticIssueEvidence(
     optimization: JSONObject,
     lastResult: JSONObject?
 ): Boolean {
-    if (!optimization.has("limiting_factor") ||
+    if (!optimization.has(PolarisV1.Optimization.LIMITING_FACTOR) ||
         lastResult == null ||
         !lastResult.has("primary_issue")
     ) {
         return false
     }
-    return meaningfulIssue(optimization.optString("limiting_factor", "")).isNotBlank() &&
+    return meaningfulIssue(optimization.optString(PolarisV1.Optimization.LIMITING_FACTOR, "")).isNotBlank() &&
         meaningfulIssue(lastResult.optString("primary_issue", "")).isNotBlank()
 }
 
 private fun diagnosticIssues(optimization: JSONObject, lastResult: JSONObject?): List<String> {
     return listOf(
-        meaningfulIssue(optimization.optString("limiting_factor", "")),
+        meaningfulIssue(optimization.optString(PolarisV1.Optimization.LIMITING_FACTOR, "")),
         meaningfulIssue(lastResult?.optString("primary_issue", "") ?: "")
     ).filter { it.isNotBlank() }.distinct()
 }

@@ -1,4 +1,5 @@
 #include "polaris/deck_spaces.h"
+#include "generated/polaris_v1_contract.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -9,6 +10,7 @@
 #include <charconv>
 
 namespace nova::deck::polaris {
+namespace v1 = ::polaris::contract::v1;
 namespace {
 bool matches(std::string_view value, const char* pattern) {
     return QRegularExpression(QString::fromLatin1(pattern)).match(QString::fromUtf8(value.data(), value.size())).hasMatch();
@@ -137,9 +139,9 @@ std::optional<DeckSpaces> parseSpaces(std::string_view json) {
     const auto document = QJsonDocument::fromJson(QByteArray(json.data(), json.size()));
     if (!document.isObject()) return {};
     const auto o = document.object();
-    if (!o.value("schema").isDouble() || o.value("schema").toDouble() != 1 || o.value("status") != QJsonValue(true)) return {};
-    for (const auto* key : {"enabled", "available", "can_switch"}) if (!o.value(key).isBool()) return {};
-    if (!o.value("selected_space_id").isString() || !o.value("spaces").isArray() || o.value("spaces").toArray().size() > 4096) return {};
+    if (!o.value(v1::spaces_snapshot::schema).isDouble() || o.value(v1::spaces_snapshot::schema).toDouble() != 1 || o.value(v1::spaces_snapshot::status) != QJsonValue(true)) return {};
+    for (const auto* key : {v1::spaces_snapshot::enabled, v1::spaces_snapshot::available, v1::spaces_snapshot::can_switch}) if (!o.value(key).isBool()) return {};
+    if (!o.value(v1::spaces_snapshot::selected_space_id).isString() || !o.value(v1::spaces_snapshot::spaces).isArray() || o.value(v1::spaces_snapshot::spaces).toArray().size() > 4096) return {};
     const auto optionalWord = [](const QJsonObject& obj, const char* key, std::string& output) {
         const auto v = obj.value(key);
         if (v.isUndefined() || v.isNull() || v == QJsonValue("")) return true;
@@ -147,23 +149,23 @@ std::optional<DeckSpaces> parseSpaces(std::string_view json) {
         output = v.toString().toStdString(); return true;
     };
     DeckSpaces result;
-    result.enabled = o.value("enabled").toBool(); result.available = o.value("available").toBool();
-    result.canSwitch = o.value("can_switch").toBool(); result.selectedId = o.value("selected_space_id").toString().toStdString();
-    if (o.contains("desktop_allowed") && !o.value("desktop_allowed").isBool()) return {};
-    result.desktopAllowed = o.value("desktop_allowed").toBool();
-    if (!optionalWord(o, "unavailable_reason", result.unavailableReason) || !optionalWord(o, "switch_blocked_reason", result.switchBlockedReason)) return {};
+    result.enabled = o.value(v1::spaces_snapshot::enabled).toBool(); result.available = o.value(v1::spaces_snapshot::available).toBool();
+    result.canSwitch = o.value(v1::spaces_snapshot::can_switch).toBool(); result.selectedId = o.value(v1::spaces_snapshot::selected_space_id).toString().toStdString();
+    if (o.contains(v1::spaces_snapshot::desktop_allowed) && !o.value(v1::spaces_snapshot::desktop_allowed).isBool()) return {};
+    result.desktopAllowed = o.value(v1::spaces_snapshot::desktop_allowed).toBool();
+    if (!optionalWord(o, v1::spaces_snapshot::unavailable_reason, result.unavailableReason) || !optionalWord(o, v1::spaces_snapshot::switch_blocked_reason, result.switchBlockedReason)) return {};
     QSet<QString> ids; int selected = 0;
-    for (const auto v : o.value("spaces").toArray()) {
+    for (const auto v : o.value(v1::spaces_snapshot::spaces).toArray()) {
         if (!v.isObject()) return {};
         const auto s = v.toObject();
-        const auto id = s.value("id").toString(), name = s.value("name").toString(), state = s.value("state").toString();
-        if (!validSpaceId(id.toStdString()) || ids.contains(id) || !nameValid(name) || !s.value("selected").isBool() ||
+        const auto id = s.value(v1::space::id).toString(), name = s.value(v1::space::name).toString(), state = s.value(v1::space::state).toString();
+        if (!validSpaceId(id.toStdString()) || ids.contains(id) || !nameValid(name) || !s.value(v1::space::selected).isBool() ||
             !QStringList{"ready", "starting", "running", "stopping", "in_use", "unavailable"}.contains(state)) return {};
-        for (const auto* key : {"library_enabled", "can_open"}) if (s.contains(key) && !s.value(key).isBool()) return {};
+        for (const auto* key : {v1::space::library_enabled, v1::space::can_open}) if (s.contains(key) && !s.value(key).isBool()) return {};
         DeckSpace space{id.toStdString(), name.toStdString(), state.toStdString()};
-        space.selected = s.value("selected").toBool(); space.libraryEnabled = s.value("library_enabled").toBool();
-        space.canOpen = s.contains("can_open") ? s.value("can_open").toBool() : state == "ready" || state == "running";
-        if (!optionalWord(s, "blocked_reason", space.blockedReason)) return {};
+        space.selected = s.value(v1::space::selected).toBool(); space.libraryEnabled = s.value(v1::space::library_enabled).toBool();
+        space.canOpen = s.contains(v1::space::can_open) ? s.value(v1::space::can_open).toBool() : state == "ready" || state == "running";
+        if (!optionalWord(s, v1::space::blocked_reason, space.blockedReason)) return {};
         if (space.selected) { ++selected; if (space.id != result.selectedId) return {}; }
         ids.insert(id); result.spaces.push_back(std::move(space));
     }

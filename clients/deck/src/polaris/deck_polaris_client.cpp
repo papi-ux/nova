@@ -59,32 +59,32 @@ std::optional<QJsonObject> parseObject(const std::string_view json) {
 
 DeckDisplayPlanner parseDisplayPlanner(const QJsonValue& value) {
     const auto object = value.toObject();
-    if (!object.value("available").isBool() || !object.value("available").toBool() ||
-        !object.value("choices").isArray() || object.value("choices").toArray().size() > 32) return {};
+    if (!object.value(v1::display_planner::available).isBool() || !object.value(v1::display_planner::available).toBool() ||
+        !object.value(v1::display_planner::choices).isArray() || object.value(v1::display_planner::choices).toArray().size() > 32) return {};
     DeckDisplayPlanner planner{true, {}};
     std::set<QString> ids;
-    const auto recommended = object.value("recommended_id").toString().trimmed();
+    const auto recommended = object.value(v1::display_planner::recommended_id).toString().trimmed();
     static const QRegularExpression modePattern("^([0-9]{3,5})[xX]([0-9]{3,5})[xX]([0-9]{1,3}(?:\\.[0-9]{1,3})?)$");
-    for (const auto& entry : object.value("choices").toArray()) {
+    for (const auto& entry : object.value(v1::display_planner::choices).toArray()) {
         if (!entry.isObject()) continue;
         const auto choice = entry.toObject();
-        const auto id = choice.value("id").toString().trimmed();
+        const auto id = choice.value(v1::display_planner_choice::id).toString().trimmed();
         if (id.isEmpty() || id.size() > 64) continue;
         if (!ids.insert(id).second) return {}; // Ambiguous recommendation IDs are not usable hints.
-        const auto safe = choice.value("safe"), hidden = choice.value("hidden");
+        const auto safe = choice.value(v1::display_planner_choice::safe), hidden = choice.value(v1::display_planner_choice::hidden);
         if ((!safe.isUndefined() && (!safe.isBool() || !safe.toBool())) ||
             (!hidden.isUndefined() && (!hidden.isBool() || hidden.toBool()))) continue;
-        const auto mode = choice.value("target_mode").toString().trimmed();
+        const auto mode = choice.value(v1::display_planner_choice::target_mode).toString().trimmed();
         if (mode.size() > 32) continue;
         const auto parsed = modePattern.match(mode);
         if (!parsed.hasMatch() || parsed.captured(3).toDouble() <= 0) continue;
         const int width = parsed.captured(1).toInt(), height = parsed.captured(2).toInt();
         if (!supportedDeckResolution(width, height)) continue;
-        const auto advanced = choice.value("advanced"), custom = choice.value("custom");
+        const auto advanced = choice.value(v1::display_planner_choice::advanced), custom = choice.value(v1::display_planner_choice::custom);
         if ((!advanced.isUndefined() && !advanced.isBool()) || (!custom.isUndefined() && !custom.isBool())) continue;
         // A planner's trailing rate is a host suggestion, not a stream FPS pin.
-        planner.choices.push_back({width, height, toStd(choice.value("title").toString().left(96)),
-            toStd(choice.value("reason").toString(choice.value("intent").toString()).left(240)),
+        planner.choices.push_back({width, height, toStd(choice.value(v1::display_planner_choice::title).toString().left(96)),
+            toStd(choice.value(v1::display_planner_choice::reason).toString(choice.value(v1::display_planner_choice::intent).toString()).left(240)),
             id == (recommended.isEmpty() ? QStringLiteral("balanced") : recommended), advanced.toBool(), custom.toBool()});
     }
     return planner;
@@ -99,8 +99,8 @@ DeckGameTime parseGameTime(const QJsonObject& game) {
             number > 9007199254740991.0 || std::floor(number) != number) return {};
         return static_cast<std::int64_t>(number);
     };
-    const auto played = game.value("play_time").toObject();
-    const auto beat = game.value("beat_time").toObject();
+    const auto played = game.value(v1::game::play_time).toObject();
+    const auto beat = game.value(v1::game::beat_time).toObject();
     DeckGameTime time;
     time.playedSeconds = seconds(played.value("seconds"), true);
     if (time.playedSeconds) time.playSource = toStd(played.value("source").toString().trimmed().left(64));
@@ -114,39 +114,39 @@ DeckGameTime parseGameTime(const QJsonObject& game) {
 
 DeckPolarisGame parseGame(const QJsonObject& object) {
     DeckPolarisGame game;
-    game.id = toStd(object.value(QStringLiteral("id")).toString());
+    game.id = toStd(object.value(v1::game::id).toString());
     // Polaris emits app_id as a string; the fixture and older hosts use a number.
-    const auto appId = object.value(QStringLiteral("app_id"));
+    const auto appId = object.value(v1::game::app_id);
     game.appId = appId.isString() ? appId.toString().toInt() : appId.toInt();
-    game.name = toStd(object.value(QStringLiteral("name")).toString());
-    game.source = toStd(object.value(QStringLiteral("source")).toString());
-    game.platform = toStd(object.value(QStringLiteral("platform")).toString());
-    game.runtime = toStd(object.value(QStringLiteral("runtime")).toString());
-    game.platformLabel = toStd(object.value(QStringLiteral("platform_label")).toString());
-    game.runtimeLabel = toStd(object.value(QStringLiteral("runtime_label")).toString());
-    game.steamAppid = toStd(object.value(QStringLiteral("steam_appid")).toString());
-    game.category = toStd(object.value(QStringLiteral("category")).toString());
-    game.coverUrl = toStd(object.value(QStringLiteral("cover_url")).toString());
-    game.installed = object.value(QStringLiteral("installed")).toBool(true);
-    game.hdrSupported = object.value(QStringLiteral("hdr_supported")).toBool(false);
-    game.displayPlanner = parseDisplayPlanner(object.value("display_planner"));
-    const auto lastLaunched = object.value(QStringLiteral("last_launched")).toDouble(0);
+    game.name = toStd(object.value(v1::game::name).toString());
+    game.source = toStd(object.value(v1::game::source).toString());
+    game.platform = toStd(object.value(v1::game::platform).toString());
+    game.runtime = toStd(object.value(v1::game::runtime).toString());
+    game.platformLabel = toStd(object.value(v1::game::platform_label).toString());
+    game.runtimeLabel = toStd(object.value(v1::game::runtime_label).toString());
+    game.steamAppid = toStd(object.value(v1::game::steam_appid).toString());
+    game.category = toStd(object.value(v1::game::category).toString());
+    game.coverUrl = toStd(object.value(v1::game::cover_url).toString());
+    game.installed = object.value(v1::game::installed).toBool(true);
+    game.hdrSupported = object.value(v1::game::hdr_supported).toBool(false);
+    game.displayPlanner = parseDisplayPlanner(object.value(v1::game::display_planner));
+    const auto lastLaunched = object.value(v1::game::last_launched).toDouble(0);
     // Polaris reports epoch seconds; bound to JavaScript Date's range before
     // converting or multiplying by 1000 for presentation.
     game.lastLaunched = lastLaunched > 0 && lastLaunched <= 8640000000000.0
         ? static_cast<long long>(lastLaunched) : 0;
-    game.genres = stringList(object.value(QStringLiteral("genres")));
+    game.genres = stringList(object.value(v1::game::genres));
     game.gameTime = parseGameTime(object);
-    const auto context = object.value("space").toObject();
-    game.spaceId = context.value("id").toString().toStdString();
-    game.spaceName = context.value("name").toString().toStdString();
+    const auto context = object.value(v1::space_library_game::space).toObject();
+    game.spaceId = context.value(v1::space_ref::id).toString().toStdString();
+    game.spaceName = context.value(v1::space_ref::name).toString().toStdString();
 
-    const auto launchMode = object.value(QStringLiteral("launch_mode")).toObject();
+    const auto launchMode = object.value(v1::game::launch_mode).toObject();
     game.launchPreferredMode = toStd(launchMode.value(v1::launch_mode::preferred_mode).toString());
     game.launchRecommendedMode = toStd(launchMode.value(v1::launch_mode::recommended_mode).toString());
     game.launchAllowedModes = stringList(launchMode.value(v1::launch_mode::allowed_modes));
     game.launchModeReason = toStd(launchMode.value(v1::launch_mode::mode_reason).toString());
-    const auto contract = object.value("launch_mode");
+    const auto contract = object.value(v1::game::launch_mode);
     game.launchContractValid = contract.isUndefined() || contract.isObject();
     game.launchFollowsHostDefault = launchMode.value(v1::launch_mode::follows_host_default) != QJsonValue(false);
     game.launchAsPresent = launchMode.contains(v1::launch_mode::launch_as) || launchMode.contains(v1::launch_mode::launch_as_available) ||
@@ -172,18 +172,18 @@ DeckPolarisGame parseGame(const QJsonObject& object) {
         }
     }
 
-    const auto steamLaunch = object.value(QStringLiteral("steam_launch")).toObject();
-    game.steamLaunchAvailable = steamLaunch.value(QStringLiteral("available")).toBool(false);
-    const auto lifecycle = object.value("steam_lifecycle").toObject();
+    const auto steamLaunch = object.value(v1::game::steam_launch).toObject();
+    game.steamLaunchAvailable = steamLaunch.value(v1::steam_launch::available).toBool(false);
+    const auto lifecycle = object.value(v1::game::steam_lifecycle).toObject();
     if (lifecycle.value("keep_in_host_virtual_display").isBool() && lifecycle.value("keep_in_desktop_display").isBool()) {
         game.steamKeepVirtual = lifecycle.value("keep_in_host_virtual_display").toBool();
         game.steamKeepMirror = lifecycle.value("keep_in_desktop_display").toBool();
     }
-    game.steamLaunchMode = toStd(steamLaunch.value(QStringLiteral("mode")).toString());
-    game.steamLaunchRecommendedMode = toStd(steamLaunch.value(QStringLiteral("recommended_mode")).toString());
-    game.steamLaunchAllowedModes = stringList(steamLaunch.value(QStringLiteral("allowed_modes")));
-    game.steamLaunchModeReason = toStd(steamLaunch.value(QStringLiteral("mode_reason")).toString());
-    const auto artwork = object.value("artwork").toObject();
+    game.steamLaunchMode = toStd(steamLaunch.value(v1::steam_launch::mode).toString());
+    game.steamLaunchRecommendedMode = toStd(steamLaunch.value(v1::steam_launch::recommended_mode).toString());
+    game.steamLaunchAllowedModes = stringList(steamLaunch.value(v1::steam_launch::allowed_modes));
+    game.steamLaunchModeReason = toStd(steamLaunch.value(v1::steam_launch::mode_reason).toString());
+    const auto artwork = object.value(v1::game::artwork).toObject();
     const auto version = artwork.value("version");
     const auto revision = artwork.value("revision").toString();
     static const QRegularExpression safeId(QStringLiteral("^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$"));
@@ -261,11 +261,11 @@ std::optional<DeckLaunchModeCatalog> parseLaunchModeCatalog(std::string_view jso
     for (const auto& value : modes.toArray()) {
         if (!value.isObject()) return {};
         const auto mode = value.toObject();
-        const auto id = normalizeLaunchMode(toStd(mode.value("value").toString()));
-        const auto overridable = mode.value("session_overridable");
-        if (id.empty() || !seen.insert(id).second || !mode.value("available").isBool() ||
+        const auto id = normalizeLaunchMode(toStd(mode.value(v1::client_settings_mode_option::value).toString()));
+        const auto overridable = mode.value(v1::client_settings_mode_option::session_overridable);
+        if (id.empty() || !seen.insert(id).second || !mode.value(v1::client_settings_mode_option::available).isBool() ||
             (!overridable.isUndefined() && !overridable.isBool())) return {};
-        catalog.modes.push_back({id, mode.value("available").toBool(), overridable.toBool(true)});
+        catalog.modes.push_back({id, mode.value(v1::client_settings_mode_option::available).toBool(), overridable.toBool(true)});
     }
     catalog.desired = normalizeLaunchMode(toStd(object.value("desired").toObject().value("stream_display_mode").toString()));
     catalog.effective = normalizeLaunchMode(toStd(object.value("effective").toObject().value("stream_display_mode").toString()));
@@ -348,13 +348,13 @@ std::optional<DeckHostPower> parseHostPower(std::string_view json) {
     const auto object = parseObject(json);
     if (!object) return {};
     DeckHostPower power;
-    power.supported = object->value("sleep_supported").toBool(false);
-    power.enabled = object->value("sleep_enabled").toBool(false);
-    power.permitted = object->value("sleep_permitted").toBool(false);
-    power.blockedMessage = object->value("sleep_blocked_message").toString().simplified().left(400).toStdString();
-    power.lastOutcome = object->value("last_sleep_outcome").toString().left(64).toStdString();
-    power.lastMessage = object->value("last_sleep_message").toString().simplified().left(400).toStdString();
-    power.lastAt = object->value("last_sleep_at").toInteger(0);
+    power.supported = object->value(v1::host_power::sleep_supported).toBool(false);
+    power.enabled = object->value(v1::host_power::sleep_enabled).toBool(false);
+    power.permitted = object->value(v1::host_power::sleep_permitted).toBool(false);
+    power.blockedMessage = object->value(v1::host_power::sleep_blocked_message).toString().simplified().left(400).toStdString();
+    power.lastOutcome = object->value(v1::host_power::last_sleep_outcome).toString().left(64).toStdString();
+    power.lastMessage = object->value(v1::host_power::last_sleep_message).toString().simplified().left(400).toStdString();
+    power.lastAt = object->value(v1::host_power::last_sleep_at).toInteger(0);
     return power;
 }
 
@@ -423,7 +423,7 @@ std::optional<DeckPolarisGamesPage> parseGamesPage(const std::string_view json) 
     if (!object) {
         return std::nullopt;
     }
-    const auto gamesValue = object->value(QStringLiteral("games"));
+    const auto gamesValue = object->value(v1::space_library::games);
     if (!gamesValue.isArray()) {
         return std::nullopt;
     }
@@ -439,7 +439,7 @@ std::optional<DeckPolarisGamesPage> parseGamesPage(const std::string_view json) 
             const auto context = fields.value("space").toObject();
             const auto name = QString::fromStdString(game.spaceName);
             if (!space || game.appId != kSpaceAppId || game.spaceId != space->spaceId ||
-                context.value("target").toString().toStdString() != space->target || name.trimmed().isEmpty() ||
+                context.value(v1::space_ref::target).toString().toStdString() != space->target || name.trimmed().isEmpty() ||
                 name.toUtf8().size() > 128 || std::any_of(name.begin(), name.end(), [](QChar c) { return c.unicode() < 32 || c.unicode() == 127; })) return {};
         }
         if (game.id.empty() || game.name.empty()) {
@@ -447,7 +447,7 @@ std::optional<DeckPolarisGamesPage> parseGamesPage(const std::string_view json) 
         }
         page.games.push_back(std::move(game));
     }
-    page.total = object->value(QStringLiteral("total")).toInt(static_cast<int>(page.games.size()));
+    page.total = object->value(v1::space_library::total).toInt(static_cast<int>(page.games.size()));
     return page;
 }
 
@@ -1491,10 +1491,10 @@ DeckPolarisResult<std::vector<DeckPolarisGame>> DeckPolarisClient::fetchSpaceLib
     return parsed<std::vector<DeckPolarisGame>>(std::move(raw), [&](const std::string& body) -> std::optional<std::vector<DeckPolarisGame>> {
         if (!uniqueJsonFields(body)) return {};
         const auto o = parseObject(body);
-        if (!o || o->value("schema") != QJsonValue(1) || o->value("status") != QJsonValue(true) ||
-            o->value("space_id").toString().toStdString() != id) return {};
+        if (!o || o->value(v1::space_library::schema) != QJsonValue(1) || o->value(v1::space_library::status) != QJsonValue(true) ||
+            o->value(v1::space_library::space_id).toString().toStdString() != id) return {};
         auto page = parseGamesPage(body);
-        if (!page || page->games.size() > 4097 || page->games.size() != static_cast<std::size_t>(o->value("games").toArray().size())) return {};
+        if (!page || page->games.size() > 4097 || page->games.size() != static_cast<std::size_t>(o->value(v1::space_library::games).toArray().size())) return {};
         QSet<QString> ids;
         for (const auto& game : page->games) {
             const auto key = QString::fromStdString(game.id);

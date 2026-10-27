@@ -6,28 +6,28 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class PolarisGame(
-    @SerialName("id") val id: String = "",
-    @SerialName("app_id") val appId: Int = 0,
-    @SerialName("name") val name: String = "",
-    @SerialName("source") val source: String = "other",
+    @SerialName(PolarisV1.Game.ID) val id: String = "",
+    @SerialName(PolarisV1.Game.APP_ID) val appId: Int = 0,
+    @SerialName(PolarisV1.Game.NAME) val name: String = "",
+    @SerialName(PolarisV1.Game.SOURCE) val source: String = "other",
     @SerialName("launcher_source") val launcherSource: String = source,
     @SerialName("launcher_detail") val launcherDetail: String = "",
-    @SerialName("platform") val platform: String = "unknown",
-    @SerialName("runtime") val runtime: String = "unknown",
-    @SerialName("platform_label") val platformLabelFromServer: String = "",
-    @SerialName("runtime_label") val runtimeLabelFromServer: String = "",
-    @SerialName("steam_appid") val steamAppid: String = "",
-    @SerialName("category") val category: String = "",
-    @SerialName("installed") val installed: Boolean = true,
-    @SerialName("cover_url") val coverUrl: String = "",
-    @SerialName("genres") val genres: List<String> = emptyList(),
-    @SerialName("last_launched") val lastLaunched: Long = 0,
-    @SerialName("mangohud") val mangohud: Boolean = false,
-    @SerialName("hdr_supported") val hdrSupported: Boolean = false,
-    @SerialName("launch_mode") val launchMode: LaunchModeContract? = null,
-    @SerialName("steam_launch") val steamLaunch: SteamLaunchContract? = null,
-    @SerialName("display_planner") val displayPlanner: DisplayPlannerContract? = null,
-    @SerialName("artwork") val artwork: ArtworkManifest? = null,
+    @SerialName(PolarisV1.Game.PLATFORM) val platform: String = "unknown",
+    @SerialName(PolarisV1.Game.RUNTIME) val runtime: String = "unknown",
+    @SerialName(PolarisV1.Game.PLATFORM_LABEL) val platformLabelFromServer: String = "",
+    @SerialName(PolarisV1.Game.RUNTIME_LABEL) val runtimeLabelFromServer: String = "",
+    @SerialName(PolarisV1.Game.STEAM_APPID) val steamAppid: String = "",
+    @SerialName(PolarisV1.Game.CATEGORY) val category: String = "",
+    @SerialName(PolarisV1.Game.INSTALLED) val installed: Boolean = true,
+    @SerialName(PolarisV1.Game.COVER_URL) val coverUrl: String = "",
+    @SerialName(PolarisV1.Game.GENRES) val genres: List<String> = emptyList(),
+    @SerialName(PolarisV1.Game.LAST_LAUNCHED) val lastLaunched: Long = 0,
+    @SerialName(PolarisV1.Game.MANGOHUD) val mangohud: Boolean = false,
+    @SerialName(PolarisV1.Game.HDR_SUPPORTED) val hdrSupported: Boolean = false,
+    @SerialName(PolarisV1.Game.LAUNCH_MODE) val launchMode: LaunchModeContract? = null,
+    @SerialName(PolarisV1.Game.STEAM_LAUNCH) val steamLaunch: SteamLaunchContract? = null,
+    @SerialName(PolarisV1.Game.DISPLAY_PLANNER) val displayPlanner: DisplayPlannerContract? = null,
+    @SerialName(PolarisV1.Game.ARTWORK) val artwork: ArtworkManifest? = null,
     /**
      * How long the owning launcher says this has been played, or null when none can say.
      *
@@ -38,17 +38,17 @@ data class PolarisGame(
      * inserted beside lastLaunched where it reads best would silently shift every one of
      * them. Serialisation is by name, so position costs nothing here.
      */
-    @SerialName("play_time") val playTime: PlayTime? = null,
+    @SerialName(PolarisV1.Game.PLAY_TIME) val playTime: PlayTime? = null,
     /** Completion estimates, or null when the host's dataset has nothing for this game. */
-    @SerialName("beat_time") val beatTime: BeatTime? = null,
-    @SerialName("space") val space: SpaceContext? = null,
+    @SerialName(PolarisV1.Game.BEAT_TIME) val beatTime: BeatTime? = null,
+    @SerialName(PolarisV1.SpaceLibraryGame.SPACE) val space: SpaceContext? = null,
     /**
      * Steam Big Picture on the host's desktop, as the host marks it, so Play Setup can pair it
      * with a Space's Big Picture. False from a host that does not send the mark. Added last so
      * no positional caller shifts, as [playTime] explains.
      */
-    @SerialName("steam_big_picture") val steamBigPicture: Boolean = false,
-    @SerialName("steam_lifecycle") val steamLifecycle: SteamLifecycle? = null
+    @SerialName(PolarisV1.Game.STEAM_BIG_PICTURE) val steamBigPicture: Boolean = false,
+    @SerialName(PolarisV1.Game.STEAM_LIFECYCLE) val steamLifecycle: SteamLifecycle? = null
 ) {
     @Serializable
     data class SteamLifecycle(
@@ -158,39 +158,39 @@ data class PolarisGame(
 
     @Serializable
     data class DisplayPlannerContract(
-        @SerialName("available") val available: Boolean = false,
-        @SerialName("source_mode") val sourceMode: String = "",
-        @SerialName("source_aspect_ratio") val sourceAspectRatio: String = "",
-        @SerialName("source_fps") val sourceFps: Double = 0.0,
-        @SerialName("recommended_id") val recommendedId: String = "",
-        @SerialName("recommended_title") val recommendedTitle: String = "",
-        @SerialName("recommended_mode") val recommendedMode: String = "",
-        @SerialName("choices") val choices: List<DisplayPlannerChoice> = emptyList(),
-        @SerialName("advanced_scale_factors") val advancedScaleFactors: List<DisplayPlannerScaleChoice> = emptyList()
+        @SerialName(PolarisV1.DisplayPlanner.AVAILABLE) val available: Boolean = false,
+        @SerialName(PolarisV1.DisplayPlanner.SOURCE_MODE) val sourceMode: String = "",
+        @SerialName(PolarisV1.DisplayPlanner.SOURCE_ASPECT_RATIO) val sourceAspectRatio: String = "",
+        @SerialName(PolarisV1.DisplayPlanner.SOURCE_FPS) val sourceFps: Double = 0.0,
+        @SerialName(PolarisV1.DisplayPlanner.RECOMMENDED_ID) val recommendedId: String = "",
+        @SerialName(PolarisV1.DisplayPlanner.RECOMMENDED_TITLE) val recommendedTitle: String = "",
+        @SerialName(PolarisV1.DisplayPlanner.RECOMMENDED_MODE) val recommendedMode: String = "",
+        @SerialName(PolarisV1.DisplayPlanner.CHOICES) val choices: List<DisplayPlannerChoice> = emptyList(),
+        @SerialName(PolarisV1.DisplayPlanner.ADVANCED_SCALE_FACTORS) val advancedScaleFactors: List<DisplayPlannerScaleChoice> = emptyList()
     )
 
     @Serializable
     data class DisplayPlannerChoice(
-        @SerialName("id") val id: String = "",
-        @SerialName("title") val title: String = "",
-        @SerialName("intent") val intent: String = "",
-        @SerialName("target_mode") val targetMode: String = "",
-        @SerialName("badge") val badge: String = "",
-        @SerialName("reason") val reason: String = "",
-        @SerialName("advanced") val advanced: Boolean = false,
-        @SerialName("custom") val custom: Boolean = false,
-        @SerialName("safe") val safe: Boolean = true,
-        @SerialName("hidden") val hidden: Boolean = false,
-        @SerialName("scale_factor") val scaleFactor: Double = 1.0,
-        @SerialName("aspect_ratio") val aspectRatio: String = ""
+        @SerialName(PolarisV1.DisplayPlannerChoice.ID) val id: String = "",
+        @SerialName(PolarisV1.DisplayPlannerChoice.TITLE) val title: String = "",
+        @SerialName(PolarisV1.DisplayPlannerChoice.INTENT) val intent: String = "",
+        @SerialName(PolarisV1.DisplayPlannerChoice.TARGET_MODE) val targetMode: String = "",
+        @SerialName(PolarisV1.DisplayPlannerChoice.BADGE) val badge: String = "",
+        @SerialName(PolarisV1.DisplayPlannerChoice.REASON) val reason: String = "",
+        @SerialName(PolarisV1.DisplayPlannerChoice.ADVANCED) val advanced: Boolean = false,
+        @SerialName(PolarisV1.DisplayPlannerChoice.CUSTOM) val custom: Boolean = false,
+        @SerialName(PolarisV1.DisplayPlannerChoice.SAFE) val safe: Boolean = true,
+        @SerialName(PolarisV1.DisplayPlannerChoice.HIDDEN) val hidden: Boolean = false,
+        @SerialName(PolarisV1.DisplayPlannerChoice.SCALE_FACTOR) val scaleFactor: Double = 1.0,
+        @SerialName(PolarisV1.DisplayPlannerChoice.ASPECT_RATIO) val aspectRatio: String = ""
     )
 
     @Serializable
     data class DisplayPlannerScaleChoice(
-        @SerialName("scale_factor") val scaleFactor: Double = 1.0,
-        @SerialName("label") val label: String = "",
-        @SerialName("target_mode") val targetMode: String = "",
-        @SerialName("safe") val safe: Boolean = true
+        @SerialName(PolarisV1.DisplayPlannerScaleChoice.SCALE_FACTOR) val scaleFactor: Double = 1.0,
+        @SerialName(PolarisV1.DisplayPlannerScaleChoice.LABEL) val label: String = "",
+        @SerialName(PolarisV1.DisplayPlannerScaleChoice.TARGET_MODE) val targetMode: String = "",
+        @SerialName(PolarisV1.DisplayPlannerScaleChoice.SAFE) val safe: Boolean = true
     )
     @Serializable
     data class LaunchModeContract(
@@ -229,11 +229,11 @@ data class PolarisGame(
 
     @Serializable
     data class SteamLaunchContract(
-        @SerialName("available") val available: Boolean = false,
-        @SerialName("mode") val mode: String = "direct",
-        @SerialName("recommended_mode") val recommendedMode: String = "direct",
-        @SerialName("allowed_modes") val allowedModes: List<String> = emptyList(),
-        @SerialName("mode_reason") val modeReason: String = ""
+        @SerialName(PolarisV1.SteamLaunch.AVAILABLE) val available: Boolean = false,
+        @SerialName(PolarisV1.SteamLaunch.MODE) val mode: String = "direct",
+        @SerialName(PolarisV1.SteamLaunch.RECOMMENDED_MODE) val recommendedMode: String = "direct",
+        @SerialName(PolarisV1.SteamLaunch.ALLOWED_MODES) val allowedModes: List<String> = emptyList(),
+        @SerialName(PolarisV1.SteamLaunch.MODE_REASON) val modeReason: String = ""
     ) {
         fun allows(mode: String): Boolean = allowedModes.contains(normalizeMode(mode))
 

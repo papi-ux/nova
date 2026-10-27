@@ -1,5 +1,6 @@
 package com.papi.nova.manager
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import org.json.JSONObject
 
 /** Typed contract returned over the paired host connection for one assigned profile. */
@@ -74,9 +75,9 @@ object WorkerLaunchContract {
         val fields = profile.optJSONObject("fields") ?: return null
         fun field(name: String): Any? {
             val detail = fields.optJSONObject(name) ?: return null
-            if (detail.opt("source") != "capability_validation" || detail.opt("locked") != true ||
-                detail.opt("normalized") !is Boolean || detail.opt("reason_code") != "worker_media_contract") return null
-            return detail.opt("value")
+            if (detail.opt(PolarisV1.OptimizationResolvedField.SOURCE) != "capability_validation" || detail.opt(PolarisV1.OptimizationResolvedField.LOCKED) != true ||
+                detail.opt(PolarisV1.OptimizationResolvedField.NORMALIZED) !is Boolean || detail.opt(PolarisV1.OptimizationResolvedField.REASON_CODE) != "worker_media_contract") return null
+            return detail.opt(PolarisV1.OptimizationResolvedField.VALUE)
         }
         val width = integral(field("display_width")) ?: return null
         val height = integral(field("display_height")) ?: return null

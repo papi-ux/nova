@@ -1,4 +1,5 @@
 #include "polaris/deck_host_settings.h"
+#include "generated/polaris_v1_contract.h"
 #include "polaris/deck_launch_modes.h"
 #include "polaris/deck_spaces.h"
 #include <QJsonDocument>
@@ -9,6 +10,7 @@
 #include <cmath>
 
 namespace nova::deck::polaris {
+namespace v1 = ::polaris::contract::v1;
 namespace {
 bool text(const QJsonValue& value, int limit, bool empty = true) {
     if (!value.isString()) return false;
@@ -100,14 +102,14 @@ std::optional<DeckHostSettings> parseHostSettings(std::string_view json) {
     for (const auto v : modes.toArray()) {
         if (!v.isObject()) return {};
         const auto m = v.toObject();
-        const auto id = m.value("value").toString();
-        if (!mode(m.value("value")) || ids.contains(id) || !m.value("available").isBool()) return {};
-        for (const auto* key : {"label", "reason", "unavailable_reason"}) if (m.contains(key) && !text(m.value(key), 400)) return {};
-        for (const auto* key : {"restart_required", "session_overridable"}) if (m.contains(key) && !m.value(key).isBool()) return {};
+        const auto id = m.value(v1::client_settings_mode_option::value).toString();
+        if (!mode(m.value(v1::client_settings_mode_option::value)) || ids.contains(id) || !m.value(v1::client_settings_mode_option::available).isBool()) return {};
+        for (const auto* key : {v1::client_settings_mode_option::label, v1::client_settings_mode_option::reason, v1::client_settings_mode_option::unavailable_reason}) if (m.contains(key) && !text(m.value(key), 400)) return {};
+        for (const auto* key : {"restart_required", v1::client_settings_mode_option::session_overridable}) if (m.contains(key) && !m.value(key).isBool()) return {};
         ids.insert(id);
-        auto label = m.value("label").toString(); if (label.trimmed().isEmpty()) label = fallbackLabel(id);
-        auto reason = m.value("unavailable_reason").toString(); if (reason.isEmpty()) reason = m.value("reason").toString();
-        result.modes.append(QVariantMap{{"id", id}, {"label", label}, {"available", m.value("available").toBool()}, {"reason", reason}});
+        auto label = m.value(v1::client_settings_mode_option::label).toString(); if (label.trimmed().isEmpty()) label = fallbackLabel(id);
+        auto reason = m.value(v1::client_settings_mode_option::unavailable_reason).toString(); if (reason.isEmpty()) reason = m.value(v1::client_settings_mode_option::reason).toString();
+        result.modes.append(QVariantMap{{"id", id}, {"label", label}, {"available", m.value(v1::client_settings_mode_option::available).toBool()}, {"reason", reason}});
     }
     if (!ids.contains(result.desiredMode) || !ids.contains(result.effectiveMode)) return {};
     return result;

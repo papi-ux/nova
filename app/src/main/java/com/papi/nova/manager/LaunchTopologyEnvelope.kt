@@ -1,5 +1,6 @@
 package com.papi.nova.manager
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import org.json.JSONObject
 
 /** Exact topology identity carried by a deterministic /optimize response. */
@@ -44,8 +45,8 @@ internal object LaunchTopologyEnvelope {
      * can reject the request if its final resolver no longer agrees.
      */
     fun resolvedSelection(optimization: JSONObject?): String? {
-        val topologyResolution = optimization?.optJSONObject("topology_resolution") ?: return null
-        val resolved = topologyResolution.opt("resolved") as? String ?: return null
+        val topologyResolution = optimization?.optJSONObject(PolarisV1.Optimization.TOPOLOGY_RESOLUTION) ?: return null
+        val resolved = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.RESOLVED) as? String ?: return null
         return resolved.trim().lowercase().takeIf { it in supportedTopologies }
     }
 
@@ -57,24 +58,24 @@ internal object LaunchTopologyEnvelope {
         mirrorDesktopRequested: Boolean,
         forcePrivateRequested: Boolean,
     ): Boolean {
-        if (optimization.opt("source") == WorkerLaunchContract.SOURCE) {
+        if (optimization.opt(PolarisV1.Optimization.SOURCE) == WorkerLaunchContract.SOURCE) {
             return WorkerLaunchContract.parse(optimization) != null &&
                 WorkerLaunchContract.isProfileApp(appIdentity) &&
                 !mirrorDesktopRequested && !forcePrivateRequested
         }
-        val topologyResolution = optimization.optJSONObject("topology_resolution") ?: return false
-        val topologyRequest = topologyResolution.opt("requested") as? String ?: return false
-        val resolvedTopology = topologyResolution.opt("resolved") as? String ?: return false
-        val contractLocked = topologyResolution.opt("locked") as? Boolean ?: return false
-        val contractSource = topologyResolution.opt("source") as? String ?: return false
-        val contractReason = topologyResolution.opt("reason_code") as? String ?: return false
-        val contractNormalized = topologyResolution.opt("normalized") as? Boolean ?: return false
-        val contractMirror = topologyResolution.opt("mirror_desktop_requested") as? Boolean ?: return false
+        val topologyResolution = optimization.optJSONObject(PolarisV1.Optimization.TOPOLOGY_RESOLUTION) ?: return false
+        val topologyRequest = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.REQUESTED) as? String ?: return false
+        val resolvedTopology = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.RESOLVED) as? String ?: return false
+        val contractLocked = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.LOCKED) as? Boolean ?: return false
+        val contractSource = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.SOURCE) as? String ?: return false
+        val contractReason = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.REASON_CODE) as? String ?: return false
+        val contractNormalized = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.NORMALIZED) as? Boolean ?: return false
+        val contractMirror = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.MIRROR_DESKTOP_REQUESTED) as? Boolean ?: return false
         val contractForcePrivate = topologyResolution.opt(
-            "force_private_after_steam_close_requested"
+            PolarisV1.OptimizationTopologyResolution.FORCE_PRIVATE_AFTER_STEAM_CLOSE_REQUESTED
         ) as? Boolean ?: return false
-        val contractAppUuid = topologyResolution.opt("app_uuid") as? String ?: return false
-        val contractAppId = topologyResolution.opt("app_id") as? String ?: return false
+        val contractAppUuid = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.APP_UUID) as? String ?: return false
+        val contractAppId = topologyResolution.opt(PolarisV1.OptimizationTopologyResolution.APP_ID) as? String ?: return false
         val expectedRequest = requestedTopology.ifBlank { "host_default" }
         val expectedApp = appIdentity.trim()
         val normalizedResolved = resolvedSelection(optimization) ?: return false

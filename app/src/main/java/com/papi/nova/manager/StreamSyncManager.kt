@@ -1,5 +1,6 @@
 package com.papi.nova.manager
 
+import com.papi.nova.shared.polaris.contract.PolarisV1
 import com.papi.nova.binding.video.PyroWaveAvailability
 import android.content.Context
 import android.net.ConnectivityManager
@@ -218,7 +219,7 @@ class StreamSyncManager private constructor() {
                 return true
             }
 
-            val profileState = optimization.optJSONObject("profile_state")
+            val profileState = optimization.optJSONObject(PolarisV1.Optimization.PROFILE_STATE)
             val preference = normalized(
                 profileState?.optString("preference", "")?.takeIf { it.isNotBlank() }
                     ?: optimization.optString("preference", "auto")
@@ -243,7 +244,7 @@ class StreamSyncManager private constructor() {
                 return ""
             }
 
-            val profileState = optimization.optJSONObject("profile_state")
+            val profileState = optimization.optJSONObject(PolarisV1.Optimization.PROFILE_STATE)
             val preference = normalized(
                 profileState?.optString("preference", "")?.takeIf { it.isNotBlank() }
                     ?: optimization.optString("preference", "auto")
@@ -271,7 +272,7 @@ class StreamSyncManager private constructor() {
         }
 
         private fun explicitPreferenceBlockReason(optimization: JSONObject): String {
-            val profileState = optimization.optJSONObject("profile_state")
+            val profileState = optimization.optJSONObject(PolarisV1.Optimization.PROFILE_STATE)
             val stateReason = normalized(profileState?.optString("preference_blocked_reason", "none"))
             if (stateReason.isNotEmpty() && stateReason != "none") {
                 return stateReason
@@ -314,13 +315,13 @@ class StreamSyncManager private constructor() {
 
         private fun resolvedProfile(optimization: JSONObject?): JSONObject? {
             val payload = optimization ?: return null
-            val source = payload.opt("source") as? String
+            val source = payload.opt(PolarisV1.Optimization.SOURCE) as? String
             if (source == WorkerLaunchContract.SOURCE) {
                 if (WorkerLaunchContract.parse(payload) == null) return null
             } else if (normalized(source) != "deterministic_preset_v1") {
                 return null
             }
-            val profile = payload.opt("resolved_profile") as? JSONObject ?: return null
+            val profile = payload.opt(PolarisV1.Optimization.RESOLVED_PROFILE) as? JSONObject ?: return null
             if (strictIntegralValue(profile.opt("policy_version")) != 1) return null
             return profile
         }
@@ -360,13 +361,13 @@ class StreamSyncManager private constructor() {
 
         private fun validResolvedField(detail: JSONObject?): JSONObject? {
             detail ?: return null
-            val source = detail.opt("source") as? String ?: return null
-            val reasonCode = detail.opt("reason_code") as? String ?: return null
+            val source = detail.opt(PolarisV1.OptimizationResolvedField.SOURCE) as? String ?: return null
+            val reasonCode = detail.opt(PolarisV1.OptimizationResolvedField.REASON_CODE) as? String ?: return null
             if (source.isBlank() || source !in resolvedFieldSources ||
                 reasonCode.isBlank() ||
-                detail.opt("locked") !is Boolean ||
-                detail.opt("normalized") !is Boolean ||
-                !detail.has("value") || detail.isNull("value")
+                detail.opt(PolarisV1.OptimizationResolvedField.LOCKED) !is Boolean ||
+                detail.opt(PolarisV1.OptimizationResolvedField.NORMALIZED) !is Boolean ||
+                !detail.has(PolarisV1.OptimizationResolvedField.VALUE) || detail.isNull(PolarisV1.OptimizationResolvedField.VALUE)
             ) {
                 return null
             }
@@ -377,7 +378,7 @@ class StreamSyncManager private constructor() {
             val detail = validResolvedField(resolvedProfile(optimization)
                 ?.optJSONObject("fields")
                 ?.optJSONObject(name)) ?: return null
-            val value = detail.opt("value")
+            val value = detail.opt(PolarisV1.OptimizationResolvedField.VALUE)
             return value?.takeUnless { it === JSONObject.NULL }
         }
 
