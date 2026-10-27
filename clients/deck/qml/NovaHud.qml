@@ -51,6 +51,22 @@ Item {
         font.family: "monospace"
         wrapMode: Text.Wrap
     }
+    // A quality chip: a fact the stream is running with, outlined rather than filled so it
+    // reads as a label and never as a control. The outline fades with the panel's; nothing moves.
+    component HudChip: HudLabel {
+        textFormat: Text.PlainText
+        color: NovaTheme.secondary
+        textSize: 10; font.bold: true
+        leftPadding: 6 * hud.scale; rightPadding: 6 * hud.scale
+        Accessible.role: Accessible.StaticText
+        Rectangle {
+            z: -1
+            anchors.fill: parent
+            radius: height / 2
+            color: "transparent"
+            border.color: NovaTheme.alpha(NovaTheme.secondary, 0.35 * NovaHudPreferences.panelOpacity / 100)
+        }
+    }
     ColumnLayout {
         id: contents
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
@@ -132,6 +148,15 @@ Item {
             color: hud.tone(hud.readings.healthTone)
             textSize: 12
             wrapMode: Text.WordWrap
+        }
+        // Performance and Debug only. The host observer sets hdrStream only for this device's
+        // own current stream; an older host, a stale reading or SDR leaves no chip.
+        Flow {
+            objectName: "hud-quality-chips"
+            visible: (hud.mode === "debug" || hud.mode === "performance") && hud.readings.hdrStream === true
+            Layout.fillWidth: true
+            spacing: 6 * hud.scale
+            HudChip { objectName: "hud-chip-hdr"; text: "HDR10"; Accessible.name: "Host stream: HDR10" }
         }
         // Live Tuning's brief line. The host observer drops it four seconds after it was
         // decided, so a remount or mode change never replays it; this only fades it.

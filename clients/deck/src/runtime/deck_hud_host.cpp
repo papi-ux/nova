@@ -53,7 +53,8 @@ QVariantMap DeckHudHostReducer::unavailable() {
         {"bitrateCopy", "Live bitrate is unavailable for this stream."},
         {"bitrateUnitsMode", "unknown"}, {"maximumBitrateKbps", 300000}, {"minimumBitrateKbps", 1000}, {"suggestedBitrateKbps", 0},
         {"canSyncProfile", false}, {"syncBusy", false}, {"syncPhase", "idle"}, {"syncCopy", ""}, {"syncVersion", 0},
-        {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false}};
+        {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false},
+        {"hdrStream", false}};
 }
 namespace {
 QVariantMap refreshingView() {
@@ -125,6 +126,9 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
     }
     if (!s.live) lines_.interrupt();
     out["hostFresh"] = true;
+    // Only for this device's own current stream, reached past the gates above; a downgrade
+    // reported beside hdr10 contradicts it, and a contradiction shows no chip.
+    out["hdrStream"] = s.hdrStream && !s.hdrDowngraded;
     out["doctor"] = s.doctor;
     const bool observation = oneOf(s.primaryIssue, {"network_observation", "control_channel_observation"});
     const bool unknownNetwork = !s.networkWarning && !observation && oneOf(s.primaryIssue, {"network_jitter", "packet_loss", "network_limited"});

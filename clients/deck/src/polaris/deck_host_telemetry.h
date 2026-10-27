@@ -33,6 +33,8 @@ struct DeckHostTelemetry {
     bool hostWarning = false, networkWarning = false, clientWarning = false, evidenceWarning = false, displayOverride = false;
     QString primaryIssue, grade;
     bool hostLimited = false, hdrDowngraded = false;
+    // health.hdr_effective_mode is hdr10: the host's stream, not proof of this panel's HDR.
+    bool hdrStream = false;
     QVariantMap doctor;
     std::optional<DeckDoctorOffer> doctorOffer;
 };

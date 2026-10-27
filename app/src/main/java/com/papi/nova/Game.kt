@@ -7426,7 +7426,14 @@ configureNovaHud(hud!!)
 return hud!!
 }
 
-hud = com.papi.nova.ui.NovaStreamHud(this@Game) {
+// Read-only: the streaming display's current mode, by its id. Never the default display as a
+// stand-in for one that is gone, and nothing here selects or sets a mode.
+hud = com.papi.nova.ui.NovaStreamHud(this@Game, displayModeHz = {
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+getSystemService(DisplayManager::class.java)?.getDisplay(streamingDisplayId)?.getMode()?.getRefreshRate()
+else
+null
+}) {
 showGameMenu(null)
 }
 novaHud = hud

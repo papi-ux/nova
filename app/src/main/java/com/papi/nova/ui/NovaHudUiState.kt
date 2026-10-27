@@ -53,7 +53,7 @@ data class NovaHudLayerHealth(
     val tone: NovaHudTone
 )
 
-// Immutable in fact as well as in name: every field is a val and the two lists are fresh
+// Immutable in fact as well as in name: every field is a val and the lists are fresh
 // snapshots that nothing writes to afterwards. Telling Compose so lets the pieces of the
 // HUD whose inputs did not change this tick skip recomposition instead of redrawing
 // because a list parameter could not be proven stable.
@@ -100,7 +100,9 @@ data class NovaHudUiState(
     val outputRateCaption: String = "OUT",
     val outputGapCaption: String = "RENDER GAP",
     // Performance and Debug only. NovaStreamHud passes it while it is visible, from its emission.
-    val liveTuningLine: NovaLiveTuningLine? = null
+    val liveTuningLine: NovaLiveTuningLine? = null,
+    // Performance and Debug only, beside CODEC. Empty whenever no fact is known to be true.
+    val qualityChips: List<NovaHudQualityChip> = emptyList()
 ) {
     companion object {
         private const val SPARKLINE_CAPACITY = 60
@@ -189,7 +191,8 @@ data class NovaHudUiState(
             mediaStale: Boolean = false,
             hostFresh: Boolean = status != null,
             launchPresetLabel: String = "",
-            liveTuningLine: NovaLiveTuningLine? = null
+            liveTuningLine: NovaLiveTuningLine? = null,
+            displayModeHz: Float? = null
         ): NovaHudUiState {
             // A live media feed and the independently polled host status age separately.
             val currentStatus = status.takeIf { hostFresh && it?.streamingActive == true }
@@ -262,7 +265,8 @@ data class NovaHudUiState(
                     incomingFps >= 0 && renderedFps >= 0) "${(incomingFps - renderedFps).coerceAtLeast(0.0).roundToInt()} FPS" else "--",
                 outputRateCaption = if (presentRequests) "SUBMIT" else "OUT",
                 outputGapCaption = if (presentRequests) "SUBMIT GAP" else "RENDER GAP",
-                liveTuningLine = liveTuningLine
+                liveTuningLine = liveTuningLine,
+                qualityChips = NovaHudQualityChips.from(currentStatus, displayModeHz.takeIf { mediaFresh })
             )
         }
 

@@ -95,6 +95,10 @@
     <string name="pcview_sleep_failed">The host would not go to sleep.</string>
     <string name="pcview_sleep_did_not_sleep">The host took the request but is still awake.</string>
     <string name="pcview_sleep_in_progress">Sleeping…</string>
+    <string name="pcview_host_presence_available">Available</string>
+    <string name="pcview_host_presence_game_running">Game running</string>
+    <string name="pcview_host_presence_offline">Offline</string>
+    <string name="pcview_host_presence_unknown">Status unknown</string>
     <string name="pcview_sleep_hold_hint_accessibility">Choose Sleep Host from the actions menu to put the host to sleep.</string>
     <string name="pcview_sleep_cancelled_on_leave">You left Nova before the host went to sleep, so it is still awake.</string>
     <string name="pcview_sleep_unavailable_off">Sleep is off for this host. Turn on Allow Clients To Sleep This Host in its Polaris settings.</string>

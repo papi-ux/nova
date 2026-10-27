@@ -748,8 +748,27 @@ void liveTuningLines() {
     require(ease(next, 10000).value("tuningLineSerial").toULongLong() > shown.value("tuningLineSerial").toULongLong(),
         "a new stream's reducer reused a line serial");
 }
+void hdrStreamFact() {
+    const auto with = [](const char* mode) {
+        auto o = envelope(); o["health"] = QJsonObject{{"grade", "good"}, {"hdr_effective_mode", mode}}; return o;
+    };
+    require(view(with("hdr10")).value("hdrStream").toBool() && view(with(" HDR10 ")).value("hdrStream").toBool(),
+        "the host's HDR10 stream was not shown");
+    for (const auto* mode : {"sdr_10bit", "sdr_8bit", "", "hdr"})
+        require(!view(with(mode)).value("hdrStream").toBool(), "an SDR or unknown mode became HDR");
+    require(!view(envelope()).value("hdrStream").toBool(), "an older host without the mode showed HDR");
+    auto downgraded = with("hdr10"); auto health = downgraded["health"].toObject();
+    health["hdr_downgrade_reason"] = "headless_hdr_unavailable"; downgraded["health"] = health;
+    require(!view(downgraded).value("hdrStream").toBool(), "HDR shown beside its own downgrade");
+    for (const auto& pair : std::initializer_list<std::pair<QString, QJsonValue>>{
+        {"client_role", "viewer"}, {"session_token", "replacement"}, {"streaming_active", false}}) {
+        auto foreign = with("hdr10"); foreign[pair.first] = pair.second;
+        require(!view(foreign).value("hdrStream").toBool(), "another or inactive session's HDR reached this HUD");
+    }
+}
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    hdrStreamFact();
     parserAndReducer(); requestUnitWrites(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves(); liveTuningLines();
     std::cout << "HUD host telemetry passed: Android contract, session authority, provenance, staleness, worker isolation and cancellation\n";
 }

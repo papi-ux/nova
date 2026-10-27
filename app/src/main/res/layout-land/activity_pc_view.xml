@@ -144,6 +144,23 @@
                     app:iconPadding="6dp"
                     app:iconTint="?attr/colorOnSurface" />
 
+                <!-- What the host under Sleep/Wake Host is doing, under that button's label
+                     (10dp padding, 20dp icon, 6dp gap). Gone until there is a host to describe
+                     and while the rail shows icons only; the button reads it out as its state. -->
+                <TextView
+                    android:id="@+id/hostPresenceLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="36dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="2dp"
+                    android:importantForAccessibility="no"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="?android:textColorSecondary"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/profilesButton"
                     style="@style/Widget.MaterialComponents.Button"

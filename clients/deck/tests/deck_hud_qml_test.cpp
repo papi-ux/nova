@@ -203,6 +203,19 @@ ApplicationWindow {
         mode("performance"); require(item("hud-tuning-line")->isVisible(), "Performance HUD lost the Live Tuning line");
         root->setProperty("sample", original); settle();
         require(!item("hud-tuning-line")->isVisible(), "an expired Live Tuning line stayed under Reduce Motion");
+        // The HDR10 chip shows for the host's own HDR10 stream in Performance and Debug only.
+        auto hdr = base; hdr["hdrStream"] = true;
+        root->setProperty("sample", hdr); settle();
+        require(item("hud-chip-hdr")->isVisible() && item("hud-chip-hdr")->property("text") == "HDR10",
+            "Performance HUD lost the HDR10 chip");
+        textBounds(hud);
+        mode("debug"); require(item("hud-chip-hdr")->isVisible(), "Debug HUD lost the HDR10 chip");
+        for (const char* quiet : {"minimal", "slim"}) {
+            mode(quiet); require(!item("hud-chip-hdr")->isVisible(), "a quiet HUD mode showed the HDR10 chip");
+        }
+        mode("performance");
+        root->setProperty("sample", original); settle();
+        require(!item("hud-chip-hdr")->isVisible(), "the HDR10 chip outlived its reading");
         require(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "Reduce Motion could not be restored");
         mode("debug"); settle();
     }

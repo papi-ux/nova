@@ -102,6 +102,7 @@ private val LocalNovaHudOpacityScale = compositionLocalOf { 1f }
 internal const val NOVA_HUD_PERFORMANCE_PRIMARY_TAG = "nova_hud_performance_primary"
 internal const val NOVA_HUD_PERFORMANCE_DETAILS_TAG = "nova_hud_performance_details"
 internal const val NOVA_HUD_LIVE_TUNING_LINE_TAG = "nova_hud_live_tuning_line"
+internal const val NOVA_HUD_QUALITY_CHIP_TAG = "nova_hud_quality_chip"
 
 @Composable
 private fun rememberHudOpacityScale(opacityScale: Float): Float {
@@ -185,6 +186,17 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                         modifier = Modifier.padding(top = 3.dp)
                     )
                 }
+            }
+        }
+        // The panel's width, not the 150dp header column: "Display mode 120 Hz" at a television's
+        // type floor and large text is wider than that column and would lose its number.
+        if (state.qualityChips.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                state.qualityChips.forEach { HudQualityChip(it, startPadding = 0.dp) }
             }
         }
 
@@ -308,6 +320,7 @@ private fun HudPerformanceDetailRow(state: NovaHudUiState) {
         HudSlimStat("BIT", state.bitrateLabel, NovaHudTone.MUTED)
         HudSlimStat("RES", state.resolutionLabel, NovaHudTone.MUTED)
         HudSlimStat("CODEC", state.codecLabel.ifBlank { "--" }, NovaHudTone.MUTED)
+        state.qualityChips.forEach { HudQualityChip(it) }
     }
 }
 
@@ -431,6 +444,30 @@ private fun HudSlimStat(label: String, value: String, tone: NovaHudTone, startPa
         )
         HudCompactText(value, tone, startPadding = 3.dp)
     }
+}
+
+// A quality chip: one fact the stream is running with, outlined rather than filled so it reads
+// as a label and never as a control. Its outline fades with the panel, as the panel's does, and
+// leaves the outlined text at zero opacity. It never moves, so there is no motion to reduce.
+@Composable
+private fun HudQualityChip(chip: NovaHudQualityChip, startPadding: Dp = 8.dp) {
+    val colors = LocalNovaComposeColors.current
+    val hudOpacityScale = LocalNovaHudOpacityScale.current
+    val shape = RoundedCornerShape(NovaRadius.pill)
+    HudText(
+        text = chip.label,
+        color = colors.textSecondary,
+        fontSize = 8.sp,
+        lineHeight = 10.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        modifier = Modifier
+            .padding(start = startPadding)
+            .testTag(NOVA_HUD_QUALITY_CHIP_TAG)
+            .semantics { contentDescription = chip.description }
+            .border(1.dp, colors.textSecondary.copy(alpha = NovaInGameOverlayAlpha.AccentDivider * hudOpacityScale), shape)
+            .padding(horizontal = 5.dp)
+    )
 }
 
 // The strips take only the strings and tones they draw. Handed the whole state, they
