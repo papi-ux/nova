@@ -40,8 +40,8 @@ class NovaHudAuditRegressionTest {
     @After fun close() { hud.dismiss(); controller.pause().stop().destroy() }
 
     @Suppress("UNCHECKED_CAST")
-    private fun state(): NovaHudUiState = (NovaStreamHud::class.java.getDeclaredField("hudState")
-        .apply { isAccessible = true }.get(hud) as MutableState<NovaHudUiState>).value
+    private fun state(of: NovaStreamHud = hud): NovaHudUiState = (NovaStreamHud::class.java.getDeclaredField("hudState")
+        .apply { isAccessible = true }.get(of) as MutableState<NovaHudUiState>).value
     private fun view(): View = NovaStreamHud::class.java.getDeclaredField("hudView")
         .apply { isAccessible = true }.get(hud) as View
     private fun sample(rendered: Double = 81.0, timestamp: Long = SystemClock.elapsedRealtime()) = PerfOverlaySample(
@@ -92,6 +92,26 @@ class NovaHudAuditRegressionTest {
         start(); hud.dismiss(); hud.show()
         assertEquals("--", state().fpsLabel)
         assertEquals("--ms", state().latencyLabel)
+    }
+    @Test fun theDisplayModeChipLivesOnlyWhileVideoIsArriving() {
+        var asks = 0
+        val display = NovaStreamHud(activity, displayModeHz = { asks++; 120f })
+        val chips = { state(display).qualityChips.map { it.label } }
+        try {
+            display.show()
+            assertEquals(emptyList<String>(), chips())
+            assertEquals("no video yet, so the display is not asked", 0, asks)
+            display.updateFromPerfSample(sample())
+            assertEquals(listOf("Display mode 120 Hz"), chips())
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+            assertEquals("expired video takes the chip with it", emptyList<String>(), chips())
+            display.updateFromPerfSample(sample())
+            assertEquals(listOf("Display mode 120 Hz"), chips())
+            display.dismiss(); display.show()
+            assertEquals("a reopened HUD starts without it", emptyList<String>(), chips())
+        } finally {
+            display.dismiss()
+        }
     }
     @Test fun unknownReadingsNeverPaintHealthyLayers() {
         assertTrue(NovaHudUiState.empty().layerHealth.all { it.tone == NovaHudTone.MUTED })

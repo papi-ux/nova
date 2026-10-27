@@ -203,6 +203,40 @@ ApplicationWindow {
         mode("performance"); require(item("hud-tuning-line")->isVisible(), "Performance HUD lost the Live Tuning line");
         root->setProperty("sample", original); settle();
         require(!item("hud-tuning-line")->isVisible(), "an expired Live Tuning line stayed under Reduce Motion");
+        // The HDR10 chip shows for the host's own HDR10 stream in Performance and Debug only.
+        auto hdr = base; hdr["hdrStream"] = true;
+        root->setProperty("sample", hdr); settle();
+        require(item("hud-chip-hdr")->isVisible() && item("hud-chip-hdr")->property("text") == "HDR10",
+            "Performance HUD lost the HDR10 chip");
+        textBounds(hud);
+        mode("debug"); require(item("hud-chip-hdr")->isVisible(), "Debug HUD lost the HDR10 chip");
+        for (const char* quiet : {"minimal", "slim"}) {
+            mode(quiet); require(!item("hud-chip-hdr")->isVisible(), "a quiet HUD mode showed the HDR10 chip");
+        }
+        mode("performance");
+        root->setProperty("sample", original); settle();
+        require(!item("hud-chip-hdr")->isVisible(), "the HDR10 chip outlived its reading");
+        // The display-mode chip is Qt's reported mode for this window's screen, beside fresh
+        // stream readings only. It is never a delivered frame rate.
+        auto fresh = base; fresh["fresh"] = true;
+        hud->setProperty("displayMode", QVariantMap{{"known", true}, {"refreshHz", 119.88}, {"maxFps", 120}});
+        root->setProperty("sample", fresh); settle();
+        auto* modeChip = item("hud-chip-display-mode");
+        require(modeChip->isVisible() && modeChip->property("text") == "Display mode 120 Hz" && !item("hud-chip-hdr")->isVisible(),
+            "Performance HUD lost the display-mode chip");
+        textBounds(hud);
+        for (const char* quiet : {"minimal", "slim"}) {
+            mode(quiet); require(!modeChip->isVisible(), "a quiet HUD mode showed the display-mode chip");
+        }
+        mode("debug"); require(modeChip->isVisible(), "Debug HUD lost the display-mode chip");
+        for (const auto& unknown : {QVariantMap{{"known", false}, {"refreshHz", 0}}, QVariantMap{{"known", true}, {"refreshHz", 0}}, QVariantMap{}}) {
+            hud->setProperty("displayMode", unknown); settle();
+            require(!modeChip->isVisible(), "an unknown display mode made a chip");
+        }
+        hud->setProperty("displayMode", QVariantMap{{"known", true}, {"refreshHz", 119.88}});
+        root->setProperty("sample", original); settle();
+        require(!modeChip->isVisible(), "a display mode outlived fresh stream readings");
+        hud->setProperty("displayMode", QVariantMap{}); mode("performance");
         require(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "Reduce Motion could not be restored");
         mode("debug"); settle();
     }

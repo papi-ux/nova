@@ -317,6 +317,50 @@ class PcViewPortraitNavigationTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "w900dp-h480dp-land")
+    fun hostPresenceFollowsTheHostListUnderThePowerControlAndLeavesWithTheRailLabels() {
+        val activity = open().get()
+        val model = ViewModelProvider(activity)[PcViewModel::class.java]
+        @Suppress("UNCHECKED_CAST")
+        val computers = model.computersLiveData as MutableLiveData<List<PcViewModel.ComputerObject>>
+        val update = PcView::class.java.getDeclaredMethod("updateHostPowerAction").apply { isAccessible = true }
+        val button = activity.findViewById<MaterialButton>(R.id.actionStartPolaris)
+        val line = activity.findViewById<TextView>(R.id.hostPresenceLabel)
+        val toggle = activity.findViewById<View>(R.id.dashboardRailToggle)
+        update.invoke(activity)
+        idleAndLayout(activity)
+        assertEquals("No host under the control, nothing to describe", View.GONE, line.visibility)
+        assertNull(ViewCompat.getStateDescription(button))
+        for ((hostState, game, expected) in listOf(
+            Triple(ComputerDetails.State.ONLINE, 0, R.string.pcview_host_presence_available),
+            Triple(ComputerDetails.State.ONLINE, 7, R.string.pcview_host_presence_game_running),
+            Triple(ComputerDetails.State.OFFLINE, 7, R.string.pcview_host_presence_offline),
+        )) {
+            // The same pinned, address-less fixture as the glyph test: no host request is made.
+            computers.value = listOf(PcViewModel.ComputerObject(ComputerDetails().apply {
+                uuid = "presence-host"; name = "Presence host"
+                state = hostState; runningGameId = game
+                pairState = PairingManager.PairState.PAIRED
+                serverCert = mock(X509Certificate::class.java)
+            }))
+            update.invoke(activity)
+            idleAndLayout(activity)
+            assertEquals(activity.getString(expected), line.text.toString())
+            assertEquals(View.VISIBLE, line.visibility)
+            assertEquals("TalkBack hears it as the control's state", activity.getString(expected),
+                ViewCompat.getStateDescription(button)?.toString())
+        }
+        toggle.performClick()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+        idleAndLayout(activity)
+        assertEquals("An icon-only rail has no room for the line", View.GONE, line.visibility)
+        toggle.performClick()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+        idleAndLayout(activity)
+        assertEquals(View.VISIBLE, line.visibility)
+    }
+
     @Test fun portraitNavigationUsesGroupedRowsWithAlignedIcons() = checkNavigationRows()
 
     @Test

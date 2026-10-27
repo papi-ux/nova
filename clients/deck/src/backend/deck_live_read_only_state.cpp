@@ -122,7 +122,42 @@ DeckEndpointClass endpointClass(const identity::DeckMoonlightHostRecord& host) {
     return DeckEndpointClass::Unknown;
 }
 
+// One paired HTTPS serverinfo for the selected PC's running game, on the probe's own pinned
+// client, deadline and response bound, never retried. Only this host answering for this
+// pairing counts; any other answer leaves the running game unknown.
+std::optional<int> pairedRunningGame(const polaris::DeckPolarisClient& client,
+    const identity::DeckMoonlightIdentity& identity, const identity::DeckMoonlightHostRecord& host) {
+    const auto info = client.get(stream::standardHostTarget("/serverinfo", identity.clientCertificateFingerprintSha256()),
+        stream::kStandardServerInfoLimit);
+    if (!info.ok()) return std::nullopt;
+    const auto verified = stream::parseStandardHostInfo(*info.value);
+    if (!verified.ok() || verified.value->id != host.uuid || !verified.value->paired) return std::nullopt;
+    return verified.value->currentGame;
+}
+
 } // namespace
+
+DeckHostPresence hostPresence(const DeckLiveHostProbe& probe) {
+    // A running game counts only beside a probe that succeeded as a whole.
+    if (probe.currentGame) {
+        if (probe.status != DeckPolarisRequestStatus::Ok) return DeckHostPresence::Unknown;
+        return *probe.currentGame > 0 ? DeckHostPresence::GameRunning : DeckHostPresence::Available;
+    }
+    return probe.status == DeckPolarisRequestStatus::Timeout || probe.status == DeckPolarisRequestStatus::Unreachable
+        ? DeckHostPresence::Offline : DeckHostPresence::Unknown;
+}
+
+DeckHostPresence selectedHostPresence(const DeckLiveHostLibrarySnapshot& snapshot, const std::string& hostId,
+    const std::chrono::steady_clock::time_point now, const std::chrono::milliseconds maxAge) {
+    if (hostId.empty() || hostId != snapshot.selectedHostId) return DeckHostPresence::Unknown;
+    for (const auto& probe : snapshot.probes) {
+        if (probe.hostId != hostId) continue;
+        if (!probe.presenceCheckedAt || now < *probe.presenceCheckedAt || now - *probe.presenceCheckedAt > maxAge)
+            return DeckHostPresence::Unknown;
+        return hostPresence(probe);
+    }
+    return DeckHostPresence::Unknown;
+}
 
 PolarisGameFixture toLibraryGame(const polaris::DeckPolarisGame& game) {
     PolarisGameFixture entry;
@@ -224,6 +259,8 @@ DeckLiveHostLibrarySnapshot buildLiveSnapshot(const identity::DeckMoonlightIdent
             probe.resolvedHttpsPort = fetch.httpsPort;
             probe.standardHost = fetch.standardHost;
             probe.spacesSupported = fetch.spacesSupported; probe.spaces = fetch.spaces;
+            probe.currentGame = fetch.currentGame;
+            probe.presenceCheckedAt = fetch.presenceCheckedAt;
             if (probe.status == DeckPolarisRequestStatus::Ok) {
                 probe.librarySource = fetch.standardHost ? "gamestream-live" : "polaris-live";
                 if (libraryIndex == index) {
@@ -354,9 +391,12 @@ polaris::DeckPolarisClient polarisClientForHost(
         timeout);
 }
 
-DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, const std::chrono::milliseconds timeout) {
-    return [&identity, timeout](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
+DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdentity& identity, const std::chrono::milliseconds timeout,
+    const bool readSelectedPresence) {
+    return [&identity, timeout, readSelectedPresence](const identity::DeckMoonlightHostRecord& host, const bool wantLibrary) {
         DeckLivePolarisFetch fetch;
+        // The selected PC's presence ages from when this refresh began asking it, never later.
+        if (readSelectedPresence && wantLibrary) fetch.presenceCheckedAt = std::chrono::steady_clock::now();
         // Moonlight learns the HTTPS port from serverinfo on every connection
         // because forwarded hosts do not keep the five-port spacing.
         const auto httpPort = host.preferredHttpPort();
@@ -387,6 +427,8 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
             }
             fetch.status = DeckPolarisRequestStatus::Ok;
             fetch.detail.clear();
+            // The serverinfo just verified is the selected PC's running-game answer too.
+            if (readSelectedPresence && wantLibrary) fetch.currentGame = verified.value->currentGame;
             if (!wantLibrary) return fetch;
             auto reply = client.get(stream::standardHostTarget("/applist", clientId), stream::kStandardAppListLimit);
             if (!reply.ok()) { fetch.status = reply.status; fetch.detail = reply.detail; return fetch; }
@@ -406,6 +448,7 @@ DeckLivePolarisFetcher polarisNetworkFetcher(const identity::DeckMoonlightIdenti
             return fetch;
         }
         fetch.serverVersion = capabilities.value->version;
+        if (readSelectedPresence && wantLibrary) fetch.currentGame = pairedRunningGame(client, identity, host);
         if (!wantLibrary) {
             return fetch;
         }

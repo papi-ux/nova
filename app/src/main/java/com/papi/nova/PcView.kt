@@ -99,6 +99,7 @@ import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaControlSize
 import com.papi.nova.ui.NovaControlSizePreferences
 import com.papi.nova.ui.NovaHostsViewMetrics
+import com.papi.nova.ui.NovaHostPresence
 import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaServerGridLayoutManager
 import com.papi.nova.ui.NovaQrScanActivity
@@ -1109,6 +1110,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             button.iconGravity = if (collapsed) MaterialButton.ICON_GRAVITY_TEXT_START else MaterialButton.ICON_GRAVITY_START
         }
         setDashboardRailSetupActionsCollapsed(collapsed)
+        // The presence line goes with the labels, and comes back only when there is a host.
+        findViewById<View>(R.id.actionStartPolaris)?.let(::updateHostPresence)
         // A button that lost its label shows the caption now, and one that got it back hides it.
         refreshTopActionCaption()
     }
@@ -2920,6 +2923,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             it.setIconResource(icon)
         }
         button.contentDescription = text
+        updateHostPresence(button)
         updateHostSleepAccessibilityAction(button, offer = !busy && action == HostPowerAction.SLEEP)
         if (busy || action != HostPowerAction.SLEEP) {
             cancelHostSleepHold(button)
@@ -2928,6 +2932,23 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 hostSleepHoldConsumed = false
             }
         }
+    }
+
+    /**
+     * The quiet line under the power control: what the host list last heard from the host,
+     * on the same refresh as the button and no other. While a sleep request is counting
+     * down or out the button already says Sleeping..., and a host that still answers would
+     * read Available under it, so the line steps aside until the host has answered.
+     */
+    private fun updateHostPresence(button: View) {
+        val presence = if (hostSleepSequence.isBusy) null else NovaHostPresence.from(preferredHostPowerComputer())
+        val text = presence?.let { getString(it.label) }
+        findViewById<TextView>(R.id.hostPresenceLabel)?.let { line ->
+            line.text = text.orEmpty()
+            line.visibility = if (text == null || dashboardRailLabelsHidden) View.GONE else View.VISIBLE
+        }
+        // The line is kept out of TalkBack; the control says it as its state instead.
+        ViewCompat.setStateDescription(button, text)
     }
 
     /**

@@ -32,6 +32,9 @@ import kotlin.math.abs
  */
 class NovaStreamHud(
     private val activity: Activity,
+    // Read-only: the refresh rate of the streaming display's current mode, or null when that
+    // display is not known. Asked only when the HUD publishes, never on a timer of its own.
+    private val displayModeHz: (() -> Float?)? = null,
     private val onCommandCenterRequested: (() -> Unit)? = null
 ) {
     private var hudView: ComposeView? = null
@@ -531,7 +534,9 @@ class NovaStreamHud(
             mediaFresh = mediaFresh,
             mediaStale = lastMediaAtMs != null && !mediaFresh,
             hostFresh = hostFresh,
-            launchPresetLabel = launchPresetLabel
+            launchPresetLabel = launchPresetLabel,
+            // A display rate beside a stream that has stopped arriving describes nothing.
+            displayModeHz = if (mediaFresh) displayModeHz?.invoke() else null
         )
     }
 

@@ -21,6 +21,13 @@ FocusScope {
     property var hostPower: null
     property var steamController: null
     property var hostWake: null
+    // The selected PC's presence, asked once as the System menu opens (the library refresh
+    // waits while that menu is open). Available, Game running, Offline or Status unknown,
+    // never asleep or streaming; nothing at all where no bridge or PC exists.
+    property var hostPresence: typeof novaHostPresence !== "undefined" ? novaHostPresence : null
+    property string hostPresenceState: ""
+    readonly property string hostPresenceText: ({ available: "Available", gameRunning: "Game running",
+        offline: "Offline", unknown: "Status unknown" })[hostPresenceState] || ""
     property var appShortcuts: null
     property var gamepad: null
     property string settingsError: ""
@@ -1460,7 +1467,10 @@ FocusScope {
         enter: Transition { }
         exit: Transition { }
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        onAboutToShow: refreshButton.enabled ? refreshButton.forceActiveFocus() : systemDone.forceActiveFocus()
+        onAboutToShow: {
+            browser.hostPresenceState = browser.hostPresence && host && host.id ? browser.hostPresence.presence(host.id) : ""
+            refreshButton.enabled ? refreshButton.forceActiveFocus() : systemDone.forceActiveFocus()
+        }
         onOpened: refreshButton.enabled ? refreshButton.forceActiveFocus() : systemDone.forceActiveFocus()
         onClosed: systemButton.forceActiveFocus()
         background: Rectangle { color: NovaTheme.panel; radius: 12 * unit; border.color: NovaTheme.divider }
@@ -1555,6 +1565,7 @@ FocusScope {
                 objectName: "library-sleep-host"
                 Layout.fillWidth: true
                 text: "Sleep Host"
+                Accessible.description: browser.hostPresenceText
                 enabled: browser.hostPower !== null && !sessionBusy && !refreshState.busy
                 onClicked: powerSheet.open()
                 Keys.onUpPressed: steamButton.forceActiveFocus()
@@ -1565,10 +1576,21 @@ FocusScope {
                 objectName: "library-wake-pc"
                 Layout.fillWidth: true
                 text: "Wake PC"
+                Accessible.description: browser.hostPresenceText
                 enabled: !!browser.hostWake && !sessionBusy && !refreshState.busy
                 onClicked: wakeSheet.open()
                 Keys.onUpPressed: sleepButton.forceActiveFocus()
                 Keys.onDownPressed: steamAppButton.forceActiveFocus()
+            }
+            // Copy, not a control: the buttons above carry it for screen readers, and focus still
+            // moves Sleep Host, Wake PC, Add Nova to Steam.
+            CopyLabel {
+                objectName: "library-host-presence"
+                Layout.fillWidth: true
+                visible: browser.hostPresenceText.length > 0
+                text: browser.hostPresenceText
+                color: NovaTheme.secondary
+                Accessible.ignored: true
             }
             ChromeButton {
                 id: steamAppButton

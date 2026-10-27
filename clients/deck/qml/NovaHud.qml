@@ -6,6 +6,14 @@ Item {
     id: hud
     objectName: "nova-stream-hud"
     property var readings: ({})
+    // DeckDisplayCapabilities' state for the window presenting this stream: the mode Qt
+    // reports for that window's screen, which Qt itself calls approximate. Not delivered
+    // FPS, scanout or VRR. Qt starts every screen at a 60 Hz placeholder until the platform
+    // reports a mode, and nothing public tells that 60 from a real one.
+    property var displayMode: ({})
+    // Shown only beside fresh stream readings; anything unknown leaves no chip.
+    readonly property int displayModeHz: readings.fresh === true && displayMode.known === true
+        && displayMode.refreshHz > 0 ? Math.round(displayMode.refreshHz) : 0
     property real unit: 1
     readonly property real scale: unit * NovaTheme.fontScale
     readonly property string mode: NovaHudPreferences.mode
@@ -50,6 +58,22 @@ Item {
         textSize: 13
         font.family: "monospace"
         wrapMode: Text.Wrap
+    }
+    // A quality chip: a fact the stream is running with, outlined rather than filled so it
+    // reads as a label and never as a control. The outline fades with the panel's; nothing moves.
+    component HudChip: HudLabel {
+        textFormat: Text.PlainText
+        color: NovaTheme.secondary
+        textSize: 10; font.bold: true
+        leftPadding: 6 * hud.scale; rightPadding: 6 * hud.scale
+        Accessible.role: Accessible.StaticText
+        Rectangle {
+            z: -1
+            anchors.fill: parent
+            radius: height / 2
+            color: "transparent"
+            border.color: NovaTheme.alpha(NovaTheme.secondary, 0.35 * NovaHudPreferences.panelOpacity / 100)
+        }
     }
     ColumnLayout {
         id: contents
@@ -132,6 +156,22 @@ Item {
             color: hud.tone(hud.readings.healthTone)
             textSize: 12
             wrapMode: Text.WordWrap
+        }
+        // Performance and Debug only. The host observer sets hdrStream only for this device's
+        // own current stream; an older host, a stale reading or SDR leaves no chip.
+        Flow {
+            objectName: "hud-quality-chips"
+            visible: (hud.mode === "debug" || hud.mode === "performance")
+                && (hud.readings.hdrStream === true || hud.displayModeHz > 0)
+            Layout.fillWidth: true
+            spacing: 6 * hud.scale
+            HudChip { objectName: "hud-chip-hdr"; visible: hud.readings.hdrStream === true; text: "HDR10"; Accessible.name: "Host stream: HDR10" }
+            HudChip {
+                objectName: "hud-chip-display-mode"
+                visible: hud.displayModeHz > 0
+                text: "Display mode " + hud.displayModeHz + " Hz"
+                Accessible.name: "Qt-reported approximate display mode: " + hud.displayModeHz + " hertz"
+            }
         }
         // Live Tuning's brief line. The host observer drops it four seconds after it was
         // decided, so a remount or mode change never replays it; this only fades it.

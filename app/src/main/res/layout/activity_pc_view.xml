@@ -214,6 +214,23 @@
                         app:iconTint="?attr/colorOnSurface" />
                 </LinearLayout>
 
+                <!-- What the host under Sleep/Wake Host is doing, under that button's label
+                     (10dp padding, 20dp icon, 8dp gap). Gone until there is a host to describe;
+                     the button reads it out as its state, so this text stays out of TalkBack. -->
+                <TextView
+                    android:id="@+id/hostPresenceLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="38dp"
+                    android:paddingEnd="@dimen/nova_dashboard_top_action_padding_horizontal"
+                    android:paddingBottom="2dp"
+                    android:importantForAccessibility="no"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="?android:textColorSecondary"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
                 <LinearLayout
                     android:id="@+id/dashboardPillRailUtilityRow"
                     android:layout_width="match_parent"
