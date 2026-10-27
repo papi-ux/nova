@@ -116,6 +116,22 @@ class NovaStreamOverlayUiStateTest {
     }
 
     @Test
+    fun onlyNovasOwnConnectionNamesTheHostInTheReadyTitle() {
+        // connectionStarted's input_ready for a stream the player asked for (#386): the headline
+        // names the host, and every other word and the progress stay the stage's own.
+        val connected = NovaSessionProgressUiState.from("input_ready", "Connected to Den")
+        assertEquals("Connected to Den", connected.title)
+        assertEquals(NovaSessionProgressUiState.from("input_ready").copy(title = "Connected to Den"), connected)
+        // A reconnect names nobody, and the headline stays the stage's own.
+        assertEquals("Ready", NovaSessionProgressUiState.from("input_ready", "").title)
+        // A host's message never heads a stage Nova knows, its "connected" alias included.
+        assertEquals("Ready", NovaSessionProgressUiState.from("connected", "Connected to Den").title)
+        assertEquals("Stream active...", NovaSessionProgressUiState.from("streaming", "Den").title)
+        // A Space waits for its picture, whatever the stream says.
+        assertEquals("Waiting For Picture", NovaSessionProgressUiState.fromSpace("input_ready")!!.title)
+    }
+
+    @Test
     fun progressStateExposesExplicitStageLabelsForStartupPhases() {
         val expectedLabels = mapOf(
             "idle" to "Preflight check",

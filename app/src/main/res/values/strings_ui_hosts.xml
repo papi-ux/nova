@@ -19,6 +19,8 @@
     <string name="hosts_pairing_code_title">Enter this PIN on the host</string>
     <string name="hosts_pairing_code_message">Type it on the host\'s pairing page, in its web UI. Closing this page keeps pairing going, and Nova says when the host answers.</string>
     <string name="hosts_pairing_failed_title">Pairing did not finish</string>
+    <!-- Said once, on the screen a pairing opens or on Hosts while its Library is checked, after Nova saved the host's certificate. %1$s is the host's name. -->
+    <string name="nova_paired_with">Paired with %1$s</string>
     <!-- The Pairing page while there is no PIN to show yet. %1$s is the scanned host's address. -->
     <string name="hosts_pairing_asking">Asking the host to pair with this device.</string>
     <string name="hosts_qr_connecting">Finding %1$s on the network.</string>

@@ -39,6 +39,8 @@ import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
+import com.papi.nova.ui.NovaConfirmation
+import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.panel.NovaCommonPage
 import com.papi.nova.ui.panel.NovaEdge
@@ -46,6 +48,7 @@ import com.papi.nova.ui.panel.NovaFocusReturn
 import com.papi.nova.ui.panel.NovaMenuHeader
 import com.papi.nova.ui.panel.NovaMenuItem
 import com.papi.nova.ui.panel.NovaOption
+import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.NovaTone
 import com.papi.nova.ui.panel.NovaValueStyle
 import com.papi.nova.ui.panel.novaSurfaces
@@ -213,6 +216,10 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
     private var computer: ComputerDetails? = null
     private var poller: ComputerManagerService.ApplistPoller? = null
     private var blockingLoadSpinner: SpinnerDialog? = null
+    /** The Hosts pairing that opened this list, until the list can be seen (#386). Main thread. */
+    private var pairedWith: String? = null
+    /** A list has been on screen: a saved one with no loading page over it, or one the host sent. Main thread. */
+    private var appListShown = false
     private var lastRawAppList: String? = null
     private var lastRunningAppId = 0
     private var lastRunningAppOwned: Boolean? = null
@@ -301,6 +308,8 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                         } catch (e: IllegalStateException) {
                             LimeLog.warning(Log.getStackTraceString(e))
                         }
+                        // A saved list is on screen now. Under the first load's Busy page, the list's arrival is.
+                        if (blockingLoadSpinner == null) onAppListShown()
                     }
                 }.start()
             }
@@ -392,7 +401,10 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
                         updateUiWithAppList(NvHTTP.getAppListByReader(StringReader(details.rawAppList)))
                         updateUiWithServerInfo(details)
 
-                        runOnUiThread { dismissBlockingLoadSpinner() }
+                        runOnUiThread {
+                            dismissBlockingLoadSpinner()
+                            onAppListShown()
+                        }
                     } catch (e: XmlPullParserException) {
                         handleAppListLoadFailure(e)
                     } catch (e: IOException) {
@@ -488,6 +500,7 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
         showHiddenApps = intent.getBooleanExtra(SHOW_HIDDEN_APPS_EXTRA, false)
         uuidString = intent.getStringExtra(UUID_EXTRA)
+        pairedWith = NovaConfirmation.takePairedWith(intent, savedInstanceState)
 
         val hiddenAppsPrefs = getSharedPreferences(HIDDEN_APPS_PREF_FILENAME, MODE_PRIVATE)
         val hiddenAppStrings = hiddenAppsPrefs.getStringSet(uuidString, HashSet()) ?: HashSet()
@@ -572,6 +585,33 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
             blockingLoadSpinner?.dismiss()
             blockingLoadSpinner = null
         }
+    }
+
+    /** A list is on screen, so the pairing that opened it can be said once nothing covers it. Main thread. */
+    private fun onAppListShown() {
+        appListShown = true
+        sayPairedWithWhenVisible()
+    }
+
+    /**
+     * Says the pairing once a list is on screen and nothing covers it. A host with no saved list
+     * loads under a Busy page in its own window. Dismissing the page takes it off NovaSurfaces'
+     * states at once, but the window stays through the page's minimum time and exit, and it holds
+     * focus until it really closes. So a covered list waits, and focus coming back here tries
+     * again. Safe from any focus change, before a list or once the screen is going. Main thread.
+     */
+    private fun sayPairedWithWhenVisible() {
+        val message = pairedWith ?: return
+        if (!appListShown || isFinishing || isDestroyed || blockingLoadSpinner != null) return
+        if (NovaSurfaces.existing(this)?.controllerInputOwner != null) return
+        pairedWith = null
+        NovaSnackbar.showSuccess(this, message)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // A Busy page or panel window that has really closed gives focus back here.
+        if (hasFocus) sayPairedWithWhenVisible()
     }
 
     private fun handleAppListLoadFailure(e: Exception) {

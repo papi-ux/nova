@@ -304,6 +304,8 @@ private var attemptedConnection:Boolean = false
 private var launchInitializationCommitted:Boolean = false
 private var suppressPipRefCount:Int = 0
 private var pcName:String? = null
+// Armed by the launch the player asked for, with pcName, and taken by its first connectionStarted (#386).
+private val connectionConfirmation = com.papi.nova.ui.NovaConfirmation.Connection()
 private var appName:String? = null
 private var app:NvApp? = null
 private var desiredRefreshRate:Float = 0.toFloat()
@@ -1172,6 +1174,7 @@ catch (e:SecurityException) {
 
 appName = this@Game.getIntent().getStringExtra(EXTRA_APP_NAME)
 pcName = this@Game.getIntent().getStringExtra(EXTRA_PC_NAME)
+connectionConfirmation.arm(this@Game.getIntent())
 
 host = this@Game.getIntent().getStringExtra(EXTRA_HOST)
 port = this@Game.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT)
@@ -6119,7 +6122,10 @@ spinner!!.dismiss()
 spinner = null
 }
 
-novaProgressOverlay?.updateState("input_ready", "Input ready")
+// A connection the player asked for is felt and named once; a reconnect adds nothing (#386).
+val confirmed = connectionConfirmation.take()
+if (confirmed) com.papi.nova.ui.NovaConfirmation.haptic(streamContainer)
+novaProgressOverlay?.updateState("input_ready", if (confirmed) com.papi.nova.ui.NovaConfirmation.connectedTo(this@Game, pcName) else "")
 timerHandler?.postDelayed(object : Runnable {
 override fun run() {
 novaProgressOverlay?.dismiss()

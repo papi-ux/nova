@@ -201,7 +201,9 @@ data class NovaSessionProgressUiState(
             // An unrecognized state must never surface its raw protocol token as the
             // headline; a non-empty host message still wins. Empty words are filled from
             // resources where the overlay draws them.
-            val title = stage?.title ?: message
+            // input_ready is Nova's own, from connectionStarted, and its message names the
+            // host the player asked for. The "connected" alias a host could send keeps "Ready".
+            val title = if (normalizedState == "input_ready" && message.isNotBlank()) message else stage?.title ?: message
             val completed = if (index >= 0) {
                 stages.take(index).map { it.title }
             } else {

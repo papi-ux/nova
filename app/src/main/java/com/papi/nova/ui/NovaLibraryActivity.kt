@@ -339,6 +339,8 @@ class NovaLibraryActivity : NovaActivity() {
         setContentView(content)
         refreshActiveSession(scheduleFollowUps = true)
         loadGames(forceRefresh = false)
+        // The pairing on Hosts that opened this library is said once; nothing covers it here (#386).
+        NovaConfirmation.takePairedWith(intent, savedInstanceState)?.let { NovaSnackbar.showSuccess(this, it) }
     }
 
     /** Whether Library Options or System is on screen. Read live, so composition follows it. */
