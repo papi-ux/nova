@@ -787,6 +787,9 @@ ApplicationWindow {
         steamController: novaStandalone ? novaSteamControl : null
         hostSettingsController: novaStandalone ? novaHostSettings : null
         returnLabel: novaStandalone ? "Back to Details" : "Back to Library"
+        // The details' ready hero and its tint, for Play to carry into the launch screen.
+        launchArtwork: novaStandalone ? androidLibrary.launchArtwork : ""
+        launchTint: novaStandalone ? androidLibrary.artworkTint : ""
         onClosed: root.gameLinkStarted ? root.close() : novaStandalone ? androidLibrary.focusGame() : focusLaunchAction()
     }
 
@@ -850,6 +853,7 @@ ApplicationWindow {
     LibraryBrowser {
         gameTools: novaGameTools
         gameShortcuts: novaGameShortcuts
+        artworkTints: typeof novaArtworkTints !== "undefined" ? novaArtworkTints : null
         steamController: novaSteamControl
         hostPower: novaHostPower
         hostWake: novaHostWake

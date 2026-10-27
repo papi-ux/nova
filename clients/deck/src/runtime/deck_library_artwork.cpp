@@ -1,4 +1,5 @@
 #include "runtime/deck_library_artwork.h"
+#include "runtime/deck_artwork_tint.h"
 
 #include <QBuffer>
 #include <QImageReader>
@@ -61,7 +62,7 @@ QVariantList DeckLibraryArtwork::publish(const backend::DeckLiveHostLibrarySnaps
             auto key = existing.value(identity);
             if (key.isEmpty()) key = QString::number(++nextKey_);
             item.insert(kind, "image://library-art/" + key);
-            next.insert(key, {host, id, route, identity, bounds});
+            next.insert(key, {host, id, route, identity, bounds, QString::fromLatin1(kind)});
         };
         publishAsset("poster", path, {400, 600});
         if (!standard) {
@@ -76,15 +77,29 @@ QVariantList DeckLibraryArtwork::publish(const backend::DeckLiveHostLibrarySnaps
         value = item;
     }
     entries_ = std::move(next);
+    // A kept key keeps its identity, so its tint still holds; a retired one goes.
+    for (auto it = tints_.begin(); it != tints_.end();) {
+        if (entries_.contains(it.key())) ++it; else it = tints_.erase(it);
+    }
     return games;
 }
 
 void DeckLibraryArtwork::invalidateGame(const QString& host, const QString& game) {
     QMutexLocker lock(&mutex_);
     for (auto it = entries_.begin(); it != entries_.end();) {
-        if (it->host == host && it->game == game) it = entries_.erase(it); else ++it;
+        if (it->host == host && it->game == game) {
+            tints_.remove(it.key());
+            it = entries_.erase(it);
+        } else ++it;
     }
     previews_.clear();
+}
+
+QString DeckLibraryArtwork::tintFor(const QString& source) {
+    static const QString prefix = QStringLiteral("image://library-art/");
+    if (!source.startsWith(prefix)) return {};
+    QMutexLocker lock(&mutex_);
+    return tints_.value(source.mid(prefix.size()));
 }
 void DeckLibraryArtwork::clearPreviews() { QMutexLocker lock(&mutex_); previews_.clear(); }
 QVariantList DeckLibraryArtwork::publishPreviews(const QString& host, const QString& game, QVariantList items) {
@@ -138,10 +153,15 @@ QImage DeckLibraryArtwork::requestImage(const QString& id, QSize* size, const QS
     if (dimensions.width() > entry.bounds.width() || dimensions.height() > entry.bounds.height())
         reader.setScaledSize(dimensions.scaled(entry.bounds, Qt::KeepAspectRatio));
     auto image = reader.read();
+    // The detail page's tint is read here, from the pixels just decoded, so
+    // asking for it never fetches or decodes again. Previews have no kind.
+    const bool tinted = !image.isNull() && (entry.kind == QLatin1String("hero") || entry.kind == QLatin1String("poster"));
+    const auto tint = tinted ? deckArtworkTintName(deckArtworkTint(image)) : QString();
     QMutexLocker lock(&mutex_);
     // A metadata-only refresh may retain this key. A changed revision, removed
     // asset or PC switch retires it permanently, including requests in flight.
     if (!entries_.contains(id) && !previews_.contains(id)) return {};
+    if (tinted && entries_.contains(id)) tints_.insert(id, tint);
     if (size) *size = image.size();
     return image;
 }

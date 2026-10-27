@@ -143,6 +143,7 @@ add_library(nova_deck_core STATIC
     src/polaris/deck_session_events.cpp
     src/runtime/deck_library_controller.cpp
     src/runtime/deck_library_artwork.cpp
+    src/runtime/deck_artwork_tint.cpp
     src/runtime/deck_host_discovery.cpp
     src/runtime/deck_pairing_controller.cpp
 )
@@ -378,6 +379,9 @@ if(BUILD_TESTING)
     add_executable(nova_deck_library_artwork_test tests/deck_library_artwork_test.cpp)
     target_link_libraries(nova_deck_library_artwork_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_library_artwork_test COMMAND nova_deck_library_artwork_test)
+    add_executable(nova_deck_artwork_tint_test tests/deck_artwork_tint_test.cpp)
+    target_link_libraries(nova_deck_artwork_tint_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_artwork_tint_test COMMAND nova_deck_artwork_tint_test)
     add_executable(nova_deck_host_wake_test tests/deck_host_wake_test.cpp)
     target_link_libraries(nova_deck_host_wake_test PRIVATE nova_deck_core)
     add_test(NAME nova_deck_host_wake_test COMMAND nova_deck_host_wake_test)
@@ -1205,6 +1209,12 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             set_tests_properties(nova_deck_native_preview_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
                 TIMEOUT 90)
+            add_executable(nova_deck_launch_artwork_qml_test tests/deck_launch_artwork_qml_test.cpp tests/deck_preview_fixture.h)
+            target_link_libraries(nova_deck_launch_artwork_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
+            target_compile_definitions(nova_deck_launch_artwork_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_launch_artwork_qml_test COMMAND nova_deck_launch_artwork_qml_test)
+            set_tests_properties(nova_deck_launch_artwork_qml_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 40)
             # Exercise responsive navigation regressions in ordinary CI.
             add_test(NAME nova_deck_parity_hosts_portrait_test
                 COMMAND nova_deck_pairing_qml_test "${CMAKE_CURRENT_BINARY_DIR}/qml-parity-captures/hosts_portrait" --parity-hosts-portrait)

@@ -1,32 +1,52 @@
 package com.papi.nova.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import com.papi.nova.R
 import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
+import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaFormFactor
+import com.papi.nova.ui.compose.NovaRadius
 import com.papi.nova.ui.panel.NovaPanelMetrics
 import com.papi.nova.ui.panel.novaPanelType
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 data class NovaSessionProgressUiState(
     val state: String,
@@ -224,74 +244,182 @@ data class NovaSessionProgressUiState(
  * The stream screen's own loading state while a session starts. It stays in the stream's view
  * tree, because it is bounded and asks nothing, and it wears the state pages' look: the window
  * colour over the stream, a centred column clear of the insets, and the panel type.
+ *
+ * Launched from a game's page, it carries what that page showed. A poster card expands and fades
+ * as the column comes in; a hero stays faintly behind the column. It leaves exactly when it always
+ * has: the carried artwork adds no time over the stream and no stage of its own.
  */
 @Composable
-fun NovaSessionProgressOverlayContent(
+internal fun NovaSessionProgressOverlayContent(
     state: NovaSessionProgressUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** What the game's page showed when Play was pressed; null keeps the overlay as it was. */
+    artwork: NovaLaunchArtwork? = null,
+    /** Animation is off: the artwork arrives still, and no card expands. */
+    animationsOff: Boolean = false,
 ) {
     val colors = LocalNovaComposeColors.current
-    val type = novaPanelType
+    val surfaces = LocalNovaLibrarySurfaces.current
     val tvSafe = LocalNovaFormFactor.current == NovaFormFactor.Television
+    val clearOfInsets = Modifier
+        .windowInsetsPadding(WindowInsets.safeDrawing)
+        .then(
+            if (tvSafe) {
+                Modifier.padding(horizontal = NovaPanelMetrics.TvSafeHorizontal, vertical = NovaPanelMetrics.TvSafeVertical)
+            } else {
+                Modifier
+            }
+        )
+    val carried = artwork?.takeIf { surfaces.launchArtworkAlpha > 0f }
+    if (carried == null) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(colors.window.copy(alpha = NovaPanelMetrics.StatePageAlpha))
+                .then(clearOfInsets),
+            contentAlignment = Alignment.Center
+        ) {
+            NovaSessionProgressColumn(state)
+        }
+        return
+    }
+
+    val hero = carried.kind == NovaLaunchArtwork.Kind.HERO
+    val tintColor = carried.tint?.takeIf { surfaces.artworkTintStrength > 0f }?.let { Color(it) }
+    // Behind a hero the ground stays the window colour, so the stage text keeps its contrast.
+    val ground = if (tintColor != null && !hero) lerp(colors.window, tintColor, surfaces.artworkTintStrength) else colors.window
+    val image = remember(carried) { carried.bitmap.asImageBitmap() }
+    val posterCard = !hero && !animationsOff
+    val posterProgress = remember(carried) { Animatable(if (posterCard) 0f else 1f) }
+    val columnAlpha = remember(carried) { Animatable(if (posterCard) 0f else 1f) }
+    val heroReveal = remember(carried) { Animatable(if (hero && !animationsOff) 0f else 1f) }
+    LaunchedEffect(carried) {
+        if (posterCard) {
+            launch { posterProgress.animateTo(1f, tween(NOVA_LAUNCH_POSTER_EXPAND_MS, easing = FastOutSlowInEasing)) }
+            columnAlpha.animateTo(1f, tween(NOVA_LAUNCH_COLUMN_FADE_MS, delayMillis = NOVA_LAUNCH_COLUMN_DELAY_MS))
+        } else if (hero && !animationsOff) {
+            heroReveal.animateTo(1f, tween(NOVA_LAUNCH_HERO_SETTLE_MS, easing = FastOutSlowInEasing))
+        }
+    }
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ground.copy(alpha = NovaPanelMetrics.StatePageAlpha))
+    ) {
+        if (hero) {
+            Image(
+                bitmap = image,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = surfaces.launchArtworkAlpha * heroReveal.value
+                        val scale = if (animationsOff) 1f else 1f + (NOVA_LAUNCH_HERO_SCALE - 1f) * heroReveal.value
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .testTag(NOVA_LAUNCH_ARTWORK_HERO_TAG),
+            )
+        } else if (posterCard && posterProgress.value < 1f) {
+            // The card starts the size it stood on the game's page.
+            val portrait = maxHeight > maxWidth
+            val cardHeight = if (portrait) minOf(maxWidth * (9f / 16f) * 0.72f, 150.dp) else maxHeight * 0.46f
+            Image(
+                bitmap = image,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .height(cardHeight)
+                    .aspectRatio(NOVA_GAME_DETAIL_POSTER_ASPECT)
+                    .graphicsLayer {
+                        val progress = posterProgress.value
+                        val scale = 1f + (NOVA_LAUNCH_POSTER_SCALE - 1f) * progress
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = 1f - progress
+                        shape = RoundedCornerShape(NovaRadius.hero)
+                        clip = true
+                    }
+                    .testTag(NOVA_LAUNCH_ARTWORK_POSTER_TAG),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(clearOfInsets)
+                .graphicsLayer { alpha = columnAlpha.value },
+            contentAlignment = Alignment.Center
+        ) {
+            NovaSessionProgressColumn(state)
+        }
+    }
+}
+
+/** The overlay's centred column: the stage the session reports, its progress and what came before. */
+@Composable
+private fun NovaSessionProgressColumn(state: NovaSessionProgressUiState) {
+    val colors = LocalNovaComposeColors.current
+    val type = novaPanelType
     // A stage the table does not know has no English of its own; its words come from resources.
     val stageLabel = state.stageLabel.ifEmpty { stringResource(R.string.nova_stream_progress_update) }
     val title = state.title.ifEmpty { stringResource(R.string.nova_stream_progress_working) }
     val confidenceLabel = state.confidenceLabel.ifEmpty { stringResource(R.string.nova_stream_progress_working) }
     val confidenceDetail = state.confidenceDetail.ifEmpty { stringResource(R.string.nova_stream_progress_waiting) }
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.window.copy(alpha = NovaPanelMetrics.StatePageAlpha))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .then(
-                if (tvSafe) {
-                    Modifier.padding(horizontal = NovaPanelMetrics.TvSafeHorizontal, vertical = NovaPanelMetrics.TvSafeVertical)
-                } else {
-                    Modifier
-                }
-            ),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = Modifier
+            .widthIn(max = NovaPanelMetrics.StateColumnMaxWidth)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(NovaPanelMetrics.SpaceXl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd)
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = NovaPanelMetrics.StateColumnMaxWidth)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(NovaPanelMetrics.SpaceXl),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceMd)
-        ) {
-            Text(
-                text = stageLabel.uppercase(Locale.getDefault()),
-                style = type.sectionLabel,
+        Text(
+            text = stageLabel.uppercase(Locale.getDefault()),
+            style = type.sectionLabel,
+            color = colors.accent,
+            textAlign = TextAlign.Center
+        )
+        Text(text = title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
+        if (state.indeterminate) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
                 color = colors.accent,
+                trackColor = colors.divider
+            )
+        } else {
+            LinearProgressIndicator(
+                progress = { state.progressFraction },
+                modifier = Modifier.fillMaxWidth(),
+                color = colors.accent,
+                trackColor = colors.divider
+            )
+        }
+        Text(text = confidenceLabel, style = type.value, color = colors.accent, textAlign = TextAlign.Center)
+        Text(text = confidenceDetail, style = type.rowTitle, color = colors.textSecondary, textAlign = TextAlign.Center)
+        if (state.completedStages.isNotEmpty()) {
+            Text(
+                text = state.completedStages.takeLast(3).joinToString("\n") { "✓ $it" },
+                style = type.caption,
+                color = colors.textSecondary,
                 textAlign = TextAlign.Center
             )
-            Text(text = title, style = type.stateTitle, color = colors.textPrimary, textAlign = TextAlign.Center)
-            if (state.indeterminate) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = colors.accent,
-                    trackColor = colors.divider
-                )
-            } else {
-                LinearProgressIndicator(
-                    progress = { state.progressFraction },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = colors.accent,
-                    trackColor = colors.divider
-                )
-            }
-            Text(text = confidenceLabel, style = type.value, color = colors.accent, textAlign = TextAlign.Center)
-            Text(text = confidenceDetail, style = type.rowTitle, color = colors.textSecondary, textAlign = TextAlign.Center)
-            if (state.completedStages.isNotEmpty()) {
-                Text(
-                    text = state.completedStages.takeLast(3).joinToString("\n") { "✓ $it" },
-                    style = type.caption,
-                    color = colors.textSecondary,
-                    textAlign = TextAlign.Center
-                )
-            }
         }
     }
 }
+
+/** The carried hero behind the launch progress, for a test to find it. */
+internal const val NOVA_LAUNCH_ARTWORK_HERO_TAG = "nova-launch-artwork-hero"
+
+/** The carried poster card while it expands, for a test to find it. */
+internal const val NOVA_LAUNCH_ARTWORK_POSTER_TAG = "nova-launch-artwork-poster"
+
+internal const val NOVA_LAUNCH_POSTER_EXPAND_MS = 360
+private const val NOVA_LAUNCH_POSTER_SCALE = 1.35f
+// The column comes in once the card has mostly faded, so text never sits on a bright poster.
+private const val NOVA_LAUNCH_COLUMN_DELAY_MS = 200
+private const val NOVA_LAUNCH_COLUMN_FADE_MS = 160
+internal const val NOVA_LAUNCH_HERO_SETTLE_MS = 240
+private const val NOVA_LAUNCH_HERO_SCALE = 1.04f

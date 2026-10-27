@@ -67,6 +67,13 @@ int main(int argc, char** argv) {
     require(!image.isNull() && size.width() <= 400 && size.height() <= 600, "bounded poster did not decode");
     require(image.pixelColor(0, 0) == QColor(Qt::cyan), "poster pixels changed");
     require(path == "/polaris/v1/games/game-7/cover", "host artwork URL escaped fixed cover route");
+    // UNRUN (Nova #385): the poster's tint was read from the pixels just decoded,
+    // and looking it up is a lookup, never another fetch.
+    const int beforeTint = reads;
+    require(provider.tintFor("image://library-art/" + firstKey) == "#009696", "decoded poster recorded no tint");
+    require(provider.tintFor(firstKey).isEmpty() && provider.tintFor("image://elsewhere/" + firstKey).isEmpty(),
+        "tint lookup accepted a URL the provider never issued");
+    require(reads == beforeTint, "reading a tint performed artwork I/O");
     const int beforeInvalid = reads;
     require(provider.requestImage("../../launch", &size, {}).isNull(), "arbitrary path accepted");
     require(provider.requestImage(firstKey + "/extra", &size, {}).isNull(), "invalid opaque key accepted");
@@ -118,6 +125,7 @@ int main(int argc, char** argv) {
     image = provider.requestImage(key(published, "logo"), &size, {});
     require(!image.isNull() && size.width() == 640 && size.height() <= 256 && image.pixelColor(0, 0).alpha() == 128,
         "logo decode lost transparency or bounds");
+    require(provider.tintFor("image://library-art/" + key(published, "logo")).isEmpty(), "a logo is not read for a tint");
     body = png(512, 512);
     require(!provider.requestImage(key(published, "icon"), &size, {}).isNull() && size == QSize(96, 96), "icon bounds wrong");
     body = png(20, 30);
@@ -137,6 +145,7 @@ int main(int argc, char** argv) {
     const int beforeRetired = reads;
     require(key(original, "hero") != key(published, "hero") && provider.requestImage(key(original, "hero"), &size, {}).isNull()
         && reads == beforeRetired, "revision update reused/served retired artwork");
+    require(provider.tintFor("image://library-art/" + key(original, "hero")).isEmpty(), "retired hero kept its tint");
     artwork.hero = "/launch";
     published = provider.publish(snapshot, resolver, games);
     require(!published.front().toMap().contains("hero"), "provider accepted a non-artwork backend route");

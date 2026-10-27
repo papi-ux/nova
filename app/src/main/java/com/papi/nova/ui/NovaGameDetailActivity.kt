@@ -191,6 +191,17 @@ class NovaGameDetailActivity : NovaActivity() {
                     .putExtra(EXTRA_RESULT_LAUNCH_GAME, PolarisGameJson.encode(game))
                     .putExtra(EXTRA_RESULT_GAME, updatedGame?.let { PolarisGameJson.encode(it) }),
             )
+            launchRequested = true
+            // The library starts the stream once this window is gone, and the stream's first
+            // overlay carries what was on screen here: a small copy, for this host and app only.
+            NovaLaunchArtworkHandoff.offer(
+                serverUuid,
+                game.appId,
+                shownLaunchArtwork?.let { shown ->
+                    NovaLaunchArtworkHandoff.carriedCopy(shown.bitmap)?.let { NovaLaunchArtwork(shown.kind, it, shown.tint) }
+                },
+                android.os.SystemClock.elapsedRealtime(),
+            )
         }
 
     private val onGameUpdated: ((PolarisGame) -> Unit)? = { game -> updatedGame = game }
@@ -240,6 +251,12 @@ class NovaGameDetailActivity : NovaActivity() {
 
     /** Artwork and MangoHUD edits made here; handed back so the library can merge them. */
     private var updatedGame: PolarisGame? = null
+
+    /** The artwork the Overview shows now, for Play to carry into the stream. */
+    private var shownLaunchArtwork: NovaLaunchArtwork? = null
+
+    /** Set when Play hands a launch back, so the window fades into it instead of sliding back. */
+    private var launchRequested = false
 
     private var destination by mutableStateOf(NovaGameDetailDestination.OVERVIEW)
 
@@ -843,7 +860,8 @@ class NovaGameDetailActivity : NovaActivity() {
 
     override fun finish() {
         super.finish()
-        NovaThemeManager.applyBackTransition(this)
+        // Sliding back reads as leaving; a launch goes forward into the stream.
+        if (launchRequested) NovaThemeManager.applyFadeTransition(this) else NovaThemeManager.applyBackTransition(this)
     }
 
     private fun canPublishArtworkMutationUi(): Boolean =
@@ -2647,6 +2665,8 @@ class NovaGameDetailActivity : NovaActivity() {
                     uiState = uiState.copy(playEnabled = !environmentChanging &&
                         (environmentError != null || (uiState.playEnabled && playEnvironmentReady()))),
                     launchIntro = environmentError ?: buildLaunchIntro(uiState),
+                    onLaunchArtwork = { shownLaunchArtwork = it },
+                    artworkHostUuid = serverUuid,
                     launchBlockedReason = currentGame.space?.let { space ->
                         NovaSpacesCopy.launchBlockedReason(environmentSnapshot, space.id, environmentChanging,
                             uiState.playEnabled)?.let { getString(it) }
