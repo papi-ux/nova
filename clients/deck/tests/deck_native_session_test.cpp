@@ -1910,6 +1910,52 @@ void testInterruptionScopeAndGracefulEnd() {
     }
 }
 
+void testStreamRecapBoundary() {
+    Host host; Driver driver; host.driver = &driver;
+    DeckNativeSessionController controller(true, host.resolver(), driver);
+    int notifications = 0;
+    QObject::connect(&controller, &DeckNativeSessionController::streamRecapChanged, &controller, [&] { ++notifications; });
+    const auto recap = [&] { return controller.streamRecap(); };
+    // Fresh means the GUI accepted at least two worker samples of this run.
+    const auto play = [&] {
+        require(controller.start("host", "game"), "recap fixture did not start");
+        until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+        require(recap().isEmpty(), "recap shown during an active stream");
+    };
+    play();
+    controller.stop(); settled(controller);
+    const auto ended = recap();
+    require(phase(controller) == "stopped" && notifications == 1 && ended.value("end") == "end_game" &&
+        ended.value("hostId") == "host" && ended.value("gameId") == "game" && !ended.value("generation").toString().isEmpty() &&
+        ended.value("measuredForMs").toLongLong() >= 1000, "End game did not freeze one identified recap");
+    // The fixture never sets up a decoder: every video reading stays unknown, not zero.
+    for (const auto* key : {"framesReceived", "refusedFrames", "missingFrames", "hostProcessing", "videoWork", "rates", "video"})
+        require(!ended.value(key).isValid(), "recap invented a reading the run never measured");
+    const auto generation = ended.value("generation").toString();
+    require(!controller.dismissStreamRecap(generation + "0") && recap() == ended && notifications == 1, "foreign generation dismissed recap");
+    require(controller.dismissStreamRecap(generation) && recap().isEmpty() && notifications == 2 &&
+        !controller.dismissStreamRecap(generation), "Dismiss did not clear exactly once");
+
+    play();
+    require(controller.disconnectFromHost(), "recap disconnect refused"); settled(controller);
+    const auto disconnected = recap().value("generation").toString();
+    require(phase(controller) == "disconnected" && recap().value("end") == "disconnect" && disconnected != generation,
+        "Disconnect did not freeze its own run's recap");
+    const int beforeRestart = notifications;
+    require(controller.start("host", "game") && recap().isEmpty() && notifications == beforeRestart + 1,
+        "a fresh start kept the previous run's recap");
+    require(!controller.dismissStreamRecap(disconnected), "retired generation dismissed a later recap");
+    until([&] { return phase(controller) == "active" && controller.hud().value("fresh").toBool(); }, 6000);
+    driver.terminate(ML_ERROR_GRACEFUL_TERMINATION); settled(controller);
+    require(phase(controller) == "stopped" && recap().isEmpty(), "a PC-ended stream produced a user recap");
+
+    play();
+    controller.setSystemSleeping(true); settled(controller);
+    require(phase(controller) == "disconnected" && recap().isEmpty(), "sleep disconnect produced a user recap");
+    controller.setSystemSleeping(false);
+    std::cout << "stream recap user-end, unknown readings, dismiss and run fencing checks passed\n";
+}
+
 void testResumeFailuresAndCancellation() {
     for (const bool interrupted : {false, true}) {
         for (int scenario = 0; scenario < 11; ++scenario) {
@@ -2851,6 +2897,11 @@ int main(int argc, char** argv) {
         // itself must still create no Nova reports directory or file.
         require(QDir().mkpath(settingsDirectory.path()+"/Documents"), "moment Documents parent fixture failed");
         testReportMomentBoundary(); return 0;
+    }
+    if (app.arguments().contains("--stream-recap")) {
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+        testStreamRecapBoundary(); return 0;
     }
     testDesktopWorkerOwnership();
     testDesktopWindowRouting();

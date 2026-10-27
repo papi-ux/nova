@@ -12,6 +12,7 @@ class PreviewSession : public QObject {
     Q_PROPERTY(QString controllerHint READ controllerHint NOTIFY controlsChanged)
     Q_PROPERTY(QVariantMap hud READ hud NOTIFY hudChanged)
     Q_PROPERTY(bool canSaveMoment READ canSaveMoment NOTIFY momentChanged)
+    Q_PROPERTY(QVariantMap streamRecap READ streamRecap NOTIFY streamRecapChanged)
 public:
     PreviewSession() {
         connect(this, &PreviewSession::stateChanged, this, &PreviewSession::momentChanged);
@@ -136,12 +137,23 @@ public:
         if (!momentPending || token != momentToken) return {{"status", "no_pending"}};
         momentPending = false; emit momentChanged(); return {{"status", "discarded"}};
     }
+    // Last Stream fixture: a fresh start clears it, as the controller does.
+    int recapDismissals = 0;
+    QString recapDismissedGeneration;
+    QVariantMap streamRecap() const { return recap_; }
+    void setStreamRecap(const QVariantMap& recap) { recap_ = recap; emit streamRecapChanged(); }
+    Q_INVOKABLE bool dismissStreamRecap(const QString& generation) {
+        ++recapDismissals; recapDismissedGeneration = generation;
+        if (recap_.isEmpty() || recap_.value("generation").toString() != generation) return false;
+        setStreamRecap({}); return true;
+    }
     QVariantMap state() const { return state_; }
     bool controlsVisible() const { return controls_; }
     QString controllerHint() const { return inputNotice; }
     QString inputNotice;
     Q_INVOKABLE bool startConfigured(const QString& host, const QString& game, const QVariantMap& configuration) {
         ++starts; ++baselineGeneration;
+        if (!recap_.isEmpty()) setStreamRecap({});
         selectedHost = host;
         selectedGame = game;
         selectedConfiguration = configuration;
@@ -156,6 +168,7 @@ public:
     Q_INVOKABLE bool resumeDisconnected(const QString& host, const QString& game) {
         if (rejectResume || !state_.value("canResume").toBool() || host != selectedHost || game != selectedGame) return false;
         ++resumes; ++baselineGeneration;
+        if (!recap_.isEmpty()) setStreamRecap({});
         showControls();
         transition("starting", true, "Resuming your game…");
         return true;
@@ -163,6 +176,7 @@ public:
     Q_INVOKABLE bool reconnect(const QString& host, const QString& game) {
         if (rejectResume || !state_.value("canReconnect").toBool() || host != selectedHost || game != selectedGame) return false;
         ++reconnects; ++baselineGeneration;
+        if (!recap_.isEmpty()) setStreamRecap({});
         showControls();
         transition("starting", true, "Checking your existing game…");
         return true;
@@ -190,8 +204,10 @@ signals:
     void stateChanged();
     void controlsChanged();
     void momentChanged();
+    void streamRecapChanged();
 private:
     bool controls_ = true;
+    QVariantMap recap_;
     QVariantMap state_{{"phase", "idle"}, {"busy", false}, {"copy", "Ready"}};
 };
 

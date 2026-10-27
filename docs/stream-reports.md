@@ -34,13 +34,28 @@ Android and Linux, from Command Center during a stream.
 
 ## Last Stream
 
-Android only for now.
+Android and Linux, after a stream ends. The two differ.
 
-After a connection ends, that PC's Library can show a **Last Stream** card. **View** shows how long
-the connection lasted, how much of it was measured, per-metric averages with their sample counts,
-missing-frame evidence, how old the last sample is and why the connection ended. **Save Report**
-saves a report on the device and offers a separate **Share Report**; **Dismiss** removes the card.
-Nova keeps one recap in memory, so it is gone if Android stops the app.
+- **Android**: after a connection ends, that PC's Library can show a **Last Stream** card. **View**
+  shows how long the connection lasted, how much of it was measured, per-metric averages with their
+  sample counts, missing-frame evidence, how old the last sample is and why the connection ended.
+  **Save Report** saves a report on the device and offers a separate **Share Report**; **Dismiss**
+  removes the card. Nova keeps one recap in memory, so it is gone if Android stops the app.
+- **Linux**: only after you choose **End Session** or **Disconnect**, the ended stream's screen
+  shows a **Last stream** card for that PC and game. It never appears during play, and a stream the
+  PC ended, a failure, an interruption, sleep or a cancelled launch shows none. Showing it moves no
+  controller focus; Up from the button below reaches **Dismiss**. It is held in memory only, with no
+  Save or export, and starting the next stream clears it. It shows:
+  - how long the stream was connected at least, up to Nova's last one-second reading;
+  - frames received and decoded per second, and the received video payload rate, over the span
+    between Nova's first and last readings of that stream. These are not frames drawn on screen, the
+    encoder's bitrate or total network traffic. Fewer than two readings, a gap over 2.5 seconds, a
+    decoder or frame-sequence restart, or a last reading already stale when you stopped leaves them
+    Unknown;
+  - missing video frames from the frame-sequence count, and average PC processing time (reported in
+    the video) and decoder submit time, each with the frames it covers. These count from when the
+    video decoder started, and the card says so when a restart cut that short. A reading Nova
+    doesn't have says Unknown, never zero.
 
 A reconnect is not proof that the picture came back, and a connection ending is not proof that the
 game quit on the PC.

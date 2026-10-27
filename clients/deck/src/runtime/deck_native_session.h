@@ -8,6 +8,7 @@
 #include "runtime/deck_hud_metrics.h"
 #include "runtime/deck_working_baseline.h"
 #include "runtime/deck_moment_report.h"
+#include "runtime/deck_stream_recap.h"
 #include "stream/deck_controller_input.h"
 #include "stream/deck_desktop_input.h"
 
@@ -36,6 +37,7 @@ class DeckNativeSessionController final : public QObject {
     Q_PROPERTY(QString controllerHint READ controllerHint NOTIFY controlsChanged)
     Q_PROPERTY(QVariantMap hud READ hud NOTIFY hudChanged)
     Q_PROPERTY(bool canSaveMoment READ canSaveMoment NOTIFY momentChanged)
+    Q_PROPERTY(QVariantMap streamRecap READ streamRecap NOTIFY streamRecapChanged)
 public:
     // GUI thread only; each running worker keeps its original resolver.
     bool setTargetResolver(DeckNativeTargetResolver resolver);
@@ -90,6 +92,10 @@ public:
     Q_INVOKABLE QVariantMap markMoment();
     Q_INVOKABLE QVariantMap saveMoment(const QString& token);
     Q_INVOKABLE QVariantMap discardMoment(const QString& token);
+    // Last Stream (#383 Linux): frozen once when the user ends an active run and
+    // cleared by the next start. Dismiss must name the recap's own generation.
+    QVariantMap streamRecap() const { return streamRecap_; }
+    Q_INVOKABLE bool dismissStreamRecap(const QString& generation);
     Q_INVOKABLE bool applyDoctorFix();
     Q_INVOKABLE bool undoDoctorFix();
     Q_INVOKABLE bool checkDoctorResult();
@@ -109,6 +115,7 @@ signals:
     void pyrowaveSupportRefused();
     void hudChanged();
     void momentChanged();
+    void streamRecapChanged();
     void inputSessionStarted(bool reusePlayers);
     void controlsChanged();
     void sleepPreparationFinished();
@@ -134,6 +141,7 @@ private:
     QString absentMomentStatus(const QString& token) const;
     void discardPendingMoment(bool runEnded = false);
     void endMomentRun();
+    void setStreamRecap(QVariantMap recap);
     void routeController(stream::DeckControllerRoute route, unsigned player = 0);
     void syncRumble();
     void releaseDesktopInput();
@@ -164,6 +172,9 @@ private:
     std::optional<PendingMoment> pendingMoment_;
     std::optional<MomentTombstone> momentTombstone_;
     DeckMomentHistory momentHistory_;
+    QString runHostId_, runGameId_;
+    DeckStreamRecapSpan recapSpan_;
+    QVariantMap streamRecap_;
     QTimer timer_;
     QTimer reconnectTimer_;
     DeckReconnectPolicy reconnectPolicy_;
