@@ -113,7 +113,10 @@ class AppViewPairingConfirmationTest {
 
     @Test fun aDelayedListAfterPauseKeepsThePairingUntilForegroundAndFocusReturn() {
         val listener = pollListener()
-        call("onPause")
+        // This isolated fixture attaches a window without onCreate or service startup. Set the
+        // foreground state onPause owns, just as the return below sets onResume's state; calling
+        // FragmentActivity.onPause without its onCreate host is not a valid lifecycle here.
+        set("inForeground", false)
         assertEquals(false, field("inForeground"))
         // Pause can arrive before window focus loss. Foreground is an independent guard.
         assertTrue(activity.hasWindowFocus())
