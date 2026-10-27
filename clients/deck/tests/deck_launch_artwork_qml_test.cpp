@@ -130,9 +130,19 @@ int main(int argc, char** argv) {
     auto* library = root->findChild<QObject*>("library");
     auto* wash = root->findChild<QQuickItem*>("game-detail-artwork-wash");
     require(library && wash, "missing library or its artwork wash");
-    for (int wait = 0; wait < 50 && artwork->requests < 1; ++wait) settle();
-    settle();
-    require(artwork->requests == 1, "the library hero should be one provider request");
+    // The existing closed artwork editor also loads this hero with PreserveAspectFit;
+    // cinematicHero uses Crop. Establish their settled baseline before checking that
+    // the new carried Crop image adds no request, rather than counting both as one.
+    int libraryRequests = 0;
+    int stable = 0;
+    for (int wait = 0; wait < 50 && stable < 5; ++wait) {
+        settle();
+        const int now = artwork->requests.load();
+        stable = now > 0 && now == libraryRequests ? stable + 1 : 0;
+        libraryRequests = now;
+    }
+    require(stable == 5 && libraryRequests > 0, "the library hero request baseline did not settle");
+    std::cout << "library hero provider requests before details: " << libraryRequests << '\n';
 
     // Reduce Motion: the wash and the carried hero arrive still and at once.
     require(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, true)), "cannot set Reduce Motion");
@@ -158,6 +168,9 @@ int main(int argc, char** argv) {
     auto* art = root->findChild<QQuickItem*>("native-launch-artwork");
     auto* primary = root->findChild<QQuickItem*>("native-preview-action");
     require(art && primary, "missing launch artwork or Play");
+    require(art->property("fillMode").toInt() == 2 /* PreserveAspectCrop */
+        && art->property("cache").toBool(),
+        "the carried hero must share the library hero's crop and cache");
     require(!art->isVisible(), "the review shows no carried artwork before Play");
 
     primary->forceActiveFocus();
@@ -176,7 +189,7 @@ int main(int argc, char** argv) {
         require(qFuzzyCompare(art->opacity(), 0.12) && qFuzzyCompare(art->scale(), 1.0),
             "under Reduce Motion the carried hero is still, faint and unscaled");
     }
-    require(artwork->requests == 1, "the launch asked the provider again instead of reusing the library's pixmap");
+    require(artwork->requests == libraryRequests, "the launch asked the provider again instead of reusing the library's pixmap");
 
     // Leaving a launch stage removes it on the same tick, with no fade over play.
     session.transition("active", true, "Native stream connected.");
@@ -188,7 +201,7 @@ int main(int argc, char** argv) {
     session.transition("idle", false, "Ready");
     settle();
     require(!art->isVisible(), "the ended screen showed the carried artwork");
-    require(artwork->requests == 1, "the launch fetched artwork");
+    require(artwork->requests == libraryRequests, "the launch fetched artwork");
     std::cout << "Launch artwork shown only for known launch stages, from the cached pixmap\n";
     return 0;
 }
