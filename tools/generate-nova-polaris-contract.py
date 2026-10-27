@@ -58,8 +58,10 @@ def selected_reads(canonical, schema: dict, kinds: set[str]) -> dict[str, set[st
             continue
         for kind, reader in canonical.consumers(obj):
             if kind in kinds:
-                owner = canonical.owner_name(schema, name)
-                selected.setdefault(owner, set()).update(reader['reads'])
+                for field in reader['reads']:
+                    if field in obj['fields']:
+                        owner = canonical.owner_name(schema, name, field)
+                        selected.setdefault(owner, set()).add(field)
     return selected
 
 

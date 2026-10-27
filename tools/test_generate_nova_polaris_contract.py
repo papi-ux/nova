@@ -1,5 +1,6 @@
 """Focused Nova driver tests; product schemas remain the pinned upstream bytes."""
 from pathlib import Path
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,22 @@ OUTPUTS = (
 
 
 class NovaPolarisContractGeneratorTests(unittest.TestCase):
+    def test_selected_reads_borrow_shared_names_and_keep_own_fields(self):
+        spec = importlib.util.spec_from_file_location('nova_contract_driver', ROOT / DRIVER)
+        driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(driver)
+        canonical, _, _, _, _ = driver.canonical_inputs(ROOT)
+        schema = {'objects': {
+            'parent': {'generated': True, 'fields': ['shared', 'unread']},
+            'borrower': {'generated': True, 'names_from': 'parent', 'fields': ['shared', 'own'],
+                         'consumers': {'nova_android': {'reads': ['shared', 'own', 'unserved']}}},
+            'subset': {'generated': True, 'subset_of': 'parent', 'fields': ['shared'],
+                       'consumers': {'nova_shared': {'reads': ['shared', 'unread']}}},
+        }}
+        self.assertEqual({'parent': {'shared'}, 'borrower': {'own'}},
+                         driver.selected_reads(canonical, schema, {'nova_android', 'nova_shared'}))
+        self.assertEqual({}, driver.selected_reads(canonical, schema, {'nova_deck'}))
+
     def fixture(self, root):
         for name in (DRIVER, 'tools/generate-polaris-contract.py',
                      'shared/polaris/contract/polaris-v1-contract.json',
