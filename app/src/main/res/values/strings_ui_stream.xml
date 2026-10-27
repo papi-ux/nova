@@ -129,4 +129,6 @@
     <string name="nova_stream_progress_working">Working on it</string>
     <string name="nova_stream_progress_waiting">Nova is waiting for the next stream setup signal.</string>
     <string name="nova_stream_progress_update">Startup update</string>
+    <!-- Session setup: the overlay's title once a stream the player asked for connects, not a reconnect. %1$s is the host's name. -->
+    <string name="nova_connected_to">Connected to %1$s</string>
 </resources>

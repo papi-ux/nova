@@ -126,6 +126,7 @@ import com.papi.nova.ui.panel.NovaProblemBack
 import android.content.pm.PackageManager
 import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.novaSurfaces
+import com.papi.nova.ui.NovaConfirmation
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
@@ -319,6 +320,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var pendingPairingAddress: ComputerDetails.AddressTuple? = null
     private var pendingPairingPin: String? = null
     private var pendingPairingPassphrase: String? = null
+    /** "Paired with <host>" only while openPairedHost opens it, for whatever surface that opens. */
+    private var pairingConfirmation: String? = null
     private var currentServerFilter = FILTER_ALL
     private var lastServerFilterFocusMs = 0L
     private val runtimeTasks = NovaRuntimeTasks(this, "Nova dashboard")
@@ -1492,6 +1495,21 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         return null
     }
 
+    /**
+     * A pairing that saved the host's certificate (#386) is felt here. Its words go to what opens:
+     * the Library or App list says them once, and Hosts says them instead of "Checking Library
+     * support…". Resume and Watch open the game itself, so there the haptic is the confirmation.
+     */
+    private fun openPairedHost(computer: ComputerDetails) {
+        NovaConfirmation.haptic(window.decorView)
+        pairingConfirmation = NovaConfirmation.pairedWith(this, computer.name)
+        try {
+            openBestPlaySurface(computer)
+        } finally {
+            pairingConfirmation = null
+        }
+    }
+
     private fun openBestPlaySurface(computer: ComputerDetails) {
         // Pairing pauses discovery. A pending Library check can keep Hosts open,
         // so resume updates here instead of waiting for another Activity resume.
@@ -1510,7 +1528,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 if (computerObject != null) {
                     maybeProbeLibraryReadiness(computerObject)
                 }
-                NovaSnackbar.show(this, getString(R.string.pcview_library_checking))
+                val paired = pairingConfirmation
+                if (paired != null) {
+                    NovaSnackbar.showSuccess(this, paired)
+                } else {
+                    NovaSnackbar.show(this, getString(R.string.pcview_library_checking))
+                }
             }
             NovaHostPlaySurface.APP_LIST -> doAppList(computer, false, false)
         }
@@ -2420,6 +2443,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             var pinNote: String? = null
             var message: String? = null
             var success = false
+            // Only a pairing that saved the host's certificate; an already paired host was not paired now.
+            var pairedNow = false
             var pairedComputer: ComputerDetails? = computer
             try {
                 stopComputerUpdates(true)
@@ -2466,8 +2491,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                                 val launchedComputer = pairedComputer
                                 runOnUiThread {
                                     if (launchedComputer != null) {
-                                        // The host's library or apps opening is the answer.
-                                        openBestPlaySurface(launchedComputer)
+                                        // The host's library or apps opening is the answer, and it names the pairing.
+                                        openPairedHost(launchedComputer)
                                     } else {
                                         showHostsNotice(getString(R.string.hosts_pairing_failed_title), getString(R.string.pair_fail))
                                         startComputerUpdates()
@@ -2507,6 +2532,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                             if (pairedComputer != null) {
                                 message = null
                                 success = true
+                                pairedNow = true
                             } else {
                                 message = resources.getString(R.string.pair_fail)
                                 success = false
@@ -2531,6 +2557,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
             val failure = message
             val toastSuccess = success
+            val paired = pairedNow
             val launchedComputer = pairedComputer
             runOnUiThread {
                 if (failure != null) {
@@ -2546,7 +2573,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 }
 
                 if (toastSuccess && launchedComputer != null) {
-                    openBestPlaySurface(launchedComputer)
+                    if (paired) openPairedHost(launchedComputer) else openBestPlaySurface(launchedComputer)
                 } else {
                     startComputerUpdates()
                 }
@@ -3317,6 +3344,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         intent.putExtra(AppView.UUID_EXTRA, computer.uuid)
         intent.putExtra(AppView.NEW_PAIR_EXTRA, newlyPaired)
         intent.putExtra(AppView.SHOW_HIDDEN_APPS_EXTRA, showHiddenGames)
+        pairingConfirmation?.let { intent.putExtra(NovaConfirmation.EXTRA_PAIRED_WITH, it) }
         startActivity(intent)
         NovaThemeManager.applyForwardTransition(this)
     }
@@ -3347,6 +3375,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         intent.putExtra(NovaLibraryActivity.EXTRA_PC_UUID, computer.uuid)
         // The card already knows whether this device has Spaces here; the library polls only when it does.
         intent.putExtra(NovaLibraryActivity.EXTRA_SPACES_AVAILABLE, computer.spacesAvailable)
+        pairingConfirmation?.let { intent.putExtra(NovaConfirmation.EXTRA_PAIRED_WITH, it) }
         val serverCommands = computer.serverCommands
         if (serverCommands != null) {
             intent.putStringArrayListExtra(
