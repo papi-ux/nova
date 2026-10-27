@@ -1,5 +1,6 @@
 #pragma once
 #include "polaris/deck_polaris_client.h"
+#include "runtime/deck_tuning_lines.h"
 #include <QVariantMap>
 #include <QThread>
 #include <QSet>
@@ -29,11 +30,17 @@ struct DeckHudHostTarget {
 using DeckHudHostFactory = std::function<std::optional<DeckHudHostTarget>()>;
 class DeckHudHostReducer {
 public:
-    explicit DeckHudHostReducer(DeckHudHostContext context) : context_(std::move(context)) {}
+    // clock: steady milliseconds for Live Tuning lines; tests pass their own.
+    explicit DeckHudHostReducer(DeckHudHostContext context, std::function<qint64()> clock = {})
+        : context_(std::move(context)), clock_(std::move(clock)) {}
     static QVariantMap unavailable();
     QVariantMap accept(const polaris::DeckHostTelemetry& sample);
+    // A failed read: the next Live Tuning reading starts a new line baseline.
+    void interrupt() { lines_.interrupt(); }
 private:
     DeckHudHostContext context_;
+    std::function<qint64()> clock_;
+    DeckTuningLines lines_;
     std::optional<polaris::DeckLiveTuningTelemetry> last_;
     QSet<QString> retired_;
 };

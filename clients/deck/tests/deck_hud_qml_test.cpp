@@ -48,6 +48,8 @@ ApplicationWindow {
     function performanceText(scale) { NovaHudPreferences.setMode("performance"); NovaTheme.setFontScale(scale); overlay.unit = 1.15 }
     function setCodec(value) { sample = Object.assign({}, sample, {codec:value}) }
     function restoreHud() { NovaHudPreferences.setMode("debug"); overlay.unit = 1 }
+    function setMode(value) { NovaHudPreferences.setMode(value) }
+    function reduceMotion(value) { NovaTheme.setReduceMotion(value) }
     function setCorner(x, y) { NovaHudPreferences.setPosition(x, y) }
     function state() { return { mode:NovaHudPreferences.mode, enabled:NovaHudPreferences.enabled, opacity:NovaHudPreferences.panelOpacity, x:NovaHudPreferences.positionX, y:NovaHudPreferences.positionY } }
     Component.onCompleted: settings.open()
@@ -182,6 +184,28 @@ ApplicationWindow {
         item("hud-applied-limit")->property("text") == "20.0M applied / 25.0M limit" &&
         item("hud-requested-bitrate")->property("text") == "25.0M PC target" &&
         item("hud-health-label")->property("text") == "Display override", "HUD lost host state or applied bitrate");
+    {
+        // Live Tuning's line shows in Performance and Debug only, and leaves with its reading.
+        const QVariant original = root->property("sample");
+        const auto base = original.value<QJSValue>().toVariant().toMap();
+        const auto mode = [&](const char* value) {
+            require(QMetaObject::invokeMethod(root.get(), "setMode", Q_ARG(QVariant, QString::fromUtf8(value))), "cannot set HUD mode"); settle();
+        };
+        require(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, true)), "Reduce Motion unavailable");
+        mode("debug");
+        auto lined = base; lined["tuningLine"] = "Eased to 14 Mbps"; lined["tuningLineKind"] = "eased";
+        root->setProperty("sample", lined); settle();
+        require(item("hud-tuning-line")->isVisible() && item("hud-tuning-line")->property("text") == "Eased to 14 Mbps",
+            "Debug HUD lost the Live Tuning line");
+        for (const char* quiet : {"minimal", "slim"}) {
+            mode(quiet); require(!item("hud-tuning-line")->isVisible(), "a quiet HUD mode showed the Live Tuning line");
+        }
+        mode("performance"); require(item("hud-tuning-line")->isVisible(), "Performance HUD lost the Live Tuning line");
+        root->setProperty("sample", original); settle();
+        require(!item("hud-tuning-line")->isVisible(), "an expired Live Tuning line stayed under Reduce Motion");
+        require(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "Reduce Motion could not be restored");
+        mode("debug"); settle();
+    }
     auto stale = root->property("sample").value<QJSValue>().toVariant().toMap();
     stale.remove("healthLabel"); stale.remove("healthTone"); stale.remove("tuningLabel");
     stale.remove("tuningTone"); stale.remove("appliedBitrate"); stale.remove("qualityLimit"); stale.remove("requestedBitrate");

@@ -98,7 +98,9 @@ data class NovaHudUiState(
     val framesLostLabel: String = "--",
     val renderGapLabel: String = "--",
     val outputRateCaption: String = "OUT",
-    val outputGapCaption: String = "RENDER GAP"
+    val outputGapCaption: String = "RENDER GAP",
+    // Performance and Debug only. NovaStreamHud passes it while it is visible, from its emission.
+    val liveTuningLine: NovaLiveTuningLine? = null
 ) {
     companion object {
         private const val SPARKLINE_CAPACITY = 60
@@ -186,7 +188,8 @@ data class NovaHudUiState(
             mediaFresh: Boolean = fps.isFinite() && (fps > 0.0 || incomingFps > 0.0 || sparklineSamples.isNotEmpty()),
             mediaStale: Boolean = false,
             hostFresh: Boolean = status != null,
-            launchPresetLabel: String = ""
+            launchPresetLabel: String = "",
+            liveTuningLine: NovaLiveTuningLine? = null
         ): NovaHudUiState {
             // A live media feed and the independently polled host status age separately.
             val currentStatus = status.takeIf { hostFresh && it?.streamingActive == true }
@@ -258,7 +261,8 @@ data class NovaHudUiState(
                 renderGapLabel = if (mediaFresh && incomingFps.isFinite() && renderedFps.isFinite() &&
                     incomingFps >= 0 && renderedFps >= 0) "${(incomingFps - renderedFps).coerceAtLeast(0.0).roundToInt()} FPS" else "--",
                 outputRateCaption = if (presentRequests) "SUBMIT" else "OUT",
-                outputGapCaption = if (presentRequests) "SUBMIT GAP" else "RENDER GAP"
+                outputGapCaption = if (presentRequests) "SUBMIT GAP" else "RENDER GAP",
+                liveTuningLine = liveTuningLine
             )
         }
 

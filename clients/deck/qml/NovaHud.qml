@@ -133,6 +133,28 @@ Item {
             textSize: 12
             wrapMode: Text.WordWrap
         }
+        // Live Tuning's brief line. The host observer drops it four seconds after it was
+        // decided, so a remount or mode change never replays it; this only fades it.
+        HudLabel {
+            id: tuningLine
+            objectName: "hud-tuning-line"
+            readonly property string current: hud.readings.tuningLine || ""
+            // Kept while the line fades out after the reading drops it.
+            property string shown: ""
+            property bool shownFull: false
+            function hold() { if (current.length > 0) { shown = current; shownFull = hud.readings.tuningLineKind === "full" } }
+            onCurrentChanged: hold()
+            Component.onCompleted: hold()
+            visible: (hud.mode === "debug" || hud.mode === "performance") && opacity > 0
+            opacity: current.length > 0 ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: NovaTheme.motionDuration } }
+            Layout.fillWidth: true
+            text: shown
+            textFormat: Text.PlainText
+            color: hud.tone(shownFull ? "stable" : "info")
+            textSize: 10; font.bold: true
+            elide: Text.ElideRight
+        }
         Flow {
             id: performanceFlow
             visible: hud.mode === "performance"

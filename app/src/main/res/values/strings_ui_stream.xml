@@ -91,6 +91,9 @@
     <!-- Sync Status while Live Tuning holds the bitrate. -->
     <string name="nova_cc_live_tuning_sync_capped">Live Tuning is at %1$s under your %2$s limit.</string>
     <string name="nova_cc_live_tuning_sync_target">Live Tuning target is %1$s.</string>
+    <!-- The HUD's brief Live Tuning lines: the encoder confirmed a lower bitrate, or the quality limit again. -->
+    <string name="nova_hud_live_tuning_eased">Eased to %1$s</string>
+    <string name="nova_hud_live_tuning_full">Back to full quality</string>
     <!-- Mouse Mode: the local cursor, a switch in its own row after the modes. -->
     <string name="nova_cc_local_cursor">Local Cursor</string>
     <string name="nova_cc_local_cursor_caption">Draws the pointer on this device. Needs a physical mouse.</string>

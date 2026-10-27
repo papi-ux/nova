@@ -130,6 +130,7 @@ add_library(nova_deck_core STATIC
     src/polaris/deck_host_settings.cpp
     src/runtime/deck_hud_metrics.cpp
     src/runtime/deck_hud_host.cpp
+    src/runtime/deck_tuning_lines.cpp
     src/polaris/deck_host_telemetry.cpp
     src/polaris/deck_client_media.cpp
     src/polaris/deck_doctor.cpp

@@ -2,6 +2,13 @@
 
 package com.papi.nova.ui
 
+import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +43,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.papi.nova.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +101,7 @@ private val LocalNovaHudOpacityScale = compositionLocalOf { 1f }
 
 internal const val NOVA_HUD_PERFORMANCE_PRIMARY_TAG = "nova_hud_performance_primary"
 internal const val NOVA_HUD_PERFORMANCE_DETAILS_TAG = "nova_hud_performance_details"
+internal const val NOVA_HUD_LIVE_TUNING_LINE_TAG = "nova_hud_live_tuning_line"
 
 @Composable
 private fun rememberHudOpacityScale(opacityScale: Float): Float {
@@ -218,6 +233,7 @@ private fun NovaStreamHudDebug(state: NovaHudUiState, modifier: Modifier) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)) { layers() }
             }
         }
+        HudLiveTuningLine(state.liveTuningLine)
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
     }
 }
@@ -236,6 +252,7 @@ private fun NovaStreamHudPerformance(state: NovaHudUiState, modifier: Modifier) 
         HudPerformancePrimaryRow(state)
         HudPerformanceDetailRow(state)
         HudCompactDiagnosticStrip(state.healthReasonLabel, state.healthReasonTone, state.streamTruthLabel)
+        HudLiveTuningLine(state.liveTuningLine)
         HudEventBreadcrumb(state.eventBreadcrumbLabel)
     }
 }
@@ -538,6 +555,42 @@ private fun HudFact(label: String, value: String, tone: NovaHudTone = NovaHudTon
             modifier = Modifier
                 .padding(start = 4.dp)
                 .alignByBaseline()
+        )
+    }
+}
+
+// Live Tuning's brief line, in Performance and Debug only. The state carries it only while it is
+// visible from its emission, so a remount or mode change cannot replay an old one. This fades it,
+// and shows and hides it at once when the device has turned animations off. That setting is read
+// again at each show and hide, so a change mid-stream applies to the next one.
+@Composable
+private fun HudLiveTuningLine(line: NovaLiveTuningLine?) {
+    var last by remember { mutableStateOf(line) }
+    SideEffect { if (line != null) last = line }
+    val context = LocalContext.current
+    val fadeMs = remember(context, line != null) {
+        val scale = runCatching {
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        }.getOrDefault(1f)
+        if (scale == 0f) 0 else NovaLiveTuningLines.FADE_MS
+    }
+    AnimatedVisibility(
+        visible = line != null,
+        enter = if (fadeMs == 0) EnterTransition.None else fadeIn(tween(fadeMs)),
+        exit = if (fadeMs == 0) ExitTransition.None else fadeOut(tween(fadeMs))
+    ) {
+        val shown = line ?: last ?: return@AnimatedVisibility
+        val full = shown.kind == NovaLiveTuningLine.Kind.FULL
+        HudText(
+            text = if (full) stringResource(R.string.nova_hud_live_tuning_full)
+                else stringResource(R.string.nova_hud_live_tuning_eased, StreamPolicyUiState.formatMbps(shown.appliedKbps)),
+            color = (if (full) NovaHudTone.STABLE else NovaHudTone.INFO).hudColor(),
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp).testTag(NOVA_HUD_LIVE_TUNING_LINE_TAG)
         )
     }
 }
