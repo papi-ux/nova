@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -8,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.preference.PreferenceManager
+import com.papi.nova.Game
 import com.papi.nova.LimeLog
 import com.papi.nova.ui.compose.NovaComposeTheme
 
@@ -19,6 +21,11 @@ class SessionProgressOverlay(private val activity: Activity) {
     private var backgroundBlurLeases: List<NovaMenuBlur.BlurLease> = emptyList()
     private val overlayState = mutableStateOf(NovaSessionProgressUiState.from("initializing"))
     private var spaceSession = false
+    // The artwork the game's page offered for this stream. Only the first show takes it, and a
+    // dismissal lets it go, so showing again, a reconnect or any other way in starts without it.
+    private val launchArtwork = mutableStateOf<NovaLaunchArtwork?>(null)
+    private var launchArtworkTaken = false
+    private var animationsOff = false
 
     fun setSpaceSession(enabled: Boolean) {
         activity.runOnUiThread {
@@ -34,6 +41,11 @@ class SessionProgressOverlay(private val activity: Activity) {
             }
             overlayState.value = if (spaceSession) NovaSessionProgressUiState.fromSpace("initializing")!!
                 else NovaSessionProgressUiState.from("initializing")
+            if (!launchArtworkTaken) {
+                launchArtworkTaken = true
+                launchArtwork.value = takeLaunchArtwork()
+                animationsOff = novaAnimationsOff(activity)
+            }
             val composeView = ComposeView(activity).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 NovaMenuBlur.releaseOnUnexpectedDetach(this) {
@@ -44,7 +56,11 @@ class SessionProgressOverlay(private val activity: Activity) {
                 }
                 setContent {
                     NovaComposeTheme {
-                        NovaSessionProgressOverlayContent(state = overlayState.value)
+                        NovaSessionProgressOverlayContent(
+                            state = overlayState.value,
+                            artwork = launchArtwork.value,
+                            animationsOff = animationsOff,
+                        )
                     }
                 }
             }
@@ -79,11 +95,22 @@ class SessionProgressOverlay(private val activity: Activity) {
             val view = overlayView
             overlayView = null
             releaseBackgroundBlur()
+            launchArtwork.value = null
             view?.let {
                 safeRemoveFromParent(it)
                 LimeLog.info("Nova: Session progress overlay dismissed")
             }
         }
+    }
+
+    /** The artwork offered for the host and app this stream's own extras name, if it is still fresh. */
+    private fun takeLaunchArtwork(): NovaLaunchArtwork? {
+        val intent = activity.intent ?: return null
+        return NovaLaunchArtworkHandoff.take(
+            intent.getStringExtra(Game.EXTRA_PC_UUID),
+            intent.getIntExtra(Game.EXTRA_APP_ID, 0),
+            SystemClock.elapsedRealtime(),
+        )
     }
 
     private fun releaseBackgroundBlur() {

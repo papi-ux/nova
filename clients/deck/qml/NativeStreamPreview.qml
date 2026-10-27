@@ -47,6 +47,19 @@ Popup {
     property string destinationName: "Desktop"
     property bool destinationPlayable: true
     property string returnLabel: "Back to Details"
+    // The details' ready hero and its tint, set by the library. Play captures
+    // them for this launch; nothing later in the visit changes what is shown.
+    property string launchArtwork: ""
+    property string launchTint: ""
+    property string launchArtworkShown: ""
+    property string launchTintShown: ""
+    readonly property color launchTintColor: launchTintShown.length > 0 ? launchTintShown : "transparent"
+    // Only the launch stages the session already reports. A reconnect, sleep or
+    // an active stream is never a launch, and the carried hero leaves at once.
+    readonly property bool launchStage: attempted && nativeSessionState.busy === true
+        && !nativeSessionState.sleeping && !nativeSessionState.automaticReconnect
+        && (nativeSessionState.phase === "preparing" || nativeSessionState.phase === "launching"
+            || nativeSessionState.phase === "connecting")
     property string reviewedHostId: ""
     property string reviewedGameId: ""
     property string reviewedHostName: ""
@@ -127,6 +140,9 @@ Popup {
         target: session
         function onStateChanged() {
             resumeError = "";
+            // Carried for this launch only: a later resume in the same visit starts plain.
+            // Read from the session itself, not a binding that may update after this handler.
+            if (session.state.phase === "active" && !session.state.sleeping) { launchArtworkShown = ""; launchTintShown = "" }
             if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close() }
             if (nativePreview.opened && !nativePlaying) Qt.callLater(function() {
                 if (nativePreview.opened) nativePreviewAction.forceActiveFocus()
@@ -148,6 +164,8 @@ Popup {
         attempted = false
         autoStartTicks = 0
         resumeError = ""
+        launchArtworkShown = ""
+        launchTintShown = ""
         reviewedHostId = hostId
         reviewedGameId = gameId
         reviewedHostName = hostName
@@ -160,6 +178,8 @@ Popup {
     }
     onOpened: focusReview()
     onClosed: {
+        launchArtworkShown = ""
+        launchTintShown = ""
         videoScaling.close()
         polarisSync.close()
         momentReport.closeAll()
@@ -168,7 +188,40 @@ Popup {
         if (presentationBridge) presentationBridge.detach()
     }
     Overlay.modal: Rectangle { color: "transparent" }
-    background: Rectangle { color: externalVideo && attempted && nativePlaying ? "transparent" : NovaTheme.window }
+    background: Rectangle {
+        // With no hero to carry, a launch keeps the details' tint as its ground.
+        color: externalVideo && attempted && nativePlaying ? "transparent"
+            : nativePreview.launchStage && !launchHero.visible && nativePreview.launchTintShown.length > 0
+                && NovaTheme.artworkTintStrength > 0
+            ? Qt.tint(NovaTheme.window, NovaTheme.alpha(nativePreview.launchTintColor, NovaTheme.artworkTintStrength))
+            : NovaTheme.window
+        // Play carries the details' hero into the launch: faint, behind the status
+        // banner, only while the session reports a launch stage, and gone at once
+        // when it reports anything else. The same URL, crop and cache as the
+        // library's hero, which still holds it, so Qt serves that pixmap rather
+        // than asking the provider to fetch it again.
+        Image {
+            id: launchHero
+            objectName: "native-launch-artwork"
+            anchors.fill: parent
+            source: nativePreview.launchArtworkShown
+            cache: true
+            asynchronous: true
+            fillMode: Image.PreserveAspectCrop
+            visible: nativePreview.launchStage && status === Image.Ready && NovaTheme.launchArtworkOpacity > 0
+            opacity: visible ? NovaTheme.launchArtworkOpacity : 0
+            scale: visible && NovaTheme.motionDuration > 0 ? 1.04 : 1
+            Accessible.ignored: true
+            Behavior on opacity {
+                enabled: NovaTheme.motionDuration > 0
+                NumberAnimation { duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing }
+            }
+            Behavior on scale {
+                enabled: NovaTheme.motionDuration > 0
+                NumberAnimation { duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing }
+            }
+        }
+    }
 
     component SessionAction: Button {
         id: action
@@ -753,6 +806,10 @@ Popup {
                     if (!nativePreview.reviewValid || !nativePreview.reviewCurrent || !playSetup.launchModeAllowed || !playSetup.plan.playable) return
                     nativePreview.attempted = session.startConfigured(reviewedHostId, reviewedGameId, playSetup.plan.configuration)
                     if (!nativePreview.attempted) playSetup.error = "Couldn't start this game. Return to the library and try again."
+                    else {
+                        nativePreview.launchArtworkShown = nativePreview.launchArtwork
+                        nativePreview.launchTintShown = nativePreview.launchTint
+                    }
                 } else if (nativePlaying) session.resumeInput()
                 else if (recoveryAvailable) {
                     if (!(reconnectAvailable ? session.reconnect(reviewedHostId, reviewedGameId)

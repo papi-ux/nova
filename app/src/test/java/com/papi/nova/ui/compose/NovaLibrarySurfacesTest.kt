@@ -47,6 +47,39 @@ class NovaLibrarySurfacesTest {
         assertEquals(Color.White, oled.onMedia)
     }
 
+    // UNRUN (written for Nova #385; not executed in the authoring session).
+    @Test
+    fun artworkTintsAuroraButLeavesOledDirectorAndHighContrastTheirOwnGround() {
+        val base = NovaComposeColors(
+            window = Color(0xFF1A1A2E),
+            card = Color(0xCC232340),
+            dialog = Color(0xFF232340),
+            badge = Color(0x33687B81),
+            divider = Color(0xFF393C51),
+            accent = Color(0xFF78A6FF),
+            accentSurface = Color(0x1A78A6FF),
+            warning = Color(0xFFFBBF24),
+            textPrimary = Color(0xFFD4DDE8),
+            textSecondary = Color(0xFFA8B0B8),
+            textMuted = Color(0xFF7A8E95),
+            onAccent = Color(0xFFD4DDE8)
+        )
+        val aurora = base.librarySurfaces(NovaThemeManager.THEME_POLARIS)
+        assertTrue("Aurora, the default, takes the tint", aurora.artworkTintStrength > 0f)
+        assertTrue(aurora.launchArtworkAlpha > 0f)
+        for (theme in listOf(NovaThemeManager.THEME_OLED, NovaThemeManager.THEME_DIRECTOR, NovaThemeManager.THEME_HIGH_CONTRAST)) {
+            assertEquals("$theme keeps its own ground", 0f, base.librarySurfaces(theme).artworkTintStrength, 0f)
+        }
+        assertEquals("High Contrast draws no artwork behind launch text", 0f,
+            base.librarySurfaces(NovaThemeManager.THEME_HIGH_CONTRAST).launchArtworkAlpha, 0f)
+        // A dimmed menu changes the panels, never how strongly the artwork tints.
+        assertEquals(aurora.artworkTintStrength,
+            base.librarySurfaces(NovaThemeManager.THEME_POLARIS, menuOpacityScale = 0.3f).artworkTintStrength, 0f)
+        // The wash only darkens: right for light text, wrong for a light palette's dark text.
+        val light = base.copy(window = Color(0xFFF5F5F7), textPrimary = Color(0xFF1B1B1F))
+        assertEquals(0f, light.librarySurfaces(NovaThemeManager.THEME_MATERIAL_YOU).artworkTintStrength, 0f)
+    }
+
     @Test
     fun menuOpacityUsesAbsoluteOuterPanelWhileScalingNestedChromeAndPreservingFocus() {
         // A dark-text palette. This used to borrow

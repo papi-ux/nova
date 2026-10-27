@@ -28,9 +28,22 @@ FocusScope {
     property var visibleGames: []
     property var gameShortcuts: null
     property var gameTools: null
+    // Looks up tints the artwork provider read while decoding; it starts no request.
+    property var artworkTints: null
     property var selectedGame: ({ id: "game-empty-state", title: "" })
     property string selectedId: ""
     property bool detailOpen: false
+    // The tint comes from the artwork the page shows: the ready hero, or the
+    // selected poster when there is none. Only decoded artwork has one.
+    readonly property string artworkTintSource: cinematicHero.status === Image.Ready ? cinematicHero.source.toString()
+        : grid.currentItem && grid.currentItem.posterReady ? selectedGame.poster || "" : ""
+    readonly property string artworkTint: artworkTints && artworkTintSource.length > 0
+        ? artworkTints.tint(artworkTintSource) : ""
+    readonly property color artworkTintColor: artworkTint.length > 0 ? artworkTint : "transparent"
+    // What Play carries into the launch screen: the hero the details show, by the
+    // same URL, so the launch reuses the pixmap this page already holds.
+    readonly property string launchArtwork: detailOpen && cinematicHero.status === Image.Ready
+        ? cinematicHero.source.toString() : ""
     property bool detailUsesLogo: false
     property var logoPlacement: ({scale: 1, x: 0.5, y: 0.5})
     function reloadLogoPlacement() {
@@ -509,6 +522,20 @@ FocusScope {
         fillMode: Image.PreserveAspectCrop
         visible: status === Image.Ready
         opacity: detailOpen || stageMode ? 1 : 0.42
+    }
+    // Details wear the artwork's own colour: a still wash over the hero and
+    // under the scrims, or over the ambient ground when there is no hero. Under
+    // the scrims it can only darken what text sits on.
+    Rectangle {
+        objectName: "game-detail-artwork-wash"
+        anchors.fill: parent
+        color: browser.artworkTintColor
+        opacity: browser.detailOpen && browser.artworkTint.length > 0 ? NovaTheme.artworkTintStrength : 0
+        visible: opacity > 0
+        Behavior on opacity {
+            enabled: NovaTheme.motionDuration > 0
+            NumberAnimation { duration: NovaTheme.motionDuration; easing.type: NovaTheme.motionEasing }
+        }
     }
     Rectangle {
         anchors.fill: parent

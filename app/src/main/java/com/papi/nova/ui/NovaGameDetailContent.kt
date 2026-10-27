@@ -226,6 +226,10 @@ internal fun NovaGameDetailContent(
     /** Play Setup's own button, where focus goes back when the panel it opened closes. */
     playSetupFocusRequester: FocusRequester = remember { FocusRequester() },
     launchBlockedReason: String? = null,
+    /** Told what artwork the Overview shows, for Play to carry into the stream. */
+    onLaunchArtwork: (NovaLaunchArtwork?) -> Unit = {},
+    /** Paired host identity for the process-wide artwork tint memo; absent owners are not cached. */
+    artworkHostUuid: String? = null,
 ) {
     val verticalScroll = rememberScrollState()
     val detailsFocusRequester = remember { FocusRequester() }
@@ -265,6 +269,8 @@ internal fun NovaGameDetailContent(
             planLimit = bitrateLimit,
             playLabel = playLabel,
             launchBlockedReason = launchBlockedReason,
+            onLaunchArtwork = onLaunchArtwork,
+            artworkHostUuid = artworkHostUuid,
             lastPlayedText = lastPlayedText,
             sourceLabel = sourceLabel,
             optimizationState = optimizationState,

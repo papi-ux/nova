@@ -1,6 +1,11 @@
 package com.papi.nova.ui
 
+import android.graphics.Bitmap
 import android.widget.ImageView
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
@@ -41,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
@@ -201,6 +207,10 @@ internal fun NovaGameDetailOverview(
     chromeClipEnd: Dp = 0.dp,
     modifier: Modifier = Modifier,
     launchBlockedReason: String? = null,
+    /** Told what artwork the page shows and the tint read from it, for Play to carry into the stream. */
+    onLaunchArtwork: (NovaLaunchArtwork?) -> Unit = {},
+    /** Paired host identity for the process-wide artwork tint memo; absent owners are not cached. */
+    artworkHostUuid: String? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val game = uiState.game
@@ -219,8 +229,42 @@ internal fun NovaGameDetailOverview(
         else -> null
     }
 
+    // The page takes its artwork's own colour once the artwork it shows has been decoded: the hero
+    // behind it, or the poster standing in where there is none. Nothing is fetched for it. Over a
+    // hero it is a wash under the scrims, so it can only darken what text sits on; where no
+    // artwork is behind the text it is the ground itself.
+    val surfaces = LocalNovaLibrarySurfaces.current
+    val heroTarget = novaLibraryCinematicBackdropTarget(game)
+    val artworkKey = heroTarget?.presentationKey
+        ?: PolarisApiClient.artworkPresentationKey(game, PolarisGame.ARTWORK_KIND_POSTER)
+    var shownArtwork by remember(artworkHostUuid, artworkKey) { mutableStateOf<Bitmap?>(null) }
+    val tint = rememberNovaArtworkTint(artworkHostUuid, artworkKey, shownArtwork)
+    val tintColor = tint?.takeIf { surfaces.artworkTintStrength > 0f }?.let { Color(it) }
+    val pageContext = LocalContext.current
+    val tintSpec: AnimationSpec<Color> =
+        if (remember(pageContext) { novaAnimationsOff(pageContext) }) snap() else tween(NOVA_ARTWORK_TINT_MS)
+    val ground by animateColorAsState(
+        targetValue = tintColor?.let { lerp(colors.window, it, surfaces.artworkTintStrength) } ?: colors.window,
+        animationSpec = tintSpec,
+        label = "NovaGameDetailGround",
+    )
+    val wash by animateColorAsState(
+        targetValue = tintColor?.takeIf { heroTarget != null }?.copy(alpha = surfaces.artworkTintStrength) ?: Color.Transparent,
+        animationSpec = tintSpec,
+        label = "NovaGameDetailWash",
+    )
+    LaunchedEffect(artworkHostUuid, artworkKey, shownArtwork, tint) {
+        val kind = if (heroTarget != null) NovaLaunchArtwork.Kind.HERO else NovaLaunchArtwork.Kind.POSTER
+        onLaunchArtwork(shownArtwork?.let { NovaLaunchArtwork(kind, it, tint) })
+    }
+    val onHeroArtwork: (String, Bitmap?) -> Unit = { key, bitmap -> if (key == artworkKey) shownArtwork = bitmap }
+
     BoxWithConstraints(modifier = modifier.fillMaxSize().testTag("nova-game-detail-overview")) {
         val portrait = maxHeight > maxWidth
+
+        if (ground != colors.window) {
+            Box(modifier = Modifier.fillMaxSize().background(ground).testTag(NOVA_ARTWORK_GROUND_TAG))
+        }
 
         if (portrait) {
             // A 3:1 hero cropped to a phone's aspect shows a slice, not a subject, so it
@@ -233,15 +277,17 @@ internal fun NovaGameDetailOverview(
                     .align(Alignment.TopStart)
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .novaFadeToGround(colors.window),
+                    .novaFadeToGround(ground),
+                wash = wash,
+                onArtwork = onHeroArtwork,
             )
         } else {
-            NovaLibraryCinematicBackdrop(game = game, apiClient = apiClient, strength = 1f)
+            NovaLibraryCinematicBackdrop(game = game, apiClient = apiClient, strength = 1f, wash = wash, onArtwork = onHeroArtwork)
         }
 
         // With no hero art the top of the page was bare: 55 to 60% of the Desktop page (N23).
         // The game's own card stands where the hero would be, framed, never stretched full-bleed.
-        if (novaLibraryCinematicBackdropTarget(game) == null) {
+        if (heroTarget == null) {
             // Upright it stays above the column, which starts 176dp down; beside it, it keeps to the
             // upper end, clear of the bottom-anchored title and actions.
             val posterHeight = if (portrait) minOf(maxWidth * (9f / 16f) * 0.72f, 150.dp) else maxHeight * 0.46f
@@ -263,11 +309,13 @@ internal fun NovaGameDetailOverview(
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { context ->
-                            ImageView(context).apply {
+                            NovaArtworkImageView(context).apply {
                                 scaleType = ImageView.ScaleType.CENTER_CROP
                                 // The title under it already names the game.
                                 importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
                                 isFocusable = false
+                                // Before the load, which can set a cached poster at once.
+                                onArtwork = { bitmap -> shownArtwork = bitmap }
                                 apiClient.loadCoverInto(this, game)
                             }
                         },
@@ -1261,10 +1309,16 @@ private fun LaunchProfileReviewNotice(
 private val NOVA_GAME_DETAIL_STATUS_LINE = 16.sp
 
 /** A poster's shape, as the library grid draws it, for the card that stands in for a hero. */
-private const val NOVA_GAME_DETAIL_POSTER_ASPECT = 108f / 152f
+internal const val NOVA_GAME_DETAIL_POSTER_ASPECT = 108f / 152f
 
 /** The card standing where a game with no hero art would have one, for a test to find it. */
 internal const val NOVA_GAME_DETAIL_POSTER_STAND_IN_TAG = "nova-game-detail-poster-stand-in"
+
+/** The artwork-tinted ground behind a detail page, for a test to find it. */
+internal const val NOVA_ARTWORK_GROUND_TAG = "nova-artwork-ground"
+
+/** The tint arrives with the backdrop's own crossfade. */
+private const val NOVA_ARTWORK_TINT_MS = 320
 
 /** The status line's widest: the title's column, clear of the key art. */
 private val NOVA_GAME_DETAIL_STATUS_MAX = 440.dp

@@ -54,6 +54,14 @@ QtObject {
     readonly property bool reduceMotion: selectedReduceMotion
     readonly property int motionDuration: reduceMotion ? 0 : 180
     readonly property int motionEasing: Easing.OutCubic
+    // How strongly a game's own artwork tints its details and launch. Director
+    // keeps its no-glow ground, Console OLED its true black and High Contrast
+    // its contrast, as on Android.
+    readonly property real artworkTintStrength: ({ polaris: 0.22, portable_chrome: 0.16, oled: 0,
+        miami: 0.18, director: 0, high_contrast: 0 })[themeId]
+    // The ready hero behind the launch status: a faint ground, never a picture
+    // to read text over. High Contrast draws none.
+    readonly property real launchArtworkOpacity: highContrast ? 0 : 0.12
     readonly property var colors: ({
         polaris: { window: "#2A2840", panel: "#343150", raised: "#3E3A5E", input: "#343150", text: "#C8D6E5", secondary: "#A8B0B8", muted: "#7A8E95", divider: "#4C5265", accent: "#7C73FF" },
         portable_chrome: { window: "#14161A", panel: "#1E2228", raised: "#262B33", input: "#1A1D22", text: "#C9D1D9", secondary: "#9AA4AF", muted: "#838D9C", divider: "#3A424C", accent: "#5A93D6" },

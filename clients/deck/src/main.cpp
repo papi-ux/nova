@@ -22,6 +22,7 @@
 #include "runtime/deck_host_wake.h"
 #include "runtime/deck_library_controller.h"
 #include "runtime/deck_library_artwork.h"
+#include "runtime/deck_artwork_tint.h"
 #include "stream/deck_gamestream_session_builder.h"
 #include "stream/deck_stream_media_adapters.h"
 #ifdef NOVA_DECK_VULKAN_STREAM
@@ -1703,6 +1704,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::sleepPreparationFinished,
         &sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::finishPreparation);
     nova::deck::runtime::DeckGameShortcuts gameShortcuts;
+    nova::deck::runtime::DeckArtworkTints artworkTints;
     nova::deck::runtime::DeckAppShortcuts appShortcuts;
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &appShortcuts, &nova::deck::runtime::DeckAppShortcuts::shutdown);
     nova::deck::runtime::DeckGameTools gameTools;
@@ -1790,6 +1792,9 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaGameTools", &gameTools);
     gameShortcuts.setImageReader([libraryArtwork](const QString& key) { return libraryArtwork->requestImage(key, nullptr, {}); });
     engine.rootContext()->setContextProperty("novaGameShortcuts", &gameShortcuts);
+    // Read-only lookups of tints the provider recorded while decoding; no request.
+    artworkTints.setReader([libraryArtwork](const QString& source) { return libraryArtwork->tintFor(source); });
+    engine.rootContext()->setContextProperty("novaArtworkTints", &artworkTints);
     engine.rootContext()->setContextProperty("novaAppShortcuts", &appShortcuts);
     engine.rootContext()->setContextProperty("novaGameLink", gameLink ? QVariantMap{{"host", gameLink->host}, {"game", gameLink->game}, {"destination", gameLink->destination}} : QVariantMap{});
     const auto libraryGames = standalone

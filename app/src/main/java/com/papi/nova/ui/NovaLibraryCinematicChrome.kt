@@ -1,5 +1,6 @@
 package com.papi.nova.ui
 
+import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.view.View
 import android.widget.ImageView
@@ -64,6 +65,9 @@ internal class NovaLibraryCinematicBackdropTarget(
     override fun hashCode(): Int = 31 * artworkKind.hashCode() + presentationKey.hashCode()
 }
 
+/** The artwork-coloured wash a detail page lays over its hero, for a test to find it. */
+internal const val NOVA_ARTWORK_WASH_TAG = "nova-artwork-wash"
+
 internal fun novaLibraryCinematicBackdropTarget(game: PolarisGame?): NovaLibraryCinematicBackdropTarget? =
     game?.let { game ->
         // One rule for every entry, owned by the mapper: a real hero, or the ambient field.
@@ -116,6 +120,13 @@ internal fun NovaLibraryCinematicBackdrop(
      * the same artwork competes with them, so it is pulled back behind that wall.
      */
     strength: Float = 1f,
+    /**
+     * A still wash in the artwork's own colour, between the artwork and the scrims. Below the
+     * scrims it can only darken what text sits on; the library leaves it transparent.
+     */
+    wash: Color = Color.Transparent,
+    /** Told the presentation key and bitmap of the hero this backdrop shows, as it changes. */
+    onArtwork: ((presentationKey: String, bitmap: Bitmap?) -> Unit)? = null,
 ) {
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
@@ -137,7 +148,7 @@ internal fun NovaLibraryCinematicBackdrop(
                 key(target.presentationKey) {
                     AndroidView(
                         factory = { context ->
-                            ImageView(context).apply {
+                            NovaArtworkImageView(context).apply {
                                 scaleType = ImageView.ScaleType.CENTER_CROP
                                 setBackgroundColor(AndroidColor.TRANSPARENT)
                                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -155,6 +166,8 @@ internal fun NovaLibraryCinematicBackdrop(
                             view.isClickable = false
                             view.isLongClickable = false
                             view.contentDescription = null
+                            // Before the load below, which can set a cached bitmap at once.
+                            view.onArtwork = onArtwork?.let { report -> { bitmap: Bitmap? -> report(target.presentationKey, bitmap) } }
                             if (view.getTag(R.id.nova_artwork_presentation_key) != target.presentationKey) {
                                 view.setTag(R.id.nova_artwork_presentation_key, target.presentationKey)
                                 view.setImageDrawable(null)
@@ -170,6 +183,14 @@ internal fun NovaLibraryCinematicBackdrop(
                     )
                 }
             }
+        }
+        if (wash.alpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(wash)
+                    .testTag(NOVA_ARTWORK_WASH_TAG),
+            )
         }
         Box(
             modifier = Modifier

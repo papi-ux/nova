@@ -153,7 +153,11 @@ data class NovaLibrarySurfaces(
     val focusedArtworkAlpha: Float,
     val focusedArtworkScrim: Color,
     val particlesEnabled: Boolean,
-    val particleAlpha: Float
+    val particleAlpha: Float,
+    /** How strongly a game's own artwork tints its detail page and launch; zero keeps the theme's ground. */
+    val artworkTintStrength: Float = 0f,
+    /** How strongly the carried artwork shows behind the stream's launch progress; zero leaves it out. */
+    val launchArtworkAlpha: Float = 0f,
 )
 
 private fun defaultNovaComposeColors(): NovaComposeColors {
@@ -304,7 +308,19 @@ fun NovaComposeColors.librarySurfaces(
             isPortableChrome -> 0.44f
             isMaterialYou -> 0.42f
             else -> 1f
-        }
+        },
+        // Director keeps its no-glow ground, Console OLED its true black and High Contrast its
+        // contrast; everyone else gets a still wash in the artwork's own colour.
+        artworkTintStrength = when {
+            isOled || isDirector || isHighContrast -> 0f
+            // The wash only darkens, which keeps light text readable; a palette with dark text
+            // would lose contrast instead, so it keeps its own ground.
+            textPrimary.luminance() < 0.5f -> 0f
+            isMiami -> 0.18f
+            isPortableChrome || isMaterialYou -> 0.16f
+            else -> 0.22f
+        },
+        launchArtworkAlpha = if (isHighContrast) 0f else 0.12f,
     ).let { surfaces ->
         val readabilityBackdrop = if (textPrimary.luminance() >= 0.5f) Color.Black else Color.White
         val readableScrimColor = lerp(
