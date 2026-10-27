@@ -22,7 +22,7 @@ Beta client; a successful build does not validate every Linux configuration.
 - [Install the Flatpak and configure Steam Input](packaging/flatpak/README.md).
 - [Current interface](#what-changes-in-150), [Steam controls](../../docs/steam-controls.md),
   [Working baseline](#working-baseline), [Report this moment](#report-this-moment),
-  [window controls](#linux-window-controls),
+  [Last stream](#last-stream), [window controls](#linux-window-controls),
   [PC discovery](#local-pc-search), and [frame rates and bitrate](#linux-frame-rates-and-bitrate).
 - [PyroWave and older-bundle migration](docs/pyrowave.md).
 - [Experimental Steam Frame development](docs/steam-frame.md).
@@ -64,7 +64,9 @@ verified game shutdown.
 Command Center adds **Steam** (Open Steam, Open Big Picture and Quit Steam on
 the PC, with a Polaris 1.5.0 beta.2 host), a **Working baseline** to compare a
 stream with one you marked good, and **Report this moment**, which saves the
-stream's readings to Documents, Nova reports. A launch waits up to two minutes
+stream's readings to Documents, Nova reports. After **End Session** or
+**Disconnect**, a dismissible [Last stream](#last-stream) card on the ended screen
+summarizes what Nova measured; it is never saved. A launch waits up to two minutes
 for a host that is switching a Steam Deck out of Game Mode, and Cancel really
 cancels ([launch deadlines](docs/launch-deadlines.md)).
 
@@ -506,6 +508,22 @@ replace the lock or change the directory. A leftover temporary name from a
 post-publication cleanup failure is left alone by later saves. Foreign ownership
 is checked in source but not induced by the ordinary-user fixture. Source, native
 UI qualification and physical Deck acceptance are separate gates.
+
+## Last stream
+
+The session controller freezes one recap per run, only for the user's End game or
+Disconnect of an active run it sampled; sleep, a PC end, a failure or an
+interruption freezes none. Starting another run clears it; Dismiss must name that
+run's generation, and the card appears only for the reviewed PC and game while the
+stream is neither active, connecting nor asleep. Counts and per-frame means (PC
+processing, decoder submit, refused and missing frames) come from the connection's
+cumulative counters since decoder setup. Rates come from the first and last HUD
+samples the existing poll accepted, only across a continuous span (steps of at most
+2.5 s, non-decreasing counters, no format or frame-sequence change) ending on a
+sample still current at the stop request. Composed frames, host encoder bitrate and
+RTT are excluded, a missing reading stays unknown rather than zero, and nothing is
+written, exported or sent. See [stream reports](../../docs/stream-reports.md#last-stream).
+Source, native UI qualification and physical Deck acceptance are separate gates.
 
 ## Current preview smoke scope
 

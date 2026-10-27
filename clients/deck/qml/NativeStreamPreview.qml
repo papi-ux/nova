@@ -303,6 +303,7 @@ Popup {
             wrapMode: Text.WordWrap
         }
         Rectangle {
+            id: statusBanner
             visible: nativePreview.attempted && !nativePlaying
             anchors.left: parent.left
             anchors.right: parent.right
@@ -337,6 +338,26 @@ Popup {
                     wrapMode: Text.WordWrap
                 }
             }
+        }
+        // Last Stream: only on this run's ended screen for the reviewed PC and game,
+        // never during play, a pending connection or sleep. Showing it moves no focus.
+        StreamRecap {
+            id: streamRecap
+            recap: nativePreview.session.streamRecap || ({})
+            allowed: nativePreview.opened && nativePreview.attempted && !nativePlaying && !nativeSessionState.busy
+                && !nativeSessionState.sleeping && nativePreview.reviewCurrent
+                && recap.hostId === nativePreview.reviewedHostId && recap.gameId === nativePreview.reviewedGameId
+            unit: nativePreview.unit
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: statusBanner.bottom
+            anchors.topMargin: 16 * nativePreview.unit
+            width: Math.min(parent.width - 48 * nativePreview.unit, 820 * nativePreview.unit)
+            height: Math.max(0, Math.min(implicitHeight, nativePreviewAction.y - y - 16 * nativePreview.unit))
+            onDismissRequested: (generation) => {
+                nativePreview.session.dismissStreamRecap(generation)
+                nativePreviewAction.forceActiveFocus()
+            }
+            onFocusReturned: nativePreviewAction.forceActiveFocus()
         }
         Rectangle {
             id: commandCenter
@@ -742,7 +763,10 @@ Popup {
             onClicked: activate()
             Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) activate() }
             Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) activate() }
-            Keys.onUpPressed: { if (!nativePreview.attempted) playSetup.focusLast() }
+            Keys.onUpPressed: {
+                if (!nativePreview.attempted) playSetup.focusLast()
+                else if (streamRecap.visible) streamRecap.focusDismiss()
+            }
             Keys.onLeftPressed: { if (!nativePreview.attempted) playSetup.focusBack() }
             Keys.onRightPressed: if (nativePlaying) {
                 if (nativeDisconnectAction.visible) nativeDisconnectAction.forceActiveFocus()

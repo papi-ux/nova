@@ -420,6 +420,8 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     endMomentRun();
     shared_ = std::make_shared<Shared>();
     ++runGeneration_; // invalidates every open baseline confirmation, even for the same game
+    runHostId_ = hostId; runGameId_ = gameId;
+    recapSpan_.reset(); setStreamRecap({});
     if (configuration) shared_->baselineRequest = DeckWorkingBaselineRequest{configuration->width, configuration->height,
         configuration->fps, configuration->bitrateKbps, configuration->videoCodec, configuration->profilePreference, configuration->launchMode};
     desktopVideo_ = {}; desktopPixelAspect_ = 1;
@@ -545,6 +547,7 @@ bool DeckNativeSessionController::requestStop(bool keepHostRunning) {
         shared_->endGameRequested = !keepHostRunning && shared_->state.value("phase") == "active";
         shared_->cancelled = true;
     }
+    recapSpan_.end(hudReceivedMs_ >= 0 && inputClock_.elapsed() - hudReceivedMs_ <= 2500);
     endMomentRun();
     showControls();
     if (frameDelivery_) frameDelivery_->close();
@@ -678,6 +681,14 @@ void DeckNativeSessionController::discardPendingMoment(bool runEnded) {
 void DeckNativeSessionController::endMomentRun() {
     discardPendingMoment(true); momentHistory_.clear();
 }
+void DeckNativeSessionController::setStreamRecap(QVariantMap recap) {
+    if (recap == streamRecap_) return;
+    streamRecap_ = std::move(recap); emit streamRecapChanged();
+}
+bool DeckNativeSessionController::dismissStreamRecap(const QString& generation) {
+    if (streamRecap_.isEmpty() || streamRecap_.value("generation").toString() != generation) return false;
+    setStreamRecap({}); return true;
+}
 QVariantMap DeckNativeSessionController::markMoment() {
     std::optional<DeckWorkingBaselineRequest> request;
     if (!activeMoment(&request)) return {{"status", "inactive"}};
@@ -775,6 +786,14 @@ void DeckNativeSessionController::poll() {
         }
         next.insert("canResume", resumeTicket_ && next.value("phase") == "disconnected");
         next.insert("canReconnect", resumeTicket_ && next.value("phase") == "interrupted");
+        // Only the user's End game or Disconnect of a run this GUI saw sampled gets a
+        // recap. A PC end, failure, interruption, sleep or cancelled launch stays silent.
+        const auto terminal = next.value("phase").toString();
+        if (shared_->cancelled && !shared_->suspendRequested && !recapSpan_.empty() &&
+            ((terminal == "stopped" && shared_->endGameRequested) || (terminal == "disconnected" && shared_->keepHostRunning)))
+            setStreamRecap(deckStreamRecap(recapSpan_, terminal == "stopped" ? DeckStreamRecapEnd::EndGame
+                : DeckStreamRecapEnd::Disconnect, runGeneration_, runHostId_, runGameId_));
+        recapSpan_.reset();
         if (presentationOwner_ && presentationSink_) presentationSink_->presentVaapiSurface({});
         if (shared_->automaticRetry && resumeTicket_ && resumeTicket_->automaticReconnect &&
             !automaticSuppressed_ && !sleeping_ && inputFocused_) {
@@ -830,6 +849,7 @@ void DeckNativeSessionController::poll() {
     // One append per new client sample, after host merge, using the receipt clock
     // above. Host-only changes and repeated/stale HUD resets do not add samples.
     if (newMomentSample) momentHistory_.append(nextHud, hudReceivedMs_, runGeneration_);
+    if (newMomentSample) recapSpan_.accept(*hudSample);
     if (finished || next.value("phase") != "active") endMomentRun();
     if (nextHud != hud_) { hud_ = std::move(nextHud); emit hudChanged(); }
     if (next != state_) {
