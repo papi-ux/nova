@@ -21,9 +21,7 @@ import org.mockito.Mockito.*
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowDialog
-import org.robolectric.shadows.ShadowViewRootImpl
 import org.robolectric.util.ReflectionHelpers
 
 /**
@@ -35,9 +33,10 @@ import org.robolectric.util.ReflectionHelpers
  *
  * Like NovaPanelWindowTest, this calls NovaSurfaces.onWindowIdle itself, as the window's content
  * does once nothing is left to show, instead of waiting for a composition. Like the native
- * controller window tests, it delivers focus through ShadowViewRootImpl: Robolectric does not
- * focus the activity on dialog close. This changes actual window focus without idling the
- * looper, so the composition cannot close the modal halfway through its assertions.
+ * controller window tests, it delivers actual framework focus: Robolectric does not focus the
+ * activity on dialog close. ActivityController also drains the queued focus message; calling
+ * ShadowViewRootImpl alone only posts it on API 33. This does not advance virtual time past
+ * the Busy page's minimum duration; its real modal ownership remains asserted below.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -163,7 +162,7 @@ class AppViewPairingConfirmationTest {
     private fun focus(hasFocus: Boolean) {
         val root = ReflectionHelpers.callInstanceMethod<Any>(activity.window.decorView, "getViewRootImpl")
         assertNotNull("the activity window is attached before focus is delivered", root)
-        Shadow.extract<ShadowViewRootImpl>(root).callWindowFocusChanged(hasFocus)
+        controller.windowFocusChanged(hasFocus)
         assertEquals("the framework window, not only the callback, changed focus", hasFocus, activity.hasWindowFocus())
     }
 
