@@ -971,8 +971,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --wake-pc)
                 set_tests_properties(nova_deck_host_wake_route_test PROPERTIES TIMEOUT 45 RESOURCE_LOCK nova_deck_x11)
+                # Xvfb -r turns off server auto-repeat, so this route qualifies the timer-driven
+                # continuous hold from one press and one release. deck_host_power_qml_test.cpp keeps
+                # the explicitly flagged repeats; this route no longer tests X repeat classification.
                 add_test(NAME nova_deck_host_power_route_test
-                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24"
+                    COMMAND ${NOVA_DECK_TEST_XVFB_RUN} -a -s "-screen 0 1280x800x24 -r"
                         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_library_navigation_test.py
                         $<TARGET_FILE:nova-deck> --host-power)
                 set_tests_properties(nova_deck_host_power_route_test PROPERTIES TIMEOUT 70 RESOURCE_LOCK nova_deck_x11)
