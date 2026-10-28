@@ -116,6 +116,7 @@ import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.binding.PlatformBinding
 import com.papi.nova.binding.input.NativeControllerLibraryInput
+import com.papi.nova.binding.input.driver.UsbDriverService
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
@@ -160,6 +161,7 @@ import com.papi.nova.ui.panel.NovaShoulder
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.NovaStatePage
 import com.papi.nova.ui.panel.NovaStateScreen
+import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
@@ -237,6 +239,11 @@ class NovaLibraryActivity : NovaActivity() {
     private var appliedTheme: String = ""
     /** A Steam Controller's own buttons, which reach the library only while it is resumed. */
     private val nativeControllerInput = NativeControllerLibraryInput(this)
+    /**
+     * Set Up Steam Controller's status, read live by its page and null until it first opens. Only
+     * that page's Allow USB Access asks Android for anything; every other read is passive (#354).
+     */
+    private var steamControllerUsbAccess by mutableStateOf<UsbDriverService.SteamControllerUsbAccessStatus?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         NovaThemeManager.applyTheme(this)
@@ -442,6 +449,8 @@ class NovaLibraryActivity : NovaActivity() {
         NovaSpaceRetrySignal.consumeTarget(this, streamPcUuid, streamHost)?.let(::retrySpaceOpenWhenChecked)
         if (recreateForThemeChangeIfNeeded()) return
         nativeControllerInput.resume()
+        // Android's USB prompt pauses the library; its answer is read here, without asking again.
+        if (steamControllerSetupShowing()) readSteamControllerUsbAccess()
         startLibraryPolling()
         revealControllerHints(NovaControllerHintChromeEvent.EXPLICIT_REVEAL)
         if (
@@ -1635,6 +1644,44 @@ class NovaLibraryActivity : NovaActivity() {
                 closeLabel = getString(R.string.nova_panel_close),
             ),
         )
+    }
+
+    /** Set Up Steam Controller, pushed over System. Opening it reads the status and asks nothing. */
+    private fun steamControllerSetupPage(): NovaPage {
+        readSteamControllerUsbAccess()
+        return LibraryPage.SteamControllerSetup(getString(R.string.nova_steam_controller_setup_title))
+    }
+
+    private fun steamControllerSetupShowing(): Boolean =
+        NovaSurfaces.existing(this)?.panel?.contains(LibraryPage.KEY_STEAM_CONTROLLER_SETUP) == true
+
+    /**
+     * Reads the receiver's status without asking. The driver service binds after the library
+     * resumes, so a status read before then says Nova is not ready, and is read once more shortly.
+     */
+    private fun readSteamControllerUsbAccess() {
+        val status = nativeControllerInput.steamControllerUsbAccessStatus()
+        steamControllerUsbAccess = status
+        if (status != UsbDriverService.SteamControllerUsbAccessStatus.OWNER_INACTIVE) return
+        lifecycleScope.launch {
+            delay(STEAM_CONTROLLER_ACCESS_SETTLE_MS)
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && steamControllerSetupShowing()) {
+                steamControllerUsbAccess = nativeControllerInput.steamControllerUsbAccessStatus()
+            }
+        }
+    }
+
+    private fun onSteamControllerSetupAction(action: NovaSteamControllerSetupAction) {
+        when (action) {
+            NovaSteamControllerSetupAction.REQUEST_ACCESS -> {
+                // One request at a time: Android's answer comes back through onResume.
+                if (steamControllerUsbAccess == UsbDriverService.SteamControllerUsbAccessStatus.REQUESTING_PERMISSION) return
+                steamControllerUsbAccess = nativeControllerInput.requestSteamControllerUsbAccess()
+            }
+            NovaSteamControllerSetupAction.CHECK_AGAIN -> readSteamControllerUsbAccess()
+            // Points at USB controller driver in Input & Controllers; the player turns it on there.
+            NovaSteamControllerSetupAction.OPEN_SETTINGS -> openSettings()
+        }
     }
 
     /** About Nova, pushed over System: its version, read in place, and B back to System. */
@@ -2965,6 +3012,10 @@ class NovaLibraryActivity : NovaActivity() {
                 actions = libraryOptionsActions,
             )
             is LibraryPage.System -> NovaLibrarySystemPage(ui = librarySystemUi(), actions = librarySystemActions)
+            is LibraryPage.SteamControllerSetup -> NovaSteamControllerSetupPage(
+                ui = steamControllerSetupUi(steamControllerUsbAccess),
+                onAction = ::onSteamControllerSetupAction,
+            )
             is LibraryPage.Search -> NovaLibrarySearchPage(
                 query = searchQuery,
                 resultCount = model.resultCount,
@@ -3010,6 +3061,7 @@ class NovaLibraryActivity : NovaActivity() {
         NovaLibrarySystemActions(
             onSwitchHost = ::finishWithTransition,
             onSettings = ::openSettings,
+            steamControllerSetupPage = ::steamControllerSetupPage,
             polarisSyncPage = ::polarisSyncPage,
             hostConsolePage = { hostConsolePage("") },
             onHelp = ::openHelpDiagnostics,
@@ -3158,6 +3210,7 @@ class NovaLibraryActivity : NovaActivity() {
         private const val STATE_FOCUSED_GAME = "library_focused_game"
         private const val CONTROLLER_HINT_IDLE_REVEAL_MS = 4_000L
         private const val ABOUT_NOTICE_KEY = "nova-library-about"
+        private const val STEAM_CONTROLLER_ACCESS_SETTLE_MS = 750L
         private const val REFRESH_FAILED_NOTICE_KEY = "nova-library-refresh-failed"
         private const val SPACES_POLL_OPEN_MS = 5_000L
         private const val SPACES_POLL_CLOSED_MS = 15_000L

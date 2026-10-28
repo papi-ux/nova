@@ -296,6 +296,24 @@
     <string name="nova_system_menu_switch_host_hint">Return to the paired host list.</string>
     <string name="nova_system_menu_settings">Settings</string>
     <string name="nova_system_menu_settings_hint">Streaming, input, video, and device defaults.</string>
+    <string name="nova_system_menu_steam_controller">Set Up Steam Controller</string>
+    <string name="nova_system_menu_steam_controller_hint">Allow USB access for a wired controller or its Puck.</string>
+    <!-- Set Up Steam Controller (#354). Access allowed is never a claim that every control works. -->
+    <string name="nova_steam_controller_setup_title">Steam Controller</string>
+    <string name="nova_steam_controller_setup_checking">Checking for a Steam Controller…</string>
+    <string name="nova_steam_controller_setup_usb_disabled">USB controller driver is off. Turn it on in Settings, under Input &amp; Controllers.</string>
+    <string name="nova_steam_controller_setup_not_ready">Nova isn\'t ready to check yet. Check again in a moment.</string>
+    <string name="nova_steam_controller_setup_no_device">No Steam Controller found. Plug in the controller or its Puck, then check again.</string>
+    <string name="nova_steam_controller_setup_ambiguous">More than one Steam Controller is plugged in. Leave one connected, then check again.</string>
+    <string name="nova_steam_controller_setup_android_gamepad">Android already uses this controller as a gamepad, so Nova leaves it alone.</string>
+    <string name="nova_steam_controller_setup_needs_permission">Nova needs USB access to read this controller. Android will ask you to allow it.</string>
+    <string name="nova_steam_controller_setup_requesting">Answer Android\'s prompt to continue.</string>
+    <string name="nova_steam_controller_setup_granted">Access allowed.</string>
+    <string name="nova_steam_controller_setup_native_input">Access allowed. Nova is reading this controller here.</string>
+    <string name="nova_steam_controller_setup_request_failed">Android couldn\'t ask for access. Unplug the controller or its Puck, plug it back in, then try again.</string>
+    <string name="nova_steam_controller_setup_allow">Allow USB Access</string>
+    <string name="nova_steam_controller_setup_check_again">Check Again</string>
+    <string name="nova_steam_controller_setup_open_settings">Open Settings</string>
     <string name="nova_system_menu_polaris_sync">Polaris Sync</string>
     <string name="nova_system_menu_polaris_sync_hint">Compare Nova\'s settings with the host\'s.</string>
     <string name="nova_system_menu_manage_server">Host Console</string>

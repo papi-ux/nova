@@ -99,6 +99,7 @@ class NovaLibraryPanelsComposeTest {
     private val systemActions = NovaLibrarySystemActions(
         onSwitchHost = { opened += "switch" },
         onSettings = { opened += "settings" },
+        steamControllerSetupPage = { TestLibraryPage("steam-controller") },
         polarisSyncPage = { TestLibraryPage("polaris") },
         hostConsolePage = { TestLibraryPage("host-console") },
         onHelp = {},
@@ -256,6 +257,7 @@ class NovaLibraryPanelsComposeTest {
             R.string.nova_system_menu_manage_server,
             R.string.nova_system_menu_help_diagnostics,
             R.string.nova_system_menu_about,
+            R.string.nova_system_menu_steam_controller,
             R.string.nova_system_menu_matrix,
             R.string.nova_system_menu_sponsor,
         ).map { rule.activity.getString(it) }

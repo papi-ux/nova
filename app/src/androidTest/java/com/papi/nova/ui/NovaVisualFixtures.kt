@@ -453,6 +453,9 @@ internal object NovaVisualFixtures {
     fun systemActions(polarisSync: () -> NovaPage) = NovaLibrarySystemActions(
         onSwitchHost = {},
         onSettings = {},
+        steamControllerSetupPage = {
+            NovaCommonPage.Notice(key = "steam-controller", title = "Steam Controller", message = "", closeLabel = "Close")
+        },
         polarisSyncPage = polarisSync,
         hostConsolePage = {
             NovaCommonPage.Notice(key = "host-console", title = "Host Console", message = "", closeLabel = "Close")

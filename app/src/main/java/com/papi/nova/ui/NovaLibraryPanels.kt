@@ -100,11 +100,17 @@ internal sealed interface LibraryPage : NovaPage {
         override val width: NovaPanelWidth get() = NovaPanelWidth.Wide
     }
 
+    /** USB access for a Steam Controller's receiver, asked for only from its button (#354). */
+    data class SteamControllerSetup(override val title: String) : LibraryPage {
+        override val key: String get() = KEY_STEAM_CONTROLLER_SETUP
+    }
+
     companion object {
         const val KEY_OPTIONS = "library-options"
         const val KEY_SYSTEM = "library-system"
         const val KEY_SEARCH = "library-search"
         const val KEY_POLARIS_SYNC = "library-polaris-sync"
+        const val KEY_STEAM_CONTROLLER_SETUP = "library-steam-controller-setup"
         const val KEY_SOURCES = "library-sources"
         const val KEY_MORE = "library-more"
         const val KEY_SORT = "library-sort"
@@ -495,6 +501,8 @@ internal data class NovaLibrarySystemUi(
 internal class NovaLibrarySystemActions(
     val onSwitchHost: () -> Unit,
     val onSettings: () -> Unit,
+    /** Set Up Steam Controller, pushed here: USB access without launching a game first (#354). */
+    val steamControllerSetupPage: () -> NovaPage,
     val polarisSyncPage: () -> NovaPage,
     /** The host's console, pushed here as Polaris Sync is (N6). */
     val hostConsolePage: () -> NovaPage,
@@ -517,10 +525,10 @@ private class NovaLibrarySystemRow(
 /**
  * System: a header saying which host this is and whether Polaris answers, then its rows, two to a
  * line on a landscape handheld and one column elsewhere, in the same order either way. Rows that
- * leave the library close the panel first; Polaris Sync, the host's console and About are pages
- * of their own, pushed here. Every row goes somewhere, so every row carries the chevron: only
- * Polaris Sync had one, and the rows that leave read as rows that do nothing. Focus opens on the
- * first row, never on the panel.
+ * leave the library close the panel first; Set Up Steam Controller, Polaris Sync, the host's
+ * console and About are pages of their own, pushed here. Every row goes somewhere, so every row
+ * carries the chevron: only Polaris Sync had one, and the rows that leave read as rows that do
+ * nothing. Focus opens on the first row, never on the panel.
  */
 @Composable
 internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, actions: NovaLibrarySystemActions) {
@@ -568,6 +576,13 @@ internal fun NovaPageScope.NovaLibrarySystemPage(ui: NovaLibrarySystemUi, action
             caption = R.string.nova_system_menu_about_hint,
             opens = true,
             onClick = { if (isTop) panel.push(actions.aboutPage()) },
+        ),
+        NovaLibrarySystemRow(
+            key = "steam-controller",
+            title = R.string.nova_system_menu_steam_controller,
+            caption = R.string.nova_system_menu_steam_controller_hint,
+            opens = true,
+            onClick = { if (isTop) panel.push(actions.steamControllerSetupPage()) },
         ),
         NovaLibrarySystemRow(
             key = "matrix",
