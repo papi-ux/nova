@@ -40,6 +40,7 @@ import com.papi.nova.runtime.NovaRuntimeTasks
 import com.papi.nova.ui.AdapterFragment
 import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaConfirmation
+import com.papi.nova.ui.NovaHaptics
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.panel.NovaCommonPage
@@ -854,9 +855,9 @@ class AppView : NovaActivity(), AdapterFragmentCallbacks {
 
         card.setOnClickListener { v ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                v.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                NovaHaptics.perform(v, HapticFeedbackConstants.CONTEXT_CLICK)
             } else {
-                v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                NovaHaptics.perform(v, HapticFeedbackConstants.VIRTUAL_KEY)
             }
             getSharedPreferences("nova_prefs", MODE_PRIVATE)
                 .edit()

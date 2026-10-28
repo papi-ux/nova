@@ -10,7 +10,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.papi.nova.ui.compose.novaControlDimension
 import com.papi.nova.ui.compose.novaFocusTick
+import com.papi.nova.ui.rememberNovaHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -650,7 +650,7 @@ private fun NumberStepButton(glyph: String, label: String, enabled: Boolean, onC
     val surfaces = LocalNovaLibrarySurfaces.current
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val shape = RoundedCornerShape(NovaRadius.hero)
     val minimum = novaControlDimension(48.dp).coerceAtLeast(48.dp)
     Box(

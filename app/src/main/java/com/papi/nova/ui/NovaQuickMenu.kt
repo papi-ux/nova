@@ -226,7 +226,7 @@ class NovaQuickMenu(
 
         fun keys(vararg vk: Int) = ShortArray(vk.size) { vk[it].toShort() }
         fun haptic(action: () -> Unit) {
-            game.window.decorView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            NovaHaptics.perform(game.window.decorView, HapticFeedbackConstants.VIRTUAL_KEY)
             action()
         }
 

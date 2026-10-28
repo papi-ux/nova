@@ -33,7 +33,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -94,7 +93,7 @@ internal fun NovaLibraryPosterCard(
     val posterLoaderIdentity: Any = posterLoader ?: apiClient
     var focused by remember(game.id) { mutableStateOf(false) }
     val visualFocused = focusedOverride ?: focused
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val alpha by animateFloatAsState(
         targetValue = if (visualFocused) 1f else presentationSpec.unfocusedAlpha,
         animationSpec = tween(durationMillis = NovaPosterAnimationDurationMillis),

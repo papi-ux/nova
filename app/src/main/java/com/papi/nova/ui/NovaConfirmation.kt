@@ -11,9 +11,9 @@ import com.papi.nova.R
 
 /**
  * A pairing that saved the host's certificate, and a connection the player asked for, are each
- * confirmed once (#386). The haptic is the view's own CONFIRM, so the system's touch feedback
- * setting decides whether it is felt and a device without a vibrator feels nothing; it is never
- * controller rumble. Pairing's words travel to the screen it opens on a one-shot extra. A
+ * confirmed once (#386). Nova's Haptic Feedback toggle gates the view's own CONFIRM, and the
+ * system's touch feedback setting can still veto it. A device without a vibrator feels nothing;
+ * this is never controller rumble. Pairing's words travel to the screen it opens on a one-shot extra. A
  * connection's are the stream's setup overlay title, which goes before the game is shown.
  */
 object NovaConfirmation {
@@ -23,7 +23,7 @@ object NovaConfirmation {
     /** CONFIRM came in Android 11; before it there is no confirm haptic to give. */
     fun haptic(view: View?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            view?.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            NovaHaptics.perform(view, HapticFeedbackConstants.CONFIRM)
         }
     }
 

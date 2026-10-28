@@ -44,7 +44,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -507,7 +506,7 @@ private fun NovaQuickMenuSessionStrip(
     val healthDetail by ui.slice { it.healthDetail }
     val healthTone by ui.slice { it.healthTone }
     val colors = LocalNovaComposeColors.current
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val type = novaPanelType
     val shape = RoundedCornerShape(NovaRadius.row)
     var focused by remember { mutableStateOf(false) }
@@ -1112,7 +1111,7 @@ private fun NovaQuickMenuClickableSurface(
     content: @Composable () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val shape = RoundedCornerShape(NovaRadius.row)
 
     Box(

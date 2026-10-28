@@ -1,6 +1,7 @@
 package com.papi.nova.ui.panel
 
 import com.papi.nova.ui.novaAvoidCameraCutout
+import com.papi.nova.ui.rememberNovaHapticFeedback
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,7 +46,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -137,7 +137,7 @@ fun <T> NovaValueRow(
     val index = options.indexOfFirst { it.value == current }.coerceAtLeast(0)
     val latestIndex by rememberUpdatedState(index)
     val change by rememberUpdatedState(onChange)
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val isSwitch = resolved == NovaValueStyle.Switch
 
     fun select(target: Int) {
@@ -253,7 +253,7 @@ fun NovaStepperRow(
     val latest by rememberUpdatedState(value)
     val change by rememberUpdatedState(onChange)
     val exact by rememberUpdatedState(onExact)
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     // The ends are the widest labels a range usually has; the current one covers the rest.
     val widest = rememberNovaLabelWidths(listOf(format(range.first), format(range.last), format(value))).max()
 

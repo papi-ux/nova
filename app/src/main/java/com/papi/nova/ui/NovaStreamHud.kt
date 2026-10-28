@@ -295,7 +295,7 @@ class NovaStreamHud(
             pendingLongPress = null
             if (hudView !== view || !view.isAttachedToWindow || activity.isFinishing || activity.isDestroyed) return@Runnable
             longPressTriggered = true
-            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            NovaHaptics.perform(view, android.view.HapticFeedbackConstants.LONG_PRESS)
             onCommandCenterRequested?.invoke()
         }
         pendingLongPress = task

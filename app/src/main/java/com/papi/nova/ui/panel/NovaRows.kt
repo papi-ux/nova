@@ -1,6 +1,7 @@
 package com.papi.nova.ui.panel
 
 import com.papi.nova.ui.novaAvoidCameraCutout
+import com.papi.nova.ui.rememberNovaHapticFeedback
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +34,6 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.MultiContentMeasurePolicy
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -125,7 +125,7 @@ internal fun NovaRowLayout(
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val enabled = disabledReason == null
     val filled = emphasis && enabled
     val current = trailing == NovaRowTrailing.Current

@@ -57,7 +57,6 @@ import com.papi.nova.ui.panel.NovaKeys
 import com.papi.nova.ui.panel.NovaPressLatch
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -858,7 +857,7 @@ internal fun NovaLibraryStage(
     val rowState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val inputModeManager = LocalInputModeManager.current
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val activation = remember { NovaStagePress() }
     fun select(game: PolarisGame) {
         if (game.id == selectedId) return

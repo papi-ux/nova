@@ -127,6 +127,7 @@ import android.content.pm.PackageManager
 import com.papi.nova.ui.panel.NovaSurfaces
 import com.papi.nova.ui.panel.novaSurfaces
 import com.papi.nova.ui.NovaConfirmation
+import com.papi.nova.ui.NovaHaptics
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
@@ -1236,7 +1237,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             NovaEdge.End,
             anchor?.let { NovaFocusReturn.View(it) } ?: NovaFocusReturn.None,
         )
-        anchor?.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+        NovaHaptics.perform(anchor, android.view.HapticFeedbackConstants.CONFIRM)
     }
 
     private fun buildThemePickerThemes(): List<String> {

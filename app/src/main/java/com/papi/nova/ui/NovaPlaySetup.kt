@@ -51,7 +51,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MultiContentMeasurePolicy
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -174,7 +173,7 @@ internal fun NovaPlaySetupPlanCard(
     val type = novaPanelType
     val shape = RoundedCornerShape(NovaRadius.row)
     val rest = novaRowRest
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val open by rememberUpdatedState(onOpen)
     val frame = if (onOpen != null) {
         Modifier
@@ -472,7 +471,7 @@ internal fun NovaPlaySetupSettingRow(
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val shape = RoundedCornerShape(NovaRadius.row)
     val options = state.options
     val currentIndex = options.indexOfFirst { it.current }
@@ -798,7 +797,7 @@ internal fun NovaPlaySetupOptionRow(
 ) {
     val colors = LocalNovaComposeColors.current
     val type = novaPanelType
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val shape = RoundedCornerShape(NovaRadius.row)
     val pick by rememberUpdatedState(onPick)
     val currentLabel = stringResource(R.string.nova_panel_current)

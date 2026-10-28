@@ -1,6 +1,7 @@
 package com.papi.nova.ui.compose
 
 import com.papi.nova.ui.novaAvoidCameraCutout
+import com.papi.nova.ui.rememberNovaHapticFeedback
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -39,7 +40,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -160,8 +160,8 @@ data class NovaControllerHint(
 )
 
 // Shared haptic vocabulary for the gamepad-first surfaces: a light tick when focus moves,
-// a firmer confirm when a primary action fires. The platform suppresses these when the
-// user has system haptics disabled, so no Nova-level setting gates them.
+// a firmer confirm when a primary action fires. rememberNovaHapticFeedback applies Nova's
+// preference before delegating to the platform, which still honors system haptic settings.
 fun HapticFeedback.novaFocusTick() {
     performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
 }
@@ -275,7 +275,7 @@ fun NovaActionSurface(
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberNovaHapticFeedback()
     val colors = LocalNovaComposeColors.current
     val surfaces = LocalNovaLibrarySurfaces.current
     val shape = RoundedCornerShape(cornerRadius)

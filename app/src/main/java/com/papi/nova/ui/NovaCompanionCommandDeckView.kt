@@ -300,7 +300,7 @@ class NovaCompanionCommandDeckView(
                 },
             )
             setOnClickListener { view ->
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                NovaHaptics.perform(view, HapticFeedbackConstants.KEYBOARD_TAP)
                 onAction(action.id)
             }
             updateActionView(this, action)
@@ -332,7 +332,7 @@ class NovaCompanionCommandDeckView(
                     label = label,
                     confirmLabel = label,
                     onConfirm = {
-                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        NovaHaptics.perform(this@apply, HapticFeedbackConstants.KEYBOARD_TAP)
                         onAction(NovaCompanionCommandActionId.END_SESSION)
                     },
                     modifier = Modifier.fillMaxWidth(),
