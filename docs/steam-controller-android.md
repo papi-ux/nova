@@ -13,12 +13,14 @@ hands-on check.
 ## Connect
 
 - **USB or Puck:** leave **Settings → Input & Controllers → USB controller
-  driver** on. Connect the controller or Puck, then allow Android's USB access
-  prompt when the stream starts. A Puck's four controller channels stay separate;
+  driver** on. Connect the controller or Puck, then open **System → Set Up Steam
+  Controller** in Nova's library and choose **Allow USB Access**. Accept Android's
+  prompt. **Access allowed** confirms USB permission; **Nova is reading this
+  controller here** means native input has arrived. A Puck's four controller channels stay separate;
   an empty channel does not reserve a player.
-  The library uses existing USB permission and does not open a permission prompt.
-  After reconnecting USB or rebooting, start a stream and allow access before
-  using native controller shortcuts in the library. Leave **Override native Xbox
+  Opening the library or checking the status never asks for permission on its own.
+  After reconnecting USB or rebooting, use the setup page again if Android needs
+  access. Older builds ask when starting a stream instead. Leave **Override native Xbox
   gamepad support** off; the Steam Controller has its own driver path.
 - **Bluetooth:** pair in Android's Bluetooth settings first, then enable
   **Steam Controller over Bluetooth** in Nova. On Android 12 and later, allow
@@ -41,6 +43,22 @@ off. One Puck can still carry its four independent channels; leave **Multiple
 controllers** enabled for separate players. A surviving USB device is reconsidered
 after its duplicate is unplugged.
 A real kernel-provided gamepad keeps its existing Android input route.
+
+## Pair the Puck first
+
+The controller must be paired to its Puck before Nova can receive wireless input.
+Android's USB permission and the wireless connection are separate setup steps.
+
+- **White blinking light:** the controller is searching for its Puck. Turn it off
+  by holding **Steam** for about five seconds. From off, hold **A + R1 + Steam**
+  for about two seconds to use the right saved Puck slot. **A + L1 + Steam** uses
+  the left slot. A connected Puck link shows a **solid white** light; blue is Bluetooth.
+- **Neither slot connects:** connect the Puck to a PC running Steam with no game
+  running, place the controller on the Puck, and complete Steam's pairing prompt.
+  Then reconnect that Puck to the Shield or other Android device and open Nova.
+
+See Valve's [connection and pairing guide](https://help.steampowered.com/en/faqs/view/33E8-5EDF-24E6-4CFB)
+and [mode-switching combinations](https://help.steampowered.com/en/faqs/view/345E-F55E-E96C-E0CF).
 
 ## Play
 
@@ -81,8 +99,9 @@ features. Other streaming hosts may handle the type differently.
 
 Disconnecting a controller cancels held buttons, mouse clicks and touch contacts,
 stops motion and rumble, and releases its player. A reconnected controller must
-confirm native mode again before it can join. Ending a stream stops the native
-driver; the controller's watchdog restores mouse mode, which can take a moment.
+confirm native mode again before it can join. Returning to Nova's library transfers
+native input back to library navigation. Leaving both the library and stream stops
+the native driver; the controller's watchdog restores mouse mode, which can take a moment.
 
 ## Implementation sources
 
