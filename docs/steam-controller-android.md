@@ -14,21 +14,21 @@ hands-on check.
 
 - **USB or Puck:** leave **Settings → Input & Controllers → USB controller
   driver** on. Connect the controller or Puck, then open **System → Set Up Steam
-  Controller** in Nova's library and choose **Allow USB Access**. Accept Android's
+  Controller** in Nova's library. If access is needed, choose **Allow USB Access** and accept Android's
   prompt. **Access allowed** confirms USB permission; **Nova is reading this
   controller here** means native input has arrived. A Puck's four controller channels stay separate;
   an empty channel does not reserve a player.
   Opening the library or checking the status never asks for permission on its own.
   After reconnecting USB or rebooting, use the setup page again if Android needs
-  access. Older builds ask when starting a stream instead. Leave **Override native Xbox
+  access. If access is still missing when a stream starts, Android asks then.
+  Leave **Override native Xbox
   gamepad support** off; the Steam Controller has its own driver path.
 - **Bluetooth:** pair in Android's Bluetooth settings first, then enable
   **Steam Controller over Bluetooth** in Nova. On Android 12 and later, allow
   Nearby devices when asked. Nova does not scan, pair or request location access.
   Bluetooth support is off by default, including on Shield.
 - A Shield with a USB port can use a cable or Puck. Models without USB need
-  Bluetooth. Follow [Valve's connection guide](https://help.steampowered.com/en/faqs/view/33E8-5EDF-24E6-4CFB)
-  for the controller's pairing controls.
+  Bluetooth. See the Puck pairing steps below for a receiver that isn't connecting.
 
 Changes apply to the next stream. If access is denied or the native connection
 fails, Nova releases it and the controller returns to mouse mode. Check the
@@ -44,18 +44,21 @@ controllers** enabled for separate players. A surviving USB device is reconsider
 after its duplicate is unplugged.
 A real kernel-provided gamepad keeps its existing Android input route.
 
-## Pair the Puck first
+## Check the Puck pairing
 
-The controller must be paired to its Puck before Nova can receive wireless input.
-Android's USB permission and the wireless connection are separate setup steps.
+A controller usually comes paired to its included Puck. Nova receives Puck input
+once that link connects; Android's USB permission is a separate setup step.
 
 - **White blinking light:** the controller is searching for its Puck. Turn it off
   by holding **Steam** for about five seconds. From off, hold **A + R1 + Steam**
   for about two seconds to use the right saved Puck slot. **A + L1 + Steam** uses
-  the left slot. A connected Puck link shows a **solid white** light; blue is Bluetooth.
+  the left slot. A connected Puck link shows a **solid white** light (breathing
+  while charging); blue is Bluetooth.
 - **Neither slot connects:** connect the Puck to a PC running Steam with no game
   running, place the controller on the Puck, and complete Steam's pairing prompt.
-  Then reconnect that Puck to the Shield or other Android device and open Nova.
+  Pairing replaces the Puck saved in the slot you started in. To keep another
+  Puck's pairing, use the other slot. Reconnect the Puck to your Android device
+  and use Nova's **Set Up Steam Controller** page again if USB access is needed.
 
 See Valve's [connection and pairing guide](https://help.steampowered.com/en/faqs/view/33E8-5EDF-24E6-4CFB)
 and [mode-switching combinations](https://help.steampowered.com/en/faqs/view/345E-F55E-E96C-E0CF).
@@ -99,9 +102,10 @@ features. Other streaming hosts may handle the type differently.
 
 Disconnecting a controller cancels held buttons, mouse clicks and touch contacts,
 stops motion and rumble, and releases its player. A reconnected controller must
-confirm native mode again before it can join. Returning to Nova's library transfers
-native input back to library navigation. Leaving both the library and stream stops
-the native driver; the controller's watchdog restores mouse mode, which can take a moment.
+confirm native mode again before it can join. When a stream ends, a USB controller
+or Puck returns to library navigation, while Bluetooth leaves native mode. Leaving
+the library also releases USB. Without the native driver, the controller's watchdog
+restores mouse mode, which can take a moment.
 
 ## Implementation sources
 
