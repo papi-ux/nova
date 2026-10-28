@@ -5,8 +5,11 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
-import android.os.SystemClock
+import android.hardware.usb.UsbRequest
+import android.os.Build
 import com.papi.nova.LimeLog
+import java.nio.ByteBuffer
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -25,13 +28,13 @@ import kotlin.concurrent.withLock
  * license, Copyright (C) 1997-2026 Sam Lantinga). Unlike #1619, Puck channels are never merged:
  * each physical controller gets its own transport.
  *
- * [uptimeMillis] is a test seam for telling an idle read timeout from a device error.
+ * [newInputRequest] lets the existing USB fixture supply a request without native USB access.
  */
 internal class SteamControllerUsbTransport(
     private val device: UsbDevice,
     private val connection: UsbDeviceConnection,
     private val interfaceId: Int,
-    private val uptimeMillis: () -> Long = SystemClock::uptimeMillis
+    private val newInputRequest: () -> UsbRequest = { UsbRequest() }
 ) : SteamControllerTransport {
     private enum class State { NEW, STARTING, RUNNING, CLOSED }
 
@@ -49,6 +52,9 @@ internal class SteamControllerUsbTransport(
     private var activeUsers = 0
     private var released = false
     private var claimedInterface: UsbInterface? = null
+    private var inputRequest: UsbRequest? = null
+    private var inputQueued = false
+    private var inputCancelIssued = false
     private val pendingFeatures = ArrayDeque<PendingFeature>()
     private var pendingRumble: ByteArray? = null
 
@@ -174,6 +180,12 @@ internal class SteamControllerUsbTransport(
         lock.withLock { claimedInterface = iface }
         inEndpoint = findEndpoint(iface, UsbConstants.USB_DIR_IN)
         outEndpoint = findEndpoint(iface, UsbConstants.USB_DIR_OUT)
+        lock.withLock {
+            if (state != State.STARTING) return null
+            val request = newInputRequest()
+            inputRequest = request
+            if (!request.initialize(connection, inEndpoint!!)) return SteamControllerTransport.Failure.IO
+        }
         return null
     }
 
@@ -220,19 +232,40 @@ internal class SteamControllerUsbTransport(
                 it.onReady()
             }
 
-            val endpoint = inEndpoint!!
-            val buffer = ByteArray(maxOf(FEATURE_REPORT_SIZE, endpoint.maxPacketSize))
+            val request = inputRequest!!
+            // Idle receivers must not hold a movable Java array in bulkTransfer's JNI critical
+            // section. Each channel owns one connection, one request and one direct buffer.
+            val buffer = ByteBuffer.allocateDirect(maxOf(FEATURE_REPORT_SIZE, inEndpoint!!.maxPacketSize))
             var errors = 0
             while (lock.withLock { state == State.RUNNING }) {
-                val begin = uptimeMillis()
-                val length = connection.bulkTransfer(endpoint, buffer, buffer.size, READ_TIMEOUT_MS)
+                val queued = lock.withLock {
+                    if (state != State.RUNNING) return
+                    buffer.clear()
+                    inputQueued = queueInput(request, buffer)
+                    inputQueued
+                }
+                if (!queued) {
+                    fail(SteamControllerTransport.Failure.IO)
+                    return
+                }
+
+                // Untimed REAPURB also returns cancelled/disconnected requests. Positive timed
+                // waits use poll(), which on older Android can miss disconnect completions.
+                val completed = connection.requestWait()
+                if (completed !== request) {
+                    // A null/error or another request's completion does not retire our URB.
+                    fail(SteamControllerTransport.Failure.IO)
+                    return
+                }
+                lock.withLock { inputQueued = false }
+                if (lock.withLock { state != State.RUNNING }) return
+                val length = buffer.position()
                 if (length > 0) {
                     errors = 0
-                    val report = buffer.copyOf(length)
+                    val report = ByteArray(length)
+                    buffer.flip()
+                    buffer.get(report)
                     deliver { it.onReport(report) }
-                } else if (uptimeMillis() - begin >= READ_TIMEOUT_MIN_ELAPSED_MS) {
-                    // An idle timeout: a Puck channel without a controller is silent
-                    errors = 0
                 } else if (++errors >= MAX_CONSECUTIVE_READ_ERRORS) {
                     fail(SteamControllerTransport.Failure.IO)
                     return
@@ -248,7 +281,27 @@ internal class SteamControllerUsbTransport(
             LimeLog.warning("Steam Controller USB channel $interfaceId input failed: ${e.javaClass.simpleName}")
             fail(SteamControllerTransport.Failure.IO)
         } finally {
+            finishPendingInput()
             leave()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun queueInput(request: UsbRequest, buffer: ByteBuffer): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) request.queue(buffer)
+        else request.queue(buffer, buffer.remaining())
+
+    private fun finishPendingInput() {
+        val request = lock.withLock { if (inputQueued) inputRequest else null } ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // One best-effort REAPURBNDELAY after a fatal wait; never poll, block or retry here.
+            try {
+                if (connection.requestWait(0) === request) lock.withLock { inputQueued = false }
+            } catch (_: TimeoutException) {
+                // Still outstanding: retain the request/buffer until the fd has been closed.
+            } catch (_: RuntimeException) {
+                // The terminal failure was already delivered; teardown owns the remaining URB.
+            }
         }
     }
 
@@ -362,6 +415,14 @@ internal class SteamControllerUsbTransport(
     private fun closeLocked(): List<PendingFeature> {
         state = State.CLOSED
         observer = null
+        if (inputQueued && !inputCancelIssued) {
+            inputCancelIssued = true
+            try {
+                inputRequest?.cancel()
+            } catch (e: RuntimeException) {
+                LimeLog.warning("Steam Controller USB channel $interfaceId cancel failed: ${e.javaClass.simpleName}")
+            }
+        }
         pendingRumble = null
         val cancelled = pendingFeatures.toList()
         pendingFeatures.clear()
@@ -376,22 +437,36 @@ internal class SteamControllerUsbTransport(
 
     /** Releases the claimed interface and the connection once closed and no thread can use them. */
     private fun releaseIfUnused() {
-        val iface = lock.withLock {
+        val resources = lock.withLock {
             if (state != State.CLOSED || activeUsers > 0 || released) {
                 return
             }
             released = true
-            claimedInterface.also { claimedInterface = null }
+            Triple(claimedInterface, inputRequest, inputQueued).also {
+                claimedInterface = null
+                inputRequest = null
+            }
         }
 
         try {
+            val iface = resources.first
             if (iface != null && !connection.releaseInterface(iface)) {
                 LimeLog.warning("Failed to release Steam Controller USB channel $interfaceId")
             }
         } catch (e: RuntimeException) {
             LimeLog.warning("Failed to release Steam Controller USB channel $interfaceId: ${e.javaClass.simpleName}")
         } finally {
-            connection.close()
+            try {
+                // No thread is in an ioctl now. Closing the fd retires any unreaped kernel URB
+                // before request.close() frees its native storage or the direct buffer can go.
+                connection.close()
+            } finally {
+                if (resources.third) {
+                    LimeLog.warning("Steam Controller USB channel $interfaceId request was not reaped; " +
+                        "Android may retain its JNI GlobalRef after fd close")
+                }
+                resources.second?.close()
+            }
         }
     }
 
@@ -414,10 +489,6 @@ internal class SteamControllerUsbTransport(
         private const val HID_REPORT_TYPE_OUTPUT = 2
         private const val HID_REPORT_TYPE_FEATURE = 3
 
-        private const val READ_TIMEOUT_MS = 1000
-
-        // A failed read that returns well before its timeout is an error, not an idle channel
-        private const val READ_TIMEOUT_MIN_ELAPSED_MS = 750L
         private const val MAX_CONSECUTIVE_READ_ERRORS = 3
         private const val READ_ERROR_BACKOFF_MS = 10L
         private const val FEATURE_TIMEOUT_MS = 1000

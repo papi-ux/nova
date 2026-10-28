@@ -5,13 +5,20 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
+import android.hardware.usb.UsbRequest
+import android.os.Build
 import com.papi.nova.binding.input.driver.SteamControllerTransport.Failure
+import java.nio.ByteBuffer
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -25,8 +32,11 @@ import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyBoolean
 import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.same
 import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.timeout
@@ -191,10 +201,12 @@ class SteamControllerUsbTransportTest {
         // The second read reused the transfer buffer; the first delivered report kept its bytes
         assertNotSame(recorder.reports[0], recorder.reports[1])
         assertArrayEquals(byteArrayOf(0x42, 1, 2, 3), recorder.reports[0])
+        assertTrue(channel.buffers.all { it.isDirect && !it.hasArray() })
+        verify(channel.connection, never()).bulkTransfer(same(channel.iface.getEndpoint(0)), any(), anyInt(), anyInt())
     }
 
     @Test
-    fun idleTimeoutsAndATransientErrorKeepTheChannelOpen() {
+    fun idleWaitsAndATransientZeroLengthCompletionKeepTheChannelOpen() {
         val device = puck()
         val channel = Channel(device, device.getInterface(2))
         repeat(3) { channel.reads.add(channel.idle) }
@@ -208,6 +220,116 @@ class SteamControllerUsbTransportTest {
         assertEquals("report:4207", recorder.next())
         assertNull(recorder.quiet())
         verify(channel.connection, never()).close()
+    }
+
+    @Test
+    fun idleWaitKeepsOneDirectRequestPendingUntilCompletion() {
+        val device = puck()
+        val channel = Channel(device, device.getInterface(2))
+        repeat(3) { channel.reads.add(channel.idle) }
+        val waiting = CountDownLatch(1)
+        val complete = CountDownLatch(1)
+        channel.reads.add {
+            waiting.countDown()
+            assertTrue(complete.await(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+            0
+        }
+        val recorder = Recorder()
+        val transport = channel.transport()
+        assertTrue(transport.start(recorder))
+        assertEquals("ready", recorder.next())
+        assertTrue(waiting.await(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        assertEquals(1, channel.buffers.size)
+        assertTrue(channel.buffers.single().isDirect)
+        assertFalse(channel.buffers.single().hasArray())
+        verify(channel.connection, never()).bulkTransfer(same(channel.iface.getEndpoint(0)), any(), anyInt(), anyInt())
+        @Suppress("DEPRECATION")
+        verify(channel.request, never()).queue(any(ByteBuffer::class.java), anyInt())
+        transport.close()
+        verify(channel.request, times(1)).cancel()
+        verify(channel.request, never()).close()
+        complete.countDown()
+        verify(channel.request, timeout(TIMEOUT_MS)).close()
+        verify(channel.connection, timeout(TIMEOUT_MS)).close()
+        verify(channel.connection, never()).requestWait(anyLong())
+        assertNull(recorder.quiet())
+    }
+
+    @Test
+    @Config(sdk = [23]) // Robolectric 4.16 dropped 21/22; this exercises the same pre-26 API path.
+    fun legacyDirectQueueAndCancellationWakeTheUntimedWait() {
+        val device = puck()
+        val channel = Channel(device, device.getInterface(2))
+        val waiting = CountDownLatch(1)
+        doAnswer { waiting.countDown(); channel.awaitInput(false) }.`when`(channel.connection).requestWait()
+        val recorder = Recorder()
+        val transport = channel.transport()
+        assertTrue(transport.start(recorder))
+        assertEquals("ready", recorder.next())
+        assertTrue(waiting.await(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        assertEquals(1, channel.buffers.size)
+        assertTrue(channel.buffers.single().isDirect)
+        assertFalse(channel.buffers.single().hasArray())
+        transport.close()
+        verify(channel.request, timeout(TIMEOUT_MS)).close()
+        verify(channel.request, times(1)).cancel()
+        verify(channel.connection, timeout(TIMEOUT_MS)).close()
+        verify(channel.connection, times(1)).requestWait()
+        assertNull(recorder.quiet())
+    }
+
+    @Test
+    fun fatalWaitClosesTheFdBeforeFreeingAnUnreapedRequest() {
+        val device = puck()
+        val channel = Channel(device, device.getInterface(3))
+        doReturn(null).`when`(channel.connection).requestWait()
+        doAnswer { invocation ->
+            assertEquals(0L, invocation.getArgument<Long>(0))
+            throw TimeoutException("no completed request")
+        }.`when`(channel.connection).requestWait(anyLong())
+        val recorder = Recorder()
+        val transport = channel.transport()
+        assertTrue(transport.start(recorder))
+        assertEquals("ready", recorder.next())
+        assertEquals("lost", recorder.next())
+        assertEquals("closed:IO", recorder.next())
+        verify(channel.connection, timeout(TIMEOUT_MS)).close()
+        assertEquals(1, channel.buffers.size)
+        verify(channel.connection, times(1)).requestWait()
+        verify(channel.connection, times(1)).requestWait(0)
+        val order = inOrder(channel.request, channel.connection)
+        order.verify(channel.request).cancel()
+        order.verify(channel.connection).requestWait(0)
+        order.verify(channel.connection).releaseInterface(channel.iface)
+        order.verify(channel.connection).close()
+        order.verify(channel.request).close()
+        verify(channel.request, times(1)).close()
+        transport.close()
+        verify(channel.request, times(1)).cancel()
+        assertNull(recorder.quiet())
+    }
+
+    @Test
+    fun anotherRequestsCompletionCannotDeliverOrRequeueOurInput() {
+        val device = puck()
+        val channel = Channel(device, device.getInterface(4))
+        val other = mock(UsbRequest::class.java)
+        doReturn(other).`when`(channel.connection).requestWait()
+        channel.data(0x42, 8)
+        val recorder = Recorder()
+        val transport = channel.transport()
+        assertTrue(transport.start(recorder))
+        assertEquals("ready", recorder.next())
+        assertEquals("lost", recorder.next())
+        assertEquals("closed:IO", recorder.next())
+        verify(channel.connection, timeout(TIMEOUT_MS)).close()
+        assertEquals(1, channel.buffers.size)
+        verify(channel.connection, times(1)).requestWait()
+        verify(channel.connection, times(1)).requestWait(0)
+        verify(channel.request, times(1)).close()
+        verify(other, never()).cancel()
+        verify(other, never()).close()
+        assertNull(recorder.quiet())
     }
 
     @Test
@@ -397,6 +519,8 @@ class SteamControllerUsbTransportTest {
         transport.close()
 
         queued.forEach { assertEquals(listOf(false), it.results.toList()) }
+        verify(channel.request, times(1)).cancel()
+        verify(channel.request, never()).close()
         verify(channel.connection, never()).releaseInterface(any())
         verify(channel.connection, never()).close()
 
@@ -405,6 +529,7 @@ class SteamControllerUsbTransportTest {
         assertEquals(true, inFlight.await())
         verify(channel.connection, timeout(TIMEOUT_MS)).close()
         verify(channel.connection).releaseInterface(channel.iface)
+        verify(channel.request, times(1)).close()
         // The report that completed after close was dropped
         assertNull(recorder.quiet())
 
@@ -487,9 +612,13 @@ class SteamControllerUsbTransportTest {
 
     private class ControlCall(val requestType: Int, val request: Int, val value: Int, val index: Int, val bytes: ByteArray)
 
-    /** One channel's own mocked connection, with scripted reads and a fake uptime clock. */
+    /** One channel's own asynchronous request; scripted bytes stand in for kernel completions. */
     private inner class Channel(val device: UsbDevice, val iface: UsbInterface) {
         val connection: UsbDeviceConnection = mock(UsbDeviceConnection::class.java)
+        val request: UsbRequest = mock(UsbRequest::class.java)
+        val buffers = CopyOnWriteArrayList<ByteBuffer>()
+        private val pending = AtomicReference<ByteBuffer?>()
+        private val cancelled = AtomicBoolean()
         val clock = AtomicLong()
         val reads = LinkedBlockingQueue<(ByteArray) -> Int>()
         val controls = LinkedBlockingQueue<ControlCall>()
@@ -510,10 +639,24 @@ class SteamControllerUsbTransportTest {
 
             `when`(connection.claimInterface(any(), anyBoolean())).thenReturn(true)
             `when`(connection.releaseInterface(any())).thenReturn(true)
+            `when`(request.initialize(connection, input)).thenReturn(true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                doAnswer { invocation ->
+                    submit(invocation.getArgument(0))
+                }.`when`(request).queue(any(ByteBuffer::class.java))
+                doAnswer { invocation ->
+                    assertEquals(0L, invocation.getArgument<Long>(0))
+                    awaitInput(true)
+                }.`when`(connection).requestWait(anyLong())
+            }
+            @Suppress("DEPRECATION")
             doAnswer { invocation ->
-                val read = reads.poll(10, TimeUnit.MILLISECONDS) ?: idle
-                read(invocation.getArgument(1))
-            }.`when`(connection).bulkTransfer(same(input), any(), anyInt(), anyInt())
+                val buffer = invocation.getArgument<ByteBuffer>(0)
+                assertEquals(buffer.capacity(), invocation.getArgument<Int>(1))
+                submit(buffer)
+            }.`when`(request).queue(any(ByteBuffer::class.java), anyInt())
+            doAnswer { awaitInput(false) }.`when`(connection).requestWait()
+            doAnswer { cancelled.set(true); true }.`when`(request).cancel()
             if (output != null) {
                 doAnswer { invocation ->
                     val bytes = invocation.getArgument<ByteArray>(1).copyOf(invocation.getArgument(2))
@@ -535,6 +678,32 @@ class SteamControllerUsbTransportTest {
             }.`when`(connection).controlTransfer(anyInt(), anyInt(), anyInt(), anyInt(), any(), anyInt(), anyInt())
         }
 
+        private fun submit(buffer: ByteBuffer): Boolean {
+            assertTrue("one outstanding request per channel", pending.compareAndSet(null, buffer))
+            buffers.add(buffer)
+            return true
+        }
+
+        fun awaitInput(timed: Boolean): UsbRequest {
+            val buffer = pending.get() ?: error("wait without a queued request")
+            while (true) {
+                if (cancelled.get()) {
+                    pending.set(null)
+                    return request
+                }
+                val begin = clock.get()
+                val bytes = ByteArray(buffer.capacity())
+                val count = (reads.poll(10, TimeUnit.MILLISECONDS) ?: idle)(bytes)
+                if (count < 0 && clock.get() - begin >= 1000) {
+                    if (timed) throw TimeoutException("idle")
+                    continue // legacy requestWait blocks until completion or cancellation
+                }
+                if (count > 0) buffer.put(bytes, 0, count)
+                pending.set(null)
+                return request // zero-byte/error completion, not an idle timeout
+            }
+        }
+
         fun data(vararg bytes: Int) {
             reads.add { buffer ->
                 bytes.forEachIndexed { i, b -> buffer[i] = b.toByte() }
@@ -543,7 +712,7 @@ class SteamControllerUsbTransportTest {
         }
 
         fun transport(): SteamControllerUsbTransport =
-            SteamControllerUsbTransport(device, connection, iface.id) { clock.get() }.also { transports.add(it) }
+            SteamControllerUsbTransport(device, connection, iface.id) { request }.also { transports.add(it) }
     }
 
     private class Recorder : SteamControllerTransport.Observer {
