@@ -151,7 +151,7 @@ its own pairing and preferences; see
 
 ## Learn more
 
-- [Steam Controller setup on Android](docs/steam-controller-android.md)
+- [Steam Controller setup on Android](docs/steam-controller-android.md) · [Android video settings and experimental pacing](docs/android-video-settings.md)
 - [Nova documentation](https://papi-ux.com/docs/nova/) · [Quick start](https://papi-ux.com/docs/nova/quickstart/) · [Play Setup](https://papi-ux.com/docs/nova/play-setup/) · [Spaces in Nova](https://papi-ux.com/docs/nova/spaces/) · [Connection facts and profiles](docs/network-profiles.md) · [Compatibility](https://papi-ux.com/docs/nova/compatibility/) · [Steam Deck](https://papi-ux.com/docs/nova/steam-deck/)
 - [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
 - [Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) · [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md) · [Source](https://github.com/papi-ux/nova)
