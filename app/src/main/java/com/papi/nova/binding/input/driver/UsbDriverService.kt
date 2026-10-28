@@ -23,6 +23,7 @@ import android.widget.Toast
 import com.papi.nova.LimeLog
 import com.papi.nova.R
 import com.papi.nova.preferences.PreferenceConfiguration
+import java.util.UUID
 
 class UsbDriverService : Service(), UsbDriverListener {
     private lateinit var usbManager: UsbManager
@@ -43,6 +44,91 @@ class UsbDriverService : Service(), UsbDriverListener {
     private var steamControllersOnly = false
     /** What the current owner started with, so the same request again keeps its channels. */
     private var ownedSettings: OwnedSettings? = null
+    private data class SteamUsbPermissionRequest(
+        val owner: UsbDriverListener, val deviceName: String, val vendorId: Int, val productId: Int, val token: String,
+    )
+    private var steamUsbPermissionRequest: SteamUsbPermissionRequest? = null
+
+    /** USB access is not proof of a native report, a player assignment, or working hardware. */
+    enum class SteamControllerUsbAccessStatus {
+        USB_DISABLED, OWNER_INACTIVE, NO_DEVICE, AMBIGUOUS, ANDROID_GAMEPAD,
+        NEEDS_PERMISSION, REQUESTING_PERMISSION, PERMISSION_GRANTED, NATIVE_INPUT_ACTIVE, REQUEST_FAILED,
+    }
+
+    private fun steamUsbSetupDevice(owner: UsbDriverListener): Pair<SteamControllerUsbAccessStatus, UsbDevice?> {
+        if (Looper.myLooper() != Looper.getMainLooper() || !started || listener !== owner ||
+            !steamControllersOnly || promptForPermission) return SteamControllerUsbAccessStatus.OWNER_INACTIVE to null
+        if (!prefConfig.usbDriver) return SteamControllerUsbAccessStatus.USB_DISABLED to null
+        val devices = try {
+            usbManager.deviceList.values.filter { SteamControllerUsbTransport.canClaimDevice(it) }
+        } catch (_: SecurityException) { return SteamControllerUsbAccessStatus.REQUEST_FAILED to null }
+        if (devices.isEmpty()) return SteamControllerUsbAccessStatus.NO_DEVICE to null
+        if (devices.size != 1) return SteamControllerUsbAccessStatus.AMBIGUOUS to null
+        val device = devices.single()
+        if (hasKernelGamepad(device)) return SteamControllerUsbAccessStatus.ANDROID_GAMEPAD to null
+        if (SteamControllerUsbTransport.candidateInterfaceIds(device).isEmpty())
+            return SteamControllerUsbAccessStatus.REQUEST_FAILED to null
+        return SteamControllerUsbAccessStatus.NEEDS_PERMISSION to device
+    }
+
+    private fun steamUsbAccessStatus(owner: UsbDriverListener): SteamControllerUsbAccessStatus {
+        val (status, device) = steamUsbSetupDevice(owner)
+        if (device == null) return status
+        return try {
+            when {
+                usbManager.hasPermission(device) -> if (usbControllers[device.deviceName].orEmpty().any {
+                    it is SteamController && it.hasNativeOwnership()
+                }) SteamControllerUsbAccessStatus.NATIVE_INPUT_ACTIVE else SteamControllerUsbAccessStatus.PERMISSION_GRANTED
+                steamUsbPermissionRequest?.let { it.owner === owner && it.deviceName == device.deviceName &&
+                    it.vendorId == device.vendorId && it.productId == device.productId } == true ->
+                    SteamControllerUsbAccessStatus.REQUESTING_PERMISSION
+                else -> SteamControllerUsbAccessStatus.NEEDS_PERMISSION
+            }
+        } catch (_: SecurityException) { SteamControllerUsbAccessStatus.REQUEST_FAILED }
+    }
+
+    /** Only an explicit library action may call this; passive discovery still never prompts. */
+    private fun requestSteamUsbAccess(owner: UsbDriverListener): SteamControllerUsbAccessStatus {
+        val status = steamUsbAccessStatus(owner)
+        if (status != SteamControllerUsbAccessStatus.NEEDS_PERMISSION) return status
+        val device = steamUsbSetupDevice(owner).second ?: return steamUsbAccessStatus(owner)
+        val request = SteamUsbPermissionRequest(owner, device.deviceName, device.vendorId, device.productId,
+            UUID.randomUUID().toString())
+        steamUsbPermissionRequest = request
+        return try {
+            val intent = Intent(ACTION_STEAM_USB_SETUP_PERMISSION).setPackage(packageName)
+                .putExtra(EXTRA_STEAM_USB_SETUP_TOKEN, request.token)
+            val flags = PendingIntent.FLAG_CANCEL_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
+            usbManager.requestPermission(device, PendingIntent.getBroadcast(this, 0, intent, flags))
+            SteamControllerUsbAccessStatus.REQUESTING_PERMISSION
+        } catch (_: SecurityException) {
+            steamUsbPermissionRequest = null
+            SteamControllerUsbAccessStatus.REQUEST_FAILED
+        } catch (_: IllegalArgumentException) {
+            // The receiver may have been unplugged after the current-device snapshot.
+            steamUsbPermissionRequest = null
+            SteamControllerUsbAccessStatus.REQUEST_FAILED
+        }
+    }
+
+    private fun completeSteamUsbSetup(intent: Intent) {
+        val request = steamUsbPermissionRequest ?: return
+        if (intent.getStringExtra(EXTRA_STEAM_USB_SETUP_TOKEN) != request.token) return
+        steamUsbPermissionRequest = null
+        @Suppress("DEPRECATION")
+        val returned = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+        if (returned.deviceName != request.deviceName || returned.vendorId != request.vendorId ||
+            returned.productId != request.productId ||
+            !intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) return
+        val current = steamUsbSetupDevice(request.owner).second ?: return
+        if (current.deviceName != request.deviceName || current.vendorId != request.vendorId ||
+            current.productId != request.productId) return
+        try {
+            if (usbManager.hasPermission(current)) handleUsbDeviceState(current)
+        } catch (_: SecurityException) { /* Permission was revoked; a later status read reports it. */ }
+        // This is not a stream permission request: never touch a replacement Game's PiP listener.
+    }
 
     private fun deliver(action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) action() else mainHandler.post(action)
@@ -145,9 +231,12 @@ class UsbDriverService : Service(), UsbDriverListener {
             val action = intent.action
             if (action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
                 val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                if (device != null && steamUsbPermissionRequest?.deviceName == device.deviceName)
+                    steamUsbPermissionRequest = null
                 mainHandler.postDelayed({ if (started) handleUsbDeviceState(device) }, 1000)
             } else if (action == UsbManager.ACTION_USB_DEVICE_DETACHED) {
                 val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+                if (steamUsbPermissionRequest?.deviceName == device.deviceName) steamUsbPermissionRequest = null
                 usbControllers.remove(device.deviceName)?.toList()?.forEach { controller ->
                     controller.stop()
                     controllers.remove(controller)
@@ -156,6 +245,8 @@ class UsbDriverService : Service(), UsbDriverListener {
                     if (started) usbManager.deviceList.values.filter { it.vendorId == device.vendorId &&
                         it.productId == device.productId }.forEach(::handleUsbDeviceState)
                 }, 1200)
+            } else if (action == ACTION_STEAM_USB_SETUP_PERMISSION) {
+                completeSteamUsbSetup(intent)
             } else if (action == ACTION_USB_PERMISSION) {
                 val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
                 stateListener?.onUsbPermissionPromptCompleted()
@@ -170,6 +261,7 @@ class UsbDriverService : Service(), UsbDriverListener {
 
     inner class UsbDriverBinder : Binder() {
         fun setListener(listener: UsbDriverListener?) {
+            if (this@UsbDriverService.listener !== listener) steamUsbPermissionRequest = null
             this@UsbDriverService.listener = listener
             if (listener != null) {
                 for (controller in addedControllers.toList()) listener.deviceAdded(controller)
@@ -179,6 +271,14 @@ class UsbDriverService : Service(), UsbDriverListener {
         fun setStateListener(stateListener: UsbDriverStateListener?) {
             this@UsbDriverService.stateListener = stateListener
         }
+
+        /** Passive status for the currently resumed, permission-silent Steam USB library owner. */
+        fun steamControllerUsbAccessStatus(owner: UsbDriverListener): SteamControllerUsbAccessStatus =
+            steamUsbAccessStatus(owner)
+
+        /** One explicit click asks Android for one unambiguous receiver; it changes no preference. */
+        fun requestSteamControllerUsbAccess(owner: UsbDriverListener): SteamControllerUsbAccessStatus =
+            requestSteamUsbAccess(owner)
 
         fun start() {
             this@UsbDriverService.start()
@@ -321,6 +421,7 @@ class UsbDriverService : Service(), UsbDriverListener {
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         filter.addAction(ACTION_USB_PERMISSION)
+        filter.addAction(ACTION_STEAM_USB_SETUP_PERMISSION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
@@ -363,6 +464,7 @@ class UsbDriverService : Service(), UsbDriverListener {
     }
 
     private fun stop() {
+        steamUsbPermissionRequest = null
         if (!started) {
             return
         }
@@ -428,6 +530,8 @@ class UsbDriverService : Service(), UsbDriverListener {
 
     companion object {
         private const val ACTION_USB_PERMISSION = "com.papi.nova.USB_PERMISSION"
+        private const val ACTION_STEAM_USB_SETUP_PERMISSION = "com.papi.nova.STEAM_USB_SETUP_PERMISSION"
+        private const val EXTRA_STEAM_USB_SETUP_TOKEN = "com.papi.nova.STEAM_USB_SETUP_TOKEN"
 
         @JvmStatic
         fun isRecognizedInputDevice(device: UsbDevice): Boolean {

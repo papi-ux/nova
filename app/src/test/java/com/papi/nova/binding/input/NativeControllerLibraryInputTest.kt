@@ -4,6 +4,9 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbConstants
+import android.hardware.usb.UsbEndpoint
+import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.Looper
 import android.view.InputDevice
@@ -16,6 +19,7 @@ import com.papi.nova.binding.input.driver.SteamControllerProtocol
 import com.papi.nova.binding.input.driver.SteamControllerTransport
 import com.papi.nova.binding.input.driver.UsbDriverListener
 import com.papi.nova.binding.input.driver.UsbDriverService
+import com.papi.nova.binding.input.driver.UsbDriverService.SteamControllerUsbAccessStatus
 import com.papi.nova.nvstream.input.ControllerPacket
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.shadows.ShadowMoonBridge
@@ -123,6 +127,38 @@ class NativeControllerLibraryInputTest {
     @Test fun aConnectionThatLandsAfterThePauseStartsNothing() {
         input.resume(); input.pause(); connect()
         assertFalse(serviceField<Boolean>("started"))
+    }
+    @Test fun explicitSetupRequiresTheCurrentResumedLibraryAndNeverEnablesUsb() {
+        assertEquals(SteamControllerUsbAccessStatus.OWNER_INACTIVE, input.requestSteamControllerUsbAccess())
+        PreferenceManager.getDefaultSharedPreferences(activity).edit().putBoolean("checkbox_usb_driver", false).commit()
+        input.resume()
+        assertEquals(SteamControllerUsbAccessStatus.USB_DISABLED, input.steamControllerUsbAccessStatus())
+        assertEquals(SteamControllerUsbAccessStatus.USB_DISABLED, input.requestSteamControllerUsbAccess())
+        assertFalse(PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("checkbox_usb_driver", true))
+        assertEquals(0, mockingDetails(manager).invocations.count { it.method.name == "requestPermission" })
+    }
+    @Test fun onlyAnExplicitCurrentLibrarySetupClickAsksForAccess() {
+        val wired = manager.deviceList.values.single()
+        val endpoint = mock(UsbEndpoint::class.java)
+        `when`(endpoint.type).thenReturn(UsbConstants.USB_ENDPOINT_XFER_INT)
+        `when`(endpoint.direction).thenReturn(UsbConstants.USB_DIR_IN)
+        val channel = mock(UsbInterface::class.java)
+        `when`(channel.id).thenReturn(2); `when`(channel.interfaceClass).thenReturn(UsbConstants.USB_CLASS_HID)
+        `when`(channel.endpointCount).thenReturn(1); `when`(channel.getEndpoint(0)).thenReturn(endpoint)
+        `when`(wired.interfaceCount).thenReturn(1); `when`(wired.getInterface(0)).thenReturn(channel)
+        input.resume(); connect()
+        assertEquals(SteamControllerUsbAccessStatus.NEEDS_PERMISSION, input.steamControllerUsbAccessStatus())
+        assertEquals(0, mockingDetails(manager).invocations.count { it.method.name == "requestPermission" })
+        assertEquals(SteamControllerUsbAccessStatus.REQUESTING_PERMISSION, input.requestSteamControllerUsbAccess())
+        assertEquals(SteamControllerUsbAccessStatus.REQUESTING_PERMISSION, input.requestSteamControllerUsbAccess())
+        assertEquals(1, mockingDetails(manager).invocations.count { it.method.name == "requestPermission" })
+        val game = mock(UsbDriverListener::class.java)
+        binder.startOwned(game, null, PreferenceConfiguration().apply { usbDriver = false })
+        assertEquals(SteamControllerUsbAccessStatus.OWNER_INACTIVE, input.steamControllerUsbAccessStatus())
+        assertEquals(SteamControllerUsbAccessStatus.OWNER_INACTIVE, input.requestSteamControllerUsbAccess())
+        input.pause()
+        assertEquals(SteamControllerUsbAccessStatus.OWNER_INACTIVE, input.requestSteamControllerUsbAccess())
+        assertEquals(1, mockingDetails(manager).invocations.count { it.method.name == "requestPermission" })
     }
     @Test fun anOldBindingCannotStealTheServiceAfterANewResume() {
         input.resume()
