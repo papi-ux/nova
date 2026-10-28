@@ -250,7 +250,7 @@ internal class SteamControllerUsbTransport(
                 }
 
                 // Untimed REAPURB also returns cancelled/disconnected requests. Positive timed
-                // waits use poll(), which on older Android can miss disconnect completions.
+                // waits use poll(), which on Android (including AOSP 11) can miss disconnect completions.
                 val completed = connection.requestWait()
                 if (completed !== request) {
                     // A null/error or another request's completion does not retire our URB.
