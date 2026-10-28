@@ -26,9 +26,10 @@ import com.papi.nova.ui.panel.NovaSurfaces
  * Each channel's buttons and left stick become the keys an Android gamepad sends: to the open
  * library panel when there is one, otherwise to the library itself.
  *
- * It opens only what Android already allows, so it never asks for USB access, starts Bluetooth
- * or claims an Xbox or Pro Controller. Access is asked for in stream setup; until then the library
- * keeps the controller's keyboard and mouse. Pausing gives the channels back. A game that took the
+ * Passive resume opens only what Android already allows; it never prompts, starts Bluetooth or
+ * claims an Xbox or Pro Controller. An explicit setup action can ask Android for Steam USB access,
+ * as stream setup does; until access is granted the library keeps the keyboard and mouse. Pausing
+ * gives the channels back. A game that took the
  * service meanwhile keeps it, since a stale pause cannot stop another owner, and a connection that
  * lands after the pause starts nothing.
  */
@@ -109,6 +110,22 @@ internal class NativeControllerLibraryInput(
         this.config = config
         if (!config.usbDriver || bound) return
         bound = activity.bindService(Intent(activity, UsbDriverService::class.java), connection, Context.BIND_AUTO_CREATE)
+    }
+
+    /** Access status is independent of native input: granting permission does not make a pad ready. */
+    fun steamControllerUsbAccessStatus(): UsbDriverService.SteamControllerUsbAccessStatus {
+        if (!resumed) return UsbDriverService.SteamControllerUsbAccessStatus.OWNER_INACTIVE
+        if (config?.usbDriver == false) return UsbDriverService.SteamControllerUsbAccessStatus.USB_DISABLED
+        return driver?.steamControllerUsbAccessStatus(this)
+            ?: UsbDriverService.SteamControllerUsbAccessStatus.OWNER_INACTIVE
+    }
+
+    /** Called only by the player's explicit setup action; resume() remains permission-silent. */
+    fun requestSteamControllerUsbAccess(): UsbDriverService.SteamControllerUsbAccessStatus {
+        if (!resumed) return UsbDriverService.SteamControllerUsbAccessStatus.OWNER_INACTIVE
+        if (config?.usbDriver == false) return UsbDriverService.SteamControllerUsbAccessStatus.USB_DISABLED
+        return driver?.requestSteamControllerUsbAccess(this)
+            ?: UsbDriverService.SteamControllerUsbAccessStatus.OWNER_INACTIVE
     }
 
     fun pause() {
