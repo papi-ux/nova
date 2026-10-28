@@ -871,6 +871,16 @@ int main(int argc, char** argv) {
     require(doctorFixture.open(QIODevice::ReadOnly), "Doctor fixture missing");
     const auto finding = nova::deck::polaris::doctorPresentation(QJsonDocument::fromJson(doctorFixture.readAll()).object());
     session.transition("active", true, "Game is active."); session.showControls();
+    // A fixed bitrate still saving after host tuning was withdrawn: NovaHUD's Down reaches that row, and
+    // Doctor's Up comes back to it, so Down then Up returns to where the player started.
+    session.tuning = {{"canTune", false}, {"bitrateBusy", true}};
+    emit session.hudChanged(); settle();
+    require(!tuning->isEnabled() && bitrateAction->isEnabled(), "bitrate-only Command Center state not reached");
+    hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
+    focused(*window, bitrateAction, "NovaHUD Down skipped the enabled Live Bitrate row");
+    key(*window, Qt::Key_Down);
+    focused(*window, root->findChild<QQuickItem*>("native-doctor"), "Live Bitrate Down did not reach Doctor");
+    key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Doctor Up did not return to Live Bitrate");
     session.tuning = {{"hostFresh", true}, {"doctor", finding}, {"canRefreshDiagnostics", true},
         {"appliedBitrate", "20.0M"}, {"qualityLimit", "40.0M"}, {"host", "4.2ms"}, {"bitrate", "19.6M"},
         {"jitter", "2ms"}, {"incoming", "60.0"}, {"decoded", "59.9"}, {"resolution", "1280×800"}, {"codec", "H.264"}};

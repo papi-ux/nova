@@ -595,7 +595,8 @@ Popup {
                     text: "NovaHUD · " + (NovaHudPreferences.enabled ? NovaHudPreferences.title : "Off")
                     onClicked: hudSettings.open()
                     Keys.onUpPressed: inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
-                    Keys.onDownPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : doctorAction.forceActiveFocus()
+                    Keys.onDownPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus()
+                        : liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : doctorAction.forceActiveFocus()
                 }
                 NovaButton {
                     id: liveTuningAction

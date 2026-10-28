@@ -38,6 +38,17 @@ std::string toStd(const QString& value) {
     return value.toStdString();
 }
 
+// A host's name for a launch mode, held to the rule Deck's host settings apply to the same label: a string of
+// at most 400 characters, without control characters, that is not blank. Anything else names nothing, and the
+// mode keeps Nova's name; the mode itself stays exactly as available as before.
+std::string launchModeLabel(const QJsonValue& value) {
+    if (!value.isString()) return {};
+    const auto label = value.toString();
+    if (label.size() > 400 || label.trimmed().isEmpty()) return {};
+    for (const auto c : label) if (c.unicode() < 32 || c.unicode() == 127) return {};
+    return toStd(label);
+}
+
 std::vector<std::string> stringList(const QJsonValue& value) {
     std::vector<std::string> items;
     for (const auto& entry : value.toArray()) {
@@ -265,7 +276,8 @@ std::optional<DeckLaunchModeCatalog> parseLaunchModeCatalog(std::string_view jso
         const auto overridable = mode.value(v1::client_settings_mode_option::session_overridable);
         if (id.empty() || !seen.insert(id).second || !mode.value(v1::client_settings_mode_option::available).isBool() ||
             (!overridable.isUndefined() && !overridable.isBool())) return {};
-        catalog.modes.push_back({id, mode.value(v1::client_settings_mode_option::available).toBool(), overridable.toBool(true)});
+        catalog.modes.push_back({id, mode.value(v1::client_settings_mode_option::available).toBool(), overridable.toBool(true),
+            launchModeLabel(mode.value(v1::client_settings_mode_option::label))});
     }
     catalog.desired = normalizeLaunchMode(toStd(object.value("desired").toObject().value("stream_display_mode").toString()));
     catalog.effective = normalizeLaunchMode(toStd(object.value("effective").toObject().value("stream_display_mode").toString()));
@@ -274,6 +286,9 @@ std::optional<DeckLaunchModeCatalog> parseLaunchModeCatalog(std::string_view jso
 }
 
 DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLaunchModeCatalog& catalog) {
+    // The host's names for its catalog modes, so a mode is named the same here as in its own settings.
+    std::vector<std::pair<std::string, std::string>> labels;
+    for (const auto& mode : catalog.modes) if (!mode.label.empty()) labels.emplace_back(mode.value, mode.label);
     // A per-app refusal takes precedence even when this mode is generally available.
     if (game.launchAsPresent && (!game.launchContractValid || game.launchAsAvailable != true)) {
         DeckLaunchModePolicy denied;
@@ -283,6 +298,7 @@ DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLau
         denied.defaultAvailable = false;
         denied.unavailableReason = game.launchAsUnavailableReason.empty() ?
             "Polaris cannot run this app's Launch As mode." : game.launchAsUnavailableReason;
+        denied.labels = std::move(labels);
         return denied;
     }
     if (!game.launchContractValid || game.id.starts_with("space.")) return {};
@@ -301,6 +317,7 @@ DeckLaunchModePolicy launchModePolicy(const DeckPolarisGame& game, const DeckLau
             [&](const auto& allowed) { return normalizeLaunchMode(allowed) == mode.value; })) continue;
         result.allowed.push_back(mode.value);
     }
+    result.labels = std::move(labels);
     return result;
 }
 

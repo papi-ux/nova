@@ -845,10 +845,12 @@ QVariantList toLibraryGameModel(const std::vector<nova::deck::backend::DeckPubli
         item.insert("logoTransform", QVariantMap{{"scale",game.logoScale},{"x",game.logoX},{"y",game.logoY}});
         QStringList launchModes;
         for (const auto& mode : game.launchPolicy.allowed) launchModes.append(toQString(mode));
+        QVariantMap launchModeLabels;
+        for (const auto& [mode, label] : game.launchPolicy.labels) launchModeLabels.insert(toQString(mode), toQString(label));
         item.insert("launchPolicy", QVariantMap{{"known", game.launchPolicy.known},
             {"hostDefault", toQString(game.launchPolicy.hostDefault)}, {"allowed", launchModes},
             {"followsHostDefault", game.launchPolicy.followsHostDefault}, {"defaultAvailable", game.launchPolicy.defaultAvailable},
-            {"unavailableReason", toQString(game.launchPolicy.unavailableReason)}});
+            {"unavailableReason", toQString(game.launchPolicy.unavailableReason)}, {"labels", launchModeLabels}});
         item.insert("streamCapabilities", QVariantMap{{"valid", game.streamCapabilities.valid},
             {"h264", game.streamCapabilities.h264}, {"hevc", game.streamCapabilities.hevc},
             {"pyrowave", game.streamCapabilities.pyrowave}, {"maxFps", game.streamCapabilities.maxFps},

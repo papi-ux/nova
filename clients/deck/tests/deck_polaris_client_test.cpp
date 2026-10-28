@@ -375,6 +375,27 @@ void testLaunchModeAuthority() {
     game.launchAllowedModes = {"headless_stream", "headless_dongle", "host_virtual_display", "gamescope_stream"};
     auto policy = launchModePolicy(game, *catalog);
     assert(policy.known && policy.hostDefault == "headless_dongle" && policy.allowed == std::vector<std::string>{"headless_stream"});
+    assert(policy.labels.empty()); // A host that names no mode leaves every one to Nova's names.
+    {
+        // The host's names travel with the policy under each mode's own id, legacy spellings included. A name
+        // Deck cannot show names nothing, and every mode stays exactly as available as before.
+        auto labeled = json;
+        auto capabilities = labeled["capabilities"].toObject();
+        auto modes = capabilities["modes"].toArray();
+        const QList<QJsonValue> names{"PC Private Stream", "Mirror DP-1", "   ", "Virtual\tDisplay", 7};
+        for (int index = 0; index < modes.size(); ++index) {
+            auto mode = modes[index].toObject();
+            mode["label"] = names[index];
+            modes[index] = mode;
+        }
+        capabilities["modes"] = modes; labeled["capabilities"] = capabilities;
+        const auto named = parse(labeled);
+        assert(named && named->modes.size() == catalog->modes.size());
+        const auto namedPolicy = launchModePolicy(game, *named);
+        assert(namedPolicy.known == policy.known && namedPolicy.hostDefault == policy.hostDefault && namedPolicy.allowed == policy.allowed);
+        assert((namedPolicy.labels == std::vector<std::pair<std::string, std::string>>{
+            {"headless_stream", "PC Private Stream"}, {"desktop_display", "Mirror DP-1"}}));
+    }
     game.launchAllowedModes.clear();
     assert(launchModePolicy(game, *catalog).allowed.size() == 2);
     game.launchContractValid = false;

@@ -79,7 +79,8 @@ FocusScope {
             : launchPolicy.defaultAvailable === false ? (launchPolicy.unavailableReason || "This app's Launch As mode is unavailable.")
             : launchPolicy.followsHostDefault === false ? "Use this app's Launch As mode set on the PC."
             : "Let your PC choose its configured launch mode. This does not change the PC's settings." }].concat(
-            modeOptions.filter(option => !spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(option.launchMode) >= 0))
+            modeOptions.filter(option => !spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(option.launchMode) >= 0)
+                .map(option => Object.assign({}, option, { label: modeLabel(option.launchMode) })))
     readonly property bool launchModeAllowed: (configuration.launchMode === "default" && launchPolicy.defaultAvailable !== false)
         || (!spaceDestination && launchPolicy.known && (launchPolicy.allowed || []).indexOf(configuration.launchMode) >= 0)
     readonly property string effectiveFaceButtonLayout: configuration.faceButtonLayout === "default"
@@ -211,6 +212,9 @@ FocusScope {
     function modeLabel(mode) {
         if (mode === "default") return defaultLaunchLabel
         if (spaceDestination && mode === "default") return "Space default"
+        // The PC's own name for the mode wherever it gave one, so Deck names it as the PC does.
+        const hostLabel = (launchPolicy.labels || {})[mode]
+        if (typeof hostLabel === "string" && hostLabel.length > 0) return hostLabel
         return (modeOptions.find(option => option.launchMode === mode) || {}).label
             || (mode === "headless_dongle" ? "Headless Dongle" : "Host default")
     }
