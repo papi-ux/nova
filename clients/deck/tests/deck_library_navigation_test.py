@@ -1,5 +1,6 @@
 """Drive the real library with keyboard input and two isolated mTLS PCs."""
 import argparse
+import faulthandler
 import hashlib
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2009,6 +2010,10 @@ def main():
     observed_exit = timing.route in OBSERVED_EXIT_ROUTES
     args.host_power = args.host_power or args.wake_pc or args.steam_app or args.handoff_limits
     args.host_scope = args.host_scope or args.profile_sync or args.keep_in_step or args.background_sync
+    # Keep a Python stack in CTest output if this route crashes; container cores
+    # can be lost when the runner removes the finished job.
+    if args.host_scope:
+        faulthandler.enable(all_threads=True)
     args.spaces = args.spaces or args.setup_parity or args.host_scope
     args.artwork = args.artwork or args.readability
     with tempfile.TemporaryDirectory(prefix="nova-library-navigation-") as temporary, ExitStack() as stack:
