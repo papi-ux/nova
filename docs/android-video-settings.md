@@ -15,6 +15,7 @@ provided the rest of the setup supports it. The display's fastest supported
 mode determines which standard choices Nova offers; the active display mode,
 decoder, PC and network still have to keep up.
 
+Faster choices appear by themselves when the screen supports them.
 **Unlock all possible frame rates** cannot turn a 60 Hz screen into a 120 Hz
 screen. It is unavailable when the display cannot support the faster choices.
 An external display can have different limits from the phone's own screen.
@@ -48,19 +49,21 @@ It balances responsiveness against even motion.
   Motion can look less even when delivery is irregular.
 - **Balanced** schedules presentation with the display's frame callbacks.
 - **Balanced with FPS limit** can request slightly below the display refresh
-  rate on legacy launches. It does not override the exact cadence resolved for
+  rate when the host has not supplied an exact launch cadence. It does not
+  override the exact cadence resolved for
   a modern Polaris launch or a Space.
-- **Prefer smoothest video** favors presentation pacing, with a possible latency
-  tradeoff. A name does not guarantee the best result on every device.
+- **Prefer smoothest video** favors presentation pacing and can significantly
+  increase latency. A name does not guarantee the best result on every device.
 
 Try a normal pacing choice before the experimental options. Keep the same game
 scene and change one option at a time so you can tell whether it helped.
 
 ## LFR (Experimental)
 
-LFR favors quicker presentation in the Android MediaCodec renderer. Outside
-Balanced, it can discard older decoded frames and present the newest available
-one instead of letting a queue build up.
+LFR presents decoded frames sooner instead of waiting for their scheduled time
+in the Android MediaCodec renderer. Outside Balanced, it can also discard older
+decoded frames and present the newest available one. Other pacing modes already
+drop queued frames; LFR mainly changes how soon Nova presents the newest one.
 
 This can increase intentional frame drops or make motion less even. It does not
 shorten the network round trip. LFR is off by default and does not tune the
@@ -73,14 +76,16 @@ Turning it on allows additional vendor decoder hints instead of stopping at an
 advertised Android low-latency mode alone. Nova tries less aggressive options
 when a decoder rejects a configuration.
 
-The effect depends on the decoder, device firmware and driver. A supported
-setting is not proof of a latency improvement. This switch is off by default,
+The effect depends on the decoder, device firmware and driver. The chip names
+in the setting's short caption are not a complete compatibility list or a
+guarantee of benefit. A supported setting is not proof of a latency improvement. This switch is off by default,
 affects the Android MediaCodec path, and does not change PyroWave's renderer.
 If decoding becomes unstable, turn it back off and start a fresh stream.
 
 ## Warp Drive and Warp 2 (Experimental)
 
-On legacy launches, **Warp Drive** requests twice the transport frame rate and
+When the host has not supplied a trusted, exact launch cadence, **Warp Drive**
+requests twice the transport frame rate and
 **Warp 2** requests four times it. They use the lowest-latency pacing policy.
 When Polaris supplies a trusted, resolved cadence, or a Space supplies its
 launch contract, Nova keeps that exact rate and skips the multiplier.
@@ -88,7 +93,7 @@ launch contract, Nova keeps that exact rate and skips the multiplier.
 Warp does not generate new frames, enable VRR or overclock the display. It can
 ask more of the host, decoder and network. With Polaris's frame-rate limiter
 on, the host can also multiply the bitrate request before applying its limits;
-those limits can prevent the final rate from increasing by the same factor.
+those limits can prevent the final bitrate from increasing by the same factor.
 The game's rendering rate and the encoder's cadence can remain different from
 the transport request.
 
