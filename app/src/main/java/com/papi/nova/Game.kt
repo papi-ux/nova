@@ -1564,7 +1564,10 @@ lastClientProfileProvenance = com.papi.nova.manager.StreamSyncManager.resolvePro
 launchOptimization,
 manualOverride = isManualProfileOverride()
 )
-forceFreshLaunch = !watchOnlyRequested && !resumeExistingRequested &&
+// An automatic reconnect only takes back the stream the host still holds. If the game has gone by
+// the time this Game connects, it stops there: no fresh launch, and no Auto Safe quit and relaunch.
+val automaticReconnect = reconnectAttemptsUsed > 0
+forceFreshLaunch = !watchOnlyRequested && !resumeExistingRequested && !automaticReconnect &&
 com.papi.nova.manager.StreamSyncManager.shouldForceFreshLaunch(launchOptimization)
  // Display a message to the user if HEVC was forced on but we still didn't find a decoder
         if (prefConfig!!.videoFormat == PreferenceConfiguration.FormatOption.FORCE_HEVC && !decoderRenderer!!.isHevcSupported)
@@ -1876,7 +1879,7 @@ displayHeight
 com.papi.nova.manager.WorkerLaunchContract.APP_UUID, com.papi.nova.manager.WorkerLaunchContract.APP_ID, false) else app)
 .setEnableUltraLowLatency(prefConfig!!.enableUltraLowLatency)
 .setForceFreshLaunch(forceFreshLaunch)
-.setResumeExistingOnly(resumeExistingRequested)
+.setResumeExistingOnly(resumeExistingRequested || automaticReconnect)
 .setBitrate(configuredStreamBitrateKbps)
 .setEnableSops(prefConfig!!.enableSops)
 .setProfilePreference(launchProfilePreference)
@@ -7192,6 +7195,8 @@ val statusClient = novaApiClient ?: return
 runtimeTasks.launchIo("NovaSessionStatus") { try
 {
 val status = statusClient.getSessionStatus()
+// The identity a reconnect after a stream error has to find again.
+novaResilienceManager?.onSessionStatus(status)
 if (status != null)
 {
 runtimeTasks.runOnMainIfActive {

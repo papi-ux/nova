@@ -19,7 +19,12 @@ import java.util.concurrent.TimeUnit
  *
  * 1. Absorbs the error immediately (non-blocking on the native thread)
  * 2. Checks the host session on a background thread, with backoff
- * 3. Alive: reconnect. Gone: host-ended teardown. No answer: check again, then give the error back.
+ * 3. Still this stream: reconnect. Anything else: host-ended teardown. No answer: check again, then
+ *    give the error back.
+ *
+ * "Still this stream" means the identity Game last saw for it while it played (see
+ * [onSessionStatus]), not a state that reads alive: the host can still say streaming just after
+ * it ended the stream, and reconnecting then would start the game it had just quit.
  *
  * The attempt budget spans relaunches: Game hands the attempts it already used to the next
  * instance, and only a stream that keeps rendering again earns a fresh budget (see
@@ -38,10 +43,10 @@ class ConnectionResilienceManager internal constructor(
         /** The stream is down and a check of the host session is scheduled. */
         fun onReconnectPending(attempt: Int, maxAttempts: Int)
 
-        /** The host still holds the session: tear this stream down and start it again. */
+        /** The host still holds this stream: tear it down and resume it. */
         fun onReconnect(errorCode: Int, attempt: Int, maxAttempts: Int)
 
-        /** The host answered and the session is gone. */
+        /** The host answered and no longer holds this stream. */
         fun onHostSessionEnded()
 
         /** The host never answered: end the stream the ordinary way, with its Reconnect button. */
@@ -67,6 +72,15 @@ class ConnectionResilienceManager internal constructor(
     @Volatile
     private var shutDown = false
 
+    /** The last status that named this stream while it played. A failed read does not clear it. */
+    @Volatile
+    private var liveStream: PolarisSessionStatus? = null
+
+    /** Game passes each session status it reads during the stream. */
+    fun onSessionStatus(status: PolarisSessionStatus?) {
+        if (status != null && namesLiveStream(status)) liveStream = status
+    }
+
     /**
      * Called from the JNI pre-termination hook.
      * Returns immediately — all I/O and waiting happens on a background thread.
@@ -77,7 +91,8 @@ class ConnectionResilienceManager internal constructor(
     fun shouldAbsorbError(errorCode: Int): Boolean {
         if (!isRecoverable(errorCode)) return false
         if (FeatureFlagManager.capabilitiesForScope(featureScope) == null) return false
-        return scheduleHostCheck(errorCode)
+        // Taken before any check: every read from here on describes the host, not this stream.
+        return scheduleHostCheck(errorCode, liveStream)
     }
 
     /** Call once a reconnected stream has held steady, so a later drop gets a full budget. */
@@ -95,7 +110,7 @@ class ConnectionResilienceManager internal constructor(
         scheduler.shutdown()
     }
 
-    private fun scheduleHostCheck(errorCode: Int): Boolean {
+    private fun scheduleHostCheck(errorCode: Int, droppedStream: PolarisSessionStatus?): Boolean {
         val attempt: Int
         val delayMs: Long
         synchronized(this) {
@@ -119,14 +134,14 @@ class ConnectionResilienceManager internal constructor(
         // Before scheduling: a check with no delay can reach onReconnect on another thread
         // before a later onReconnectPending would.
         listener.onReconnectPending(attempt, MAX_ATTEMPTS)
-        if (!scheduler.schedule(delayMs) { checkHostSession(errorCode, attempt) }) {
+        if (!scheduler.schedule(delayMs) { checkHostSession(errorCode, attempt, droppedStream) }) {
             LimeLog.info("Nova: Resilience manager is shut down, not absorbing error $errorCode")
             return false
         }
         return true
     }
 
-    private fun checkHostSession(errorCode: Int, attempt: Int) {
+    private fun checkHostSession(errorCode: Int, attempt: Int, droppedStream: PolarisSessionStatus?) {
         val status = try {
             sessionStatus()
         } catch (e: Exception) {
@@ -140,16 +155,19 @@ class ConnectionResilienceManager internal constructor(
                     LimeLog.info("Nova: Host did not answer the session check (attempt $attempt/$MAX_ATTEMPTS)")
                     // The next check spends another attempt. When none are left, or the manager
                     // was shut down, the error goes back to the ordinary terminated path.
-                    if (!scheduleHostCheck(errorCode)) {
+                    if (!scheduleHostCheck(errorCode, droppedStream)) {
                         listener.onHostUnreachable(errorCode)
                     }
                 }
-                status.isSessionAlive -> {
-                    LimeLog.info("Nova: Server session alive (state=${status.state}), reconnecting")
+                holdsDroppedStream(droppedStream, status) -> {
+                    LimeLog.info("Nova: The host still holds this stream (state=${status.state}), reconnecting")
                     listener.onReconnect(errorCode, attempt, MAX_ATTEMPTS)
                 }
                 else -> {
-                    LimeLog.info("Nova: Server session not alive (status=${status.state})")
+                    LimeLog.info(
+                        "Nova: The host no longer holds this stream (state=${status.state}, " +
+                            "identity ${if (droppedStream == null) "never seen" else "not matched"})"
+                    )
                     listener.onHostSessionEnded()
                 }
             }
@@ -196,5 +214,20 @@ class ConnectionResilienceManager internal constructor(
         )
 
         internal fun isRecoverable(errorCode: Int): Boolean = errorCode !in NOT_RECOVERABLE
+
+        // The host names a live stream by its app session and, while the stream runs, a generation
+        // that changes with every new stream, a resume of the same app included.
+        private fun namesLiveStream(status: PolarisSessionStatus): Boolean =
+            status.isSessionAlive && !status.isShuttingDown &&
+                status.appSessionId.isNotBlank() && status.sessionGeneration > 0L
+
+        // The same app session, not on its way out, and either the same stream or its app paused
+        // for this resume. A paused session no longer has a generation, so its app session is the
+        // whole identity there. A stream nobody saw named can't be told from one the host ended.
+        internal fun holdsDroppedStream(dropped: PolarisSessionStatus?, current: PolarisSessionStatus): Boolean {
+            if (dropped == null || current.isShuttingDown || !current.isSessionAlive) return false
+            if (current.appSessionId != dropped.appSessionId) return false
+            return current.isPausedForResume || current.sessionGeneration == dropped.sessionGeneration
+        }
     }
 }

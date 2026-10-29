@@ -99,6 +99,37 @@ class GameReconnectSourceGuardTest {
     }
 
     @Test
+    fun theAutomaticReconnectOnlyResumes() {
+        val launch = section("val continueLaunch = fun() {", ".setBitrate(configuredStreamBitrateKbps)")
+
+        assertTrue(
+            "the replacement Game knows it is an automatic reconnect from the attempt count it was handed",
+            launch.contains("val automaticReconnect = reconnectAttemptsUsed > 0"),
+        )
+        assertTrue(
+            "a game the host has ended must not be launched again by a reconnect; NvConnection refuses " +
+                "a fresh launch for a resume-only stream",
+            launch.contains(".setResumeExistingOnly(resumeExistingRequested || automaticReconnect)"),
+        )
+        assertTrue(
+            "Auto Safe's fresh launch quits and relaunches the game, which a reconnect must never do",
+            launch.contains("forceFreshLaunch = !watchOnlyRequested && !resumeExistingRequested && !automaticReconnect &&"),
+        )
+    }
+
+    @Test
+    fun theLiveStatusPollGivesTheReconnectItsIdentity() {
+        val refresh = section("private fun refreshPolarisLiveSessionStatus()", "catch (e:kotlinx.coroutines.CancellationException)")
+
+        val read = refresh.indexOf("val status = statusClient.getSessionStatus()")
+        val observed = refresh.indexOf("novaResilienceManager?.onSessionStatus(status)")
+        assertTrue(
+            "without the stream's identity every reconnect check ends the stream",
+            read >= 0 && observed > read,
+        )
+    }
+
+    @Test
     fun renderedFramesEndTheReconnectBudget() {
         val perfSample = section("override fun onPerfSample(", "override fun onUsbPermissionPromptStarting(")
 
