@@ -30,7 +30,7 @@ class GameClientRuntimeSourceGuardTest {
             "Resume Existing must carry a deterministic profile while remaining unable to fall through to a fresh launch",
                 launchSetup.contains("if (watchOnlyRequested)") &&
                 !launchSetup.contains("watchOnlyRequested || resumeExistingRequested") &&
-                game.contains("setResumeExistingOnly(resumeExistingRequested)") &&
+                game.contains("setResumeExistingOnly(resumeExistingRequested || automaticReconnect)") &&
                 game.contains("private fun loadLaunchOptimization(") &&
                 game.contains("bitrateLocked = resolverRequest.bitrateLocked")
         )
