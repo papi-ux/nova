@@ -112,6 +112,51 @@ class NovaStreamRecapStoreTest {
         assertNull("memory only: a new process's store is empty", NovaStreamRecapStore().forHost("host-entry-1"))
     }
 
+    @Test fun aListenerHearsEachChangeAndReadsItAlreadyMade() {
+        val shown = mutableListOf<Long?>()
+        store.addListener { shown += store.forHost("host-entry-1")?.generation }
+        val first = GameRun(); first.connect()
+        assertTrue(first.stop(End.END_REQUESTED))
+        assertFalse("a second stop changes nothing", first.stop(End.LEFT_STREAM))
+        assertFalse("a stale generation's Dismiss changes nothing", store.dismiss(first.generation + 1))
+        assertTrue(store.dismiss(first.generation))
+        assertEquals(listOf(first.generation, null), shown)
+    }
+
+    @Test fun aRefusedPublicationIsNotHeard() {
+        var heard = 0
+        store.addListener { heard++ }
+        val older = GameRun(); older.connect()
+        val newer = GameRun() // began after the older one, so the older one can no longer publish
+        assertFalse(older.stop(End.CONNECTION_ENDED))
+        assertEquals(0, heard)
+        newer.connect()
+        assertTrue(newer.stop(End.END_REQUESTED))
+        assertEquals(1, heard)
+    }
+
+    @Test fun aRemovedListenerHearsNothing() {
+        var heard = 0
+        val listener: () -> Unit = { heard++ }
+        store.addListener(listener)
+        store.removeListener(listener)
+        val game = GameRun(); game.connect()
+        assertTrue(game.stop(End.END_REQUESTED))
+        assertEquals(0, heard)
+    }
+
+    @Test fun aLaunchHandoffIsHeardOnceFromTheReplacementOnly() {
+        // Game.onCreate returns at the launch-policy gate before streamRecap.launch, and the retiring
+        // instance's onStop returns before stopConnection: its accumulator is never launched.
+        val retiring = NovaStreamRecap.Accumulator(store.begin())
+        val shown = mutableListOf<Long?>()
+        store.addListener { shown += store.forHost("host-entry-1")?.generation }
+        val replacement = GameRun(); replacement.connect(); replacement.sampled(2_000L)
+        assertTrue("the replacement began last, so it may publish", replacement.stop(End.END_REQUESTED))
+        assertNull(retiring.finish(End.UNKNOWN, null, 50_000L, "2026-10-08T14:00:00Z"))
+        assertEquals(listOf(replacement.generation), shown)
+    }
+
     @Test fun samplesArriveWhetherOrNotTheHudShows() {
         // The feed is onPerfSample itself, which runs with the HUD hidden; nothing here knows the HUD.
         val game = GameRun(); game.connect()

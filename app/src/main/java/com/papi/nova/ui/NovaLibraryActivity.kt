@@ -196,8 +196,15 @@ class NovaLibraryActivity : NovaActivity() {
     private var isRefreshing by mutableStateOf(false)
     private var loadErrorMessage by mutableStateOf<String?>(null)
     private var launchErrorMessage by mutableStateOf<String?>(null)
-    /** The After-stream recap for this Library's requested host, read on resume; never written here. */
+    /**
+     * The After-stream recap for this Library's requested host, read on resume and on each change to
+     * the store while resumed; never written here.
+     */
     private var lastStreamRecap by mutableStateOf<com.papi.nova.diagnostics.NovaStreamRecap.Recap?>(null)
+    /** End resumes this screen before Game's onStop publishes the stream's recap, so it listens too. */
+    private val streamRecapListener: () -> Unit = {
+        runOnUiThread { lastStreamRecap = com.papi.nova.diagnostics.NovaStreamRecapStore.process.forHost(streamPcUuid) }
+    }
     private var clientSettings by mutableStateOf<PolarisClientSettings?>(null)
     private var activeSession by mutableStateOf<NovaLibraryActiveSessionUiState?>(null)
     /** Whether the last key came from a remote, so the hint bar names a remote's keys (C04). */
@@ -443,6 +450,7 @@ class NovaLibraryActivity : NovaActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.papi.nova.diagnostics.NovaStreamRecapStore.process.addListener(streamRecapListener)
         lastStreamRecap = com.papi.nova.diagnostics.NovaStreamRecapStore.process.forHost(streamPcUuid)
         spaceFocusEpoch++
         startSpacesPolling()
@@ -467,6 +475,7 @@ class NovaLibraryActivity : NovaActivity() {
         cancelPendingSpaceOpen()
         spacesEpoch++; spacesPoll?.cancel(); spacesPoll = null
         libraryPollEpoch++; libraryPoll?.cancel(); libraryPoll = null
+        com.papi.nova.diagnostics.NovaStreamRecapStore.process.removeListener(streamRecapListener)
         super.onPause()
     }
 
