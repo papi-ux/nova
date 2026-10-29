@@ -5,8 +5,12 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Intent
 import androidx.preference.PreferenceManager
+import com.papi.nova.LimeLog
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.shadows.ShadowMoonBridge
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -28,6 +32,14 @@ class UsbDriverServiceBluetoothDiscoveryTest {
     private lateinit var lifecycle: ServiceController<UsbDriverService>
     private lateinit var service: UsbDriverService
     private lateinit var binder: UsbDriverService.UsbDriverBinder
+    private val discoveryLogs = mutableListOf<String>()
+    private val logHandler = object : Handler() {
+        override fun publish(record: LogRecord) {
+            if (record.message.startsWith("Steam Controller BLE:")) discoveryLogs += record.message
+        }
+        override fun flush() = Unit
+        override fun close() = Unit
+    }
 
     @Before fun setup() {
         lifecycle = Robolectric.buildService(UsbDriverService::class.java)
@@ -38,9 +50,13 @@ class UsbDriverServiceBluetoothDiscoveryTest {
         shadowOf(service.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         lifecycle.create()
         binder = service.onBind(Intent()) as UsbDriverService.UsbDriverBinder
+        Logger.getLogger(LimeLog::class.java.name).addHandler(logHandler)
     }
 
-    @After fun cleanup() { lifecycle.destroy() }
+    @After fun cleanup() {
+        lifecycle.destroy()
+        Logger.getLogger(LimeLog::class.java.name).removeHandler(logHandler)
+    }
 
     private fun bonded(name: String, address: String = "00:11:22:33:44:55"): BluetoothDevice =
         mock(BluetoothDevice::class.java).also {
@@ -69,6 +85,8 @@ class UsbDriverServiceBluetoothDiscoveryTest {
             start()
             assertEquals("the opted-in stream must reach the BLE transport", listOf(device), selected)
             assertEquals(1, mockingDetails(transports.constructed().single()).invocations.count { it.method.name == "start" })
+            // Exact messages also prove the bonded serial and address are not logged.
+            assertEquals(listOf("Steam Controller BLE: 1 bonded candidates", "Steam Controller BLE: connecting"), discoveryLogs)
         }
     }
 
@@ -77,6 +95,7 @@ class UsbDriverServiceBluetoothDiscoveryTest {
         mockConstruction(SteamControllerBleTransport::class.java).use { transports ->
             start(bluetooth = false)
             assertEquals(0, transports.constructed().size)
+            assertEquals(listOf("Steam Controller BLE: off"), discoveryLogs)
         }
     }
 
@@ -86,6 +105,7 @@ class UsbDriverServiceBluetoothDiscoveryTest {
             start()
             assertEquals(0, transports.constructed().size)
             assertEquals(0, ShadowToast.shownToastCount())
+            assertEquals(listOf("Steam Controller BLE: 0 bonded candidates"), discoveryLogs)
         }
     }
 
@@ -95,6 +115,18 @@ class UsbDriverServiceBluetoothDiscoveryTest {
             start()
             assertEquals(0, transports.constructed().size)
             assertEquals(1, ShadowToast.shownToastCount())
+            assertEquals(listOf("Steam Controller BLE: 2 bonded candidates",
+                "Steam Controller BLE: ambiguous bonded controllers"), discoveryLogs)
+        }
+    }
+
+    @Test fun aDisabledAdapterExplainsWhyDiscoveryDidNotRun() {
+        paired(bonded("Steam Ctrl (BT) fixture"))
+        shadowOf(service.getSystemService(BluetoothManager::class.java).adapter).setEnabled(false)
+        mockConstruction(SteamControllerBleTransport::class.java).use { transports ->
+            start()
+            assertEquals(0, transports.constructed().size)
+            assertEquals(listOf("Steam Controller BLE: adapter off"), discoveryLogs)
         }
     }
 }

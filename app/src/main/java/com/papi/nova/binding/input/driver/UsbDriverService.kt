@@ -438,28 +438,47 @@ class UsbDriverService : Service(), UsbDriverListener {
 
     @SuppressLint("MissingPermission")
     private fun startPairedSteamControllers() {
-        if (!prefConfig.steamControllerBluetooth) return
-        if (hasKernelGamepad(SteamControllerProtocol.VENDOR_ID, SteamControllerProtocol.BLUETOOTH_PID)) return
+        if (!prefConfig.steamControllerBluetooth) {
+            LimeLog.info("Steam Controller BLE: off")
+            return
+        }
+        if (hasKernelGamepad(SteamControllerProtocol.VENDOR_ID, SteamControllerProtocol.BLUETOOTH_PID)) {
+            LimeLog.info("Steam Controller BLE: kernel gamepad")
+            return
+        }
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            LimeLog.warning("Steam Controller BLE: permission denied")
             Toast.makeText(this, R.string.steam_controller_permission_denied, Toast.LENGTH_LONG).show()
             return
         }
         try {
-            val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter ?: return
-            if (!adapter.isEnabled) return
+            val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+            if (adapter?.isEnabled != true) {
+                LimeLog.info("Steam Controller BLE: adapter off")
+                return
+            }
             val paired = adapter.bondedDevices.filter { device ->
                 isSteamControllerBluetoothName(device.name)
             }
+            LimeLog.info("Steam Controller BLE: ${paired.size} bonded candidates")
             // Without a stable Android InputDevice-to-GATT association, two paired
             // controllers cannot safely share the lizard suppression group.
-            if (paired.size > 1) { showSteamFallback(); return }
+            if (paired.size > 1) {
+                LimeLog.warning("Steam Controller BLE: ambiguous bonded controllers")
+                showSteamFallback()
+                return
+            }
             for (device in paired) {
+                LimeLog.info("Steam Controller BLE: connecting")
                 val controller = steamController(SteamControllerProtocol.BLUETOOTH_PID,
                     SteamControllerBleTransport(applicationContext, device), "ble:${device.address}")
                 controllers.add(controller)
                 if (!controller.start()) { controllers.remove(controller); showSteamFallback() }
             }
-        } catch (_: SecurityException) { showSteamFallback() }
+        } catch (_: SecurityException) {
+            LimeLog.warning("Steam Controller BLE: permission denied")
+            showSteamFallback()
+        }
     }
 
     private fun stop() {
@@ -530,7 +549,7 @@ class UsbDriverService : Service(), UsbDriverListener {
     companion object {
         internal fun isSteamControllerBluetoothName(name: String?): Boolean =
             name != null && (name.contains("Steam Controller", ignoreCase = true) ||
-                name.contains("SteamCtrl", ignoreCase = true))
+                name.contains("SteamCtrl", ignoreCase = true) || name.startsWith("Steam Ctrl", ignoreCase = true))
 
         private const val ACTION_USB_PERMISSION = "com.papi.nova.USB_PERMISSION"
         private const val ACTION_STEAM_USB_SETUP_PERMISSION = "com.papi.nova.STEAM_USB_SETUP_PERMISSION"
