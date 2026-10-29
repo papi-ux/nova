@@ -448,8 +448,7 @@ class UsbDriverService : Service(), UsbDriverListener {
             val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter ?: return
             if (!adapter.isEnabled) return
             val paired = adapter.bondedDevices.filter { device ->
-                val name = device.name.orEmpty()
-                name.contains("Steam Controller", ignoreCase = true) || name.contains("SteamCtrl", ignoreCase = true)
+                isSteamControllerBluetoothName(device.name)
             }
             // Without a stable Android InputDevice-to-GATT association, two paired
             // controllers cannot safely share the lizard suppression group.
@@ -529,6 +528,10 @@ class UsbDriverService : Service(), UsbDriverListener {
     }
 
     companion object {
+        internal fun isSteamControllerBluetoothName(name: String?): Boolean =
+            name != null && (name.contains("Steam Controller", ignoreCase = true) ||
+                name.contains("SteamCtrl", ignoreCase = true))
+
         private const val ACTION_USB_PERMISSION = "com.papi.nova.USB_PERMISSION"
         private const val ACTION_STEAM_USB_SETUP_PERMISSION = "com.papi.nova.STEAM_USB_SETUP_PERMISSION"
         private const val EXTRA_STEAM_USB_SETUP_TOKEN = "com.papi.nova.STEAM_USB_SETUP_TOKEN"
