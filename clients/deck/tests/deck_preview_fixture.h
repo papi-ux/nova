@@ -21,7 +21,7 @@ public:
             emit momentChanged();
         });
     }
-    QVariantMap hud() const { auto value = tuning; value.insert("fps", "59.8"); value.insert("rtt", "17ms"); value.insert("target", "/ 60 target"); return value; }
+    QVariantMap hud() const { auto value = tuning; value.insert("fps", "59.8"); if (!value.contains("rtt")) value.insert("rtt", "17ms"); value.insert("target", "/ 60 target"); return value; }
     QVariantMap tuning;
     int diagnosticsRefreshes = 0, reportExports = 0;
     QString reportDirectory;

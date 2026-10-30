@@ -21,6 +21,11 @@ Popup {
     padding: 24 * unit
     modal: true; focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    // The HUD's reading is "1ms", or "--" until there is one (#424).
+    readonly property bool fasterThanLight: {
+        const rtt = parseFloat(readings.rtt)
+        return rtt > 0 && rtt < 2
+    }
     function metric(key, suffix) {
         const value = readings[key]
         return value && value !== "--" ? value + (suffix || "") : "Unavailable"
@@ -154,6 +159,7 @@ Popup {
                     Copy { objectName: "doctor-host-readings"; text: "Encoder applied: " + doctor.metric("appliedBitrate", "bps") + "\nQuality ceiling: " + doctor.metric("qualityLimit", "bps") + "\nHost processing: " + doctor.metric("host") }
                     Heading { text: "NET" }
                     Copy { text: "Received video: " + doctor.metric("bitrate", "bps") + "\nRound trip: " + doctor.metric("rtt") + "\nRTT variation: " + doctor.metric("jitter") }
+                    Copy { objectName: "doctor-faster-than-light"; visible: doctor.fasterThanLight; text: "Faster than light? Almost." }
                     Heading { text: "CLIENT" }
                     Copy { text: "Incoming: " + doctor.metric("incoming", " FPS") + "\nDecoded: " + doctor.metric("decoded", " FPS") + "\nComposed: " + doctor.metric("fps", " FPS") + "\nStream: " + doctor.metric("resolution") + " · " + doctor.metric("codec") }
                     Copy {

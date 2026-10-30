@@ -99,6 +99,9 @@ ApplicationWindow {
         text("stream-recap-work-detail").contains("3 refused") && text("stream-recap-video").contains("HEVC · 1280×800 · VA-API"),
         "per-frame means lost their own coverage");
     capture("stream-recap-ended-1280.png");
+    // Nothing here said it lost nothing: an unknown count earns no calm line and no badge (#423, #424).
+    require(!item("stream-recap-nothing-missing")->isVisible() && !item("stream-recap-clear-skies")->isVisible() &&
+        !item("stream-recap-fps-line")->isVisible(),"an unknown run claimed a clean count or drew a line");
     press(Qt::Key_Up); require(focusName()=="stream-recap-dismiss","Up from Back did not reach Dismiss");
     press(Qt::Key_Down); require(focusName()=="stream-recap-received","Down from Dismiss did not reach the readings");
     press(Qt::Key_Up); require(focusName()=="stream-recap-dismiss","Up from the first reading did not reach Dismiss");
@@ -106,6 +109,30 @@ ApplicationWindow {
     require(session.recapDismissals==1 && session.recapDismissedGeneration=="1" && !card->isVisible() && focusName()=="native-preview-action",
         "Dismiss lost its generation, kept the card or dropped focus");
     require(lifecycleUntouched(1,0),"recap invoked lifecycle, report or tuning actions");
+
+    // A clean run says so calmly and shows its line; an hour of it earns the badge, and focus stays put.
+    {
+        auto clean = recap("2");
+        clean["missingFrames"] = QVariantMap{{"percent",0.0},{"lost",0},{"expected",43176},{"partial",false}};
+        clean["fpsTrail"] = QVariantList{58.0,60.0,59.0};
+        session.setStreamRecap(clean); settle();
+        require(card->isVisible() && item("stream-recap-nothing-missing")->isVisible() && text("stream-recap-nothing-missing")=="0.00% frames missing",
+            "a clean run lost its calm line");
+        require(!item("stream-recap-clear-skies")->isVisible(),"twelve minutes earned the Clear skies badge");
+        require(item("stream-recap-fps-line")->isVisible() && text("stream-recap-fps-words").contains("58.0 to 60.0"),
+            "the FPS line or its words went missing");
+        auto hour = clean; auto rates = hour["rates"].toMap(); rates["spanMs"] = 3600000; hour["rates"] = rates; hour["generation"] = "3";
+        session.setStreamRecap(hour); settle();
+        require(item("stream-recap-clear-skies")->isVisible(),"a clean hour lost its badge");
+        auto lost = hour; lost["missingFrames"] = QVariantMap{{"percent",0.1},{"lost",1},{"expected",43176},{"partial",false}}; lost["generation"] = "4";
+        session.setStreamRecap(lost); settle();
+        require(!item("stream-recap-clear-skies")->isVisible() && !item("stream-recap-nothing-missing")->isVisible(),"a lost frame kept a clean claim");
+        auto restarted = hour; restarted["missingFrames"] = QVariantMap{{"percent",0.0},{"lost",0},{"expected",100},{"partial",true}}; restarted["generation"] = "5";
+        session.setStreamRecap(restarted); settle();
+        require(!item("stream-recap-nothing-missing")->isVisible(),"a count of only part of the run claimed the whole");
+        require(focusName()=="native-preview-action","the at-a-glance block took focus");
+        session.setStreamRecap(recap("1")); settle();
+    }
 
     // Scope: another PC's recap, a changed selection or sleep stays silent.
     session.setStreamRecap(recap("1","end_game","other-host")); settle();

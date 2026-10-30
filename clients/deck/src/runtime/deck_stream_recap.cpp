@@ -34,7 +34,29 @@ void DeckStreamRecapSpan::accept(const DeckHudSample& s) {
     const auto elapsed = s.atMs - p.atMs;
     if (reset) restarted_ = true;
     if (reset || sequence || elapsed <= 0 || elapsed > kMaxSampleGapMs) continuous_ = false;
+    // Only a step the counters can answer for goes on the line.
+    else if (setUp(s)) addTrail(double(s.incoming - p.incoming) * 1000.0 / double(elapsed));
     last_ = s;
+}
+
+void DeckStreamRecapSpan::addTrail(double fps) {
+    trailPendingSum_ += fps;
+    if (++trailPending_ < trailPerSlot_) return;
+    trail_[std::size_t(trailUsed_++)] = trailPendingSum_ / trailPending_;
+    trailPendingSum_ = 0; trailPending_ = 0;
+    if (std::size_t(trailUsed_) == trail_.size()) {
+        for (int i = 0; i < trailUsed_ / 2; ++i)
+            trail_[std::size_t(i)] = (trail_[std::size_t(2 * i)] + trail_[std::size_t(2 * i + 1)]) / 2.0;
+        trailUsed_ /= 2; trailPerSlot_ *= 2;
+    }
+}
+
+QVariantList DeckStreamRecapSpan::trail() const {
+    QVariantList values;
+    for (int i = 0; i < trailUsed_; ++i) values << trail_[std::size_t(i)];
+    if (trailPending_ > 0) values << trailPendingSum_ / trailPending_;
+    // One point is no line.
+    return values.size() >= 2 ? values : QVariantList{};
 }
 
 QVariantMap deckStreamRecap(const DeckStreamRecapSpan& span, DeckStreamRecapEnd end, std::uint64_t generation,
@@ -76,6 +98,6 @@ QVariantMap deckStreamRecap(const DeckStreamRecapSpan& span, DeckStreamRecapEnd 
         {"missingFrames", missing},
         {"hostProcessing", setup ? mean(s.hostLatencyTenths, s.hostLatencySamples, 10.0) : QVariant()},
         {"videoWork", setup ? mean(s.videoWorkMicros, s.videoWorkSamples, 1000.0) : QVariant()},
-        {"rates", rates}, {"video", video}};
+        {"rates", rates}, {"video", video}, {"fpsTrail", span.trail()}};
 }
 }

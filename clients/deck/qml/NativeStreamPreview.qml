@@ -64,6 +64,22 @@ Popup {
         && !nativeSessionState.sleeping && !nativeSessionState.automaticReconnect
         && (nativeSessionState.phase === "preparing" || nativeSessionState.phase === "launching"
             || nativeSessionState.phase === "connecting")
+    readonly property var startupSteps: ["Contacting the PC", "Starting the game", "Waiting for video"]
+    readonly property int startupStep: nativeSessionState.phase === "connecting" ? 2
+        : nativeSessionState.phase === "launching" ? 1 : 0
+    readonly property string startupStepLines: startupSteps.map(function(step, index) {
+        return (index < startupStep ? "✓ " : index === startupStep ? "● " : "○ ") + step
+    }).join("\n")
+    property double startupStartedAt: 0
+    property int startupElapsedSeconds: 0
+    onLaunchStageChanged: {
+        startupStartedAt = launchStage ? Date.now() : 0
+        startupElapsedSeconds = 0
+    }
+    Timer {
+        interval: 1000; repeat: true; running: nativePreview.launchStage
+        onTriggered: nativePreview.startupElapsedSeconds = Math.floor((Date.now() - nativePreview.startupStartedAt) / 1000)
+    }
     property string reviewedHostId: ""
     property string reviewedGameId: ""
     property string reviewedHostName: ""
@@ -397,6 +413,28 @@ Popup {
                     color: NovaTheme.secondary
                     font.pixelSize: 18 * NovaTheme.fontScale
                     wrapMode: Text.WordWrap
+                }
+                // The launch's steps, from the phases the session already reports, and its time (#422).
+                Label {
+                    objectName: "native-startup-steps"
+                    visible: nativePreview.launchStage
+                    width: parent.width
+                    text: nativePreview.startupStepLines
+                    textFormat: Text.PlainText
+                    color: NovaTheme.secondary
+                    font.pixelSize: 16 * NovaTheme.fontScale
+                    wrapMode: Text.WordWrap
+                    Accessible.name: "Step " + (nativePreview.startupStep + 1) + " of " + nativePreview.startupSteps.length
+                        + ": " + nativePreview.startupSteps[nativePreview.startupStep]
+                }
+                Label {
+                    objectName: "native-startup-elapsed"
+                    visible: nativePreview.launchStage
+                    width: parent.width
+                    text: nativePreview.startupElapsedSeconds + " s elapsed"
+                    textFormat: Text.PlainText
+                    color: NovaTheme.secondary
+                    font.pixelSize: 16 * NovaTheme.fontScale
                 }
             }
         }

@@ -99,5 +99,21 @@ int main() {
         recap(DeckStreamRecapSpan{}).isEmpty(), "unidentified recap was built");
     auto cleared = continuous; cleared.reset();
     require(cleared.empty() && recap(cleared).isEmpty(), "reset kept a retired run's samples");
+    // The line follows each continuous step's received rate, in order (#423).
+    const auto line = r["fpsTrail"].toList();
+    require(line.size() == 3 && near(line[0], 60.0) && near(line[2], 60.0), "FPS line lost its steps");
+    const auto uneven = recap(span({sample(0, 0), sample(1000, 60), sample(2000, 90)}))["fpsTrail"].toList();
+    require(uneven.size() == 2 && near(uneven[0], 60.0) && near(uneven[1], 30.0), "FPS line is not per-step");
+    require(recap(span({sample(0, 90), sample(1000, 150)}))["fpsTrail"].toList().isEmpty(), "one step drew a line");
+    // A step the counters can't answer for stays off the line.
+    const auto gapped = recap(span({sample(0, 0), sample(1000, 60), sample(9000, 500), sample(10000, 560)}))["fpsTrail"].toList();
+    require(gapped.size() == 2 && near(gapped[0], 60.0) && near(gapped[1], 60.0), "a long gap reached the FPS line");
+    // However long the stream, the line stays bounded and keeps its shape.
+    DeckStreamRecapSpan longRun; std::uint64_t counted = 0;
+    for (int i = 0; i < 10000; ++i) { counted += i < 5000 ? 60 : 30; longRun.accept(sample(i * 1000, counted)); }
+    longRun.end(true);
+    const auto bounded = recap(longRun)["fpsTrail"].toList();
+    require(bounded.size() >= 60 && bounded.size() <= 121, "FPS line was not bounded");
+    require(near(bounded.first(), 60.0) && near(bounded.last(), 30.0), "FPS line lost its shape in the averaging");
     std::cout << "stream recap deltas, coverage, unknowns and continuity fencing checks passed\n";
 }

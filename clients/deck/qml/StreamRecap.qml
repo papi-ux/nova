@@ -43,6 +43,15 @@ Rectangle {
             : { value: "Unknown", detail: absent }
     }
     readonly property var readings: recap || ({})
+    // Every frame of the whole run arrived, as far as its count can say. A count restarted
+    // part way through only speaks for the part after it.
+    readonly property bool nothingMissing: shown && !!readings.missingFrames && readings.missingFrames.expected > 0
+        && readings.missingFrames.lost === 0 && !readings.missingFrames.partial
+    // An hour or more of continuous readings with nothing missing (#424).
+    readonly property bool clearSkies: nothingMissing && !!rates && rates.spanMs >= 3600000
+    readonly property var fpsTrail: shown && readings.fpsTrail && readings.fpsTrail.length >= 2 ? readings.fpsTrail : []
+    readonly property string fpsTrailWords: fpsTrail.length === 0 ? ""
+        : "Video received over this stream: " + Math.min.apply(null, fpsTrail).toFixed(1) + " to " + Math.max.apply(null, fpsTrail).toFixed(1) + " fps"
     readonly property var tiles: [
         { key: "received", label: "Video received",
           value: rates ? rates.receivedFps.toFixed(1) + " fps" : "Unknown",
@@ -128,6 +137,67 @@ Rectangle {
                 onClicked: card.dismissRequested(card.recap.generation)
                 Keys.onDownPressed: card.focusReading(0)
             }
+        }
+        // At a glance: only what was measured, and none of it moves or takes focus.
+        Rectangle {
+            objectName: "stream-recap-clear-skies"
+            visible: card.clearSkies
+            implicitWidth: clearSkiesWords.implicitWidth + 16 * card.unit
+            implicitHeight: clearSkiesWords.implicitHeight + 8 * card.unit
+            radius: 4 * card.unit
+            color: NovaTheme.accent
+            Accessible.role: Accessible.StaticText
+            Accessible.name: clearSkiesWords.text
+            Label {
+                id: clearSkiesWords
+                anchors.centerIn: parent
+                text: "Clear skies"
+                color: NovaTheme.window
+                font.bold: true
+                font.pixelSize: 14 * card.unit * NovaTheme.fontScale
+            }
+        }
+        Copy {
+            objectName: "stream-recap-nothing-missing"
+            visible: card.nothingMissing
+            text: "0.00% frames missing"
+            color: NovaTheme.text
+        }
+        // Static, from zero up to the run's best, so a steady stream reads flat.
+        Canvas {
+            id: fpsLine
+            objectName: "stream-recap-fps-line"
+            visible: card.fpsTrail.length >= 2
+            Layout.fillWidth: true
+            Layout.preferredHeight: 40 * card.unit
+            readonly property var values: card.fpsTrail
+            readonly property color ink: NovaTheme.accent
+            onValuesChanged: requestPaint()
+            onInkChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            Accessible.role: Accessible.Graphic
+            Accessible.name: card.fpsTrailWords
+            onPaint: {
+                const context = getContext("2d")
+                context.reset()
+                if (values.length < 2) return
+                const stroke = 2 * card.unit, best = Math.max(Math.max.apply(null, values), 1)
+                context.strokeStyle = ink
+                context.lineWidth = stroke
+                context.lineCap = "round"; context.lineJoin = "round"
+                context.beginPath()
+                for (let i = 0; i < values.length; ++i) {
+                    const x = i / (values.length - 1) * width
+                    const y = stroke / 2 + (1 - values[i] / best) * (height - stroke)
+                    if (i === 0) context.moveTo(x, y); else context.lineTo(x, y)
+                }
+                context.stroke()
+            }
+        }
+        Copy {
+            objectName: "stream-recap-fps-words"
+            visible: card.fpsTrail.length >= 2
+            text: card.fpsTrailWords
         }
         GridLayout {
             id: grid

@@ -1,6 +1,8 @@
 #pragma once
 #include "runtime/deck_hud_metrics.h"
+#include <QVariantList>
 #include <QVariantMap>
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -26,6 +28,13 @@ private:
     std::optional<std::uint64_t> decoderGeneration_;
     int samples_ = 0;
     bool continuous_ = true, restarted_ = false, ended_ = false, endCurrent_ = false;
+    // The received frame rate over the run, for the recap's line (#423). Constant memory:
+    // when it fills, neighbours average into one slot and each slot covers twice as many.
+    void addTrail(double fps);
+    QVariantList trail() const;
+    std::array<double, 120> trail_{};
+    int trailUsed_ = 0, trailPerSlot_ = 1, trailPending_ = 0;
+    double trailPendingSum_ = 0;
 };
 
 // Last Stream (#383 Linux): presentation only, frozen once from the ended run's

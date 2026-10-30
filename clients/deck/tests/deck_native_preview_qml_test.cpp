@@ -994,6 +994,16 @@ int main(int argc, char** argv) {
     screenshot("doctor-session-large-960.png");
     auto* limits = root->findChild<QObject*>("doctor-client-measurement-limits");
     require(limits && limits->property("text").toString().contains("unavailable until fresh video sequence"), "absent loss presented as measured");
+    // Nova's Doctor remarks on a round trip under 2 ms, and only then (#424).
+    auto* remark = root->findChild<QQuickItem*>("doctor-faster-than-light");
+    require(remark, "Doctor's remark missing");
+    const auto remarked = [&](const char* rtt) { session.tuning["rtt"] = rtt; emit session.hudChanged(); settle(); return remark->isVisible(); };
+    require(remarked("1ms"), "a 1 ms round trip earned no remark");
+    require(remarked("1.5ms"), "a 1.5 ms round trip earned no remark");
+    require(!remarked("2ms"), "2 ms is not under 2 ms");
+    require(!remarked("40ms"), "a slow round trip was remarked on");
+    require(!remarked("--"), "no reading was remarked on");
+    session.tuning.remove("rtt"); emit session.hudChanged(); settle();
     session.tuning["fresh"] = true; session.tuning["mediaLossFresh"] = true;
     session.tuning["mediaLossSource"] = "Video frame sequence"; session.tuning["mediaLoss"] = "2.5%";
     emit session.hudChanged(); settle();
@@ -1266,10 +1276,33 @@ int main(int argc, char** argv) {
     require(setup->property("planHeadline").toString() == "Private Stream (GPU-native)",
         "a fixed private app pin was presented as Play on Desktop");
 
+    // The launch's real steps and its time, from the phases the session reports (#422).
+    preview->setProperty("attempted", true);
+    auto* startupSteps = root->findChild<QQuickItem*>("native-startup-steps");
+    auto* startupElapsed = root->findChild<QQuickItem*>("native-startup-elapsed");
+    require(startupSteps && startupElapsed, "startup steps missing");
+    const auto stepsRead = [&] { return startupSteps->property("text").toString(); };
+    session.automaticAttempt = 0;
+    session.transition("preparing", true, "Preparing the selected game…"); settle();
+    require(startupSteps->isVisible() && startupElapsed->isVisible(), "a launch hid its steps or time");
+    require(stepsRead() == QString::fromUtf8("● Contacting the PC\n○ Starting the game\n○ Waiting for video"), "preparing read the wrong step");
+    session.transition("launching", true, "Starting or resuming the selected game…"); settle();
+    require(stepsRead() == QString::fromUtf8("✓ Contacting the PC\n● Starting the game\n○ Waiting for video"), "launching read the wrong step");
+    session.transition("connecting", true, "Connecting video and audio…"); settle();
+    require(stepsRead() == QString::fromUtf8("✓ Contacting the PC\n✓ Starting the game\n● Waiting for video"), "connecting read the wrong step");
+    { QEventLoop wait; QTimer::singleShot(1200, &wait, &QEventLoop::quit); wait.exec(); }
+    require(startupElapsed->property("text").toString().endsWith(" s elapsed") && !startupElapsed->property("text").toString().startsWith("0 "),
+        "the elapsed line did not count");
+    session.automaticAttempt = 1;
+    session.transition("connecting", true, "Reconnecting…"); settle();
+    require(!startupSteps->isVisible(), "a reconnect was presented as a launch");
+    session.automaticAttempt = 0;
+
     // Hiding the two decorations must not hide menu access, diagnostics or
     // controller recovery. Exercise the actual Appearance controls at 130%/960.
     preview->setProperty("attempted", true);
     session.transition("active", true, "Your game is connected.");
+    require(!startupSteps->isVisible() && !startupElapsed->isVisible(), "the steps stayed up over a stream");
     session.showControls(); settle();
     auto* appearance = root->findChild<QObject*>("appearance-settings-popup");
     require(appearance && QMetaObject::invokeMethod(appearance, "open"), "cannot open stream appearance");
