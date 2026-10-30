@@ -403,7 +403,10 @@ private fun NovaSessionProgressColumn(state: NovaSessionProgressUiState) {
                 trackColor = colors.divider
             )
         }
-        Text(text = confidenceLabel, style = type.value, color = colors.accent, textAlign = TextAlign.Center)
+        // A stage with no words of its own falls back to the same words for both lines; once is enough.
+        if (confidenceLabel != title) {
+            Text(text = confidenceLabel, style = type.value, color = colors.accent, textAlign = TextAlign.Center)
+        }
         Text(text = confidenceDetail, style = type.rowTitle, color = colors.textSecondary, textAlign = TextAlign.Center)
         if (state.completedStages.isNotEmpty()) {
             Text(
