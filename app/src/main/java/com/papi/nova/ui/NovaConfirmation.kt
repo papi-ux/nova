@@ -2,16 +2,14 @@ package com.papi.nova.ui
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.view.HapticFeedbackConstants
 import android.view.View
 import com.papi.nova.Game
 import com.papi.nova.R
 
 /**
  * A pairing that saved the host's certificate, and a connection the player asked for, are each
- * confirmed once (#386). Nova's Haptic Feedback toggle gates the view's own CONFIRM, and the
+ * confirmed once (#386). Nova's Haptic Feedback toggle gates the view's own feedback, and the
  * system's touch feedback setting can still veto it. A device without a vibrator feels nothing;
  * this is never controller rumble. Pairing's words travel to the screen it opens on a one-shot extra. A
  * connection's are the stream's setup overlay title, which goes before the game is shown.
@@ -20,11 +18,9 @@ object NovaConfirmation {
     /** "Paired with <host>", on the Library or App list launch a pairing opens. */
     const val EXTRA_PAIRED_WITH = "NovaPairedWith"
 
-    /** CONFIRM came in Android 11; before it there is no confirm haptic to give. */
+    /** One firm click: the ordinary click CONFIRM plays was barely felt on the RP6. */
     fun haptic(view: View?) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            NovaHaptics.perform(view, HapticFeedbackConstants.CONFIRM)
-        }
+        view?.let { NovaHaptics.play(it.context, it, NovaHapticCue.CONNECTED) }
     }
 
     /** The host's name as its record has it. A host with none is confirmed by the haptic alone. */

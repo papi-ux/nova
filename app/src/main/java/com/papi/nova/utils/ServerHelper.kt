@@ -21,6 +21,8 @@ import com.papi.nova.nvstream.http.HostHttpResponseException
 import com.papi.nova.nvstream.http.NvApp
 import com.papi.nova.nvstream.http.NvHTTP
 import com.papi.nova.nvstream.jni.MoonBridge
+import com.papi.nova.ui.NovaHapticCue
+import com.papi.nova.ui.NovaHaptics
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.panel.NovaAction
@@ -635,6 +637,13 @@ object ServerHelper {
         }
     }
 
+    /** What a quit feels like: a game still closing has neither ended nor been refused yet. */
+    internal fun quitCue(refusal: QuitRefusal?): NovaHapticCue? = when {
+        refusal == null -> NovaHapticCue.END_CONFIRMED
+        refusal.stillClosing -> null
+        else -> NovaHapticCue.REFUSED
+    }
+
     /**
      * Quits the running app, then runs [onComplete] or [onFail] on the main thread. Nothing floats
      * (audit X2): the caller's own list shows a quit that worked once it refreshes, as the running
@@ -695,7 +704,10 @@ object ServerHelper {
     ) {
         Thread {
             val refusal = quitOnHost(parent, httpConn, appName)
-            parent.runOnUiThread { onResult(refusal) }
+            parent.runOnUiThread {
+                quitCue(refusal)?.let { NovaHaptics.play(parent, parent.window?.decorView, it) }
+                onResult(refusal)
+            }
         }.start()
     }
 

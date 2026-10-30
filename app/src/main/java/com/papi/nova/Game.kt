@@ -5823,8 +5823,11 @@ if (httpConn != null && quitOnStop && !watchOnlyRequested)
 try
 {
 sleep(1000)
-httpConn!!.quitApp(if (conn != null) conn!!.getSessionToken() else null)
-this@Game.runOnUiThread({ Toast.makeText(this@Game, this@Game.getResources().getString(R.string.applist_quit_success) + " " + appName, Toast.LENGTH_LONG).show() })
+val endConfirmed = httpConn!!.quitApp(if (conn != null) conn!!.getSessionToken() else null)
+this@Game.runOnUiThread({
+Toast.makeText(this@Game, this@Game.getResources().getString(R.string.applist_quit_success) + " " + appName, Toast.LENGTH_LONG).show()
+if (endConfirmed) com.papi.nova.ui.NovaHaptics.play(this@Game.applicationContext, null, com.papi.nova.ui.NovaHapticCue.END_CONFIRMED)
+})
 }
 catch (e:Exception) {
 this@Game.runOnUiThread({ Toast.makeText(this@Game, e!!.message, Toast.LENGTH_LONG).show() })
@@ -5951,6 +5954,7 @@ showNovaLaunchIssueSheet(message)
 private fun showNovaLaunchIssueSheet(message: String) {
 runOnUiThread {
 if (isFinishing || isDestroyed) return@runOnUiThread
+feelStreamRefused()
 if (spinner != null) {
 spinner!!.dismiss()
 spinner = null
@@ -5976,6 +5980,14 @@ leave = { finish() },
 takeDown = { surfaces.dismiss(LAUNCH_ISSUE_PAGE) },
 )
 surfaces.show(page)
+}
+}
+
+/** An error or refusal the player is about to read. A replacement stream's are reconnect noise. */
+private fun feelStreamRefused() {
+if (!getIntent().getBooleanExtra(EXTRA_RECONNECT_REQUESTED, false))
+{
+com.papi.nova.ui.NovaHaptics.play(this, window.decorView, com.papi.nova.ui.NovaHapticCue.REFUSED)
 }
 }
 
@@ -6063,6 +6075,7 @@ message += ("\n\n" + getResources().getString(R.string.check_ports_msg) + "\n" +
 MoonBridge.stringifyPortFlags(portFlags, "\n"))
 }
 
+feelStreamRefused()
 Dialog.displayDialog(this@Game, getResources().getString(R.string.conn_terminated_title),
 message, true,
 getResources().getString(R.string.nova_conn_reconnect),
