@@ -104,17 +104,27 @@ internal fun novaWatchRate(fps: Float): String {
     return if (hundredths % 100 == 0) (hundredths / 100).toString() else String.format(java.util.Locale.US, "%.2f", hundredths / 100f)
 }
 
-/** Which way a D-pad press moves between a host's row and the Manage pill inside it. */
-internal enum class NovaHostRowFocusMove { TO_MANAGE, TO_ROW, NONE }
+/** Which way a D-pad press moves between a host's row, its Manage pill and its End, inside it. */
+internal enum class NovaHostRowFocusMove { TO_MANAGE, TO_ROW, TO_END, NONE }
 
 /**
  * The Manage pill sits inside the row that holds focus, and a focus search never looks inside the
  * thing it is leaving, so no direction reached it: a controller's only way to a host's sheet was
- * a long press. Right from the row goes in to Manage and Left from Manage comes back out.
+ * a long press. Right from the row goes in to Manage and Left from Manage comes back out. End, when
+ * the card has one, stands between them as it does on screen, and asks before it ends anything.
  */
-internal fun novaHostRowFocusMove(right: Boolean, left: Boolean, onRow: Boolean, onManage: Boolean): NovaHostRowFocusMove =
+internal fun novaHostRowFocusMove(
+    right: Boolean,
+    left: Boolean,
+    onRow: Boolean,
+    onManage: Boolean,
+    onEnd: Boolean = false,
+    endShown: Boolean = false,
+): NovaHostRowFocusMove =
     when {
-        right && onRow -> NovaHostRowFocusMove.TO_MANAGE
-        left && onManage -> NovaHostRowFocusMove.TO_ROW
+        right && onRow -> if (endShown) NovaHostRowFocusMove.TO_END else NovaHostRowFocusMove.TO_MANAGE
+        right && onEnd -> NovaHostRowFocusMove.TO_MANAGE
+        left && onManage -> if (endShown) NovaHostRowFocusMove.TO_END else NovaHostRowFocusMove.TO_ROW
+        left && onEnd -> NovaHostRowFocusMove.TO_ROW
         else -> NovaHostRowFocusMove.NONE
     }

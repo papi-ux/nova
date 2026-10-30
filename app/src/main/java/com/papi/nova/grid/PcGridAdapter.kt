@@ -20,14 +20,19 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.preference.PreferenceManager
 import com.papi.nova.PcViewModel
 import com.papi.nova.R
+import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.nvstream.http.ComputerDetails
 import com.papi.nova.nvstream.http.PairingManager
 import com.papi.nova.preferences.PreferenceConfiguration
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.NovaControlSize
 import com.papi.nova.ui.NovaControlSizePreferences
+import com.papi.nova.ui.NovaHostNowPlaying
 import com.papi.nova.ui.NovaHostsViewMetrics
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.novaBreakAtDots
+import com.papi.nova.ui.novaNowPlayingSpoken
+import com.papi.nova.ui.novaNowPlayingWords
 import com.papi.nova.ui.panel.NovaViewBridge
 import java.util.IdentityHashMap
 import java.util.Locale
@@ -46,6 +51,9 @@ class PcGridAdapter(
     private var nextFallbackStableId = Long.MIN_VALUE
     private var serverActionListener: ((PcViewModel.ComputerObject) -> Unit)? = null
     private var hostConnections: Map<String, String> = emptyMap()
+    private var nowPlaying: Map<String, NovaHostNowPlaying> = emptyMap()
+    private var endSessionListener: ((PcViewModel.ComputerObject) -> Unit)? = null
+    private var nowPlayingArtwork: ((ImageView, String, PolarisGame) -> Unit)? = null
 
     init {
         setHasStableIds(true)
@@ -193,6 +201,22 @@ class PcGridAdapter(
         serverActionListener = listener
     }
 
+    /** This device's resumable sessions, by host UUID, for each card's now-playing pill. */
+    internal fun setNowPlaying(sessions: Map<String, NovaHostNowPlaying>) {
+        if (sessions == nowPlaying) return
+        nowPlaying = sessions
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount, SERVER_ROW_REFRESH_PAYLOAD)
+    }
+
+    fun setOnEndSessionListener(listener: (PcViewModel.ComputerObject) -> Unit) {
+        endSessionListener = listener
+    }
+
+    /** Draws a game's art into the pill: the view, the host's UUID, and the game. */
+    fun setNowPlayingArtwork(loader: (ImageView, String, PolarisGame) -> Unit) {
+        nowPlayingArtwork = loader
+    }
+
     /** Cached references for PcView-specific views (status dot + text). */
     private class PcViewHolder {
         var statusDot: View? = null
@@ -206,6 +230,12 @@ class PcGridAdapter(
         var badgeKind: TextView? = null
         var badgeSpaces: TextView? = null
         var badgeConnection: TextView? = null
+        var nowPlayingRow: View? = null
+        var nowPlaying: View? = null
+        var nowPlayingArt: ImageView? = null
+        var nowPlayingText: TextView? = null
+        var endSession: View? = null
+        var nowPlayingArtGame: PolarisGame? = null
         var body: LinearLayout? = null
         var identity: View? = null
         var actions: View? = null
@@ -234,6 +264,11 @@ class PcGridAdapter(
         holder.badgeKind = parentView.findViewById(R.id.host_badge_kind)
         holder.badgeSpaces = parentView.findViewById(R.id.host_badge_spaces)
         holder.badgeConnection = parentView.findViewById(R.id.host_badge_connection)
+        holder.nowPlayingRow = parentView.findViewById(R.id.host_now_playing_row)
+        holder.nowPlaying = parentView.findViewById(R.id.host_now_playing)
+        holder.nowPlayingArt = parentView.findViewById(R.id.host_now_playing_art)
+        holder.nowPlayingText = parentView.findViewById(R.id.host_now_playing_text)
+        holder.endSession = parentView.findViewById(R.id.host_end_session_button)
         holder.body = parentView.findViewById(R.id.server_card_body)
         holder.identity = parentView.findViewById(R.id.server_card_identity)
         holder.actions = parentView.findViewById(R.id.server_card_actions)
@@ -420,6 +455,7 @@ class PcGridAdapter(
             // Filled while the card holds focus: that is what A on the card presses.
             it.isSelected = it.isActivated && parentView.isFocused
         }
+        showNowPlaying(parentView, pcHolder, obj, primaryAction)
 
         prgView.visibility = if (obj.details.state == ComputerDetails.State.UNKNOWN) View.VISIBLE else View.INVISIBLE
 
@@ -446,8 +482,57 @@ class PcGridAdapter(
     }
 
     override fun onItemFocusChanged(parentView: View, hasFocus: Boolean) {
-        val primaryAction = getPcHolder(parentView).primaryAction
+        val holder = getPcHolder(parentView)
+        val primaryAction = holder.primaryAction
         primaryAction?.isSelected = hasFocus && primaryAction?.isActivated == true
+        holder.nowPlaying?.isSelected = hasFocus
+    }
+
+    /**
+     * The pill takes the primary's place: it says Resume, and a press on the card is what resumes,
+     * so a second Resume beside it would be one more thing to choose between.
+     */
+    private fun showNowPlaying(
+        parentView: View,
+        holder: PcViewHolder,
+        obj: PcViewModel.ComputerObject,
+        primaryAction: TextView?,
+    ) {
+        val pill = holder.nowPlaying ?: return
+        val details = obj.details
+        val playing = nowPlaying[details.uuid]?.takeIf {
+            details.state == ComputerDetails.State.ONLINE && details.runningGameId != 0 &&
+                details.currentGameOwnedByClient == true
+        }
+        holder.nowPlayingRow?.visibility = if (playing != null) View.VISIBLE else View.GONE
+        if (playing == null) {
+            holder.nowPlayingArt?.let { PolarisApiClient.releaseArtworkView(it) }
+            holder.nowPlayingArtGame = null
+            return
+        }
+        pill.background = NovaViewBridge.primaryButton(context)
+        pill.isSelected = parentView.isFocused
+        primaryAction?.visibility = View.GONE
+        holder.nowPlayingText?.let {
+            it.text = novaNowPlayingWords(context, playing)
+            it.contentDescription = novaNowPlayingSpoken(context, playing)
+            it.setTextColor(NovaViewBridge.primaryButtonText(context))
+        }
+        holder.endSession?.let {
+            it.contentDescription = context.getString(
+                R.string.nova_host_now_playing_end_description,
+                playing.gameName.ifBlank { context.getString(R.string.applist_menu_watch_active_name) },
+            )
+            it.setOnClickListener { endSessionListener?.invoke(obj) }
+        }
+        val art = holder.nowPlayingArt ?: return
+        val game = playing.game
+        art.visibility = if (game != null) View.VISIBLE else View.GONE
+        if (game != holder.nowPlayingArtGame) {
+            holder.nowPlayingArtGame = game
+            PolarisApiClient.releaseArtworkView(art)
+            if (game != null) nowPlayingArtwork?.invoke(art, details.uuid, game)
+        }
     }
 
     /**

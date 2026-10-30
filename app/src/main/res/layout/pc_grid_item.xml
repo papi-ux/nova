@@ -158,6 +158,81 @@
                 android:textColor="?android:textColorSecondary"
                 android:textSize="12sp"
                 android:visibility="gone" />
+
+            <!-- This device's game still running on the host, and the way to end it. -->
+            <LinearLayout
+                android:id="@+id/host_now_playing_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <!-- Its art, and what a press on the card does. Not clickable itself, so a touch on
+                     it is a touch on the card. -->
+                <LinearLayout
+                    android:id="@+id/host_now_playing"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:minHeight="40dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="6dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="4dp">
+
+                    <ImageView
+                        android:id="@+id/host_now_playing_art"
+                        android:layout_width="24dp"
+                        android:layout_height="32dp"
+                        android:layout_marginEnd="8dp"
+                        android:importantForAccessibility="no"
+                        android:scaleType="centerCrop" />
+
+                    <TextView
+                        android:id="@+id/host_now_playing_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="2"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Ends the game, after a confirm. Inside the row that holds focus, as Manage is. -->
+                <FrameLayout
+                    android:id="@+id/host_end_session_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="@dimen/nova_spacing_sm"
+                    android:clickable="true"
+                    android:defaultFocusHighlightEnabled="false"
+                    android:focusable="true">
+
+                    <androidx.appcompat.widget.AppCompatTextView
+                        android:id="@+id/host_end_session_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:background="@drawable/nova_chip_default"
+                        android:duplicateParentState="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:importantForAccessibility="no"
+                        android:minHeight="40dp"
+                        android:paddingStart="16dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/pcview_card_action_end"
+                        android:textAllCaps="false"
+                        android:textColor="?android:textColorPrimary"
+                        android:textSize="13sp" />
+                </FrameLayout>
+            </LinearLayout>
         </LinearLayout>
       </LinearLayout>
 

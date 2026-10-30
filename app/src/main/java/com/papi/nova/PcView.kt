@@ -133,9 +133,13 @@ import com.papi.nova.ui.NovaHaptics
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
+import com.papi.nova.network.HostNowPlayingWatch
+import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.NovaEasterEggs
 import com.papi.nova.ui.NovaHostsComingOnline
 import com.papi.nova.ui.SpaceParticleView
+import com.papi.nova.ui.novaHostNowPlaying
+import com.papi.nova.ui.novaNowPlayingGame
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.HelpLauncher
 import com.papi.nova.utils.ServerHelper
@@ -326,6 +330,29 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             },
         )
     }
+    private val nowPlayingClients = ConcurrentHashMap<String, PolarisApiClient>()
+    private val hostNowPlaying by lazy {
+        HostNowPlayingWatch(
+            scope = lifecycleScope,
+            asker = { target ->
+                val client = PolarisApiClient(this, target.address, target.httpsPort, target.serverCert)
+                nowPlayingClients[target.uuid] = client
+                var artFor: Pair<Int, PolarisGame?>? = null
+                val ask = {
+                    // No answer isn't no session: throwing leaves what the card shows in place.
+                    val status = client.getSessionStatus() ?: throw IOException("no session status")
+                    novaHostNowPlaying(status)?.let { playing ->
+                        val art = artFor?.takeIf { it.first == playing.gameId }
+                            ?: (playing.gameId to novaNowPlayingGame(client.getGames(search = playing.gameName), playing))
+                                .also { artFor = it }
+                        playing.copy(game = art.second)
+                    }
+                }
+                ask
+            },
+            onChange = { sessions -> pcGridAdapter.setNowPlaying(sessions) },
+        )
+    }
     private var serverGridView: RecyclerView? = null
     private lateinit var shortcutHelper: ShortcutHelper
     private lateinit var viewModel: PcViewModel
@@ -420,9 +447,13 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             left = keyCode == KeyEvent.KEYCODE_DPAD_LEFT,
             onRow = focus === row,
             onManage = focus.id == R.id.server_actions_button,
+            onEnd = focus.id == R.id.host_end_session_button,
+            // End stands in the now-playing row, so that row's visibility is End's.
+            endShown = row.findViewById<View>(R.id.host_now_playing_row)?.visibility == View.VISIBLE,
         )
         return when (move) {
             NovaHostRowFocusMove.TO_MANAGE -> row.findViewById<View>(R.id.server_actions_button)?.requestFocus() == true
+            NovaHostRowFocusMove.TO_END -> row.findViewById<View>(R.id.host_end_session_button)?.requestFocus() == true
             NovaHostRowFocusMove.TO_ROW -> row.requestFocus()
             NovaHostRowFocusMove.NONE -> false
         }
@@ -1608,6 +1639,17 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             }
             HostConnectionWatch.Target(details.uuid, address, details.httpsPort.takeIf { it > 0 } ?: 47984, cert)
         })
+        hostNowPlaying.watch(viewModel.computersLiveData.value.orEmpty().mapNotNull { computer ->
+            val details = computer.details
+            val address = details.activeAddress?.address
+            val cert = details.serverCert
+            if (details.state != ComputerDetails.State.ONLINE || details.pairState != PairingManager.PairState.PAIRED ||
+                details.runningGameId == 0 || details.currentGameOwnedByClient != true ||
+                address == null || cert == null || details.uuid.isNullOrBlank()) {
+                return@mapNotNull null
+            }
+            HostNowPlayingWatch.Target(details.uuid, address, details.httpsPort.takeIf { it > 0 } ?: 47984, cert)
+        })
     }
 
     /** One star brightens as a host comes online, and with POLARIS the North Star glows while one is. */
@@ -2131,6 +2173,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun stopComputerUpdates(wait: Boolean) {
         hostConnections.stop()
+        hostNowPlaying.stop()
         val binder = managerBinder ?: return
         if (!runningPolling || !::viewModel.isInitialized) {
             return
@@ -2263,12 +2306,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 ServerHelper.doWatch(this@PcView, createWatchTargetApp(details), details, binder)
             }
 
-            override fun endSession() {
-                val binder = managerBinder ?: return
-                val runningApp = NvApp()
-                runningApp.appId = details.runningGameId
-                ServerHelper.doQuit(this@PcView, details, runningApp, binder, null)
-            }
+            override fun endSession() = endRunningGame(details)
         }
         val sleepOffered = details.uuid == preferredHostPowerComputer()?.uuid && currentHostPowerAction() == HostPowerAction.SLEEP
         val menu = NovaCommonPage.Menu(
@@ -2376,6 +2414,28 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             details.runningGameId,
             false,
         )
+
+    private fun endRunningGame(computer: ComputerDetails) {
+        val binder = managerBinder ?: return
+        val runningApp = NvApp()
+        runningApp.appId = computer.runningGameId
+        ServerHelper.doQuit(this, computer, runningApp, binder, null)
+    }
+
+    /** End from the now-playing pill: Stay is focused, because ending loses what the host hasn't saved. */
+    private fun confirmEndRunningGame(computer: ComputerDetails) {
+        novaSurfaces.open(
+            root = NovaCommonPage.Confirm(
+                key = "hosts-end-running-game",
+                title = getString(R.string.applist_menu_quit),
+                message = androidx.compose.ui.text.AnnotatedString(getString(R.string.nova_panel_end_session_message)),
+                stayLabel = getString(R.string.nova_panel_stay),
+                actionLabel = getString(R.string.game_dialog_action_end_session),
+                destructive = true,
+                onConfirm = { endRunningGame(computer) },
+            ),
+        )
+    }
 
     private fun resumeOrWatchRunningGame(computer: ComputerDetails) {
         val binder = managerBinder
@@ -3645,6 +3705,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             pcGridAdapter.setOnServerActionListener { computer ->
                 showHostPanel(computer)
             }
+            pcGridAdapter.setOnEndSessionListener { computer -> confirmEndRunningGame(computer.details) }
+            pcGridAdapter.setNowPlayingArtwork { view, uuid, game -> nowPlayingClients[uuid]?.loadCoverInto(view, game) }
             UiHelper.applyStatusBarPadding(rv)
             rv.post {
                 for (i in 0 until rv.childCount) {

@@ -166,6 +166,12 @@
     <string name="pcview_card_action_open_library">Open Library</string>
     <string name="pcview_card_action_checking_library">Checking</string>
     <string name="pcview_card_action_resume">Resume</string>
+    <!-- The now-playing pill on a host card: the game, and what a press does. -->
+    <string name="nova_host_now_playing">%1$s · %2$s</string>
+    <string name="nova_host_now_playing_spoken">%1$s. %2$s</string>
+    <string name="pcview_card_action_end">End</string>
+    <!-- What TalkBack says for End on a host card. %1$s is the game. -->
+    <string name="nova_host_now_playing_end_description">End session: %1$s</string>
     <string name="pcview_card_action_pair">Pair</string>
     <string name="pcview_card_action_wake">Wake</string>
     <string name="pcview_card_action_refreshing">Refreshing</string>
