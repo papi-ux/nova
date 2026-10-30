@@ -1194,7 +1194,7 @@
     <string name="nova_moment_report_unavailable_caption">Available while a stream is running on this device.</string>
     <string name="nova_moment_report_offered">Choose where to share the moment report. Nothing was sent automatically.</string>
     <string name="nova_moment_report_saved_title">Moment Saved</string>
-    <string name="nova_moment_report_saved_message">Saved on this device from %1$s (UTC). Nothing has been sent. Sharing opens another app, which can pause or end this stream. For the host side, export its support bundle from Troubleshooting.</string>
+    <string name="nova_moment_report_saved_message">Saved on this device from %1$s. Nothing has been sent. Sharing opens another app, which can pause or end this stream. For the host side, export its support bundle from Troubleshooting.</string>
     <string name="nova_moment_report_keep_playing">Keep Playing</string>
     <string name="nova_moment_report_share">Share Report</string>
     <string name="nova_moment_report_not_active">No stream is running on this device, so there\'s no moment to report.</string>
@@ -1204,11 +1204,11 @@
     <string name="nova_moment_report_subject">Nova moment report</string>
     <string name="nova_working_baseline_action">Working Baseline</string>
     <string name="nova_working_baseline_none_caption">Mark a stream that works well for you, then set later ones beside it. Nothing changes your settings.</string>
-    <string name="nova_working_baseline_saved_caption">Saved %1$s (UTC) for this host and app entry. Compare it with now.</string>
+    <string name="nova_working_baseline_saved_caption">Saved %1$s for this host and app entry. Compare it with now.</string>
     <string name="nova_working_baseline_unreadable_caption">The saved baseline for this host and app entry can\'t be read. Open to replace or clear it.</string>
     <string name="nova_working_baseline_no_entry_caption">This stream wasn\'t launched from a named host and app entry, so no baseline can be kept for it.</string>
     <string name="nova_working_baseline_title">Working Baseline</string>
-    <string name="nova_working_baseline_status_saved">Saved %1$s (UTC)</string>
+    <string name="nova_working_baseline_status_saved">Saved %1$s</string>
     <string name="nova_working_baseline_status_none">None saved</string>
     <string name="nova_working_baseline_status_unreadable">Saved baseline can\'t be read</string>
     <string name="nova_working_baseline_hint">Kept on this device, grouped by the host and app entry this stream was launched from. That grouping isn\'t proof of the same game scene, host or network path.</string>
@@ -1230,7 +1230,7 @@
     <string name="nova_working_baseline_confirm_save_title">Save as Working Baseline?</string>
     <string name="nova_working_baseline_confirm_replace_title">Replace Working Baseline?</string>
     <string name="nova_working_baseline_confirm_message">Save only if picture, audio and controls work well for you right now. Nova keeps this device\'s client readings from the moment you press Save, for this host and app entry. Nova doesn\'t judge them, and no setting changes.</string>
-    <string name="nova_working_baseline_confirm_replace_note">This replaces the baseline saved %1$s (UTC).</string>
+    <string name="nova_working_baseline_confirm_replace_note">This replaces the baseline saved %1$s.</string>
     <string name="nova_working_baseline_cancel">Keep Playing</string>
     <string name="nova_working_baseline_save">Save</string>
     <string name="nova_working_baseline_replace_action">Replace</string>
@@ -1246,9 +1246,9 @@
     <string name="nova_working_baseline_compare_none">No baseline is saved for this host and app entry.</string>
     <string name="nova_working_baseline_compare_unreadable">The saved baseline can\'t be read, so nothing was compared. Replace or clear it from Working Baseline.</string>
     <string name="nova_working_baseline_compare_not_active">No stream is running on this device, so there\'s nothing to compare.</string>
-    <string name="nova_working_baseline_compare_baseline">Baseline: you marked it working %1$s (UTC). Its client sample was %2$d ms old.</string>
-    <string name="nova_working_baseline_compare_now">Now: %1$s (UTC). The client sample is %2$d ms old.</string>
-    <string name="nova_working_baseline_compare_now_unavailable">Now: %1$s (UTC). No fresh client sample, so current readings are unknown.</string>
+    <string name="nova_working_baseline_compare_baseline">Baseline: you marked it working %1$s. Its client sample was %2$d ms old.</string>
+    <string name="nova_working_baseline_compare_now">Now: %1$s. The client sample is %2$d ms old.</string>
+    <string name="nova_working_baseline_compare_now_unavailable">Now: %1$s. No fresh client sample, so current readings are unknown.</string>
     <string name="nova_working_baseline_compare_freshness">Sample age is how fresh a sample was, not how long it measured.</string>
     <string name="nova_working_baseline_compare_context">Known client context (baseline → now)</string>
     <string name="nova_working_baseline_compare_readings">Client readings (baseline → now)</string>
@@ -1283,7 +1283,7 @@
     <string name="nova_recap_dismiss">Dismiss</string>
     <string name="nova_recap_page_title">Last Stream</string>
     <string name="nova_recap_close">Close</string>
-    <string name="nova_recap_ended">Ended %1$s (UTC). %2$s</string>
+    <string name="nova_recap_ended">Ended %1$s. %2$s</string>
     <string name="nova_recap_end_connection_ended">The connection ended normally. That doesn\'t show whether the host app quit.</string>
     <string name="nova_recap_end_host_end_reported">The host reported its session ended.</string>
     <string name="nova_recap_end_end_requested">You asked to end the stream. Whether the host acknowledged it isn\'t known here.</string>
@@ -1331,7 +1331,7 @@
     <string name="nova_recap_unknown">unknown</string>
     <string name="nova_recap_save_report">Save Report</string>
     <string name="nova_recap_report_saved_title">Report Saved</string>
-    <string name="nova_recap_report_saved_message">The recap of the stream that ended %1$s (UTC) is saved on this device. Nothing has been sent. Share Report opens another app, where you choose where it goes.</string>
+    <string name="nova_recap_report_saved_message">The recap of the stream that ended %1$s is saved on this device. Nothing has been sent. Share Report opens another app, where you choose where it goes.</string>
     <string name="nova_recap_report_done">Done</string>
     <string name="nova_recap_report_share">Share Report</string>
     <string name="nova_recap_report_subject">Nova stream recap report</string>

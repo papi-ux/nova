@@ -88,7 +88,7 @@ internal class NovaWorkingBaselinePages(
             header = NovaMenuHeader(
                 title = context.getString(R.string.nova_working_baseline_title),
                 status = when {
-                    saved != null -> context.getString(R.string.nova_working_baseline_status_saved, saved.markedAtUtc)
+                    saved != null -> context.getString(R.string.nova_working_baseline_status_saved, NovaLocalTime.withZone(context, saved.markedAtUtc))
                     unreadable -> context.getString(R.string.nova_working_baseline_status_unreadable)
                     else -> context.getString(R.string.nova_working_baseline_status_none)
                 },
@@ -107,7 +107,7 @@ internal class NovaWorkingBaselinePages(
         val saved = state.saved
         val replacing = saved != null || state.loaded == NovaWorkingBaselineStore.Loaded.Unreadable
         val notes = listOfNotNull(
-            saved?.let { context.getString(R.string.nova_working_baseline_confirm_replace_note, it.markedAtUtc) },
+            saved?.let { context.getString(R.string.nova_working_baseline_confirm_replace_note, NovaLocalTime.withZone(context, it.markedAtUtc)) },
             if (state.loaded == NovaWorkingBaselineStore.Loaded.Unreadable)
                 context.getString(R.string.nova_working_baseline_confirm_unreadable_note) else null,
             if (state.unrecoverableOthers) context.getString(R.string.nova_working_baseline_confirm_unrecoverable_note) else null,

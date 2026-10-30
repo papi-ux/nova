@@ -1,14 +1,9 @@
 package com.papi.nova.ui
 
 import android.content.Context
-import android.text.format.DateUtils
 import com.papi.nova.R
 import com.papi.nova.diagnostics.NovaStreamRecap
-import java.text.ParsePosition
-import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Locale
-import java.util.TimeZone
 
 /**
  * The After-stream recap in words: a one-line card summary and the read-only page. Descriptive
@@ -18,7 +13,7 @@ import java.util.TimeZone
 internal object NovaStreamRecapText {
     /**
      * The host bar's line: what ended the stream, then when, as this device tells the time. The
-     * UTC stamp, the sample counts and the readings stay on the page View opens.
+     * sample counts and the readings stay on the page View opens.
      */
     fun card(context: Context, recap: NovaStreamRecap.Recap, nowMillis: Long = System.currentTimeMillis()): String =
         context.getString(
@@ -27,36 +22,13 @@ internal object NovaStreamRecapText {
             endedAt(context, recap.endedAtUtc, nowMillis),
         )
 
-    /**
-     * When [endedAtUtc] was, in this device's time zone, language and 12 or 24 hour clock: the time
-     * alone on the day it is now, the date with it on any other. A stamp that does not parse as
-     * the recap writes it is shown as written, never guessed at.
-     */
-    internal fun endedAt(context: Context, endedAtUtc: String, nowMillis: Long): String {
-        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-            isLenient = false
-        }
-        val position = ParsePosition(0)
-        val ended = parser.parse(endedAtUtc, position)
-        if (ended == null || position.index != endedAtUtc.length) return endedAtUtc
-        val flags = if (sameDay(ended.time, nowMillis)) {
-            DateUtils.FORMAT_SHOW_TIME
-        } else {
-            DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH
-        }
-        return DateUtils.formatDateTime(context, ended.time, flags)
-    }
-
-    private fun sameDay(first: Long, second: Long): Boolean {
-        val a = Calendar.getInstance().apply { timeInMillis = first }
-        val b = Calendar.getInstance().apply { timeInMillis = second }
-        return a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
-    }
+    /** When [endedAtUtc] was, as the card reads it. See [NovaLocalTime]. */
+    internal fun endedAt(context: Context, endedAtUtc: String, nowMillis: Long): String =
+        NovaLocalTime.of(context, endedAtUtc, nowMillis)
 
     fun page(context: Context, recap: NovaStreamRecap.Recap): String = buildString {
         val unknown = context.getString(R.string.nova_recap_unknown)
-        appendLine(context.getString(R.string.nova_recap_ended, recap.endedAtUtc, reason(context, recap)))
+        appendLine(context.getString(R.string.nova_recap_ended, NovaLocalTime.withZone(context, recap.endedAtUtc), reason(context, recap)))
         if (recap.launch.reconnectRequested) appendLine(context.getString(R.string.nova_recap_reconnect_launch))
         appendLine(context.getString(R.string.nova_recap_requested, requested(recap.launch, unknown)))
         appendLine(recap.connectedForMs?.let { context.getString(R.string.nova_recap_connected_for, duration(it)) }
@@ -205,7 +177,7 @@ internal object NovaStreamRecapPages {
             key = "nova-stream-recap-saved-${report.file.name}",
             title = context.getString(R.string.nova_recap_report_saved_title),
             message = androidx.compose.ui.text.AnnotatedString(
-                context.getString(R.string.nova_recap_report_saved_message, report.endedAtUtc)),
+                context.getString(R.string.nova_recap_report_saved_message, NovaLocalTime.withZone(context, report.endedAtUtc))),
             stayLabel = context.getString(R.string.nova_recap_report_done),
             actionLabel = context.getString(R.string.nova_recap_report_share),
             destructive = false,

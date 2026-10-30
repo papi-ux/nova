@@ -139,7 +139,7 @@ class NovaQuickMenu(
             key = "nova-moment-saved-${report.file.name}",
             title = game.getString(R.string.nova_moment_report_saved_title),
             message = androidx.compose.ui.text.AnnotatedString(
-                game.getString(R.string.nova_moment_report_saved_message, report.markedAtUtc)),
+                game.getString(R.string.nova_moment_report_saved_message, NovaLocalTime.withZone(game, report.markedAtUtc))),
             stayLabel = game.getString(R.string.nova_moment_report_keep_playing),
             actionLabel = game.getString(R.string.nova_moment_report_share),
             destructive = false,

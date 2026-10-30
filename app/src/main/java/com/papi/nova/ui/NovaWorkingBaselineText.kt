@@ -22,11 +22,12 @@ internal object NovaWorkingBaselineText {
 
     fun comparison(context: Context, c: NovaWorkingBaseline.Comparison): String = buildString {
         val unknown = context.getString(R.string.nova_working_baseline_unknown)
-        appendLine(context.getString(R.string.nova_working_baseline_compare_baseline, c.baselineMarkedAtUtc, c.baselineSampleAgeMs))
+        appendLine(context.getString(R.string.nova_working_baseline_compare_baseline, NovaLocalTime.withZone(context, c.baselineMarkedAtUtc), c.baselineSampleAgeMs))
         val nowAge = c.nowSampleAgeMs
+        val nowAt = NovaLocalTime.withZone(context, c.nowMarkedAtUtc)
         appendLine(
-            if (c.nowCurrent && nowAge != null) context.getString(R.string.nova_working_baseline_compare_now, c.nowMarkedAtUtc, nowAge)
-            else context.getString(R.string.nova_working_baseline_compare_now_unavailable, c.nowMarkedAtUtc)
+            if (c.nowCurrent && nowAge != null) context.getString(R.string.nova_working_baseline_compare_now, nowAt, nowAge)
+            else context.getString(R.string.nova_working_baseline_compare_now_unavailable, nowAt)
         )
         appendLine(context.getString(R.string.nova_working_baseline_compare_freshness))
         appendLine()

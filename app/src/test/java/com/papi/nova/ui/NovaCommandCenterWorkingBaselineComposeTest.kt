@@ -180,7 +180,7 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         assertEquals(text(R.string.nova_working_baseline_none_caption), none.caption)
         val saved = NovaQuickMenuUiState.workingBaselineAction(context,
             NovaWorkingBaselineRow(hasEntry = true, savedAtUtc = "2026-10-08T13:00:00Z"))
-        assertTrue(saved.caption, saved.caption.contains("2026-10-08T13:00:00Z"))
+        assertTrue(saved.caption, saved.caption.contains(NovaLocalTime.withZone(context, "2026-10-08T13:00:00Z")))
         val unreadable = NovaQuickMenuUiState.workingBaselineAction(context, NovaWorkingBaselineRow(hasEntry = true, unreadable = true))
         assertEquals(text(R.string.nova_working_baseline_unreadable_caption), unreadable.caption)
         val noEntry = NovaQuickMenuUiState.workingBaselineAction(context, NovaWorkingBaselineRow(hasEntry = false))
@@ -238,7 +238,7 @@ class NovaCommandCenterWorkingBaselineComposeTest {
         assertEquals(text(R.string.nova_working_baseline_confirm_replace_title), confirm.title)
         assertEquals(text(R.string.nova_working_baseline_replace_action), confirm.actionLabel)
         assertEquals(text(R.string.nova_working_baseline_cancel), confirm.stayLabel)
-        assertTrue(confirm.message.text, confirm.message.text.contains("2026-10-08T13:00:00Z"))
+        assertTrue(confirm.message.text, confirm.message.text.contains(NovaLocalTime.withZone(rule.activity, "2026-10-08T13:00:00Z")))
         assertFalse(confirm.destructive)
         liveFps = 50.0
         confirm.onConfirm()

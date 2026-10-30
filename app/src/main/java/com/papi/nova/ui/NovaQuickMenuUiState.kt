@@ -226,7 +226,7 @@ data class NovaQuickMenuUiState(
                 !workingBaseline.hasEntry -> context.getString(R.string.nova_working_baseline_no_entry_caption)
                 workingBaseline.unreadable -> context.getString(R.string.nova_working_baseline_unreadable_caption)
                 workingBaseline.savedAtUtc != null ->
-                    context.getString(R.string.nova_working_baseline_saved_caption, workingBaseline.savedAtUtc)
+                    context.getString(R.string.nova_working_baseline_saved_caption, NovaLocalTime.withZone(context, workingBaseline.savedAtUtc))
                 else -> context.getString(R.string.nova_working_baseline_none_caption)
             },
             // Without a named PC and app entry there is nothing to save, compare or clear.

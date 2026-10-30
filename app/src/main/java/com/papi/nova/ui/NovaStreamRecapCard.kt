@@ -31,8 +31,7 @@ import java.util.Locale
  * The Library's optional Last Stream recap, in the host bar: in the landscape strip's middle when
  * the strip's fit has room for it, otherwise the bar's second line
  * ([NovaLibraryLandscapeShowcaseStripContent], [NovaLibraryPortraitToolbarContent]). It says what
- * ended the stream and when; the UTC stamp, the sample counts and the readings are the page View
- * opens.
+ * ended the stream and when; the sample counts and the readings are the page View opens.
  *
  * It never asks for focus: the Library's own focus restoration keeps the place it had, and the
  * recap is reached only by moving to it. View opens the read-only page; Dismiss removes it,
