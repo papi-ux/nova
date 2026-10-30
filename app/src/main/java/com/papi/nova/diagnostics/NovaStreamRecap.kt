@@ -25,11 +25,23 @@ object NovaStreamRecap {
         LEFT_STREAM,
         /** The connection ended with an error code. */
         ERROR,
-        /** The video surface went away while connected. */
+        /** The video surface went away while connected, and nothing else was ending the stream. */
         SURFACE_LOST,
         /** A reconnect was requested, which replaces this connection. Not proof media recovered. */
         RECONNECT_REQUESTED,
         UNKNOWN,
+    }
+
+    /**
+     * Why a connection being stopped right now is ending, from what is known at that moment. Android
+     * destroys a finishing Activity's surface before its onStop, so a deliberate End usually reaches
+     * the surface callback first, and [otherwise] is only what is left when nothing better is known.
+     * The host saying its session ended beats the user's request.
+     */
+    fun stopReason(hostEnded: Boolean, endRequested: Boolean, otherwise: End): End = when {
+        hostEnded -> End.HOST_END_REPORTED
+        endRequested -> End.END_REQUESTED
+        else -> otherwise
     }
 
     /** Fixed at a safe launch point, before anything is torn down. */

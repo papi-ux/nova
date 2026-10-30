@@ -3888,11 +3888,7 @@ if (!hostSessionEnded)
 {
 prepareBackgroundResumeWindow()
 }
-noteStreamRecapEnd(when {
-    hostSessionEnded -> com.papi.nova.diagnostics.NovaStreamRecap.End.HOST_END_REPORTED
-    quitOnStop -> com.papi.nova.diagnostics.NovaStreamRecap.End.END_REQUESTED
-    else -> com.papi.nova.diagnostics.NovaStreamRecap.End.LEFT_STREAM
-})
+noteStreamRecapEnd(streamRecapStopReason(otherwise = com.papi.nova.diagnostics.NovaStreamRecap.End.LEFT_STREAM))
 stopConnection()
 var message:String? = null
 var selectedVideoFormat:String = ""
@@ -5762,6 +5758,9 @@ streamRecapEnd = end
 streamRecapErrorCode = errorCode
 }
 
+private fun streamRecapStopReason(otherwise:com.papi.nova.diagnostics.NovaStreamRecap.End) =
+com.papi.nova.diagnostics.NovaStreamRecap.stopReason(hostSessionEnded, quitOnStop, otherwise)
+
 private fun stopConnection() {
 // Includes channels that have not produced a controller context yet. A late
 // service connection must also stay stopped while the termination dialog shows.
@@ -6376,7 +6375,8 @@ if (attemptedConnection)
 
 if (connected)
 {
-noteStreamRecapEnd(com.papi.nova.diagnostics.NovaStreamRecap.End.SURFACE_LOST)
+// A finishing Game's surface goes before its onStop, so this is usually what stops an End.
+noteStreamRecapEnd(streamRecapStopReason(otherwise = com.papi.nova.diagnostics.NovaStreamRecap.End.SURFACE_LOST))
 stopConnection()
 }
 }
