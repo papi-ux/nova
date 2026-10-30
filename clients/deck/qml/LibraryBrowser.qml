@@ -12,6 +12,16 @@ FocusScope {
     required property var games
     required property var host
     required property var refreshState
+    property var resumeController: null
+    readonly property var resumeState: resumeController ? resumeController.state : ({})
+    readonly property bool hasResume: resumeState.visible === true && resumeState.hostId === host.id
+    readonly property bool selectedResumable: hasResume && resumeState.gameId === selectedId
+    readonly property var resumeGame: games.find(game => game.id === resumeState.gameId) || ({})
+    function resumeGameRequested() { if (hasResume && !sessionBusy) resumeRequested(resumeGame) }
+    onHasResumeChanged: {
+        if (!hasResume && (resumePill.activeFocus || detailEnd.activeFocus))
+            Qt.callLater(focusGame)
+    }
     property var libraryController: null
     property var hostSettingsController: null
     property var windowController: null
@@ -101,6 +111,7 @@ FocusScope {
     signal refreshRequested()
     signal managePcs()
     signal playRequested(var game)
+    signal resumeRequested(var game)
 
     Settings {
         id: preferences
@@ -595,7 +606,7 @@ FocusScope {
                         enabled: !refreshState.busy && !sessionBusy
                         onClicked: chooseHost()
                         Keys.onRightPressed: destinationButton.visible ? destinationButton.forceActiveFocus() : optionsButton.forceActiveFocus()
-                        Keys.onDownPressed: focusGame()
+                        Keys.onDownPressed: browser.hasResume ? resumePill.focusResume() : focusGame()
                         Keys.onLeftPressed: systemButton.forceActiveFocus()
                     }
                     ChromeButton {
@@ -660,6 +671,18 @@ FocusScope {
                     }
                 }
             }
+        }
+        NowPlayingPill {
+            id: resumePill
+            namePrefix: "library"; unit: browser.unit
+            visible: browser.hasResume
+            Layout.fillWidth: true
+            sessionState: browser.resumeState; game: browser.resumeGame
+            actionsEnabled: browser.launchEnabled
+            onResumeRequested: browser.resumeGameRequested()
+            onEndRequested: if (browser.resumeController) browser.resumeController.endSession()
+            onLeaveUp: hostButton.forceActiveFocus()
+            onLeaveDown: browser.focusGame()
         }
         RowLayout {
             visible: browser.syncNeedsReview
@@ -1262,20 +1285,20 @@ FocusScope {
             anchors.bottomMargin: 74 * unit
             spacing: 12 * unit
             GridLayout {
-                columns: browser.narrow ? 1 : 4
+                columns: browser.narrow ? 1 : (browser.selectedResumable ? 5 : 4)
                 Layout.fillWidth: true
                 columnSpacing: 24 * unit; rowSpacing: 4 * unit
                 ChromeButton {
                     id: playButton
                     Layout.fillWidth: browser.narrow
                     objectName: "game-detail-play"
-                    text: browser.updateController && browser.updateController.busy ? "Updating Nova…" : refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : "Play"
+                    text: browser.updateController && browser.updateController.busy ? "Updating Nova…" : refreshState.busy ? "Updating…" : refreshState.destinationPlayable === false ? refreshState.destinationPlayLabel : browser.selectedResumable ? "Resume" : "Play"
                     primary: true
                     Layout.preferredWidth: 190 * unit
                     Layout.minimumWidth: implicitWidth
                     Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
                     enabled: launchEnabled
-                    onClicked: playRequested(selectedGame)
+                    onClicked: browser.selectedResumable ? resumeRequested(selectedGame) : playRequested(selectedGame)
                     Keys.onUpPressed: {
                         if (detailViewport.contentHeight > detailViewport.height) {
                             detailViewport.contentY = Math.max(0, detailViewport.contentHeight - detailViewport.height)
@@ -1283,7 +1306,18 @@ FocusScope {
                         } else detailBack.forceActiveFocus()
                     }
                     Keys.onLeftPressed: detailBack.forceActiveFocus()
+                    Keys.onRightPressed: detailEnd.visible && detailEnd.enabled ? detailEnd.forceActiveFocus()
+                        : artworkButton.visible && artworkButton.enabled ? artworkButton.forceActiveFocus()
+                        : shortcutButton.visible && shortcutButton.enabled ? shortcutButton.forceActiveFocus() : detailBack.forceActiveFocus()
+                }
+                ChromeButton {
+                    id: detailEnd; objectName: "game-detail-end-session"
+                    text: "End Session"; visible: browser.selectedResumable
+                    enabled: !browser.sessionBusy && browser.resumeState.canEnd === true && !browser.resumeState.busy
+                    onClicked: if (browser.resumeController) browser.resumeController.endSession()
+                    Keys.onLeftPressed: playButton.forceActiveFocus()
                     Keys.onRightPressed: artworkButton.forceActiveFocus()
+                    Keys.onUpPressed: detailBack.forceActiveFocus()
                 }
                 ChromeButton {
                     id: artworkButton; objectName: "game-detail-artwork"
@@ -1294,7 +1328,7 @@ FocusScope {
                     enabled: !sessionBusy && !refreshState.busy
                     Layout.preferredHeight: Math.max(52, 56 * unit * NovaTheme.fontScale)
                     onClicked: (selectedGame.spaceId || (selectedGame.id || "").startsWith("space.")) ? spaceArtwork.open() : artworkStudio.open()
-                    Keys.onLeftPressed: playButton.forceActiveFocus()
+                    Keys.onLeftPressed: detailEnd.visible && detailEnd.enabled ? detailEnd.forceActiveFocus() : playButton.forceActiveFocus()
                     Keys.onRightPressed: shortcutButton.forceActiveFocus()
                     Keys.onUpPressed: detailBack.forceActiveFocus()
                 }

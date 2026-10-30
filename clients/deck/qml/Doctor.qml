@@ -110,7 +110,6 @@ Popup {
                         color: NovaTheme.secondary
                     }
                     Copy { visible: doctor.available && !!doctor.finding.highlight; text: "Evidence: " + (doctor.finding.highlight || ""); color: NovaTheme.warning }
-                    Copy { visible: doctor.available && !!doctor.finding.highlight; text: "Confidence: " + (doctor.finding.confidence || "unknown"); color: NovaTheme.secondary }
                     Heading { visible: doctor.available; text: "Try first" }
                     Copy { visible: doctor.available; text: doctor.finding.advice || "" }
                     Copy {
@@ -124,6 +123,7 @@ Popup {
                     visible: doctor.page === 1
                     Layout.fillWidth: true; spacing: 14 * doctor.unit
                     Heading { text: "Measured evidence" }
+                    Copy { objectName: "doctor-confidence"; visible: doctor.available; text: "Confidence: " + (doctor.finding.confidence || "unknown"); color: NovaTheme.secondary }
                     Copy { visible: !doctor.available || !(doctor.finding.evidence || []).length; text: "No current supported evidence is available."; color: NovaTheme.secondary }
                     Repeater {
                         model: doctor.available ? doctor.finding.evidence || [] : []

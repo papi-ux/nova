@@ -2035,7 +2035,9 @@ def main():
                 fixture = self.server.fixture
                 path = urlsplit(self.path).path
                 secure = isinstance(self.connection, ssl.SSLSocket)
-                if path != "/appasset" and not path.endswith("/cover") and "/artwork/" not in path:
+                if path == "/polaris/v1/session/status":
+                    fixture.setdefault("session_requests", []).append((secure, path))
+                elif path != "/appasset" and not path.endswith("/cover") and "/artwork/" not in path:
                     fixture["requests"].append((secure, path))
                 status = 200
                 body = ""
@@ -2089,6 +2091,10 @@ def main():
                 elif args.host_scope and secure and path == "/polaris/v1/session/status":
                     body = json.dumps({"state": "idle" if fixture["host_idle"] else "streaming", "streaming_active": not fixture["host_idle"],
                                        "game_uuid": "" if fixture["host_idle"] else "fixture-active"})
+                elif secure and path == "/polaris/v1/session/status":
+                    body = json.dumps({"state": "idle", "streaming_active": False, "shutdown_requested": False,
+                        "game_id": 0, "game_uuid": "", "session_token": "", "owned_by_client": False, "client_role": "none",
+                        "controls": {"stop_allowed": False, "shutdown_in_progress": False}})
                 elif secure and path == "/polaris/v1/games" and "metadata" in fixture:
                     fixture["entered"].set()
                     if not fixture["release"].wait(5):

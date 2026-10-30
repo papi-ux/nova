@@ -1772,6 +1772,33 @@ std::string ownedRunningGame(const std::string& app = "17", const std::string& t
         "</currentgameowned><currentgamesessiontoken>" + token + "</currentgamesessiontoken></root>";
 }
 
+void testObservedSessionResumeOnly() {
+    for (int scenario = 0; scenario < 5; ++scenario) {
+        Host host; Driver driver; host.appUuid = "game"; host.driver = &driver;
+        host.serverInfoOverride = scenario == 1 ? "<root status_code=\"200\"><PairStatus>1</PairStatus><currentgame>0</currentgame></root>"
+            : ownedRunningGame("17", scenario == 2 ? "changed-token" : "private-token", scenario == 3 ? "0" : "1");
+        auto resolver = [&, base = host.resolver()](const auto& hostId, const auto& game) {
+            auto target = base(hostId, game);
+            if (target) target->authorizeResume = [scenario](const auto& token, const auto& cancelled) {
+                require(QThread::currentThread() != QCoreApplication::instance()->thread(), "resume authority blocked GUI");
+                return scenario != 4 && token == "private-token" && !cancelled();
+            };
+            return target;
+        };
+        DeckNativeSessionController controller(true, resolver, driver);
+        const auto config = DeckPlayConfiguration{1280, 800, 60, 20000, "positions"}.toMap();
+        require(controller.startObservedSession("host", "game", config, "private-token"), "observed resume refused before async verification");
+        if (scenario == 0) {
+            until([&] { return phase(controller) == "active"; });
+            require(host.resumes == 1 && host.launches == 0, "observed Resume launched a replacement");
+            require(controller.disconnectFromHost(), "observed Resume could not disconnect");
+        }
+        settled(controller);
+        require(host.launches == 0 && host.cancels == 0 && host.resumes == (scenario == 0 ? 1 : 0),
+            "ended, changed, foreign or denied observed session was launched, resumed or stopped");
+    }
+}
+
 void testDisconnectedResume(int fps) {
     Host host;
     host.appUuid = "game";
@@ -2966,6 +2993,7 @@ int main(int argc, char** argv) {
     testSyncProfileSessionBoundary();
     testConfiguredFaceButtons();
     testDisconnectAndExitChoice();
+    testObservedSessionResumeOnly();
     for (const int fps : {30, 240}) testDisconnectedResume(fps);
     for (const int fps : {30, 240}) testInterruptedRecovery(fps);
     testInterruptionScopeAndGracefulEnd();

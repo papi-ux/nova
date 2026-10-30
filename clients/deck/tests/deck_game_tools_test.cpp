@@ -115,6 +115,7 @@ int main(int argc, char** argv) {
     game_tools_fixture::Host host; DeckGameTools tools; tools.setTarget("host",host.resolver());
     check(tools.prepare("host","game",config),"prepare failed"); wait([&]{return !tools.busy();});
     check(tools.state()["available"].toBool() && !tools.state()["plan"].toMap().isEmpty(),"review missing");
+    check(tools.state()["steam"].toMap()["notice"] == "Steam may ask you to choose a launch option on your PC.", "host Steam launch notice was discarded");
     check(tools.search("Moonlit Harbor"),"search failed"); wait([&]{return !tools.busy();});
     check(tools.selectCandidate(0),"match failed"); wait([&]{return !tools.busy();});
     check(tools.selectArtwork(0) && host.writes == 0,"preview wrote to host");

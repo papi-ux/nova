@@ -11,3 +11,4 @@ StreamProfileEditor 1.0 StreamProfileEditor.qml
 NovaPercentSetting 1.0 NovaPercentSetting.qml
 TextSizeSettings 1.0 TextSizeSettings.qml
 MenuOpacitySettings 1.0 MenuOpacitySettings.qml
+NowPlayingPill 1.0 NowPlayingPill.qml

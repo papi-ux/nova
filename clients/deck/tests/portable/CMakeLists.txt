@@ -17,17 +17,23 @@ add_library(portable_library STATIC
     ${DECK}/src/polaris/deck_spaces.cpp
     ${DECK}/src/polaris/deck_host_settings.cpp
     ${DECK}/src/polaris/deck_host_telemetry.cpp
+    ${DECK}/src/polaris/deck_game_tools.cpp
+    ${DECK}/src/polaris/deck_client_media.cpp
+    ${DECK}/src/polaris/deck_bitrate_advice.cpp
+    ${DECK}/src/runtime/deck_doctor_receipts.cpp
     ${DECK}/src/polaris/deck_doctor.cpp
     ${DECK}/src/polaris/deck_doctor_action.cpp
     ${DECK}/src/polaris/deck_session_events.cpp
     ${DECK}/src/stream/deck_gamestream_library.cpp
     ${DECK}/src/stream/deck_gamestream_launch.cpp
     ${DECK}/src/stream/deck_stream_core.cpp
+    ${DECK}/src/runtime/deck_tuning_lines.cpp
     ${DECK}/src/runtime/deck_hud_host.cpp
     ${DECK}/src/runtime/deck_doctor_actions.cpp
     ${DECK}/src/stream/deck_gamestream_session_builder.cpp
     ${DECK}/src/runtime/deck_native_target.cpp
     ${DECK}/src/runtime/deck_working_baseline.cpp
+    ${DECK}/src/runtime/deck_resume_state.cpp
     ${DECK}/src/runtime/deck_library_controller.cpp)
 set_target_properties(portable_library PROPERTIES AUTOMOC ON)
 target_include_directories(portable_library PUBLIC "${DECK}/src" "${NOVA_ROOT}/app/src/main/jni/moonlight-core/moonlight-common-c/src")
@@ -40,9 +46,10 @@ target_compile_definitions(portable_library PUBLIC
     NOVA_DECK_SAMPLE_GAME_FIXTURE="${DECK}/fixtures/sample_polaris_game.json"
     NOVA_DECK_SAMPLE_LIBRARY_FIXTURE="${DECK}/fixtures/sample_polaris_library.json")
 enable_testing()
-foreach(name IN ITEMS gamestream_library library_controller live_read_only_state live_network polaris_client moonlight_identity backend_interfaces gamestream_launch gamestream_session_builder)
+foreach(name IN ITEMS resume_state gamestream_library library_controller live_read_only_state live_network polaris_client moonlight_identity backend_interfaces gamestream_launch gamestream_session_builder)
     add_executable(nova_deck_${name}_test "${DECK}/tests/deck_${name}_test.cpp")
-    target_compile_definitions(nova_deck_${name}_test PRIVATE NOVA_DECK_TEST_OPENSSL="${TEST_OPENSSL}")
+    target_compile_definitions(nova_deck_${name}_test PRIVATE NOVA_DECK_TEST_OPENSSL="${TEST_OPENSSL}"
+        NOVA_DECK_PYROWAVE_DOCTOR_FIXTURE="${NOVA_ROOT}/app/src/test/resources/polaris-doctor-pyrowave-v2.json")
     target_link_libraries(nova_deck_${name}_test PRIVATE portable_library)
     add_test(NAME nova_deck_${name}_test COMMAND nova_deck_${name}_test)
     set_tests_properties(nova_deck_${name}_test PROPERTIES TIMEOUT 45)

@@ -408,8 +408,15 @@ bool DeckNativeSessionController::startConfigured(const QString& hostId, const Q
     return startRequest(hostId, gameId, configuration);
 }
 
+bool DeckNativeSessionController::startObservedSession(const QString& host, const QString& game, const QVariantMap& values, const std::string& token) {
+    auto configuration = DeckPlayConfiguration::fromMap(values);
+    if (!configuration || token.empty() || configuration->fps > displayRateLimit_()) return false;
+    if (configuration->faceButtonLayout == "default") configuration->faceButtonLayout = DeckPlaySettings{}.defaultFaceButtonLayout();
+    return startRequest(host, game, configuration, {}, false, token);
+}
+
 bool DeckNativeSessionController::startRequest(const QString& hostId, const QString& gameId,
-    std::optional<DeckPlayConfiguration> configuration, std::shared_ptr<const ResumeTicket> resume, bool automatic) {
+    std::optional<DeckPlayConfiguration> configuration, std::shared_ptr<const ResumeTicket> resume, bool automatic, std::string observedResumeToken) {
     if (!enabled_ || sleeping_ || busy() || !resolver_) return false;
     if (!automatic) {
         reconnectPolicy_ = {};
@@ -458,8 +465,8 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     // the device's saved surround choice. Keep that exception explicit.
     if (polaris::isSpaceGame(gameId.toStdString())) audio.channels = 2;
     emit inputSessionStarted(static_cast<bool>(resume));
-    worker_ = QThread::create([shared = shared_, resolver = resolver_, hostId, gameId, configuration, audio, resume = std::move(resume), displayRateLimit = displayRateLimit_, &driver = driver_, send = sendController_, desktop = sendDesktop_]() {
-        run(shared, resolver, hostId, gameId, configuration, resume, audio, displayRateLimit, driver, send, desktop);
+    worker_ = QThread::create([shared = shared_, resolver = resolver_, hostId, gameId, configuration, audio, resume = std::move(resume), observedResumeToken = std::move(observedResumeToken), displayRateLimit = displayRateLimit_, &driver = driver_, send = sendController_, desktop = sendDesktop_]() {
+        run(shared, resolver, hostId, gameId, configuration, resume, observedResumeToken, audio, displayRateLimit, driver, send, desktop);
     });
     worker_->start();
     timer_.start();
@@ -864,6 +871,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     const DeckNativeTargetResolver& resolver, const QString& hostId,
     const QString& gameId, const std::optional<DeckPlayConfiguration>& configuration,
     const std::shared_ptr<const ResumeTicket>& resume,
+    const std::string& observedResumeToken,
     const DeckAudioConfiguration& audio,
     const std::function<int()>& displayRateLimit,
     DeckMoonlightConnectionDriver& driver, const DeckControllerSend& sendController, const DeckDesktopSend& sendDesktop) {
@@ -949,6 +957,11 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             finish("failed", "This game changed in the library. Return and review it again before playing.");
             return;
         }
+        if (!observedResumeToken.empty() && (!target->authorizeResume ||
+            !target->authorizeResume(observedResumeToken, [shared] { return shared->cancelled.load(); }))) {
+            finish("failed", "That session has ended or changed. Return to the library and check again.");
+            return;
+        }
         // Before any active publication, so the GUI never sees an active run with
         // another run's scope. Independent of host telemetry availability.
         { const std::lock_guard lock(shared->mutex);
@@ -1022,7 +1035,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             return;
         }
         const auto encoderBackend = configuration ? configuration->launchEncoderBackend() : QString{};
-        if (!resume && configuration && (configuration->profilePreference != "auto" || !encoderBackend.isEmpty())) {
+        if (!resume && observedResumeToken.empty() && configuration && (configuration->profilePreference != "auto" || !encoderBackend.isEmpty())) {
             if (!target->authorizeSetup || !target->authorizeSetup(configuration->profilePreference, encoderBackend,
                     [shared] { return shared->cancelled.load(); }) || !resolver(hostId, gameId)) {
                 finish(shared->cancelled ? "cancelled" : "failed", "The preset or encoder is no longer available. Refresh this PC and review Play Setup.");
@@ -1031,7 +1044,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             target->request.profilePreference = configuration->profilePreference.toStdString();
             target->request.encoderBackend = encoderBackend.toStdString();
         }
-        if (!resume && configuration && configuration->launchMode != "default") {
+        if (!resume && observedResumeToken.empty() && configuration && configuration->launchMode != "default") {
             const auto mode = configuration->launchMode.toStdString();
             if (!target->authorizeLaunchMode || !target->authorizeLaunchMode(mode, [shared]() { return shared->cancelled.load(); })
                 || !resolver(hostId, gameId)) {
@@ -1041,7 +1054,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             }
             target->request.streamMode = mode;
         }
-        if (!resume && target->resolveLaunchTopology) {
+        if (!resume && observedResumeToken.empty() && target->resolveLaunchTopology) {
             const auto topology = target->resolveLaunchTopology(target->request, [shared] { return shared->cancelled.load(); });
             if (!topology || shared->cancelled || !resolver(hostId, gameId)) {
                 finish(shared->cancelled ? "cancelled" : "failed", shared->cancelled ? "Stream cancelled."
@@ -1070,9 +1083,9 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
         built = buildStreamConnection(launchFetch, target->serverAddress,
             launchRequestForStream(target->request, target->appId, target->appUuid),
             generateStreamKeys(), launchCancelled,
-            resume ? DeckSessionStartMode::ResumeOnly : polaris::isSpaceGame(gameId.toStdString())
+            (resume || !observedResumeToken.empty()) ? DeckSessionStartMode::ResumeOnly : polaris::isSpaceGame(gameId.toStdString())
                 ? DeckSessionStartMode::Launch : DeckSessionStartMode::PlayOrResume,
-            resume ? resume->sessionToken : std::string{});
+            resume ? resume->sessionToken : observedResumeToken);
         if (!built.ok || shared->cancelled) {
             if (built.launchOutcomeUnknown) hostCancelAccepted = false;
             cleanup();

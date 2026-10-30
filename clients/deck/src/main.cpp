@@ -1732,6 +1732,21 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     nova::deck::runtime::DeckNativeSessionController nativeSession(nativeUi && !fixtureVideoSupport,
         standalone ? libraryRefresh.targetResolver()
                    : nova::deck::runtime::nativeTargetResolver(liveIdentity, liveSnapshot));
+    nova::deck::runtime::DeckResumeState resumeState([&nativeSession](const auto& host, const auto& game, const auto& configuration, const auto& token) {
+        return nativeSession.startObservedSession(host, game, configuration, token);
+    });
+    const auto updateResumeContext = [&] {
+        const auto& snapshot = libraryRefresh.snapshot();
+        resumeState.setContext(QString::fromStdString(snapshot.selectedHostId),
+            libraryRefresh.steamIdentityKey() + ":" + libraryRefresh.state().value("destinationId").toString(),
+            standalone ? libraryRefresh.resumeResolver() : nova::deck::runtime::DeckResumeResolver{});
+    };
+    QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::snapshotChanged, &resumeState, updateResumeContext);
+    QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::stateChanged, &resumeState, [&] {
+        if (libraryRefresh.busy()) resumeState.setContext({}, {}, {});
+        else updateResumeContext();
+    });
+    updateResumeContext();
     nativeSession.setDisplayRateLimitReader(displayCapabilities.rateLimitReader());
     nova::deck::runtime::DeckSleepMonitor sleepMonitor(nativeUi);
     QObject::connect(&sleepMonitor, &nova::deck::runtime::DeckSleepMonitor::sleepingChanged,
@@ -1764,11 +1779,12 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     updatePowerTarget();
     const auto coordinateHostActions = [&] {
         const bool streaming = nativeSession.busy() || nativeSession.systemSleeping();
-        const bool maintenance = updates.busy() || steamControl.busy();
-        steamControl.setBlocked(updates.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing());
+        const bool maintenance = updates.busy() || steamControl.busy() || resumeState.busy();
+        resumeState.setActionsBlocked(streaming || updates.busy() || steamControl.busy() || libraryRefresh.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing());
+        steamControl.setBlocked(resumeState.busy() || updates.busy() || hostPower.busy() || hostSettings.busy() || gameTools.writing());
         hostWake.setBlocked(streaming || maintenance || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
         appShortcuts.setBlocked(streaming || maintenance);
-        updates.setBlocked(streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
+        updates.setBlocked(resumeState.busy() || streaming || hostPower.busy() || hostSettings.busy() || gameTools.busy() || libraryRefresh.busy());
         hostPower.setSessionActive(streaming || maintenance || hostSettings.busy() || gameTools.busy());
         // Read-only game-plan checks must not revoke the open host-settings
         // review after a local default edit. Mutations retain mutual exclusion.
@@ -1782,6 +1798,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     // the coordinator after its update/session guards have been destroyed.
     QObject::connect(&updates, &nova::deck::runtime::DeckUpdates::busyChanged, &updates, coordinateHostActions);
     QObject::connect(&libraryRefresh, &nova::deck::runtime::DeckLibraryController::stateChanged, &updates, coordinateHostActions);
+    QObject::connect(&resumeState, &nova::deck::runtime::DeckResumeState::stateChanged, &updates, coordinateHostActions);
     coordinateHostActions();
     QObject::connect(&nativeSession, &nova::deck::runtime::DeckNativeSessionController::stateChanged,
         &updates, coordinateHostActions);
@@ -1844,6 +1861,7 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaHostPresence", &hostPresenceBridge);
     engine.rootContext()->setContextProperty("novaHostSettings", &hostSettings);
     engine.rootContext()->setContextProperty("novaNativeSession", &nativeSession);
+    engine.rootContext()->setContextProperty("novaResumeState", &resumeState);
     engine.rootContext()->setContextProperty("novaUpdates", &updates);
     engine.rootContext()->setContextProperty("novaPlaySettings", &playSettings);
     engine.rootContext()->setContextProperty("novaWindowController", &windowController);

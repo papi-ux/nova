@@ -153,6 +153,15 @@ struct DeckPolarisSessionStatus {
     std::string clientRole;
     bool ownedByClient = false;
     int viewerCount = 0;
+    int gameId = 0;
+    bool shutdownRequested = false, stopAllowed = false, authorityValid = false;
+    std::string sessionToken; // Backend only; never put this DTO in a QML map.
+    bool resumable() const {
+        return authorityValid && ownedByClient && clientRole != "viewer" &&
+            (clientRole == "owner" || clientRole == "none") && !shutdownRequested && gameId > 0 &&
+            !gameUuid.empty() && !sessionToken.empty() &&
+            ((state == "paused" && !streamingActive) || (state == "streaming" && streamingActive));
+    }
 };
 
 std::optional<DeckPolarisCapabilities> parseCapabilities(std::string_view json);
@@ -206,7 +215,8 @@ public:
         const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<std::vector<DeckPolarisGame>> fetchSpaceLibrary(const std::string& id,
         const std::function<bool()>& cancelled = {}) const;
-    [[nodiscard]] DeckPolarisResult<DeckPolarisSessionStatus> fetchSessionStatus() const;
+    [[nodiscard]] DeckPolarisResult<DeckPolarisSessionStatus> fetchSessionStatus(const std::function<bool()>& cancelled = {}) const;
+    [[nodiscard]] DeckPolarisResult<bool> stopSession(const std::string& token, const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<bool> uploadClientMedia(const DeckClientMediaSample& sample, const DeckClientMediaScope& scope,
         const std::function<bool()>& cancelled = {}) const;
     [[nodiscard]] DeckPolarisResult<DeckHostTelemetry> fetchHostTelemetry(const std::function<bool()>& cancelled = {}) const;

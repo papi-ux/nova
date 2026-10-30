@@ -81,6 +81,11 @@ DeckNativeTargetResolver nativeTargetResolver(
             return fetch(path, {});
         };
         if (!standardHost && !game->id.starts_with("moonlight-app-")) {
+            target.authorizeResume = [client, appId = game->appId, uuid = game->id](const auto& token, const auto& cancelled) {
+                const auto status = client->fetchSessionStatus(cancelled);
+                return !(cancelled && cancelled()) && status.ok() && status.value->resumable() &&
+                    status.value->gameId == appId && status.value->gameUuid == uuid && status.value->sessionToken == token;
+            };
             target.automaticReconnect = !spaceGame;
             if (!spaceGame) target.authorizeSetup = [client, gameId](const QString& preset, const QString& encoder, const auto& cancelled) {
                 const auto caps = client->fetchCapabilities();

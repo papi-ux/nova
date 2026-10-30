@@ -482,6 +482,18 @@ std::optional<DeckPolarisSessionStatus> parseSessionStatus(const std::string_vie
     status.clientRole = toStd(object->value(QStringLiteral("client_role")).toString(QStringLiteral("none")).toLower());
     status.ownedByClient = object->value(QStringLiteral("owned_by_client")).toBool(false);
     status.viewerCount = object->value(QStringLiteral("viewer_count")).toInt(0);
+    const auto controls = object->value("controls").toObject();
+    const auto id = object->value("game_id");
+    status.gameId = id.toInt(0);
+    status.sessionToken = toStd(object->value("session_token").toString());
+    status.shutdownRequested = object->value("shutdown_requested").toBool(true) || controls.value("shutdown_in_progress").toBool(true);
+    status.stopAllowed = controls.value("stop_allowed").toBool(false);
+    status.authorityValid = object->value("state").isString() && object->value("streaming_active").isBool() &&
+        object->value("owned_by_client").isBool() && object->value("client_role").isString() &&
+        object->value("shutdown_requested").isBool() && controls.value("shutdown_in_progress").isBool() &&
+        controls.value("stop_allowed").isBool() && id.isDouble() && id.toDouble() == status.gameId &&
+        object->value("game_uuid").isString() && status.gameUuid.size() <= 256 &&
+        object->value("session_token").isString() && status.sessionToken.size() <= 256;
     return status;
 }
 
@@ -1567,10 +1579,24 @@ DeckPolarisResult<std::vector<DeckPolarisGame>> DeckPolarisClient::fetchAllGames
     return result;
 }
 
-DeckPolarisResult<DeckPolarisSessionStatus> DeckPolarisClient::fetchSessionStatus() const {
-    return parsed<DeckPolarisSessionStatus>(get("/polaris/v1/session/status"), [](const std::string& body) {
+DeckPolarisResult<DeckPolarisSessionStatus> DeckPolarisClient::fetchSessionStatus(const std::function<bool()>& cancelled) const {
+    auto raw = request("/polaris/v1/session/status", 4 * 1024 * 1024, false, cancelled);
+    if (raw.ok() && raw.httpStatus != 200) { raw.status = DeckPolarisRequestStatus::HttpError; raw.value.reset(); }
+    return parsed<DeckPolarisSessionStatus>(std::move(raw), [](const std::string& body) {
         return parseSessionStatus(body);
     });
+}
+
+DeckPolarisResult<bool> DeckPolarisClient::stopSession(const std::string& token, const std::function<bool()>& cancelled) const {
+    if (token.empty() || token.size() > 256) return {DeckPolarisRequestStatus::MalformedBody, 0, {}, {}};
+    const auto body = QJsonDocument(QJsonObject{{"session_token", QString::fromStdString(token)}}).toJson(QJsonDocument::Compact).toStdString();
+    const auto raw = request("/polaris/v1/session/stop", 32 * 1024, true, cancelled, body);
+    DeckPolarisResult<bool> result{raw.status, raw.httpStatus, raw.detail, {}};
+    if (!raw.ok() || raw.httpStatus != 200) return result;
+    const auto object = parseObject(*raw.value);
+    if (!object || object->value("status") != QJsonValue(true)) { result.status = DeckPolarisRequestStatus::MalformedBody; return result; }
+    result.value = true;
+    return result;
 }
 
 DeckPolarisResult<bool> DeckPolarisClient::uploadClientMedia(const DeckClientMediaSample& sample, const DeckClientMediaScope& scope,

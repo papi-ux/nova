@@ -114,29 +114,29 @@ QVariantMap doctorPresentation(const QJsonObject& d) {
         }
         rows.push_back(row);
     }
-    QString title = "Review the measured stream evidence", group = highlightedGroup;
-    QString advice = "Review the evidence and refresh after more gameplay.";
+    QString title = "Check your stream", group = highlightedGroup;
+    QString advice = "Play for a little longer, then check again.";
     if (primary == "none" || primary.isEmpty()) {
-        title = healthy && highlight.isEmpty() ? "No confirmed issue" : "Stream evidence needs attention";
+        title = healthy && highlight.isEmpty() ? "No confirmed issue" : "Your stream needs attention";
         advice = healthy && highlight.isEmpty() ? "Keep playing. Refresh if the stream changes." : advice;
     } else if (primary == "control_channel_observation") {
-        title = "Link retries observed; video loss is not confirmed"; group = "NET";
-        advice = "Keep video loss separate from control-channel retries. Refresh to check current evidence.";
+        title = "The connection is retrying some messages"; group = "NET";
+        advice = "Keep playing and check again. These retries do not tell us whether video was lost.";
     } else if (oneOf(primary, {"network_observation", "network_jitter", "packet_loss", "network_limited"})) {
-        title = networkFailure ? "Network pressure is affecting this stream" : "Network readings need another check"; group = "NET";
-        advice = "Review media loss and round-trip latency together, then refresh after more gameplay.";
+        title = networkFailure ? "Your connection is struggling" : "Check your connection again"; group = "NET";
+        advice = "Try a wired connection or move closer to your router, then check again.";
     } else if (primary == "frame_pacing") {
-        title = "Frame pacing needs attention"; group = "HOST";
-        advice = "Review source cadence and frame interval error after the startup observation window.";
+        title = "Frames are arriving unevenly"; group = "HOST";
+        advice = "Cap the game at the stream's frame rate, or lower its graphics settings, then check again.";
     } else if (primary == "encoder_load") {
-        title = "Encoder load is above the latency budget"; group = "HOST";
-        advice = "Review host encoder timing and encoder selection.";
+        title = "Your PC needs more time to encode each frame"; group = "HOST";
+        advice = "Lower the resolution or frame rate, then check again.";
     } else if (primary == "steam_input_conflict") {
-        title = "Steam Input conflicts with controller isolation"; group = "HOST";
-        advice = "Review Steam Input compatibility on the PC before changing controller settings.";
+        title = "Steam Input may be blocking your controller"; group = "HOST";
+        advice = "Check Steam Input settings on your PC so the game can read the streaming controller.";
     } else if (primary == "quality_reduced_live") {
-        title = "The live bitrate target is below the quality ceiling"; group = "HOST";
-        advice = "Compare the quality ceiling, encoder-applied bitrate and current network readings.";
+        title = "Picture quality has been reduced"; group = "HOST";
+        advice = "Check your connection before restoring picture quality.";
     } else if (primary == "pyrowave_starved") {
         title = "PyroWave needs more bitrate for fine detail"; group = "HOST";
         advice = "Use the verified restore offer on a clean network, or review the next stream's bitrate in Play Setup.";
@@ -144,19 +144,28 @@ QVariantMap doctorPresentation(const QJsonObject& d) {
         title = "PyroWave needs more bitrate than this PC allows"; group = "HOST";
         advice = "Choose a smaller picture or another codec in Play Setup, or review the PC's bitrate limit.";
     } else if (primary.startsWith("capture_")) {
-        title = "Review the host capture path"; group = "HOST";
+        title = "Your PC is having trouble capturing the game"; group = "HOST";
     } else if (primary.contains("decoder") || primary.contains("client") || primary.contains("presentation")) {
-        title = "Review client delivery and presentation"; group = "CLIENT";
+        title = "Your device is having trouble showing the stream"; group = "CLIENT";
     } else if (primary == "host_render_limited") {
-        title = "The host is limiting frame delivery"; group = "HOST";
+        title = "Your PC is struggling to keep up"; group = "HOST";
     }
     // Android v1.4.11 keeps actionable display override evidence visible even
     // when the overall envelope says ok/info/green.
-    if (healthy && !highlight.isEmpty()) title = "Stream evidence needs attention";
+    if (healthy && !highlight.isEmpty()) title = "Your stream needs attention";
     if (highlightedId == "display_mode_decision") {
         title = "A host display override changed the requested mode";
         advice = "Review Display Mode Override on the PC to use the resolution requested by Nova.";
     }
+    const auto wording = [](const QJsonValue& value) {
+        if (!value.isString() || value.toString().size() > 4000) return QString{};
+        return value.toString().simplified();
+    };
+    const auto hostSummary = wording(d.value("summary"));
+    const auto recommendation = d.value("recommendation").toObject();
+    const auto hostAdvice = wording(recommendation.value("body"));
+    if (!hostSummary.isEmpty()) title = hostSummary;
+    if (!hostAdvice.isEmpty()) advice = hostAdvice;
     const auto confidence = code(d.value("confidence").toObject(), "level");
     return {{"available", true}, {"title", title}, {"group", group.isEmpty() ? "SESSION" : group},
         {"tone", !highlight.isEmpty() ? "warning" : healthy && primary == "none" ? "stable" : "muted"},

@@ -136,6 +136,22 @@ DeckNativeTargetResolver DeckLibraryController::targetResolver() const {
     };
 }
 
+DeckResumeResolver DeckLibraryController::resumeResolver() const {
+    if (!hostSettingsResolver()) return {};
+    const auto* host = identity_->hostById(selectedHost().toStdString());
+    const auto* probe = selectedProbe(snapshot_);
+    const int port = probe->resolvedHttpsPort > 0 ? probe->resolvedHttpsPort : host->nativeHttpsPort;
+    return [expected = *identity_, saved = *host, port, loader = loader_, games = snapshot_.library.games,
+        generation = generation_, accepted = generation_->load()]() -> std::optional<DeckResumeTarget> {
+        const auto valid = [expected, loader, generation, accepted] { return generation->load() == accepted && sameIdentity(expected, loader()); };
+        if (!valid()) return {};
+        auto client = std::make_shared<polaris::DeckPolarisClient>(
+            backend::polarisClientForHost(expected, saved, port, std::chrono::milliseconds(2000)));
+        return DeckResumeTarget{valid, [client](const auto& cancelled) { return client->fetchSessionStatus(cancelled); },
+            [client](const auto& token, const auto& cancelled) { return client->stopSession(token, cancelled); }, games};
+    };
+}
+
 DeckHostPowerResolver DeckLibraryController::hostPowerResolver() const {
     if (busy() || closing_ || state_.value("failed").toBool() || !identity_) return {};
     const auto* host = identity_->hostById(selectedHost().toStdString());

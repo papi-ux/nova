@@ -764,6 +764,7 @@ ApplicationWindow {
     }
 
     NativeStreamPreview {
+        resumeController: typeof novaResumeState !== "undefined" ? novaResumeState : null
         presentationBridge: typeof novaVulkanPresentation !== "undefined" ? novaVulkanPresentation : null
         inputHub: novaGamepad
         id: nativePreview
@@ -798,7 +799,8 @@ ApplicationWindow {
         objectName: "host-picker"
         anchors.centerIn: Overlay.overlay
         width: hostColumnWidth + 32
-        height: Math.min(root.height - 120, Math.max(260, novaLibraryHosts.length * (hostCardHeight + 12) + 80))
+        height: Math.min(root.height - 120, Math.max(260, novaLibraryHosts.length * (hostCardHeight + 12) + 80
+            + (typeof novaResumeState !== "undefined" && novaResumeState.state.visible ? 160 : 0)))
         padding: 16
         modal: true
         focus: true
@@ -850,6 +852,29 @@ ApplicationWindow {
         text: root.gameLinkError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
         color: NovaTheme.text; background: Rectangle { color: NovaTheme.panel }
     }
+    function resumeObservedGame(game) {
+        if (novaUpdates.busy || !game || !game.id) return
+        hostPicker.close()
+        Qt.callLater(function() {
+            selectGameForPreview(game)
+            nativePreview.resumeFromLibrary = true
+            nativePreview.autoStartRequested = true
+            nativePreview.open()
+        })
+    }
+    function updateResumeObservation() {
+        if (typeof novaResumeState !== "undefined")
+            novaResumeState.setActive(novaStandalone && active && !novaNativeSession.state.busy && !novaNativeSession.state.sleeping)
+    }
+    Connections {
+        target: root
+        function onActiveChanged() { root.updateResumeObservation() }
+    }
+    Connections {
+        target: novaNativeSession
+        function onStateChanged() { root.updateResumeObservation() }
+    }
+    Timer { interval: 0; running: true; repeat: false; onTriggered: root.updateResumeObservation() }
     LibraryBrowser {
         gameTools: novaGameTools
         gameShortcuts: novaGameShortcuts
@@ -867,6 +892,7 @@ ApplicationWindow {
         games: novaLibraryGames
         host: novaSelectedHostDetail
         refreshState: novaLibraryRefresh.state
+        resumeController: typeof novaResumeState !== "undefined" ? novaResumeState : null
         libraryController: novaLibraryRefresh
         settingsProvider: novaPlaySettings
         windowController: novaWindowController
@@ -877,6 +903,7 @@ ApplicationWindow {
         onChooseHost: focusSelectedHost()
         onRefreshRequested: refreshLibrary()
         onManagePcs: { root.managePcsRequested = true; root.close() }
+        onResumeRequested: game => root.resumeObservedGame(game)
         onPlayRequested: game => {
             if (novaUpdates.busy) return
             selectGameForPreview(game); nativePreview.open()
@@ -1139,6 +1166,7 @@ ApplicationWindow {
                             required property int index
                             required property var modelData
 
+                            id: hostCard
                             objectName: modelData.id
                             Layout.preferredWidth: hostColumnWidth
                             Layout.preferredHeight: Math.max(hostCardHeight, hostLabels.implicitHeight + 36)
@@ -1151,12 +1179,15 @@ ApplicationWindow {
                             KeyNavigation.right: hostDetailPanel
                             onActiveFocusChanged: if (activeFocus && !novaStandalone) selectHostForPreview(modelData)
                             TapHandler {
-                                onTapped: {
+                                onTapped: point => {
+                                    const local = hostNowPlaying.mapFromItem(hostCard, point.position)
+                                    if (hostNowPlaying.visible && local.x >= 0 && local.x <= hostNowPlaying.width && local.y >= 0 && local.y <= hostNowPlaying.height) return
                                     selectHostForPreview(modelData)
                                     focusSelectedGame()
                                 }
                             }
                             Keys.onRightPressed: {
+                                if (hostNowPlaying.visible) { hostNowPlaying.focusResume(); return }
                                 selectHostForPreview(modelData)
                                 focusSelectedGame()
                             }
@@ -1200,6 +1231,21 @@ ApplicationWindow {
                                     font.pixelSize: 16
                                 }
 
+                                NowPlayingPill {
+                                    id: hostNowPlaying
+                                    namePrefix: "host-" + modelData.id
+                                    compact: true
+                                    Layout.fillWidth: true
+                                    sessionState: typeof novaResumeState !== "undefined" ? novaResumeState.state : ({})
+                                    game: novaLibraryGames.find(game => game.id === sessionState.gameId) || ({})
+                                    visible: sessionState.visible === true && sessionState.hostId === modelData.id
+                                    actionsEnabled: !root.libraryBusy && !root.nativeSessionState.busy
+                                    onResumeRequested: root.resumeObservedGame(game)
+                                    onEndRequested: if (typeof novaResumeState !== "undefined") novaResumeState.endSession()
+                                    onLeaveUp: hostCard.forceActiveFocus()
+                                    onLeaveDown: hostCard.forceActiveFocus()
+                                    onVisibleChanged: if (!visible && activeFocus) Qt.callLater(hostCard.forceActiveFocus)
+                                }
                                 Label {
                                     visible: selectedHostForPreview.id === modelData.id
                                     text: parent.parent.activeFocus ? "A · Use this host" : "Selected host"

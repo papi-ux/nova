@@ -29,6 +29,7 @@ struct DeckNativeLaunchTarget {
     std::function<std::optional<DeckStreamCapabilities>(const std::function<bool()>&)> verifyStreamCapabilities;
     std::function<stream::DeckVideoDecodeSupport()> probeVideoSupport;
     std::function<stream::DeckPyrowaveProbeResult()> probePyrowaveSupport;
+    std::function<bool(const std::string&, const std::function<bool()>&)> authorizeResume;
     bool automaticReconnect = false; // Polaris route, still requires fresh ownership/token checks
     std::function<bool()> transientCapabilityFailure;
     DeckHudHostFactory hostTelemetry;

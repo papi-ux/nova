@@ -5,6 +5,10 @@ import Nova.Deck.Stream 0.1
 
 Popup {
     id: nativePreview
+    property var resumeController: null
+    property bool resumeFromLibrary: false
+    readonly property bool observedResumeAvailable: !resumeFromLibrary || (!!resumeController && resumeController.state.visible === true
+        && resumeController.state.hostId === reviewedHostId && resumeController.state.gameId === reviewedGameId)
     objectName: "native-stream-preview"
     parent: Overlay.overlay
     width: parent.width
@@ -19,7 +23,7 @@ Popup {
     Timer {
         interval: 100; repeat: true; running: nativePreview.opened && nativePreview.autoStartRequested && !nativePreview.attempted
         onTriggered: {
-            if (++nativePreview.autoStartTicks > 200) { nativePreview.autoStartRequested = false; playSetup.error = "Review these settings before starting from Steam."; return }
+            if (++nativePreview.autoStartTicks > 200) { nativePreview.autoStartRequested = false; playSetup.error = nativePreview.resumeFromLibrary ? "Review these settings before resuming." : "Review these settings before starting from Steam."; return }
             if (nativePreviewAction.enabled) { nativePreview.autoStartRequested = false; nativePreview.autoStartAttempted = true; nativePreviewAction.clicked() }
         }
     }
@@ -178,6 +182,8 @@ Popup {
     }
     onOpened: focusReview()
     onClosed: {
+        resumeFromLibrary = false
+        autoStartRequested = false
         launchArtworkShown = ""
         launchTintShown = ""
         videoScaling.close()
@@ -781,11 +787,11 @@ Popup {
                 : !nativePreview.attempted ? playSetup.footerActionY : parent.height - height - (recoveryAvailable ? 112 : 32) * nativePreview.unit
             width: nativePlaying ? commandHeader.buttonWidth : nativePreview.attempted ? 440 * nativePreview.unit : playSetup.footerActionWidth
             height: nativePlaying ? commandHeader.buttonHeight : nativePreview.attempted ? Math.max(60 * nativePreview.unit, implicitHeight) : Math.max(playSetup.footerActionHeight, implicitHeight)
-            text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? "Play"
+            text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? (nativePreview.resumeFromLibrary ? "Resume" : "Play")
                 : nativePlaying ? "Close" : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
                 : nativeSessionState.busy ? (nativeSessionState.automaticReconnect ? "Cancel reconnect" : "Cancel connection") : nativePreview.returnLabel
             visible: !nativePlaying || session.controlsVisible
-            enabled: !nativeSessionState.sleeping && (nativePreview.attempted || (nativePreview.reviewValid && playSetup.launchModeAllowed && playSetup.setupAllowed && playSetup.plan.playable && (!presentationBridge || presentationBridge.ready)))
+            enabled: !nativeSessionState.sleeping && (nativePreview.attempted || (nativePreview.observedResumeAvailable && nativePreview.reviewValid && playSetup.launchModeAllowed && playSetup.setupAllowed && playSetup.plan.playable && (!presentationBridge || presentationBridge.ready)))
             opacity: enabled ? 1 : 0.45
             contentItem: Text {
                 text: nativePreviewAction.text
@@ -806,8 +812,10 @@ Popup {
                 if (nativeSessionState.sleeping) return
                 if (!nativePreview.attempted) {
                     if (presentationBridge && !presentationBridge.ready) return
-                    if (!nativePreview.reviewValid || !nativePreview.reviewCurrent || !playSetup.launchModeAllowed || !playSetup.plan.playable) return
-                    nativePreview.attempted = session.startConfigured(reviewedHostId, reviewedGameId, playSetup.plan.configuration)
+                    if (!nativePreview.observedResumeAvailable || !nativePreview.reviewValid || !nativePreview.reviewCurrent || !playSetup.launchModeAllowed || !playSetup.plan.playable) return
+                    nativePreview.attempted = nativePreview.resumeFromLibrary
+                        ? resumeController.startConfigured(reviewedHostId, reviewedGameId, playSetup.plan.configuration)
+                        : session.startConfigured(reviewedHostId, reviewedGameId, playSetup.plan.configuration)
                     if (!nativePreview.attempted) playSetup.error = "Couldn't start this game. Return to the library and try again."
                     else {
                         nativePreview.launchArtworkShown = nativePreview.launchArtwork

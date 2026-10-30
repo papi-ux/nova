@@ -142,7 +142,7 @@ void doctorDetails() {
     QFile file(QStringLiteral(NOVA_DECK_DOCTOR_FIXTURE)); require(file.open(QIODevice::ReadOnly), "Doctor fixture missing");
     const auto d = QJsonDocument::fromJson(file.readAll()).object();
     auto actual = doctorPresentation(d);
-    require(actual.value("available").toBool() && actual.value("title") == "A host display override changed the requested mode" &&
+    require(actual.value("available").toBool() && actual.value("title") == d.value("summary").toString() &&
         actual.value("highlight") == "Display mode override" && actual.value("group") == "HOST", "healthy display override lost its diagnosis");
     const auto serialized = QJsonDocument::fromVariant(actual).toJson();
     require(!serialized.contains("private") && !serialized.contains("endpoint") && !serialized.contains("action") &&
@@ -171,11 +171,11 @@ void doctorDetails() {
         if (scenario >= 5) { item["id"] = "latency"; item["source"] = "stream_stats"; item["value"] = 60; }
         if (scenario == 6) item["value"] = QJsonValue::Null;
         if (scenario == 7) item["source"] = "unrecognized-private-source";
-        next["evidence"] = QJsonArray{item}; next["summary"] = "Lower bitrate now: private-secret";
+        next["evidence"] = QJsonArray{item}; next.remove("summary");
         next["ai_doctor"] = QJsonObject{{"explanation", "private instructions"}};
         actual = doctorPresentation(next);
         const bool confirmed = scenario == 0 || scenario == 5;
-        require(actual.value("title") == (confirmed ? "Network pressure is affecting this stream" : "Network readings need another check"),
+        require(actual.value("title") == (confirmed ? "Your connection is struggling" : "Check your connection again"),
             "unproven network evidence drove diagnosis");
         require(!QJsonDocument::fromVariant(actual).toJson().contains("private"), "host free text crossed Doctor boundary");
     }

@@ -103,6 +103,8 @@ public:
     Q_INVOKABLE void resumeInput();
     Q_INVOKABLE bool start(const QString& hostId, const QString& gameId);
     Q_INVOKABLE bool startConfigured(const QString& hostId, const QString& gameId, const QVariantMap& configuration);
+    // Token supplied only by the paired status observer, never by QML.
+    bool startObservedSession(const QString& host, const QString& game, const QVariantMap& configuration, const std::string& token);
     Q_INVOKABLE void stop();
     Q_INVOKABLE bool disconnectFromHost();
     Q_INVOKABLE bool resumeDisconnected(const QString& hostId, const QString& gameId);
@@ -129,6 +131,7 @@ private:
         const DeckNativeTargetResolver& resolver, const QString& hostId,
         const QString& gameId, const std::optional<DeckPlayConfiguration>& configuration,
         const std::shared_ptr<const ResumeTicket>& resume,
+        const std::string& observedResumeToken,
         const DeckAudioConfiguration& audio,
         const std::function<int()>& displayRateLimit,
         stream::DeckMoonlightConnectionDriver& driver,
@@ -147,7 +150,7 @@ private:
     void releaseDesktopInput();
     bool requestStop(bool keepHostRunning);
     bool startRequest(const QString& hostId, const QString& gameId, std::optional<DeckPlayConfiguration> configuration,
-        std::shared_ptr<const ResumeTicket> resume = {}, bool automatic = false);
+        std::shared_ptr<const ResumeTicket> resume = {}, bool automatic = false, std::string observedResumeToken = {});
 
     bool enabled_;
     DeckNativeTargetResolver resolver_;

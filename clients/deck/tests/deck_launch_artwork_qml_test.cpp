@@ -12,6 +12,7 @@
 #include "stream/deck_stream_media_adapters.h"
 
 #include <QColor>
+#include <QElapsedTimer>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -108,10 +109,17 @@ int main(int argc, char** argv) {
                 refreshState: ({busy: false, automatic: false, failed: false, destinationPlayable: true, destinationName: "Desktop"})
                 games: [{id: "fixture-game", title: "Moonlit Harbor", hero: "image://library-art/hero-1"}]
             }
+            QtObject {
+                id: observedSession
+                property var state: ({visible:true,hostId:"fixture-host",gameId:"fixture-game"})
+                function startConfigured(host, game, configuration) { return testSession.startConfigured(host, game, configuration) }
+            }
+            function onePressResume() { preview.resumeFromLibrary = true; preview.autoStartRequested = true; preview.open() }
             NativeStreamPreview {
                 id: preview
                 inputHub: testPlayers
                 session: testSession
+                resumeController: observedSession
                 settingsProvider: testSettings
                 displayCapabilities: testDisplay.state
                 hostId: "fixture-host"; gameId: "fixture-game"
@@ -202,6 +210,13 @@ int main(int argc, char** argv) {
     settle();
     require(!art->isVisible(), "the ended screen showed the carried artwork");
     require(artwork->requests == libraryRequests, "the launch fetched artwork");
+    require(QMetaObject::invokeMethod(preview, "close"), "cannot close before observed Resume");
+    settle();
+    const int starts = session.starts;
+    require(QMetaObject::invokeMethod(root.get(), "onePressResume"), "cannot request one-press Resume");
+    QElapsedTimer resumeDeadline; resumeDeadline.start();
+    while (session.starts == starts && resumeDeadline.elapsed() < 2000) settle();
+    require(session.starts == starts + 1 && preview->property("attempted").toBool(), "one-press Resume required another Play press");
     std::cout << "Launch artwork shown only for known launch stages, from the cached pixmap\n";
     return 0;
 }

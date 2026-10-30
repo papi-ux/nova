@@ -963,8 +963,8 @@ int main(int argc, char** argv) {
     require(doctorAction && doctorPopup && diagnosisTab && evidenceTab && sessionTab && reader && scroll && refresh && doctorBack,
         "Doctor controls missing after opening");
     focused(*window, diagnosisTab, "Doctor did not focus Diagnosis");
-    require(doctorPopup->property("opened").toBool() && root->findChild<QObject*>("doctor-title")->property("text").toString().contains("display override"),
-        "Doctor lost parsed display override finding");
+    require(doctorPopup->property("opened").toBool() && root->findChild<QObject*>("doctor-title")->property("text").toString() == "Streaming telemetry looks ready.",
+        "Doctor discarded the host-provided wording");
     window->resize(1280, 800); settle(); screenshot("doctor-diagnosis-1280.png");
     window->resize(960, 600); settle(); screenshot("doctor-diagnosis-large-960.png");
     require(doctorBack->mapToScene(QPointF(0, doctorBack->height())).y() <= window->height(), "Doctor footer clipped with large text");

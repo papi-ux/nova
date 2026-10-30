@@ -538,6 +538,14 @@ FocusScope {
                     })), Math.max(0, ((toolsState.steam || {}).allowed || []).indexOf((toolsState.steam || {}).mode)))
                 }
                 Copy {
+                    objectName: "play-setup-steam-notice"
+                    Layout.fillWidth: true
+                    visible: !spaceSession && text.length > 0
+                    text: (toolsState.steam || {}).notice || ""
+                    wrapMode: Text.WordWrap
+                    color: NovaTheme.secondary
+                }
+                Copy {
                     objectName: "play-setup-steam-lifetime"
                     Layout.fillWidth: true
                     visible: !spaceSession && ((toolsState.steam || {}).lifetimeKnown === true)

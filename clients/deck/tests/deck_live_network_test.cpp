@@ -1161,6 +1161,46 @@ void testSpacesSelectionAndLaunch() {
     require(library.status == DeckPolarisRequestStatus::Ok && library.spaces && !library.spaces->enabled && legacyReads == 1 && desktopReads == 2);
 }
 
+void testSessionStopNeverReplays() {
+    using namespace nova::deck::polaris;
+    QTemporaryDir directory;
+    const auto server = createIdentity(directory.path(), "server");
+    const auto client = createIdentity(directory.path(), "client");
+    TlsServer https(server); https.trustClient(client.cert);
+    require(https.listen(QHostAddress::LocalHost, 0));
+    DeckPolarisClient transport({"127.0.0.1", https.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
+    https.handler = [](const QUrl& url) -> std::pair<int, QByteArray> {
+        require(url.path() == "/polaris/v1/session/stop" && !url.hasQuery());
+        return {200, R"({"status":true})"};
+    };
+    auto result = transport.stopSession("fixture-session-token");
+    require(result.ok() && *result.value && https.requests == 1);
+    require(https.methods.back() == "POST" && QJsonDocument::fromJson(https.bodies.back()).object() ==
+        QJsonObject{{"session_token", "fixture-session-token"}});
+    https.dropReply = true;
+    result = transport.stopSession("fixture-session-token");
+    require(!result.ok() && https.requests == 2);
+    https.dropReply = false;
+    for (const int status : {202, 307, 401, 403, 409, 470, 500}) {
+        https.redirectLocation = status == 307 ? QByteArray("/must-not-follow") : QByteArray{};
+        https.handler = [status](const QUrl& url) -> std::pair<int, QByteArray> {
+            require(url.path() == "/polaris/v1/session/stop"); return {status, R"({"status":false})"};
+        };
+        const int before = https.requests;
+        result = transport.stopSession("fixture-session-token");
+        require(!result.ok() && https.requests == before + 1);
+    }
+    const int before = https.requests;
+    require(!transport.stopSession("").ok() && !transport.stopSession("fixture-session-token", [] { return true; }).ok() && https.requests == before);
+    const auto derived = createDerivedServer(directory.path());
+    TlsServer wrong(derived); wrong.trustClient(client.cert); require(wrong.listen(QHostAddress::LocalHost, 0));
+    DeckPolarisClient rejected({"127.0.0.1", wrong.serverPort()},
+        {client.cert.toStdString(), client.key.toStdString(), server.cert.toStdString()}, std::chrono::milliseconds(700));
+    result = rejected.stopSession("fixture-session-token");
+    require(!result.ok() && result.status == DeckPolarisRequestStatus::CertMismatch && wrong.requests == 0);
+}
+
 void testSleepNeverReplays() {
     using namespace nova::deck::polaris;
     QTemporaryDir directory;
@@ -2005,6 +2045,7 @@ int main(int argc, char** argv) {
     testFreshLaunchModeAuthority();
     testPinnedOwnedResume();
     testSpacesSelectionAndLaunch();
+    testSessionStopNeverReplays();
     testSleepNeverReplays();
     testHostSettingsNeverReplays();
     testArtworkMutationsNeverReplay();

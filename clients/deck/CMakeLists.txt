@@ -142,6 +142,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_moment_report.cpp
     src/runtime/deck_stream_recap.cpp
     src/polaris/deck_session_events.cpp
+    src/runtime/deck_resume_state.cpp
     src/runtime/deck_library_controller.cpp
     src/runtime/deck_library_artwork.cpp
     src/runtime/deck_artwork_tint.cpp
@@ -372,6 +373,10 @@ if(BUILD_TESTING)
         NOVA_DECK_LAUNCHER_TARGET_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/launcher-targets.json")
     add_test(NAME nova_deck_spaces_test COMMAND nova_deck_spaces_test)
     set_tests_properties(nova_deck_spaces_test PROPERTIES TIMEOUT 15)
+    add_executable(nova_deck_resume_state_test tests/deck_resume_state_test.cpp)
+    target_link_libraries(nova_deck_resume_state_test PRIVATE nova_deck_core)
+    add_test(NAME nova_deck_resume_state_test COMMAND nova_deck_resume_state_test)
+    set_tests_properties(nova_deck_resume_state_test PROPERTIES TIMEOUT 20)
     add_executable(nova_deck_library_query_test tests/deck_library_query_test.cpp)
     target_link_libraries(nova_deck_library_query_test PRIVATE nova_deck_core)
     target_compile_definitions(nova_deck_library_query_test PRIVATE
@@ -839,6 +844,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/WorkingBaseline.qml
                 qml/MomentReport.qml
                 qml/StreamRecap.qml
+                qml/NowPlayingPill.qml
                 qml/NovaButton.qml
                 qml/NovaScrollColumn.qml
                 qml/SteamControls.qml
@@ -1130,6 +1136,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             set_tests_properties(nova_deck_host_power_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 15)
             find_package(Qt6 REQUIRED COMPONENTS Test)
+            add_executable(nova_deck_resume_qml_test tests/deck_resume_qml_test.cpp)
+            target_link_libraries(nova_deck_resume_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
+            target_compile_definitions(nova_deck_resume_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_resume_qml_test COMMAND nova_deck_resume_qml_test)
+            set_tests_properties(nova_deck_resume_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
             add_executable(nova_deck_library_refresh_focus_qml_test tests/deck_library_refresh_focus_qml_test.cpp)
             target_link_libraries(nova_deck_library_refresh_focus_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_library_refresh_focus_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")

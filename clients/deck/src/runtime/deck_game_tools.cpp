@@ -148,7 +148,8 @@ bool DeckGameTools::start(const QString& action, QVariantMap values) {
             QStringList modes;
             if (item->steamLaunchAvailable) for (const auto& mode : item->steamLaunchAllowedModes)
                 if (mode == "direct" || mode == "big-picture") modes.append(QString::fromStdString(mode));
-            job->steam = {{"allowed", modes}, {"mode", QString::fromStdString(item->steamLaunchMode)}};
+            job->steam = {{"allowed", modes}, {"mode", QString::fromStdString(item->steamLaunchMode)},
+                {"notice", QString::fromStdString(item->steamLaunchModeReason).simplified().left(2000)}};
             if (item->steamKeepVirtual && item->steamKeepMirror) {
                 job->steam["keepVirtual"] = *item->steamKeepVirtual;
                 job->steam["keepMirror"] = *item->steamKeepMirror;
@@ -193,6 +194,7 @@ bool DeckGameTools::start(const QString& action, QVariantMap values) {
                     job->copy = "The PC did not confirm that Steam launch choice. Refresh the library."; return;
                 }
                 job->steam["mode"] = job->values.value("mode");
+                job->steam["notice"] = QString::fromStdString(fresh->steamLaunchModeReason).simplified().left(2000);
             }
             job->result = *reply.value; job->ok = true;
             job->copy = job->action == "spaceRefresh" ? spaceResult(job->result)
