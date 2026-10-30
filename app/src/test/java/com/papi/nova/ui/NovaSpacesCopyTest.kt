@@ -234,4 +234,15 @@ class NovaSpacesCopyTest {
         assertEquals(R.string.nova_space_bar_your_space, none.caption)
         assertEquals(R.string.nova_space_bar_none, none.nameRes)
     }
+
+    // Spaces is not a preview in 1.5.0 (Polaris #594). What the feature can and can't do stays said.
+    @Test fun spacesCopyNoLongerCallsItAPreview() {
+        val atCapacity = java.io.File("src/main/res/values/strings.xml").readLines()
+            .single { it.contains("name=\"nova_space_blocked_at_capacity\"") }
+        assertFalse(atCapacity, atCapacity.contains("Preview"))
+        assertTrue(atCapacity, atCapacity.contains("One Space at a time."))
+        val guide = java.io.File("../docs/spaces.md").readText()
+        assertFalse(guide.contains("preview", ignoreCase = true))
+        assertTrue(guide.contains("One Space runs at a time"))
+    }
 }
