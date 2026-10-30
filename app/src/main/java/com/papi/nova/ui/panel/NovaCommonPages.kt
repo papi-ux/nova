@@ -365,13 +365,17 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPage
     val close = { exit.leaveThen(page.onClose) }
     NovaBackHandler(active = true, onBack = close)
     PageColumn {
-        // A notice carries whole error messages, so it reads at the size every other message does.
-        Text(
-            text = page.message,
-            style = novaPanelType.rowTitle,
-            fontFamily = if (page.monospace) FontFamily.Monospace else null,
-            color = colors.textSecondary,
-        )
+        if (page.onMessagePress != null) {
+            NovaRow(title = page.message, onClick = page.onMessagePress, modifier = Modifier.novaRestorableFocus("message"))
+        } else {
+            // A notice carries whole error messages, so it reads at the size every other message does.
+            Text(
+                text = page.message,
+                style = novaPanelType.rowTitle,
+                fontFamily = if (page.monospace) FontFamily.Monospace else null,
+                color = colors.textSecondary,
+            )
+        }
         page.beforeActions?.invoke()
         page.primary?.let { primary ->
             NovaPanelButton(

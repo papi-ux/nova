@@ -593,6 +593,7 @@ class NovaQuickMenu(
                 mangoHudEnabled = mangoHudEnabled,
                 stabilityApplied = stabilityApplied,
                 advancedExpanded = advancedTuningVisible,
+                controlRttMs = game.latestControlRttMs,
                 profileClearInProgress = profileClearInProgress,
                 profileClearResult = profileClearResult,
                 currentGameName = gameName,

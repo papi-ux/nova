@@ -69,6 +69,32 @@
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_miami_bg_window</item>
     </style>
 
+    <style name="AppTheme.Supernova">
+        <item name="android:colorBackground">@color/nova_supernova_bg_window</item>
+        <item name="android:windowBackground">@color/nova_supernova_bg_window</item>
+        <item name="android:textColor">@color/nova_supernova_text_primary</item>
+        <item name="android:textColorPrimary">@color/nova_supernova_text_primary</item>
+        <item name="android:textColorSecondary">@color/nova_supernova_text_secondary</item>
+        <item name="android:navigationBarColor">@color/nova_supernova_void</item>
+        <item name="android:statusBarColor">@color/nova_supernova_void</item>
+        <item name="colorPrimary">@color/nova_supernova_accent</item>
+        <item name="colorAccent">@color/nova_supernova_accent</item>
+        <item name="colorControlHighlight">@color/nova_supernova_accent_surface</item>
+        <item name="colorSurface">@color/nova_supernova_bg_elevated</item>
+        <item name="colorOnSurface">@color/nova_supernova_text_primary</item>
+        <item name="colorSurfaceVariant">@color/nova_supernova_bg_card</item>
+        <item name="colorOnSurfaceVariant">@color/nova_supernova_text_secondary</item>
+        <item name="colorOnPrimary">@color/nova_supernova_void</item>
+        <item name="colorPrimaryContainer">@color/nova_supernova_accent_surface</item>
+        <item name="colorOnPrimaryContainer">@color/nova_supernova_text_primary</item>
+        <item name="novaTonalPillPressedColor">@color/nova_tonal_pill_pressed_supernova</item>
+        <item name="colorOutline">@color/nova_supernova_divider</item>
+        <item name="colorError">@color/nova_error</item>
+        <item name="android:windowSplashScreenBackground">@color/nova_supernova_bg_window</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_nova_star_foreground_dark</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nova_supernova_bg_window</item>
+    </style>
+
     <style name="AppTheme.PortableChrome" parent="AppBaseTheme">
         <item name="android:colorBackground">@color/nova_portable_bg_window</item>
         <item name="android:windowBackground">@color/nova_portable_bg_window</item>

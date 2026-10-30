@@ -37,6 +37,23 @@
     <color name="nova_oled_accent_surface">#148b80ff</color>
 
     <!-- Miami Nebula — deep plum shell with flamingo-pink hero focus and cyan/aqua neon-water support. -->
+    <!-- Supernova: the hidden theme SUPERNOVA unlocks. Ember gold over deep space. -->
+    <color name="nova_supernova_void">#FF08050C</color>
+    <color name="nova_supernova_bg_primary">#FF1A1220</color>
+    <color name="nova_supernova_bg_window">#FF0E0A14</color>
+    <color name="nova_supernova_bg_card">#E61F1626</color>
+    <color name="nova_supernova_bg_elevated">#E62A1E32</color>
+    <color name="nova_supernova_bg_input">#C8241A2C</color>
+    <color name="nova_supernova_dialog_bg">#FF1F1626</color>
+    <color name="nova_supernova_context_bg">#FF2A1E32</color>
+    <color name="nova_supernova_divider">#FF5A4560</color>
+    <color name="nova_supernova_text_primary">#FFFFF4E6</color>
+    <color name="nova_supernova_text_secondary">#FFE7D5C4</color>
+    <color name="nova_supernova_text_muted">#FFC6B0A4</color>
+    <color name="nova_supernova_accent">#FFFFB454</color>
+    <color name="nova_supernova_accent_surface">#1AFFB454</color>
+    <color name="nova_supernova_accent_glow">#73FFB454</color>
+    <color name="nova_supernova_ripple">#22FFB454</color>
     <color name="nova_miami_void">#FF130817</color>
     <color name="nova_miami_deep">#FF241429</color>
     <color name="nova_miami_twilight">#FF3F2447</color>
@@ -178,5 +195,6 @@
     <color name="nova_tonal_pill_pressed_portable">#33C9D1D9</color>
     <color name="nova_tonal_pill_pressed_oled">#33E0E6ED</color>
     <color name="nova_tonal_pill_pressed_miami">#33FFF1F7</color>
+    <color name="nova_tonal_pill_pressed_supernova">#33FFF4E6</color>
     <color name="nova_tonal_pill_pressed_high_contrast">#33FFFFFF</color>
 </resources>

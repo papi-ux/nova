@@ -15,6 +15,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -115,8 +116,9 @@ class NovaCommandCenterDoctorCardComposeTest {
         )
     )
 
-    private fun build(status: PolarisSessionStatus?): NovaQuickMenuUiState = NovaQuickMenuUiState.from(
+    private fun build(status: PolarisSessionStatus?, controlRttMs: Int? = null): NovaQuickMenuUiState = NovaQuickMenuUiState.from(
         context = rule.activity,
+        controlRttMs = controlRttMs,
         status = status,
         apiAvailable = true,
         adaptiveSupported = true,
@@ -187,6 +189,23 @@ class NovaCommandCenterDoctorCardComposeTest {
         assertSamePlace("receipt through a failed read", before, place(receipt))
         keys.press(NovaTestKeys.A)
         assertEquals(0, undos)
+    }
+
+    /** Under 2 ms the Doctor remarks on it, as words on its card; nothing moves (#424). */
+    @Test
+    fun theDoctorRemarksOnARoundTripUnderTwoMilliseconds() {
+        val remark = string(R.string.nova_cc_doctor_faster_than_light)
+        val initial = build(healthy, controlRttMs = 1)
+        assertEquals(true, initial.fasterThanLight)
+        open(initial)
+        rule.onNode(hasText(remark, substring = true)).assertExists()
+
+        show(build(healthy, controlRttMs = 2))
+        rule.onAllNodes(hasText(remark, substring = true)).assertCountEquals(0)
+        show(build(healthy, controlRttMs = 0))
+        rule.onAllNodes(hasText(remark, substring = true)).assertCountEquals(0)
+        show(build(healthy, controlRttMs = null))
+        rule.onAllNodes(hasText(remark, substring = true)).assertCountEquals(0)
     }
 
     private fun string(id: Int, vararg args: Any) = rule.activity.getString(id, *args)

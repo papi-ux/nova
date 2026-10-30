@@ -133,6 +133,8 @@ import com.papi.nova.ui.NovaHaptics
 import com.papi.nova.ui.NovaSnackbar
 import com.papi.nova.ui.NovaThemeManager
 import com.papi.nova.ui.NovaWelcomeActivity
+import com.papi.nova.ui.NovaEasterEggs
+import com.papi.nova.ui.NovaHostsComingOnline
 import com.papi.nova.ui.SpaceParticleView
 import com.papi.nova.utils.Dialog
 import com.papi.nova.utils.HelpLauncher
@@ -191,6 +193,7 @@ internal fun novaThemePickerCaption(theme: String): Int = when (theme) {
     NovaThemeManager.THEME_PORTABLE_CHROME -> R.string.hosts_theme_caption_portable_chrome
     NovaThemeManager.THEME_OLED -> R.string.hosts_theme_caption_oled
     NovaThemeManager.THEME_MIAMI -> R.string.hosts_theme_caption_miami
+    NovaThemeManager.THEME_SUPERNOVA -> R.string.hosts_theme_caption_supernova
     NovaThemeManager.THEME_DIRECTOR -> R.string.hosts_theme_caption_director
     NovaThemeManager.THEME_HIGH_CONTRAST -> R.string.hosts_theme_caption_high_contrast
     NovaThemeManager.THEME_MATERIAL_YOU -> R.string.hosts_theme_caption_material_you
@@ -362,6 +365,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var hostSleepAccessibilityActionId = View.NO_ID
     private var appliedTheme: String? = null
     private var spaceParticleView: SpaceParticleView? = null
+    private val hostsComingOnline = NovaHostsComingOnline()
     private enum class DashboardUpdatePillStatus { CURRENT, AVAILABLE, CHECKING, ERROR }
     private var dashboardUpdatePillStatus = DashboardUpdatePillStatus.CURRENT
     private var dashboardUpdatePillRelease: NovaUpdateRelease? = null
@@ -1263,11 +1267,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         // second copy in Kotlin, so a theme added to the array would not have appeared here
         // and nothing would have said so -- the order below happened to match, which is
         // exactly how a duplicate survives long enough to drift.
-        return resources.getStringArray(R.array.nova_theme_values)
-            .filter { theme ->
-                theme != NovaThemeManager.THEME_MATERIAL_YOU ||
-                    NovaThemeManager.isMaterialYouAvailable()
-            }
+        return NovaThemeManager.pickableThemes(this, resources.getStringArray(R.array.nova_theme_values).toList())
     }
 
     private fun applyThemeSelection(theme: String) {
@@ -1610,6 +1610,23 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         })
     }
 
+    /** One star brightens as a host comes online, and with POLARIS the North Star glows while one is. */
+    private fun updateSkyForHosts(computers: List<PcViewModel.ComputerObject>) {
+        val sky = spaceParticleView ?: return
+        val cameOnline = hostsComingOnline.update(
+            computers.associate { computer ->
+                computer.details.uuid to when (computer.details.state) {
+                    ComputerDetails.State.ONLINE -> true
+                    ComputerDetails.State.OFFLINE -> false
+                    else -> null
+                }
+            },
+        )
+        if (cameOnline.isNotEmpty()) sky.brightenOneStar()
+        sky.northStar = NovaEasterEggs.northStarEnabled(this) &&
+            computers.any { it.details.state == ComputerDetails.State.ONLINE }
+    }
+
     private fun updateHomeSummaries(visibleCount: Int, totalCount: Int, onlineCount: Int, libraryReadyCount: Int) {
         findViewById<TextView>(R.id.pcViewHostsSummary)
             ?.text = getString(R.string.pcview_hosts_summary_format, visibleCount, totalCount)
@@ -1891,6 +1908,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 syncComputerList()
                 refreshHostPowerState()
                 if (newList != null) {
+                    updateSkyForHosts(newList)
                     maybeRunPendingQrPairing(newList)
                     checkAutoNavigation(newList)
                 }

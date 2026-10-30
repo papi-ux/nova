@@ -1282,6 +1282,17 @@
     <string name="nova_recap_view">View</string>
     <string name="nova_recap_dismiss">Dismiss</string>
     <string name="nova_recap_page_title">Last Stream</string>
+    <!-- The panel the About page's version line opens after five presses. -->
+    <string name="nova_egg_enter_code">Enter a code</string>
+    <string name="nova_egg_enter_code_submit">OK</string>
+    <!-- What each code says once it has taken. -->
+    <string name="nova_egg_supernova_unlocked">Supernova unlocked. It\'s in Theme whenever you want it.</string>
+    <string name="nova_egg_leonids_preview">The Leonids, a preview.</string>
+    <string name="nova_egg_north_star_on">North Star on. It glows while your host is online.</string>
+    <string name="nova_egg_north_star_off">North Star off.</string>
+    <!-- Nova\'s Doctor, on a control round trip under 2 ms. -->
+    <string name="nova_cc_doctor_faster_than_light">Faster than light? Almost.</string>
+    <string name="nova_theme_supernova_label">Supernova</string>
     <string name="nova_recap_close">Close</string>
     <!-- Over the recap's readings when the whole connection lost nothing. A reading, not a grade. -->
     <string name="nova_recap_nothing_missing">0.00% frames missing</string>

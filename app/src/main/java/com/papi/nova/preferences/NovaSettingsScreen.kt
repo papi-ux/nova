@@ -692,9 +692,7 @@ private class NovaSettingsPageOpener(
             pane.push(
                 com.papi.nova.novaThemePickerPage(
                     context = context,
-                    themes = definition.options.map { it.value }.filter { theme ->
-                        theme != NovaThemeManager.THEME_MATERIAL_YOU || NovaThemeManager.isMaterialYouAvailable()
-                    },
+                    themes = NovaThemeManager.pickableThemes(context, definition.options.map { it.value }),
                     current = current.ifEmpty { NovaThemeManager.getTheme(context) },
                     onChoose = { value -> onValue(definition, NovaSettingValue.StringValue(value)) {} },
                     useDefault = useDefault(definition, state),
@@ -1644,6 +1642,9 @@ internal fun NovaSettingsUiState.valueLabel(context: Context, definition: NovaSe
         is NovaSettingValue.IntValue -> formatSettingInt(context, definition, value.value)
         is NovaSettingValue.StringValue -> {
             definition.options.firstOrNull { it.value == value.value }?.label
+                // The one theme the shipped list leaves out reads by its name all the same.
+                ?: NovaThemeManager.THEME_SUPERNOVA.takeIf { definition.key == THEME_KEY && it == value.value }
+                    ?.let { NovaThemeManager.getThemeLabel(context, it) }
                 ?: value.value.ifEmpty { context.getString(R.string.nova_settings_not_set) }
         }
         is NovaSettingValue.StringSetValue -> value.value.joinToString(", ")

@@ -76,6 +76,7 @@
     <string name="hosts_theme_caption_polaris">Polaris blue cockpit, a balanced dark shell</string>
     <string name="hosts_theme_caption_portable_chrome">Graphite handheld chrome, PlayStation accents</string>
     <string name="hosts_theme_caption_oled">OLED black with a high contrast glow</string>
+    <string name="hosts_theme_caption_supernova">Ember gold over deep space</string>
     <string name="hosts_theme_caption_miami">Miami neon, flamingo pink and a cyan night</string>
     <string name="hosts_theme_caption_director">Charcoal stage · warm white copy · red signals</string>
     <string name="hosts_theme_caption_high_contrast">Maximum contrast, accessibility first focus</string>

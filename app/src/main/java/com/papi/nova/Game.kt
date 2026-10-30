@@ -395,6 +395,9 @@ private var lastAbsTouchDownY:Float = 0.toFloat()
 private var quitOnStop:Boolean = false
 private var localSessionEndMarked:Boolean = false
 @Volatile private var hostSessionEnded:Boolean = false
+/** The newest sample's control round trip, for the Doctor's card. Main thread. */
+internal var latestControlRttMs:Int? = null
+    private set
 private var isHidingOverlays:Boolean = false
 private var floatingButtonShown:Boolean = false
 private var overlayToggleZoomButtonShown:Boolean = false
@@ -865,6 +868,7 @@ return getString(R.string.mouse_mode_absolute_touch)
 	@SuppressLint("MissingInflatedId", "ClickableViewAccessibility", "UnspecifiedRegisterReceiverFlag")
 override fun onCreate(savedInstanceState:Bundle?) {
 super.onCreate(savedInstanceState)
+com.papi.nova.ui.NovaSkyQuiet.streamStarted()
 
 instance = this
 timerHandler = Handler(Looper.getMainLooper())
@@ -3689,6 +3693,7 @@ decoderRenderer!!.notifyVideoForeground()
 
 override fun onDestroy() {
 super.onDestroy()
+com.papi.nova.ui.NovaSkyQuiet.streamEnded()
 stopListeningForExternalDisplayRemoval()
 
  // Nova: clean up Polaris integration
@@ -6540,6 +6545,7 @@ novaResilienceManager?.onReconnectSuccess()
 }
 doctorTelemetry.recordPerfSample(sample)
 streamRecap.accept(sample, android.os.SystemClock.elapsedRealtime())
+latestControlRttMs = sample.rttMs
 uploadDoctorSample(sample)
                 if (novaHud != null && novaHud!!.isShowing)
 {

@@ -212,6 +212,8 @@ sealed interface NovaCommonPage : NovaPage {
          * action, so a long message would scroll anything over it out of view. Takes no focus.
          */
         val beforeActions: (@Composable () -> Unit)? = null,
+        /** Makes [message] a row that takes focus and A, for a line that does something when pressed. */
+        val onMessagePress: (() -> Unit)? = null,
     ) : NovaCommonPage
 
     /**

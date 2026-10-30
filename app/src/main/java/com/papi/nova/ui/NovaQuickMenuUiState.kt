@@ -203,6 +203,8 @@ data class NovaQuickMenuUiState(
     val controlRows: List<NovaQuickMenuAction>,
     val sessionRows: List<NovaQuickMenuAction>,
     val hudPositionCorner: NovaHudCorner? = null,
+    /** The control round trip is under 2 ms, which the Doctor's card remarks on (#424). */
+    val fasterThanLight: Boolean = false,
     val liveBitrate: com.papi.nova.manager.NovaLiveBitratePresentation = com.papi.nova.manager.NovaLiveBitratePresentation(),
 ) {
     /**
@@ -267,6 +269,8 @@ data class NovaQuickMenuUiState(
              */
             hudLeftPx: Float = Float.NaN,
             hudPositionCorner: NovaHudCorner? = null,
+            /** The newest client sample's control round trip, when one has come in. */
+            controlRttMs: Int? = null,
             hudMode: NovaHudMode = NovaHudMode.MINIMAL,
             hudOpacityPercent: Int = NovaHudPreferences.DEFAULT_OPACITY_PERCENT,
             menuOpacityPercent: Int = NovaMenuPreferences.DEFAULT_OPACITY_PERCENT,
@@ -661,7 +665,8 @@ data class NovaQuickMenuUiState(
                 overlayRows = overlays,
                 controlRows = controls,
                 sessionRows = sessionRows,
-                hudPositionCorner = hudPositionCorner
+                hudPositionCorner = hudPositionCorner,
+                fasterThanLight = NovaEasterEggs.fasterThanLight(controlRttMs),
             )
         }
 

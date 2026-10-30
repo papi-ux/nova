@@ -495,8 +495,11 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
         diagnosis.stripVerdict.isNotBlank() -> stringResource(R.string.nova_cc_doctor_strip_says, diagnosis.stripVerdict, does)
         else -> does
     }
-    // The details, then what an AI explanation adds, in the card's detail lines.
-    val details = listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine).joinToString(" · ")
+    val fasterThanLight by ui.slice { it.fasterThanLight }
+    val fasterThanLightLine = if (fasterThanLight) stringResource(R.string.nova_cc_doctor_faster_than_light) else null
+    // The details, then the Doctor's own remark, then what an AI explanation adds, in the card's detail lines.
+
+    val details = listOfNotNull(detail.takeIf { it.isNotBlank() }, fasterThanLightLine, aiSupportingLine, sourceSupportingLine).joinToString(" · ")
     // The finding is the title and what A does is the line under it, so "Recheck" no longer
     // shows up as title, chip, and button at once.
     val action = remember(diagnosis, details, copiedLabel, diagnoseTitle) {

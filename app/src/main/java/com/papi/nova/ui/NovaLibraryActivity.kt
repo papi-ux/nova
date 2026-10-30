@@ -200,6 +200,8 @@ class NovaLibraryActivity : NovaActivity() {
      * The After-stream recap for this Library's requested host, read on resume and on each change to
      * the store while resumed; never written here.
      */
+    private val versionLineTaps = NovaVersionLineTaps()
+    private var librarySky: SpaceParticleView? = null
     private var lastStreamRecap by mutableStateOf<com.papi.nova.diagnostics.NovaStreamRecap.Recap?>(null)
     /** End resumes this screen before Game's onStop publishes the stream's recap, so it listens too. */
     private val streamRecapListener: () -> Unit = {
@@ -1699,7 +1701,38 @@ class NovaLibraryActivity : NovaActivity() {
         title = getString(R.string.nova_system_menu_about),
         message = getString(R.string.nova_system_menu_about_version, NovaAppVersion.current()),
         closeLabel = getString(R.string.nova_panel_close),
+        onMessagePress = {
+            if (versionLineTaps.press(android.os.SystemClock.elapsedRealtime())) {
+                novaSurfaces.panel.push(NovaEasterEggs.codePage(this, ::redeemSecretCode))
+            }
+        },
     )
+
+    /**
+     * A code that took closes the panel, so what it does in the sky can be seen. Its words go in a
+     * snackbar, which TalkBack reads and a theme with no starfield still shows.
+     */
+    private fun redeemSecretCode(code: NovaEasterEggs.Code) {
+        val words = when (code) {
+            NovaEasterEggs.Code.SUPERNOVA -> {
+                NovaEasterEggs.unlockSupernovaTheme(this)
+                R.string.nova_egg_supernova_unlocked
+            }
+            NovaEasterEggs.Code.LEONIDS -> R.string.nova_egg_leonids_preview
+            NovaEasterEggs.Code.POLARIS ->
+                if (NovaEasterEggs.toggleNorthStar(this)) R.string.nova_egg_north_star_on else R.string.nova_egg_north_star_off
+        }
+        window.decorView.post {
+            if (isFinishing || isDestroyed) return@post
+            novaSurfaces.panel.close()
+            when (code) {
+                NovaEasterEggs.Code.SUPERNOVA -> librarySky?.playSupernova()
+                NovaEasterEggs.Code.LEONIDS -> librarySky?.previewMeteors()
+                NovaEasterEggs.Code.POLARIS -> Unit
+            }
+            NovaSnackbar.showSuccess(this, getString(words))
+        }
+    }
 
     private fun openSponsor() {
         HelpLauncher.launchSponsor(this)
@@ -1907,11 +1940,16 @@ class NovaLibraryActivity : NovaActivity() {
                             dense = true
                             // Overlays the cinematic backdrop; must not fill its canvas.
                             paintsOpaqueBackground = false
-                        }
+                        }.also { librarySky = it }
                     },
                     // The chooser and the Space screen paint an opaque window over it; no
                     // reason to keep drawing 300 stars nobody can see.
-                    update = { view -> view.setCovered(chooseSpaceVisible || space != null) },
+                    update = { view ->
+                        view.setCovered(chooseSpaceVisible || space != null)
+                        // This host answered the library's own request; that is its online here.
+                        view.northStar = NovaEasterEggs.northStarEnabled(view.context) && clientSettings != null
+                    },
+                    onRelease = { if (librarySky === it) librarySky = null },
                 )
             }
             Box(

@@ -193,9 +193,9 @@ internal object NovaHostConsoleHandoff {
         return builder.build().toString()
     }
 
-    /** Nova's theme as Polaris names it, with hyphens; none for Material You, which Polaris lacks. */
+    /** Nova's theme as Polaris names it, with hyphens; none for Material You or Supernova, which Polaris lacks. */
     fun polarisTheme(novaTheme: String?): String? = when (novaTheme) {
-        null, "", NovaThemeManager.THEME_MATERIAL_YOU -> null
+        null, "", NovaThemeManager.THEME_MATERIAL_YOU, NovaThemeManager.THEME_SUPERNOVA -> null
         else -> novaTheme.replace('_', '-')
     }
 }
