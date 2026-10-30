@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,8 +35,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,7 +44,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -86,6 +90,7 @@ import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.StateFlow
 
 data class NovaQuickMenuCallbacks(
@@ -162,6 +167,9 @@ internal const val REPORT_MOMENT_TAG = "nova-cc-report-moment"
 /** Working Baseline's row, for tests and accessibility tooling. */
 internal const val WORKING_BASELINE_TAG = "nova-cc-working-baseline"
 
+/** The sections' scrolling list, for tests to measure what it shows. */
+internal const val NOVA_CC_SECTIONS_TAG = "nova-cc-sections"
+
 /** Rows that push a page of their own, and so carry the page mark. */
 private val OpensPage = setOf(
     NovaQuickMenuActionId.MOUSE_MODE,
@@ -201,13 +209,13 @@ fun NovaPageScope.NovaQuickMenuContent(
     val advancedExpanded by ui.slice { it.advancedExpanded }
     val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
 
-    // Reopened in the same stream, the page comes back where it was left: the row that had focus,
-    // scrolled as it was (in-game #16). It opened on Close at the top every time.
-    val sections = rememberScrollState(place?.scroll ?: 0)
+    // Reopened in the same stream, the page comes back to the row that had focus, whose focus brings
+    // it into view (in-game #16). Otherwise the list opens at the top: it restored its old scroll
+    // too, so touch, or focus going up to the header, left it reopening at Controls on Close (#420).
+    val sections = rememberScrollState()
     place?.focusKey?.let { novaInitialFocusAt(it) }
-    LaunchedEffect(sections, place) {
-        if (place != null) snapshotFlow { sections.value }.collect { place.scroll = it }
-    }
+    val advancedTop = remember { intArrayOf(0) }
+    NovaAdvancedReveal(advancedExpanded, sections, advancedTop)
     val hudPreview = remember(callbacks) { NovaHudPreviewFocus(callbacks.onHudPreview) }
     DisposableEffect(hudPreview) { onDispose { hudPreview.clear() } }
     CompositionLocalProvider(LocalNovaQuickMenuPlace provides place) {
@@ -221,6 +229,7 @@ fun NovaPageScope.NovaQuickMenuContent(
                     .weight(1f)
                     // A card cut by the edge under the header or above the hint bar dissolves there.
                     .novaScrollEdgeFade(sections)
+                    .testTag(NOVA_CC_SECTIONS_TAG)
                     .verticalScroll(sections)
                     .padding(vertical = NovaPanelMetrics.SpaceSm),
                 verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
@@ -261,7 +270,9 @@ fun NovaPageScope.NovaQuickMenuContent(
                 NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
 
                 NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
-                NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
+                Box(Modifier.onPlaced { advancedTop[0] = it.positionInParent().y.roundToInt() }) {
+                    NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
+                }
                 if (advancedExpanded) {
                     NovaQuickMenuRows(ui, { it.advancedRows }, callbacks)
                     // Observational history from the host; it explains Auto's fallbacks but never
@@ -279,7 +290,27 @@ fun NovaPageScope.NovaQuickMenuContent(
  */
 class NovaQuickMenuPlace {
     internal var focusKey: Any? = null
-    internal var scroll: Int = 0
+}
+
+/**
+ * Expanding Advanced brings its toggle up to the top of the list, so the rows it just opened are
+ * in view under it and focus stays on the toggle, one Down from them. They sat under the list's
+ * edge and read as clipped (#420). An opening with Advanced already open is not an expansion.
+ */
+@Composable
+private fun NovaAdvancedReveal(expanded: Boolean, sections: ScrollState, advancedTop: IntArray) {
+    val context = LocalContext.current
+    val keepAbove = with(LocalDensity.current) { NovaPanelMetrics.SpaceXl.roundToPx() }
+    val wasExpanded = remember { booleanArrayOf(expanded) }
+    LaunchedEffect(expanded) {
+        val expanding = expanded && !wasExpanded[0]
+        wasExpanded[0] = expanded
+        if (!expanding) return@LaunchedEffect
+        // The new rows have a height, and the list a new end to scroll to, from the next frame.
+        withFrameNanos {}
+        val target = (advancedTop[0] - keepAbove).coerceAtLeast(0)
+        if (novaAnimationsOff(context)) sections.scrollTo(target) else sections.animateScrollTo(target)
+    }
 }
 
 private val LocalNovaQuickMenuPlace = staticCompositionLocalOf<NovaQuickMenuPlace?> { null }
