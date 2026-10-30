@@ -207,6 +207,11 @@ sealed interface NovaCommonPage : NovaPage {
         val onClose: () -> Unit = {},
         val help: NovaAction? = null,
         val monospace: Boolean = false,
+        /**
+         * What reads at a glance, between [message] and the actions: the page opens on its focused
+         * action, so a long message would scroll anything over it out of view. Takes no focus.
+         */
+        val beforeActions: (@Composable () -> Unit)? = null,
     ) : NovaCommonPage
 
     /**

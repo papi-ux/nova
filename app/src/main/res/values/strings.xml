@@ -1283,6 +1283,12 @@
     <string name="nova_recap_dismiss">Dismiss</string>
     <string name="nova_recap_page_title">Last Stream</string>
     <string name="nova_recap_close">Close</string>
+    <!-- Over the recap's readings when the whole connection lost nothing. A reading, not a grade. -->
+    <string name="nova_recap_nothing_missing">0.00% frames missing</string>
+    <!-- A small badge on a recap of an hour or more with zero lost frames. -->
+    <string name="nova_recap_clear_skies">Clear skies</string>
+    <!-- Under the recap's frame rate line, and what TalkBack says for it. %1$s names the measure, %2$s and %3$s are frame rates. -->
+    <string name="nova_recap_fps_trail">%1$s over this connection: %2$s to %3$s</string>
     <string name="nova_recap_ended">Ended %1$s. %2$s</string>
     <string name="nova_recap_end_connection_ended">The connection ended normally. That doesn\'t show whether the host app quit.</string>
     <string name="nova_recap_end_host_end_reported">The host reported its session ended.</string>

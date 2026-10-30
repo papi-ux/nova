@@ -372,6 +372,7 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPage
             fontFamily = if (page.monospace) FontFamily.Monospace else null,
             color = colors.textSecondary,
         )
+        page.beforeActions?.invoke()
         page.primary?.let { primary ->
             NovaPanelButton(
                 text = primary.label,

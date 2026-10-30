@@ -76,6 +76,16 @@ internal object NovaStreamRecapText {
         append(context.getString(R.string.nova_recap_lifetime))
     }
 
+    /** What the recap's sparkline shows, in words: the caption under it, and TalkBack's reading of it. */
+    fun fpsTrail(context: Context, recap: NovaStreamRecap.Recap, trail: NovaStreamRecap.FpsTrail): String {
+        val measure = when {
+            trail.kind == NovaStreamRecap.FpsTrail.Kind.RECEIVED -> R.string.nova_recap_received_fps
+            recap.codecs == listOf("pyrowave") -> R.string.nova_pyrowave_submitted_fps
+            else -> R.string.nova_recap_rendered_fps
+        }
+        return context.getString(R.string.nova_recap_fps_trail, context.getString(measure), fps(trail.min), fps(trail.max))
+    }
+
     private fun StringBuilder.stat(context: Context, label: Int, stat: NovaStreamRecap.Stat?, format: (Double) -> String) {
         val name = context.getString(label)
         appendLine(
@@ -166,6 +176,11 @@ internal object NovaStreamRecapPages {
             primary = onSaveReport?.let { com.papi.nova.ui.panel.NovaAction(context.getString(R.string.nova_recap_save_report), run = it) },
             closeLabel = context.getString(R.string.nova_recap_close),
             monospace = true,
+            beforeActions = if (recap.nothingMissing || recap.fpsTrail != null) {
+                { NovaStreamRecapAtAGlance(recap) }
+            } else {
+                null
+            },
         )
 
     /**

@@ -286,4 +286,111 @@ class NovaStreamRecapTest {
         assertEquals("the first connectionStarted counts", 5_000L, recap.connectedForMs)
         assertEquals(3L, recap.generation)
     }
+
+    // The FPS trail (#423).
+
+    @Test fun theTrailFollowsRenderedFramesInOrder() {
+        val acc = connected()
+        listOf(60.0, 58.0, 30.0).forEachIndexed { i, fps ->
+            acc.accept(sample(2_000L + i, rendered = fps, received = 61.0), 3_000L)
+        }
+        val trail = acc.end()!!.fpsTrail!!
+        assertEquals(NovaStreamRecap.FpsTrail.Kind.RENDERED, trail.kind)
+        assertEquals(listOf(60.0, 58.0, 30.0), trail.values)
+        assertEquals(30.0, trail.min, 0.0)
+        assertEquals(60.0, trail.max, 0.0)
+    }
+
+    @Test fun oneReadingIsNoLineAndNoReadingIsNone() {
+        assertNull(connected().end()!!.fpsTrail)
+        val one = connected().apply { accept(sample(2_000L), 3_000L) }
+        assertNull(one.end()!!.fpsTrail)
+    }
+
+    @Test fun receivedFramesCarryTheLineOnlyWhenNothingRenderedCould() {
+        val acc = connected()
+        acc.accept(sample(2_000L, rendered = Double.NaN, received = 50.0), 3_000L)
+        acc.accept(sample(2_001L, rendered = Double.NaN, received = 52.0), 3_000L)
+        val trail = acc.end()!!.fpsTrail!!
+        assertEquals(NovaStreamRecap.FpsTrail.Kind.RECEIVED, trail.kind)
+        assertEquals(listOf(50.0, 52.0), trail.values)
+    }
+
+    @Test fun invalidReadingsStayOffTheLineAndAGenuineZeroStaysOn() {
+        val acc = connected()
+        listOf(60.0, Double.NaN, -1.0, 2_000.0, 0.0).forEachIndexed { i, fps ->
+            acc.accept(sample(2_000L + i, rendered = fps), 3_000L)
+        }
+        assertEquals(listOf(60.0, 0.0), acc.end()!!.fpsTrail!!.values)
+    }
+
+    @Test fun anySampleRejectedWholeStaysOffTheLine() {
+        val acc = connected()
+        acc.accept(sample(2_000L, rendered = 60.0), 3_000L)
+        acc.accept(sample(1_500L, rendered = 1.0), 3_000L)
+        acc.accept(sample(2_500L, rendered = 58.0), 3_000L)
+        assertEquals(listOf(60.0, 58.0), acc.end()!!.fpsTrail!!.values)
+    }
+
+    @Test fun aLongStreamKeepsTheTrailBoundedAndItsShape() {
+        val acc = connected()
+        val samples = 10_000
+        repeat(samples) { i ->
+            // A clean first half and a slow second half, so the shape has to survive the averaging.
+            acc.accept(sample(2_000L + i, rendered = if (i < samples / 2) 60.0 else 30.0), 2_000L + samples)
+        }
+        val values = acc.end()!!.fpsTrail!!.values
+        assertTrue("held ${values.size}", values.size <= NovaStreamRecap.FPS_TRAIL_POINTS + 1)
+        assertTrue("held ${values.size}", values.size >= NovaStreamRecap.FPS_TRAIL_POINTS / 2)
+        assertEquals(60.0, values.first(), 0.0)
+        assertEquals(30.0, values.last(), 0.0)
+        val middle = values.size / 2
+        assertTrue(values[middle / 2] == 60.0 && values[middle + middle / 2] == 30.0)
+    }
+
+    // The calm line and Clear skies (#423, #424).
+
+    private val hour = NovaStreamRecap.CLEAR_SKIES_MS
+
+    private fun measured(coveredMs: Long, lost: Long = 0L, expected: Long = 216_000L): NovaStreamRecap.Recap {
+        val acc = connected()
+        acc.accept(sample(2_000L, expected = 60), 2_000L)
+        acc.accept(sample(2_000L + coveredMs, expected = expected, lost = lost), 2_000L + coveredMs)
+        return acc.end(at = 3_000L + coveredMs)!!
+    }
+
+    @Test fun nothingMissingNeedsTheWholeConnectionReadingToSayZero() {
+        assertTrue(measured(10_000L).nothingMissing)
+        assertFalse(measured(10_000L, lost = 1L).nothingMissing)
+        assertFalse("no samples, no claim", connected().end()!!.nothingMissing)
+    }
+
+    @Test fun nothingMissingIsNotClaimedFromPartOfTheConnection() {
+        // A generation change costs the whole-connection reading; the intervals either side read zero.
+        val acc = connected()
+        acc.accept(sample(2_000L, expected = 60, generation = 1), 3_000L)
+        acc.accept(sample(2_500L, expected = 120, generation = 1), 3_000L)
+        acc.accept(sample(2_800L, expected = 60, generation = 2), 3_000L)
+        val recap = acc.end()!!
+        assertNull(recap.connectionLoss)
+        assertEquals(0L, recap.lossBetweenSamples!!.framesLost)
+        assertFalse(recap.nothingMissing)
+        assertFalse(recap.clearSkies)
+    }
+
+    @Test fun clearSkiesNeedsAnHourSampledWithNothingLost() {
+        assertTrue(measured(hour).clearSkies)
+        assertTrue(measured(2 * hour).clearSkies)
+        assertFalse("a moment short of the hour", measured(hour - 1L).clearSkies)
+        assertFalse("one frame lost", measured(2 * hour, lost = 1L).clearSkies)
+    }
+
+    @Test fun aLongConnectionWithOnlyAFewMinutesSampledEarnsNoClearSkies() {
+        val acc = connected()
+        acc.accept(sample(2_000L, expected = 60), 2_000L)
+        acc.accept(sample(302_000L, expected = 18_000), 302_000L)
+        val recap = acc.end(at = 2 * hour)!!
+        assertTrue(recap.nothingMissing)
+        assertFalse(recap.clearSkies)
+    }
 }

@@ -78,6 +78,17 @@ object NovaStreamRecap {
         val pct: Double get() = framesLost.toDouble() / framesExpected.toDouble() * 100.0
     }
 
+    /**
+     * A connection's frame rate over its length, oldest first, for the recap's sparkline. Each value
+     * covers about as many samples as the next, so the line's shape follows time.
+     */
+    data class FpsTrail(val kind: Kind, val values: List<Double>) {
+        enum class Kind { RENDERED, RECEIVED }
+
+        val min: Double get() = values.min()
+        val max: Double get() = values.max()
+    }
+
     data class Recap(
         /** The process-local generation of the Game instance that measured it. */
         val generation: Long,
@@ -108,8 +119,24 @@ object NovaStreamRecap {
         /** The decoded dimensions changed during the connection. */
         val dimensionsChanged: Boolean,
         val last: LastSample?,
+        /** Null with fewer than two valid readings: there is no line to draw. */
+        val fpsTrail: FpsTrail? = null,
     ) {
         val mediaSampled: Boolean get() = acceptedSamples > 0
+
+        /**
+         * Every frame of the whole connection arrived, as far as its counters can say. Only the
+         * trusted whole-connection reading can: loss between samples leaves the gaps out.
+         */
+        val nothingMissing: Boolean
+            get() = connectionLoss?.let { it.framesExpected > 0L && it.framesLost == 0L } == true
+
+        /**
+         * An hour or more, sampled, with nothing missing. Measured from the samples because the
+         * counters say nothing about the time after the last one.
+         */
+        val clearSkies: Boolean
+            get() = nothingMissing && (samplesCoveredMs ?: 0L) >= CLEAR_SKIES_MS
     }
 
     /**
@@ -127,6 +154,8 @@ object NovaStreamRecap {
         private var lastSample: PerfOverlaySample? = null
         private val rendered = Running()
         private val received = Running()
+        private val renderedTrail = Trail()
+        private val receivedTrail = Trail()
         private val decode = Running()
         private val hostLatency = Running()
         private val rtt = Running()
@@ -169,7 +198,11 @@ object NovaStreamRecap {
 
             val renderedFps = fps(sample.renderedFps)
             renderedFps?.let(rendered::add)
-            fps(sample.incomingFps)?.let(received::add)
+            renderedFps?.let(renderedTrail::add)
+            fps(sample.incomingFps)?.let {
+                received.add(it)
+                receivedTrail.add(it)
+            }
             // A decode time means something only for a window that rendered frames.
             if (renderedFps != null && renderedFps > 0.0) {
                 PerfOverlaySample.measuredDecodeLatencyMs(sample.codec, sample.decodeTimeMs)
@@ -225,6 +258,14 @@ object NovaStreamRecap {
             }
         }
 
+        /** Rendered frames where they were read, received otherwise; one measure, never a mix of the two. */
+        private fun fpsTrail(): FpsTrail? {
+            val shown = renderedTrail.values()
+            if (shown.size >= 2) return FpsTrail(FpsTrail.Kind.RENDERED, shown)
+            val arrived = receivedTrail.values()
+            return if (arrived.size >= 2) FpsTrail(FpsTrail.Kind.RECEIVED, arrived) else null
+        }
+
         private fun validCounters(sample: PerfOverlaySample): Boolean =
             sample.sessionGeneration > 0L && sample.framesExpected >= 0 && sample.framesLost >= 0 &&
                 sample.framesLost <= sample.framesExpected
@@ -265,6 +306,7 @@ object NovaStreamRecap {
                 connectionLoss = connectionLoss,
                 codecs = codecs.toList(),
                 dimensionsChanged = dimensionsChanged,
+                fpsTrail = fpsTrail(),
                 last = last?.let {
                     LastSample(
                         ageAtEndMs = (endElapsed - it.monotonicTimestampMs).takeIf { age -> age >= 0L },
@@ -285,6 +327,42 @@ object NovaStreamRecap {
 
     /** The renderer's sessionGeneration for a connection whose counters never restarted. */
     const val FIRST_GENERATION = 1L
+
+    /** The most values a [FpsTrail] holds, whatever the connection's length. */
+    internal const val FPS_TRAIL_POINTS = 120
+
+    internal const val CLEAR_SKIES_MS = 60L * 60L * 1000L
+
+    /**
+     * Constant memory over any length of stream: while it has room each reading takes a slot, and
+     * when it fills, neighbouring slots average into one and each slot then covers twice as many.
+     */
+    private class Trail {
+        private val slots = DoubleArray(FPS_TRAIL_POINTS)
+        private var used = 0
+        private var perSlot = 1
+        private var pendingSum = 0.0
+        private var pendingCount = 0
+
+        fun add(value: Double) {
+            pendingSum += value
+            pendingCount++
+            if (pendingCount < perSlot) return
+            slots[used++] = pendingSum / pendingCount
+            pendingSum = 0.0
+            pendingCount = 0
+            if (used == slots.size) {
+                for (i in 0 until used / 2) slots[i] = (slots[2 * i] + slots[2 * i + 1]) / 2.0
+                used /= 2
+                perSlot *= 2
+            }
+        }
+
+        fun values(): List<Double> {
+            val whole = slots.take(used)
+            return if (pendingCount > 0) whole + pendingSum / pendingCount else whole
+        }
+    }
 
     private class Running {
         var count = 0
