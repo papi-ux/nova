@@ -228,8 +228,8 @@ fun NovaPageScope.NovaQuickMenuContent(
                     .fillMaxWidth()
                     .weight(1f)
                     // A card cut by the edge under the header or above the hint bar dissolves there.
-                    .novaScrollEdgeFade(sections)
                     .testTag(NOVA_CC_SECTIONS_TAG)
+                    .novaScrollEdgeFade(sections)
                     .verticalScroll(sections)
                     .padding(vertical = NovaPanelMetrics.SpaceSm),
                 verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap),
@@ -462,8 +462,9 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     }
     val copiedLabel = stringResource(R.string.nova_quick_menu_doctor_copied)
     val context = LocalContext.current
+    val fasterThanLight by ui.slice { it.fasterThanLight }
     // Built once per diagnosis, not once per recomposition of the page.
-    val detail = remember(diagnosis, context) {
+    val detail = remember(diagnosis, fasterThanLight, context) {
         val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") }
         buildList {
             classification?.let(::add)
@@ -473,6 +474,8 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
                 add(context.getString(R.string.nova_cc_doctor_evidence, evidence))
                 diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add(context.getString(R.string.nova_cc_doctor_confidence, it)) }
             }
+            // Nova's Doctor, on a control round trip under 2 ms (#424).
+            if (fasterThanLight) add(context.getString(R.string.nova_cc_doctor_faster_than_light))
         }.joinToString(" · ")
     }
     val diagnoseTitle = stringResource(R.string.nova_quick_menu_diagnose_stream)
@@ -495,11 +498,9 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
         diagnosis.stripVerdict.isNotBlank() -> stringResource(R.string.nova_cc_doctor_strip_says, diagnosis.stripVerdict, does)
         else -> does
     }
-    val fasterThanLight by ui.slice { it.fasterThanLight }
-    val fasterThanLightLine = if (fasterThanLight) stringResource(R.string.nova_cc_doctor_faster_than_light) else null
-    // The details, then the Doctor's own remark, then what an AI explanation adds, in the card's detail lines.
+    // The details, then what an AI explanation adds, in the card's detail lines.
 
-    val details = listOfNotNull(detail.takeIf { it.isNotBlank() }, fasterThanLightLine, aiSupportingLine, sourceSupportingLine).joinToString(" · ")
+    val details = listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine).joinToString(" · ")
     // The finding is the title and what A does is the line under it, so "Recheck" no longer
     // shows up as title, chip, and button at once.
     val action = remember(diagnosis, details, copiedLabel, diagnoseTitle) {
