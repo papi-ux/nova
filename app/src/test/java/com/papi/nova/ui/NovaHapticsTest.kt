@@ -69,7 +69,30 @@ class NovaHapticsTest {
 
         prefs.edit().putBoolean("nova_haptic_feedback", true).commit()
         NovaConfirmation.haptic(view)
-        assertEquals(listOf(HapticFeedbackConstants.CONFIRM), view.requests)
+        assertEquals(listOf(HapticFeedbackConstants.LONG_PRESS), view.requests)
+    }
+
+    // RP6, 2026-10-30: papi felt CONFIRM "but barely". Android plays LONG_PRESS as its heavy click
+    // and CONFIRM as the ordinary click (#386). One request, with no flags that pass Android's veto.
+    @Test
+    fun aConfirmationIsOneClearPulseThroughTheSystemGate() {
+        val view = RecordingView(context)
+
+        NovaConfirmation.haptic(view)
+
+        assertEquals(listOf(HapticFeedbackConstants.LONG_PRESS), view.requests)
+        assertTrue(view.flaggedRequests.isEmpty())
+    }
+
+    // CONFIRM came in Android 11, so an older device used to feel nothing at all.
+    @Test
+    @Config(sdk = [25])
+    fun aConfirmationIsFeltBeforeAndroid11Too() {
+        val view = RecordingView(context)
+
+        NovaConfirmation.haptic(view)
+
+        assertEquals(listOf(HapticFeedbackConstants.LONG_PRESS), view.requests)
     }
 
     @Test

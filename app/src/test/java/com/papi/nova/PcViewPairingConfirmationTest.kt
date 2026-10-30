@@ -89,14 +89,14 @@ class PcViewPairingConfirmationTest {
             assertEquals(screen, ordinary.component?.className)
             assertFalse("opening a paired host from its card is not a pairing", ordinary.hasExtra(NovaConfirmation.EXTRA_PAIRED_WITH))
         }
-        assertNotEquals("nothing is felt for an ordinary open", HapticFeedbackConstants.CONFIRM, haptic())
+        assertNotEquals("nothing is felt for an ordinary open", HapticFeedbackConstants.LONG_PRESS, haptic())
 
         for ((library, screen) in destinations) {
             invoke("openPairedHost", host(library))
             val paired = started()
             assertEquals(screen, paired.component?.className)
             assertEquals("Paired with $NAME", paired.getStringExtra(NovaConfirmation.EXTRA_PAIRED_WITH))
-            assertEquals("the system's confirm haptic, not controller rumble", HapticFeedbackConstants.CONFIRM, haptic())
+            assertEquals("the system's clear click, not controller rumble", HapticFeedbackConstants.LONG_PRESS, haptic())
         }
 
         invoke("openBestPlaySurface", host(ComputerDetails.LibraryState.AVAILABLE))
