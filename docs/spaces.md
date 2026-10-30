@@ -2,10 +2,10 @@
 
 A Space is a separate gaming setup on your Polaris host, with its own sign-ins,
 installed games and saves. Nova connects you to a Space allowed for your paired
-device. Preview: one Space at a time, no runtime download yet.
+device. One Space runs at a time, and there is no runtime download yet.
 
-This flow is part of the Spaces preview. Creating, assigning, renaming, removing,
-and restoring Spaces happens in the Polaris web interface under **Spaces**.
+Creating, assigning, renaming, removing, and restoring Spaces happens in the
+Polaris web interface under **Spaces**.
 Polaris also guides the host owner through Docker setup. Nova does not require
 Docker on your Android device.
 
@@ -35,7 +35,7 @@ checks, connection errors and settings reviews stay visible before launch.
 
 Nova offers **Resume** only for the matching game and Space session owned by this
 device. **In use** means another device is using that Space. Availability remains
-subject to the host's current capacity and access rules: the preview runs one
+subject to the host's current capacity and access rules: the host runs one
 Space at a time, and a Space the host cannot admit says why under **Open Space**.
 
 Older hosts that expose one Space without a game library retain the direct
@@ -138,11 +138,11 @@ point, keeping the game and stream settings unchanged. Ask the host owner to
 compare with downloads, builds, and updates paused. Change one thing at a time.
 The [Polaris troubleshooting steps](https://github.com/papi-ux/polaris/blob/master/docs/spaces.md#check-sound-and-stuttering)
 explain what to retain for Doctor & Support. Audio reliability is still being
-validated for the preview.
+validated.
 
-## Preview Status
+## Validation Status
 
-The preview's validation record and its limits live in the
+The validation record and its limits live in the
 [September 15 acceptance report](https://github.com/papi-ux/polaris/blob/master/docs/research/container-multiseat-acceptance-20260915.md).
 It does not establish sustained 120 or 240 FPS gameplay, a complete first
 installation from published artifacts, or reliable audio on every client.

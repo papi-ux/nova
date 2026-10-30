@@ -2030,7 +2030,7 @@
     <string name="nova_space_switch_blocked_your_stream">End your stream first, then change Space.</string>
     <string name="nova_space_switch_blocked_desktop_stream">This device is streaming the Desktop. End that stream first, then change Space.</string>
     <string name="nova_space_switch_blocked_generic">Spaces cannot be changed right now.</string>
-    <string name="nova_space_blocked_at_capacity">Preview: one Space at a time. Another Space is running on the host.</string>
+    <string name="nova_space_blocked_at_capacity">One Space at a time. Another Space is running on the host.</string>
     <string name="nova_space_blocked_starting">This Space is starting. Open it once it reads Ready.</string>
     <string name="nova_space_blocked_stopping">This Space is stopping. Open it once it reads Ready.</string>
     <string name="nova_space_blocked_unavailable">This Space is unavailable on the host. Open Spaces in Polaris to check it.</string>
