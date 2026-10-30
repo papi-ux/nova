@@ -26,6 +26,7 @@ class SessionProgressOverlay(private val activity: Activity) {
     private val launchArtwork = mutableStateOf<NovaLaunchArtwork?>(null)
     private var launchArtworkTaken = false
     private var animationsOff = false
+    private val startedAtMs = mutableStateOf<Long?>(null)
 
     fun setSpaceSession(enabled: Boolean) {
         activity.runOnUiThread {
@@ -46,6 +47,7 @@ class SessionProgressOverlay(private val activity: Activity) {
                 launchArtwork.value = takeLaunchArtwork()
                 animationsOff = novaAnimationsOff(activity)
             }
+            startedAtMs.value = SystemClock.elapsedRealtime()
             val composeView = ComposeView(activity).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                 NovaMenuBlur.releaseOnUnexpectedDetach(this) {
@@ -60,6 +62,7 @@ class SessionProgressOverlay(private val activity: Activity) {
                             state = overlayState.value,
                             artwork = launchArtwork.value,
                             animationsOff = animationsOff,
+                            startedAtMs = startedAtMs.value,
                         )
                     }
                 }
@@ -84,7 +87,7 @@ class SessionProgressOverlay(private val activity: Activity) {
         activity.runOnUiThread {
             val nextState = if (spaceSession) NovaSessionProgressUiState.fromSpace(state) ?: return@runOnUiThread
                 else NovaSessionProgressUiState.from(state, message, localConnectionTitle)
-            if (nextState.progressFraction >= overlayState.value.progressFraction) {
+            if (nextState.hasOwnWords && nextState.progressFraction >= overlayState.value.progressFraction) {
                 overlayState.value = nextState
             }
         }

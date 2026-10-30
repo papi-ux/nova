@@ -14,7 +14,7 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("Starting Space", starting.title)
         assertEquals("Connecting Video", video.title)
         assertTrue(starting.indeterminate)
-        assertTrue(video.completedStages.isEmpty())
+        assertEquals(null, video.step)
         assertEquals(null, NovaSessionProgressUiState.fromSpace("streaming"))
         assertEquals(null, NovaSessionProgressUiState.fromSpace("cage_starting"))
         assertEquals("Waiting For Picture", NovaSessionProgressUiState.fromSpace("input_ready")!!.title)
@@ -48,8 +48,7 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("Game launch requested", state.confidenceLabel)
         assertEquals("Nova is waiting for the host to expose the game window.", state.confidenceDetail)
         assertEquals(0.64f, state.progressFraction, 0.001f)
-        assertTrue(state.completedStages.contains("Preparing session..."))
-        assertTrue(state.completedStages.contains("Starting compositor..."))
+        assertEquals(NovaStartupStep.STARTING_GAME, state.step)
     }
 
     @Test
@@ -62,7 +61,7 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("Decoder handshake", state.confidenceLabel)
         assertEquals("Nova is initializing video decoding for the stream.", state.confidenceDetail)
         assertEquals(0.78f, state.progressFraction, 0.001f)
-        assertTrue(state.completedStages.contains("Launching game..."))
+        assertEquals(NovaStartupStep.WAITING_FOR_VIDEO, state.step)
         assertEquals("Starting audio stream...", audio.title)
         assertEquals("Audio handshake", audio.confidenceLabel)
         assertEquals(0.88f, audio.progressFraction, 0.001f)
@@ -157,6 +156,33 @@ class NovaStreamOverlayUiStateTest {
         )
     }
 
+    /** The steps only ever move forward through a start, in the table's own order (#422). */
+    @Test
+    fun everyKnownStageBelongsToAStepAndTheStepsFollowTheStages() {
+        val inOrder = listOf(
+            "initializing", "connecting", "rtsp", "control", "cage_starting", "game_launching", "video",
+            "audio", "input", "unlocking_or_starting", "host_locked", "stream_active", "input_ready",
+        )
+        val stages = inOrder.map(NovaSessionProgressUiState::from)
+        stages.forEach { assertTrue("${it.state} has no step", it.step != null) }
+        assertEquals(inOrder, stages.map { it.state })
+        val waiting = stages.first { it.state == "video" }.step!!
+        stages.filter { it.state in setOf("initializing", "connecting", "rtsp", "control") }
+            .forEach { assertEquals(NovaStartupStep.CONTACTING_HOST, it.step) }
+        stages.filter { it.state in setOf("cage_starting", "game_launching", "unlocking_or_starting", "host_locked") }
+            .forEach { assertEquals(NovaStartupStep.STARTING_GAME, it.step) }
+        stages.filter { it.state in setOf("video", "audio", "input", "stream_active") }
+            .forEach { assertEquals(waiting, it.step) }
+        assertEquals(NovaStartupStep.VIDEO_READY, stages.last().step)
+    }
+
+    @Test
+    fun aStateWithNoWordsHasNoneOfItsOwnAndAStageOrMessageDoes() {
+        assertFalse(NovaSessionProgressUiState.from("paused", "").hasOwnWords)
+        assertTrue(NovaSessionProgressUiState.from("paused", "Paused for now").hasOwnWords)
+        assertTrue(NovaSessionProgressUiState.from("rtsp", "").hasOwnWords)
+    }
+
     @Test
     fun progressStateDoesNotExposeRawIdleState() {
         val state = NovaSessionProgressUiState.from("idle")
@@ -165,7 +191,7 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("Session preflight", state.confidenceLabel)
         assertEquals("Checking host readiness before opening the stream.", state.confidenceDetail)
         assertEquals(0.12f, state.progressFraction, 0.001f)
-        assertTrue(state.completedStages.isEmpty())
+        assertEquals(NovaStartupStep.CONTACTING_HOST, state.step)
     }
 
     @Test
@@ -177,7 +203,7 @@ class NovaStreamOverlayUiStateTest {
         assertEquals("", state.confidenceLabel)
         assertEquals("Waiting for host", state.confidenceDetail)
         assertEquals(0.5f, state.progressFraction, 0.001f)
-        assertTrue(state.completedStages.isEmpty())
+        assertEquals(null, state.step)
     }
 
     @Test
