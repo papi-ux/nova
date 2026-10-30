@@ -41,6 +41,30 @@ class GameStreamRecapEndReasonTest {
         assertEquals(End.SURFACE_LOST, recordedEnd())
     }
 
+    // Disconnect and Back both finish Game with neither an End request nor a host report (#285).
+    @Test fun aFinishingGameIsRecordedAsLeavingTheStreamWhenTheSurfaceGoesFirst() {
+        val game = connectedGame()
+        game.finish()
+        game.surfaceDestroyed(holder)
+        assertEquals(End.LEFT_STREAM, recordedEnd())
+    }
+
+    // Home and backgrounding take the surface without finishing, so the session is only hidden.
+    @Test fun aSurfaceLostWithoutFinishingStaysASurfaceLoss() {
+        val game = connectedGame()
+        assertEquals(false, game.isFinishing)
+        game.surfaceDestroyed(holder)
+        assertEquals(End.SURFACE_LOST, recordedEnd())
+    }
+
+    @Test fun endSessionIsStillRecordedAsTheUsersEndWhenGameIsFinishing() {
+        val game = connectedGame()
+        game.endSession()
+        game.finish()
+        game.surfaceDestroyed(holder)
+        assertEquals(End.END_REQUESTED, recordedEnd())
+    }
+
     @Test fun theHostReportingItsSessionEndedIsPreferredOverTheSurfaceGoing() {
         val game = connectedGame()
         setField(game, "hostSessionEnded", true)

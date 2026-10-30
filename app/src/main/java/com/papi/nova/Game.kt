@@ -5759,7 +5759,7 @@ streamRecapErrorCode = errorCode
 }
 
 private fun streamRecapStopReason(otherwise:com.papi.nova.diagnostics.NovaStreamRecap.End) =
-com.papi.nova.diagnostics.NovaStreamRecap.stopReason(hostSessionEnded, quitOnStop, otherwise)
+com.papi.nova.diagnostics.NovaStreamRecap.stopReason(hostSessionEnded, quitOnStop, isFinishing, otherwise)
 
 private fun stopConnection() {
 // Includes channels that have not produced a controller context yet. A late

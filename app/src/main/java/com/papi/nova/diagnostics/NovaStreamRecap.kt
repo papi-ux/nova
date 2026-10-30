@@ -36,11 +36,14 @@ object NovaStreamRecap {
      * Why a connection being stopped right now is ending, from what is known at that moment. Android
      * destroys a finishing Activity's surface before its onStop, so a deliberate End usually reaches
      * the surface callback first, and [otherwise] is only what is left when nothing better is known.
-     * The host saying its session ended beats the user's request.
+     * The host saying its session ended beats the user's request. A finishing Game with neither was
+     * left on purpose, by Disconnect or Back; Home and backgrounding don't finish it, so they keep
+     * [otherwise].
      */
-    fun stopReason(hostEnded: Boolean, endRequested: Boolean, otherwise: End): End = when {
+    fun stopReason(hostEnded: Boolean, endRequested: Boolean, finishing: Boolean, otherwise: End): End = when {
         hostEnded -> End.HOST_END_REPORTED
         endRequested -> End.END_REQUESTED
+        finishing -> End.LEFT_STREAM
         else -> otherwise
     }
 
