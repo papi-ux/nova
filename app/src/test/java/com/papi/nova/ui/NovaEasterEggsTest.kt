@@ -184,6 +184,24 @@ class NovaEasterEggsTest {
         assertNull(NovaHostConsoleHandoff.polarisTheme(NovaThemeManager.THEME_SUPERNOVA))
     }
 
+    /** The screens' wiring, which the page and the view's own tests can't see. */
+    @Test fun aboutOpensThePanelAndEachCodeReachesItsEffect() {
+        val library = File("src/main/java/com/papi/nova/ui/NovaLibraryActivity.kt").readText()
+        val about = library.substringAfter("private fun aboutNovaPage()").substringBefore("private fun redeemSecretCode")
+        assertTrue(about.contains("versionLineTaps.press(") && about.contains("NovaEasterEggs.codePage(this, ::redeemSecretCode)"))
+        val redeem = library.substringAfter("private fun redeemSecretCode").substringBefore("private fun openSponsor")
+        assertTrue(redeem.contains("NovaEasterEggs.unlockSupernovaTheme(this)"))
+        assertTrue(redeem.contains("NovaEasterEggs.toggleNorthStar(this)"))
+        assertTrue(redeem.contains("librarySky?.playSupernova()"))
+        assertTrue(redeem.contains("librarySky?.previewMeteors()"))
+        assertFalse("a code never picks a theme for anyone", redeem.contains("setTheme("))
+        val hosts = File("src/main/java/com/papi/nova/PcView.kt").readText()
+        val sky = hosts.substringAfter("private fun updateSkyForHosts").substringBefore("private fun updateHomeSummaries")
+        assertTrue(sky.contains("sky.brightenOneStar()") && sky.contains("NovaEasterEggs.northStarEnabled(this)"))
+        val stream = File("src/main/java/com/papi/nova/Game.kt").readText()
+        assertTrue(stream.contains("NovaSkyQuiet.streamStarted()") && stream.contains("NovaSkyQuiet.streamEnded()"))
+    }
+
     /** "Nothing is shared or sent": no network reach from anywhere in the eggs' own code. */
     @Test fun nothingHereCanSendAnything() {
         val source = File("src/main/java/com/papi/nova/ui/NovaEasterEggs.kt").readText()

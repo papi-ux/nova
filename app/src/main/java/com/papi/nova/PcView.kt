@@ -342,10 +342,15 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                     // No answer isn't no session: throwing leaves what the card shows in place.
                     val status = client.getSessionStatus() ?: throw IOException("no session status")
                     novaHostNowPlaying(status)?.let { playing ->
-                        val art = artFor?.takeIf { it.first == playing.gameId }
-                            ?: (playing.gameId to novaNowPlayingGame(client.getGames(search = playing.gameName), playing))
-                                .also { artFor = it }
-                        playing.copy(game = art.second)
+                        val known = artFor?.takeIf { it.first == playing.gameId }
+                        val game = if (known != null) {
+                            known.second
+                        } else {
+                            val games = client.getGames(search = playing.gameName)
+                            // An empty page can be a failed read, so that one is asked again next time.
+                            novaNowPlayingGame(games, playing).also { if (games.isNotEmpty()) artFor = playing.gameId to it }
+                        }
+                        playing.copy(game = game)
                     }
                 }
                 ask
