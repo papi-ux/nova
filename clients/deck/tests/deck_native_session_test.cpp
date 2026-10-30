@@ -1462,13 +1462,24 @@ void testReportMomentBoundary() {
     }
     require(save(token)["status"] == "no_pending" && discard(token)["status"] == "no_pending" && files().size() == 1 && read(saved["fileName"].toString()) == firstBytes,
         "repeated Save/close duplicated or changed report");
+    // Upgrade the old shared reports folder through the real controller Save path.
+    const auto upgradePending = mark();
+    require(::chmod(QFile::encodeName(directory).constData(),0755) == 0, "upgrade fixture chmod failed");
+    const auto upgradeSaved = save(upgradePending["token"].toString());
+    struct stat upgradedDirectory{};
+    require(upgradeSaved["status"] == "saved" && !controller.canSaveMoment() && files().size() == 2 &&
+        ::stat(QFile::encodeName(directory).constData(), &upgradedDirectory) == 0 && (upgradedDirectory.st_mode & 07777) == 0700 &&
+        read(saved["fileName"].toString()) == firstBytes,
+        "controller Save did not tighten the old reports folder or changed an existing report");
     const auto storagePending = mark();
     const auto storageToken = storagePending["token"].toString();
-    require(::chmod(QFile::encodeName(directory).constData(),0755) == 0, "storage refusal fixture chmod failed");
+    // An unsafe lock remains refused; a caller-owned 0755 folder is now repairable.
+    const auto lockPath = QFile::encodeName(QDir(directory).filePath(".nova-moments.lock"));
+    require(::chmod(lockPath.constData(),0644) == 0, "storage refusal fixture chmod failed");
     const auto filesBeforeRefusal = files();
     require(save(storageToken)["status"] == "storage_unsafe" && controller.canSaveMoment() && files() == filesBeforeRefusal,
         "storage refusal lost pending bytes or wrote a report");
-    require(::chmod(QFile::encodeName(directory).constData(),0700) == 0, "storage refusal fixture restoration failed");
+    require(::chmod(lockPath.constData(),0600) == 0, "storage refusal fixture restoration failed");
     driver.rttValue = 67;
     wait([&] { return controller.hud().value("fresh").toBool() && controller.hud().value("rtt") == "67ms"; },"new readings during storage refusal");
     const auto retrySaved = save(storageToken); require(retrySaved["status"] == "saved", "explicit same-token storage retry failed");
