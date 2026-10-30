@@ -180,7 +180,11 @@ QVariantMap DeckMomentStore::save(const QByteArray& frozen, const QDateTime& mar
     Fd dir(::openat(docs.value, "Nova reports", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
     if (dir.value < 0) return result("storage_unsafe");
     struct stat st{};
-    if (::fstat(dir.value, &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != ::geteuid() || (st.st_mode & 077) != 0)
+    if (::fstat(dir.value, &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != ::geteuid())
+        return result("storage_unsafe");
+    // Older Nova versions created this shared folder as 0755. Tighten only
+    // the owned directory we opened without following symlinks, before writing.
+    if ((st.st_mode & 07777) != 0700 && ::fchmod(dir.value, 0700) != 0)
         return result("storage_unsafe");
     Fd lock(::openat(dir.value, ".nova-moments.lock", O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, 0600));
     if (lock.value < 0 || !ownedRegular0600(lock.value)) return result("storage_unsafe");

@@ -197,9 +197,18 @@ void storeBoundaries() {
     // A later explicit save leaves the earlier owned-but-unremoved temporary name alone.
     require(store.save(frozen,kUtc)["status"] == "saved" && QDir(leaf).entryList({"*.tmp"},QDir::Files|QDir::Hidden).size() == 1,
         "later save deleted a leftover temporary report");
-    QTemporaryDir unsafe; require(unsafe.isValid(), "unsafe fixture missing"); const auto unsafeLeaf = unsafe.filePath("Nova reports");
-    require(QDir().mkpath(unsafeLeaf) && ::chmod(QFile::encodeName(unsafeLeaf).constData(),0755) == 0, "unsafe directory fixture failed");
-    require(DeckMomentStore(unsafe.path()).save(frozen,kUtc)["status"] == "storage_unsafe" && mode(unsafeLeaf) == 0755, "loose leaf repaired/used");
+    // Older Nova versions created this shared report directory with mode 0755.
+    QTemporaryDir upgraded; require(upgraded.isValid(), "upgrade fixture missing");
+    const auto upgradedLeaf = upgraded.filePath("Nova reports");
+    require(QDir().mkpath(upgradedLeaf) && ::chmod(QFile::encodeName(upgradedLeaf).constData(),0755) == 0, "upgrade directory fixture failed");
+    write(QDir(upgradedLeaf).filePath("nova-report-existing.json"), "keep existing support report");
+    const auto upgradedSave = DeckMomentStore(upgraded.path()).save(frozen,kUtc);
+    require(upgradedSave["status"] == "saved" && mode(upgradedLeaf) == 0700,
+        "owned 0755 reports directory was not tightened and saved");
+    const auto upgradedFile = QDir(upgradedLeaf).filePath(upgradedSave["fileName"].toString());
+    require(mode(upgradedFile) == 0600 && bytesOf(upgradedFile) == frozen && files(upgradedLeaf).size() == 1 &&
+        bytesOf(QDir(upgradedLeaf).filePath("nova-report-existing.json")) == "keep existing support report",
+        "upgrade save changed report bytes, mode or an existing report");
     QTemporaryDir linked; require(linked.isValid(), "linked fixture missing"); const auto linkedLeaf = linked.filePath("Nova reports");
     require(::symlink(QFile::encodeName(leaf).constData(),QFile::encodeName(linkedLeaf).constData()) == 0, "linked fixture failed");
     const auto linkedBefore = tree(leaf);
