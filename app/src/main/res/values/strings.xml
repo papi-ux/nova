@@ -1301,7 +1301,7 @@
     <string name="nova_theme_supernova_label">Supernova</string>
     <string name="nova_recap_close">Close</string>
     <!-- Over the recap's readings when the whole connection lost nothing. A reading, not a grade. -->
-    <string name="nova_recap_nothing_missing">0.00% frames missing</string>
+    <string name="nova_recap_nothing_missing" formatted="false">0.00% frames missing</string>
     <!-- A small badge on a recap of an hour or more with zero lost frames. -->
     <string name="nova_recap_clear_skies">Clear skies</string>
     <!-- Under the recap's frame rate line, and what TalkBack says for it. %1$s names the measure, %2$s and %3$s are frame rates. -->
