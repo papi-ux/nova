@@ -26,6 +26,7 @@ internal fun NovaGameDetailContentUnderTest(
     destination: NovaGameDetailDestination = NovaGameDetailDestination.OVERVIEW,
     playLabel: String = "Launch",
     hostCopyRecovery: NovaHostCopyRecovery? = null,
+    hostConnectionChip: String? = null,
 ) {
     val context = LocalContext.current
     NovaGameDetailContent(
@@ -50,6 +51,7 @@ internal fun NovaGameDetailContentUnderTest(
         hostPlaySetupRows = emptyList(),
         hostPlaySetupPlan = hostPlaySetupPlan,
         hostCopyRecovery = hostCopyRecovery,
+        hostConnectionChip = hostConnectionChip,
         playSetupBitrateShortfallMbps = playSetupBitrateShortfallMbps,
         playSetupPanel = playSetupPanel,
         playLabel = playLabel,

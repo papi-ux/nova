@@ -2105,6 +2105,8 @@
     <string name="nova_host_connection_tailscale_derp">Tailscale · DERP relay</string>
     <string name="nova_host_connection_tailscale_peer_relay">Tailscale · peer relay</string>
     <string name="nova_host_connection_tailscale_route_unknown">Tailscale · route unknown</string>
+    <!-- Read out for the connection chip on a host's card and in Game Detail. %1$s is the chip's words. -->
+    <string name="nova_host_connection_chip_description">Host connection: %1$s</string>
     <string name="nova_host_connection_scope">Reported by the host for Nova\'s connection to it. The stream\'s video and audio can take a different path.</string>
     <string name="nova_host_connection_unknown_unsupported">This host doesn\'t report it.</string>
     <string name="nova_host_connection_unknown_unavailable">The host couldn\'t check Tailscale just now.</string>

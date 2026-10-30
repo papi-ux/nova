@@ -446,6 +446,10 @@ class NovaGameDetailActivity : NovaActivity() {
         // Where this game can play changes while the window is away (a Space started or
         // stopped, a switch made in the library), so the answer is refreshed on return.
         if (resumedOnce) refreshPlayDestinations()
+        // The connection chip reads the host's answer; one that aged out while away is asked for again.
+        if (resumedOnce && hostConnectionObservation?.freshForMs(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()) == null) {
+            refreshHostConnection()
+        }
         hostNetworkRules = com.papi.nova.network.NetworkProfileRuleStore(this).load(serverUuid)
         resumedOnce = true
         // Anything that can change the chosen profile is watched while this window is in front,
@@ -695,7 +699,8 @@ class NovaGameDetailActivity : NovaActivity() {
 
     /**
      * The settings profile this launch uses, with what chose it, and a one-launch choice of any
-     * saved profile. Shown only where there is something to choose or a rule to explain.
+     * saved profile. With no saved profile and no rule there is nothing to choose yet, but the row
+     * stays as the way to Network Rules, whose screen says to save a profile first (#415).
      */
     private fun launchProfileRow(): NovaPlaySetupRowState? {
         if (!networkRulesApply()) return null
@@ -703,7 +708,7 @@ class NovaGameDetailActivity : NovaActivity() {
         val profiles = com.papi.nova.profiles.ProfilesManager.getInstance()
         val saved = profiles.getProfiles().sortedBy { it.getName().lowercase() }
         val rules = hostNetworkRules
-        if (saved.isEmpty() && !rules.enabled) return null
+        val nothingToChoose = saved.isEmpty() && !rules.enabled
         val activeName = profiles.getActiveName().ifBlank { getString(R.string.nova_launch_profile_default_settings) }
         val chosenName = choice.profileUuid?.let { profiles.getProfile(it)?.getName() } ?: activeName
         val caption = when (choice.source) {
@@ -719,26 +724,28 @@ class NovaGameDetailActivity : NovaActivity() {
         }
         val activeUuid = profiles.getActive()?.getUuid()?.toString()
         val options = buildList {
-            add(NovaPlaySetupOption(
-                label = getString(R.string.nova_launch_profile_automatic),
-                consequence = getString(R.string.nova_launch_profile_automatic_consequence),
-                current = launchProfileOverride == null,
-                onSelect = { chooseLaunchProfileOverride(null) },
-            ))
-            add(NovaPlaySetupOption(
-                label = activeName,
-                consequence = getString(R.string.nova_launch_profile_active_consequence),
-                current = launchProfileOverride == com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE,
-                onSelect = { chooseLaunchProfileOverride(com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE) },
-            ))
-            saved.filter { it.getUuid().toString() != activeUuid }.forEach { profile ->
-                val uuid = profile.getUuid().toString()
+            if (!nothingToChoose) {
                 add(NovaPlaySetupOption(
-                    label = profile.getName(),
-                    consequence = getString(R.string.nova_launch_profile_saved_consequence),
-                    current = launchProfileOverride == uuid,
-                    onSelect = { chooseLaunchProfileOverride(uuid) },
+                    label = getString(R.string.nova_launch_profile_automatic),
+                    consequence = getString(R.string.nova_launch_profile_automatic_consequence),
+                    current = launchProfileOverride == null,
+                    onSelect = { chooseLaunchProfileOverride(null) },
                 ))
+                add(NovaPlaySetupOption(
+                    label = activeName,
+                    consequence = getString(R.string.nova_launch_profile_active_consequence),
+                    current = launchProfileOverride == com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE,
+                    onSelect = { chooseLaunchProfileOverride(com.papi.nova.network.NetworkLaunchProfileChoice.OVERRIDE_ACTIVE_PROFILE) },
+                ))
+                saved.filter { it.getUuid().toString() != activeUuid }.forEach { profile ->
+                    val uuid = profile.getUuid().toString()
+                    add(NovaPlaySetupOption(
+                        label = profile.getName(),
+                        consequence = getString(R.string.nova_launch_profile_saved_consequence),
+                        current = launchProfileOverride == uuid,
+                        onSelect = { chooseLaunchProfileOverride(uuid) },
+                    ))
+                }
             }
             add(NovaPlaySetupOption(
                 label = getString(R.string.nova_launch_profile_edit_rules),
@@ -2668,6 +2675,7 @@ class NovaGameDetailActivity : NovaActivity() {
                     launchIntro = environmentError ?: buildLaunchIntro(uiState),
                     onLaunchArtwork = { shownLaunchArtwork = it },
                     artworkHostUuid = serverUuid,
+                    hostConnectionChip = NovaNetworkProfileCopy.hostConnectionChip(this@NovaGameDetailActivity, displayedHostEvidence),
                     launchBlockedReason = currentGame.space?.let { space ->
                         NovaSpacesCopy.launchBlockedReason(environmentSnapshot, space.id, environmentChanging,
                             uiState.playEnabled)?.let { getString(it) }

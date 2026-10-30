@@ -28,6 +28,15 @@ internal object NovaNetworkProfileCopy {
         },
     )
 
+    /**
+     * The compact chip on a host's card and in Game Detail: only what the host confirmed. An unknown,
+     * stale or missing answer shows no chip, and Play Setup's Host connection row keeps the full
+     * answer. Nothing here reads this device's VPN state or the address. The host never reports a
+     * local network, so there is no chip for one.
+     */
+    fun hostConnectionChip(context: Context, evidence: HostConnectionEvidence?): String? =
+        if (evidence?.status == HostConnectionEvidence.Status.TAILSCALE) hostConnectionValue(context, evidence) else null
+
     /** Why it is unknown, then what the answer covers; informational, never a fault. */
     fun hostConnectionDetail(context: Context, evidence: HostConnectionEvidence?): String {
         val scope = context.getString(R.string.nova_host_connection_scope)

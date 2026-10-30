@@ -45,6 +45,7 @@ class PcGridAdapter(
     private val itemIds = ArrayList<Long>()
     private var nextFallbackStableId = Long.MIN_VALUE
     private var serverActionListener: ((PcViewModel.ComputerObject) -> Unit)? = null
+    private var hostConnections: Map<String, String> = emptyMap()
 
     init {
         setHasStableIds(true)
@@ -181,6 +182,13 @@ class PcGridAdapter(
         if (itemCount > 0) notifyItemRangeChanged(0, itemCount, SERVER_ROW_REFRESH_PAYLOAD)
     }
 
+    /** The chip words each host, by UUID, has confirmed about this device's connection to it. */
+    fun setHostConnections(connections: Map<String, String>) {
+        if (connections == hostConnections) return
+        hostConnections = connections
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount, SERVER_ROW_REFRESH_PAYLOAD)
+    }
+
     fun setOnServerActionListener(listener: (PcViewModel.ComputerObject) -> Unit) {
         serverActionListener = listener
     }
@@ -197,6 +205,7 @@ class PcGridAdapter(
         var badges: View? = null
         var badgeKind: TextView? = null
         var badgeSpaces: TextView? = null
+        var badgeConnection: TextView? = null
         var body: LinearLayout? = null
         var identity: View? = null
         var actions: View? = null
@@ -224,6 +233,7 @@ class PcGridAdapter(
         holder.badges = parentView.findViewById(R.id.host_badges)
         holder.badgeKind = parentView.findViewById(R.id.host_badge_kind)
         holder.badgeSpaces = parentView.findViewById(R.id.host_badge_spaces)
+        holder.badgeConnection = parentView.findViewById(R.id.host_badge_connection)
         holder.body = parentView.findViewById(R.id.server_card_body)
         holder.identity = parentView.findViewById(R.id.server_card_identity)
         holder.actions = parentView.findViewById(R.id.server_card_actions)
@@ -258,6 +268,7 @@ class PcGridAdapter(
                 paired = obj.details.pairState == PairingManager.PairState.PAIRED && obj.details.serverCert != null,
                 library = obj.details.libraryState,
                 spacesAvailable = obj.details.spacesAvailable,
+                connection = hostConnections[obj.details.uuid],
             ),
         )
         pcHolder.serverActions?.apply {
@@ -568,6 +579,21 @@ class PcGridAdapter(
             }
         }
         holder.badges?.visibility = if (badges.polaris || badges.spaces) View.VISIBLE else View.GONE
+        holder.badgeConnection?.let { badge ->
+            val connection = badges.connection
+            badge.visibility = if (connection != null) View.VISIBLE else View.GONE
+            if (connection != null) {
+                badge.text = connection
+                badge.contentDescription = context.getString(R.string.nova_host_connection_chip_description, connection)
+                dress(badge, tinted = false)
+                val markSize = (badge.textSize * NOVA_HOST_BADGE_ICON_EM).toInt()
+                val mark = ContextCompat.getDrawable(context, R.drawable.ic_nova_host_connection)?.mutate()
+                mark?.setBounds(0, 0, markSize, markSize)
+                badge.setCompoundDrawablesRelative(mark, null, null, null)
+                badge.compoundDrawablePadding = (4 * density).toInt()
+                TextViewCompat.setCompoundDrawableTintList(badge, ColorStateList.valueOf(NovaThemeManager.getTextSecondaryColor(context)))
+            }
+        }
     }
 
     // FrameLayout.setForeground exists on API 21; the emitted call targets FrameLayout. Lint
@@ -667,7 +693,7 @@ private const val NOVA_HOST_BADGE_ICON_EM = 1.2f
 /** How far the accent washes into an online host's card from its leading edge. */
 private const val NOVA_HOST_CARD_ACCENT_WASH = 0.20f
 
-internal data class NovaHostBadges(val polaris: Boolean, val spaces: Boolean)
+internal data class NovaHostBadges(val polaris: Boolean, val spaces: Boolean, val connection: String? = null)
 
 /**
  * The facts a host's card wears as badges. Only what is known and true right now: a host that
@@ -680,12 +706,14 @@ internal fun novaHostBadges(
     paired: Boolean,
     library: ComputerDetails.LibraryState?,
     spacesAvailable: Boolean,
+    /** What the host itself confirmed about this connection, in the chip's words. */
+    connection: String? = null,
 ): NovaHostBadges {
     if (!online || !paired) {
         return NovaHostBadges(polaris = false, spaces = false)
     }
     val polaris = library == ComputerDetails.LibraryState.AVAILABLE
-    return NovaHostBadges(polaris = polaris, spaces = polaris && spacesAvailable)
+    return NovaHostBadges(polaris = polaris, spaces = polaris && spacesAvailable, connection = connection)
 }
 
 private fun stableServerId(uuid: String): Long {

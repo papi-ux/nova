@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -207,6 +208,8 @@ internal fun NovaGameDetailOverview(
     chromeClipEnd: Dp = 0.dp,
     modifier: Modifier = Modifier,
     launchBlockedReason: String? = null,
+    /** How this device reaches the host, when the host has confirmed it; null shows no chip. */
+    hostConnectionChip: String? = null,
     /** Told what artwork the page shows and the tint read from it, for Play to carry into the stream. */
     onLaunchArtwork: (NovaLaunchArtwork?) -> Unit = {},
     /** Paired host identity for the process-wide artwork tint memo; absent owners are not cached. */
@@ -405,6 +408,8 @@ internal fun NovaGameDetailOverview(
                     FocusRequester.Default
                 },
             )
+
+            hostConnectionChip?.let { NovaGameDetailConnectionChip(it, Modifier.padding(top = 10.dp)) }
 
             if (game.space == null) NovaGameDetailStatusLine(
                 uiState = uiState,
@@ -606,6 +611,39 @@ private fun NovaGameDetailTitle(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.testTag("nova-game-detail-title"),
+        )
+    }
+}
+
+/**
+ * How this device reaches the host, as the host confirmed it. It is read, never pressed, so it is
+ * not a stop on the D-pad; Play Setup's Host connection row says what the answer covers.
+ */
+@Composable
+private fun NovaGameDetailConnectionChip(label: String, modifier: Modifier = Modifier) {
+    val colors = LocalNovaComposeColors.current
+    val description = stringResource(R.string.nova_host_connection_chip_description, label)
+    val shape = RoundedCornerShape(NOVA_GAUGE_CHIP_RADIUS)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = modifier
+            .border(1.dp, colors.divider, shape)
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+            .testTag(NOVA_GAME_DETAIL_CONNECTION_CHIP_TAG)
+            .clearAndSetSemantics { contentDescription = description },
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_nova_host_connection),
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = Modifier.size(12.dp),
+        )
+        Text(
+            text = label.uppercase(),
+            color = colors.textSecondary,
+            maxLines = 1,
+            style = NovaChromeType.label(fontSize = 10.sp).copy(letterSpacing = 0.10.em),
         )
     }
 }
@@ -1313,6 +1351,7 @@ internal const val NOVA_GAME_DETAIL_POSTER_ASPECT = 108f / 152f
 
 /** The card standing where a game with no hero art would have one, for a test to find it. */
 internal const val NOVA_GAME_DETAIL_POSTER_STAND_IN_TAG = "nova-game-detail-poster-stand-in"
+internal const val NOVA_GAME_DETAIL_CONNECTION_CHIP_TAG = "nova-game-detail-connection-chip"
 
 /** The artwork-tinted ground behind a detail page, for a test to find it. */
 internal const val NOVA_ARTWORK_GROUND_TAG = "nova-artwork-ground"

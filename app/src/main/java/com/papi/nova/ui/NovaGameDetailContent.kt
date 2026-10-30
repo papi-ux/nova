@@ -226,6 +226,8 @@ internal fun NovaGameDetailContent(
     /** Play Setup's own button, where focus goes back when the panel it opened closes. */
     playSetupFocusRequester: FocusRequester = remember { FocusRequester() },
     launchBlockedReason: String? = null,
+    /** How this device reaches the host, when the host has confirmed it; null shows no chip. */
+    hostConnectionChip: String? = null,
     /** Told what artwork the Overview shows, for Play to carry into the stream. */
     onLaunchArtwork: (NovaLaunchArtwork?) -> Unit = {},
     /** Paired host identity for the process-wide artwork tint memo; absent owners are not cached. */
@@ -269,6 +271,7 @@ internal fun NovaGameDetailContent(
             planLimit = bitrateLimit,
             playLabel = playLabel,
             launchBlockedReason = launchBlockedReason,
+            hostConnectionChip = hostConnectionChip,
             onLaunchArtwork = onLaunchArtwork,
             artworkHostUuid = artworkHostUuid,
             lastPlayedText = lastPlayedText,

@@ -138,6 +138,14 @@
                     android:visibility="gone" />
             </LinearLayout>
 
+            <!-- How this device reaches the host, when the host has confirmed it. On its own line,
+                 because beside the other two the longest of these would not fit a narrow card. -->
+            <TextView
+                android:id="@+id/host_badge_connection"
+                style="@style/NovaHostBadge"
+                android:layout_marginTop="6dp"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/status_hint_text"
                 android:layout_width="match_parent"

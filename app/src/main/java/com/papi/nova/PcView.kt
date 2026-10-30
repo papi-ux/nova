@@ -63,6 +63,7 @@ import com.papi.nova.computers.HostForget
 import com.papi.nova.grid.NovaHostPlaySurface
 import com.papi.nova.grid.NovaHostRowFocusMove
 import com.papi.nova.grid.PcGridAdapter
+import com.papi.nova.network.HostConnectionWatch
 import com.papi.nova.grid.novaHostPlaySurface
 import com.papi.nova.grid.novaHostRowFocusMove
 import com.papi.nova.grid.assets.DiskAssetLoader
@@ -99,6 +100,7 @@ import com.papi.nova.ui.AdapterFragmentCallbacks
 import com.papi.nova.ui.NovaControlSize
 import com.papi.nova.ui.NovaControlSizePreferences
 import com.papi.nova.ui.NovaHostsViewMetrics
+import com.papi.nova.ui.NovaNetworkProfileCopy
 import com.papi.nova.ui.NovaHostPresence
 import com.papi.nova.ui.NovaLibraryActivity
 import com.papi.nova.ui.NovaServerGridLayoutManager
@@ -306,6 +308,21 @@ internal fun dashboardSetupActionHeight(collapsed: Boolean, compactHeight: Int):
 class PcView : NovaActivity(), AdapterFragmentCallbacks {
     private var noPcFoundLayout: View? = null
     private lateinit var pcGridAdapter: PcGridAdapter
+    private val hostConnections by lazy {
+        HostConnectionWatch(
+            scope = lifecycleScope,
+            asker = { target ->
+                val client = PolarisApiClient(this, target.address, target.httpsPort, target.serverCert)
+                val ask = { client.getNetworkConnection(client.getLaunchCapabilities()) }
+                ask
+            },
+            onChange = { answers ->
+                pcGridAdapter.setHostConnections(answers.mapNotNull { (uuid, evidence) ->
+                    NovaNetworkProfileCopy.hostConnectionChip(this, evidence)?.let { uuid to it }
+                }.toMap())
+            },
+        )
+    }
     private var serverGridView: RecyclerView? = null
     private lateinit var shortcutHelper: ShortcutHelper
     private lateinit var viewModel: PcViewModel
@@ -1575,6 +1592,22 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         pcGridAdapter.setItems(visibleComputers)
         updateHomeSummaries(visibleComputers.size, allComputers.size, onlineCount, libraryReadyCount)
         updateEmptyState()
+        watchHostConnections()
+    }
+
+    /** While this screen polls its hosts, each one it can ask keeps its card's connection chip current. */
+    private fun watchHostConnections() {
+        if (!runningPolling || !::viewModel.isInitialized) return
+        hostConnections.watch(viewModel.computersLiveData.value.orEmpty().mapNotNull { computer ->
+            val details = computer.details
+            val address = details.activeAddress?.address
+            val cert = details.serverCert
+            if (details.state != ComputerDetails.State.ONLINE || details.pairState != PairingManager.PairState.PAIRED ||
+                address == null || cert == null || details.uuid.isNullOrBlank()) {
+                return@mapNotNull null
+            }
+            HostConnectionWatch.Target(details.uuid, address, details.httpsPort.takeIf { it > 0 } ?: 47984, cert)
+        })
     }
 
     private fun updateHomeSummaries(visibleCount: Int, totalCount: Int, onlineCount: Int, libraryReadyCount: Int) {
@@ -2074,10 +2107,12 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             viewModel.startPolling(binder)
             runningPolling = true
             updateEmptyState()
+            watchHostConnections()
         }
     }
 
     private fun stopComputerUpdates(wait: Boolean) {
+        hostConnections.stop()
         val binder = managerBinder ?: return
         if (!runningPolling || !::viewModel.isInitialized) {
             return
