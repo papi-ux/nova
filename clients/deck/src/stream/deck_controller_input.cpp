@@ -209,7 +209,10 @@ DeckControllerRoute DeckControllerRouter::tick(std::int64_t nowMs) {
 
 DeckControllerRoute DeckControllerRouter::update(DeckControllerState state, bool connected, std::int64_t nowMs) {
     const bool deviceChanged = connected_ != connected;
-    auto result = connected && !deviceChanged ? tick(nowMs) : DeckControllerRoute{};
+    // Recognize the local chord before flushing a pending single press at its
+    // deadline. An earlier tick may already have sent that press to the game.
+    auto result = connected && !deviceChanged && (state.buttons & menuMask) != menuMask
+        ? tick(nowMs) : DeckControllerRoute{};
     physical_ = state;
     connected_ = connected;
     if (deviceChanged) {
@@ -226,18 +229,20 @@ DeckControllerRoute DeckControllerRouter::update(DeckControllerState state, bool
         return result;
     }
     const auto menu = state.buttons & menuMask;
+    if (menu == menuMask) {
+        // The single-button deadline limits game-input latency, not the local
+        // shortcut. Release any forwarded press and discard queued gameplay.
+        // Resume still requires neutral so a held chord cannot reopen controls.
+        capture_ = armed_ = false;
+        pendingMenu_ = 0;
+        menuPassthrough_ = false;
+        result.discardPendingInput = true;
+        last_.reset();
+        append(result, {{}, true});
+        result.openControls = true;
+        return result;
+    }
     if (!menuPassthrough_) {
-        if (menu == menuMask) {
-            // Neither chord button was forwarded. Resume requires neutral, so
-            // held buttons cannot trigger a UI action or leak back to the game.
-            capture_ = armed_ = false;
-            pendingMenu_ = 0;
-            result.discardPendingInput = true;
-            last_.reset();
-            append(result, {{}, true});
-            result.openControls = true;
-            return result;
-        }
         if (pendingMenu_ && menu != pendingMenu_) {
             // A quick single-button tap still needs both its down and up edges.
             auto down = state;

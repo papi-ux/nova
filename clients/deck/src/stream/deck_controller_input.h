@@ -70,8 +70,9 @@ struct DeckControllerRoute {
 
 /// GUI-thread policy. Start/focus/overlay transitions require all controls to
 /// return to neutral, keeping the host device connected while input is paused.
-/// View/Menu are deferred for 150 ms so their simultaneous
-/// chord is consumed locally; single presses and quick taps still reach games.
+/// View/Menu are deferred for 150 ms to keep a quick chord local. Overlapping
+/// View/Menu also opens controls after that deadline, releasing any forwarded
+/// press; single presses and quick taps still reach games.
 class DeckControllerRouter {
 public:
     DeckControllerRoute capture(bool enabled, std::int64_t nowMs);

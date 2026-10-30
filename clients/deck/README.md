@@ -873,10 +873,11 @@ play focus. Optional test argument `/path/to/captures` saves 1280×800 screensho
 of the active controls and completed stop; these contain no live stream.
 
 When the stream connects, select **Continue game** to route the controller to
-the host. A/B and the D-pad then operate the game. Press **View + Menu together**
-(within 150 ms), tap the **Menu symbol**, or press Escape to open Nova's overlay. Both
-shortcut buttons stay local; an individual View/Menu press still reaches the
-game after that short chord window, including a quick tap. In the overlay,
+the host. A/B and the D-pad then operate the game. Press **View + Menu together**,
+tap the **Menu symbol**, or press Escape to open Nova's overlay. A quick
+chord stays local; if the first button has been held for 150 ms, it reaches the
+game and is released when the chord opens the overlay. An individual View/Menu
+press still reaches the game after that short chord window, including a quick tap. In the overlay,
 Continue/B resumes. **Disconnect** leaves the host game open; **End game** needs
 an explicit confirmation. B/Escape dismisses that confirmation before it can
 resume gameplay, and hidden/stale actions cannot end a later session.

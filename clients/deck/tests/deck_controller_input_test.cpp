@@ -215,12 +215,44 @@ void testOverlayChordAndSingleButtons() {
         const auto held = router.tick(350);
         require(held.packets.size() == 1 && held.packets[0].state.buttons == first, "held single menu button was swallowed");
         const auto late = router.update({.buttons = first | second}, true, 351);
-        require(!late.openControls && late.packets[0].state.buttons == (first | second), "late second menu button opened overlay after leakage");
+        require(late.openControls && late.discardPendingInput && late.packets.size() == 1 &&
+            late.packets.front() == DeckControllerPacket{{}, true},
+            "View/Menu after the single-button deadline did not open controls and release the game");
+        router.capture(true, 352);
+        require(router.awaitingNeutral(), "late held chord bypassed the neutral gate");
         router.update({}, true, 360);
         router.update({.buttons = first}, true, 400);
         const auto unplug = router.update({}, false, 600);
         require(unplug.packets.size() == 1 && !unplug.packets[0].connected, "unplug flushed a pending shortcut press");
     }
+}
+void testChordDeadlineAndNeutralGate() {
+    for (const unsigned first : {BACK_FLAG, PLAY_FLAG}) {
+        for (const int delay : {149, 150, 151, 200, 300}) {
+            for (const bool tickFirst : {false, true}) {
+                DeckControllerRouter router;
+                router.update({}, true, 0); router.capture(true, 0);
+                router.update({.buttons = first}, true, 10);
+                if (tickFirst) router.tick(10 + delay);
+                const auto chord = router.update({.buttons = BACK_FLAG | PLAY_FLAG}, true, 10 + delay);
+                require(chord.openControls && chord.discardPendingInput && chord.packets.size() == 1 &&
+                    chord.packets.front() == DeckControllerPacket{{}, true},
+                    "first View/Menu chord failed at the single-button deadline");
+                router.capture(true, 400);
+                require(router.awaitingNeutral() &&
+                    !router.update({.buttons = BACK_FLAG | PLAY_FLAG}, true, 401).openControls,
+                    "held chord reopened controls across resume");
+                router.update({}, true, 402);
+                require(!router.awaitingNeutral(), "released chord failed to rearm");
+            }
+        }
+    }
+    // Focus returning while a control is held still cannot open the overlay or send gameplay.
+    DeckControllerRouter held;
+    held.update({.buttons = BACK_FLAG}, true, 0); held.capture(true, 1);
+    const auto gated = held.update({.buttons = BACK_FLAG | PLAY_FLAG}, true, 2);
+    require(held.awaitingNeutral() && !gated.openControls && gated.packets.empty(),
+        "chord bypassed focus-return neutral gate");
 }
 }
 
@@ -231,5 +263,6 @@ int main() {
     testNeutralAndRelease();
     testPausedDeviceLifetime();
     testOverlayChordAndSingleButtons();
+    testChordDeadlineAndNeutralGate();
     std::cout << "Controller mapping, neutral gate, focus/unplug release and overlay chord checks passed\n";
 }
