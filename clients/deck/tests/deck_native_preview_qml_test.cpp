@@ -130,6 +130,67 @@ int main(int argc, char** argv) {
     };
     focused(*window, primary, "review must focus Play");
     require(primary->property("text") == "Play" && session.starts == 0, "review launched automatically");
+    if (app.arguments().contains("--hud-focus-order")) {
+        std::cout << "[RUN] NovaHUD Down order and activation boundaries" << std::endl;
+        session.transition("active", true, "Game is active.");
+        preview->setProperty("attempted", true);
+        session.showControls(); settle();
+        auto* hudAction = root->findChild<QQuickItem*>("native-hud-settings");
+        auto* bitrateAction = root->findChild<QQuickItem*>("native-live-bitrate");
+        auto* tuning = root->findChild<QQuickItem*>("native-live-tuning");
+        auto* doctor = root->findChild<QQuickItem*>("native-doctor");
+        auto* bitratePopup = root->findChild<QObject*>("live-bitrate-popup");
+        require(hudAction && bitrateAction && tuning && doctor && bitratePopup, "missing HUD focus controls");
+        const QVariantMap ready{{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", false},
+            {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000},
+            {"bitrateUnitsMode", "request"}, {"maximumBitrateKbps", 300000}};
+        session.tuning = ready; emit session.hudChanged(); settle();
+        require(tuning->isEnabled() && bitrateAction->isEnabled(), "both live rows must be available");
+        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
+        focused(*window, bitrateAction, "NovaHUD Down must reach Live Bitrate before Live Tuning");
+        key(*window, Qt::Key_Return);
+        require(bitratePopup->property("opened").toBool() && session.tuningWrites == 0 && session.bitrateWrites == 0,
+            "first Down then A must open the bitrate picker without changing the host");
+        require(QMetaObject::invokeMethod(preview, "leave"), "cannot leave bitrate picker"); settle();
+        focused(*window, bitrateAction, "bitrate picker Back lost its row");
+        key(*window, Qt::Key_Down); focused(*window, tuning, "second Down must reach Live Tuning");
+        key(*window, Qt::Key_Down); focused(*window, doctor, "Live Tuning Down must reach Doctor");
+        key(*window, Qt::Key_Up); focused(*window, tuning, "Doctor Up must return to Live Tuning");
+        key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Live Tuning Up must return to Live Bitrate");
+        key(*window, Qt::Key_Up); focused(*window, hudAction, "Live Bitrate Up must return to NovaHUD");
+        key(*window, Qt::Key_Down); key(*window, Qt::Key_Down); key(*window, Qt::Key_Return);
+        require(session.tuningWrites == 1 && session.tuningRequested && session.bitrateWrites == 0,
+            "deliberate second Down then A must retain the Live Tuning toggle action");
+
+        // Losing host tuning keeps the existing HUD -> bitrate -> Doctor path.
+        session.tuning = ready; session.tuning["canTune"] = false;
+        emit session.hudChanged(); settle();
+        require(!tuning->isEnabled() && bitrateAction->isEnabled(), "bitrate-only state not reached");
+        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
+        focused(*window, bitrateAction, "unavailable tuning changed NovaHUD Down");
+        key(*window, Qt::Key_Down); focused(*window, doctor, "unavailable tuning trapped bitrate Down");
+        key(*window, Qt::Key_Up); focused(*window, bitrateAction, "unavailable tuning changed Doctor Up");
+        key(*window, Qt::Key_Up); focused(*window, hudAction, "unavailable tuning changed bitrate Up");
+
+        // Hosts without fixed-bitrate support retain their tuning-only path.
+        session.tuning = ready; session.tuning["canSetBitrate"] = false;
+        emit session.hudChanged(); settle();
+        require(tuning->isEnabled() && !bitrateAction->isEnabled(), "tuning-only state not reached");
+        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
+        focused(*window, tuning, "unavailable bitrate hid Live Tuning");
+        key(*window, Qt::Key_Down); focused(*window, doctor, "tuning-only Down did not reach Doctor");
+        key(*window, Qt::Key_Up); focused(*window, tuning, "tuning-only Doctor Up lost Live Tuning");
+        key(*window, Qt::Key_Up); focused(*window, hudAction, "tuning-only Up did not return to NovaHUD");
+
+        session.tuning = {}; emit session.hudChanged(); settle();
+        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
+        focused(*window, doctor, "unavailable live rows changed NovaHUD Down fallback");
+        key(*window, Qt::Key_Up); focused(*window, hudAction, "unavailable live rows changed Doctor Up fallback");
+        require(session.tuningWrites == 1 && session.bitrateWrites == 0 && session.controlsVisible(),
+            "focus traversal mutated the host or dismissed Command Center");
+        std::cout << "[OK] NovaHUD Down order and activation boundaries" << std::endl;
+        return 0;
+    }
     if (app.arguments().contains("--parity-prelaunch-footer")) {
         auto* back = root->findChild<QQuickItem*>("play-setup-back"); require(back, "prelaunch Back missing");
         for (const QSize viewport : {QSize(400,800), QSize(800,1280), QSize(1280,800)}) {
@@ -799,7 +860,7 @@ int main(int argc, char** argv) {
     auto* bitrateApply = bitratePopup->findChild<QQuickItem*>("live-bitrate-apply");
     auto* bitrateDone = bitratePopup->findChild<QQuickItem*>("live-bitrate-done");
     require(bitrateAction && bitratePopup && bitrateApply && bitratePlus && bitrateMinus, "live bitrate controls missing");
-    tuning->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
+    tuning->forceActiveFocus(); settle(); key(*window, Qt::Key_Up);
     focused(*window, bitrateAction, "fixed bitrate row not reachable from tuning switch");
     const auto readyBitrate = session.tuning;
     auto* useSuggested=bitratePopup->findChild<QQuickItem*>("live-bitrate-suggested");

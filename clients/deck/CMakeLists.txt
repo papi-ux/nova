@@ -1207,6 +1207,10 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_compile_definitions(nova_deck_native_preview_qml_test PRIVATE
                 NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml"
                 NOVA_DECK_DOCTOR_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/doctor-v2.json")
+            add_test(NAME nova_deck_hud_focus_order_qml_test COMMAND nova_deck_native_preview_qml_test --hud-focus-order)
+            set_tests_properties(nova_deck_hud_focus_order_qml_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+                TIMEOUT 15)
             add_test(NAME nova_deck_native_preview_qml_test COMMAND nova_deck_native_preview_qml_test)
             # The complete scenario sequence spends about 40 seconds in explicit
             # event-loop settling waits. Leave room for Qt work on CI workers.
