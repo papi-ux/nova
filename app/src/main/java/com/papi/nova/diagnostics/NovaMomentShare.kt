@@ -99,7 +99,7 @@ object NovaMomentShare {
         } catch (error: Exception) {
             return Result.Failed(Reason.STORAGE)
         }
-        val chooser = Intent.createChooser(sendIntent(activity, uri, subject), title)
+        val chooser = NovaShareChooser.create(sendIntent(activity, uri, subject), title)
         return try {
             activity.startActivity(chooser)
             Result.Offered(file)

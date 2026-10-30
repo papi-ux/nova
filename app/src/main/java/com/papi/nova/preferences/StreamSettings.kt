@@ -1199,7 +1199,7 @@ class StreamSettings : NovaActivity() {
                     shareIntent.putExtra(Intent.EXTRA_TEXT, prefixMessage)
                     shareIntent.putExtra(Intent.EXTRA_STREAM, logFileUri)
                     shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
+                    context.startActivity(com.papi.nova.diagnostics.NovaShareChooser.create(shareIntent, chooserTitle))
                 } catch (e: IOException) {
                     Log.d("PerformanceDataTracker", "Error creating log file")
                 } catch (e: ActivityNotFoundException) {
@@ -1224,7 +1224,7 @@ class StreamSettings : NovaActivity() {
                 val uri = FileProvider.getUriForFile(requireActivity(), authority, file1)
                 intent.putExtra(Intent.EXTRA_STREAM, uri)
                 intent.type = "application/json"
-                startActivity(Intent.createChooser(intent, getString(R.string.pref_save_keyboard_profile)))
+                startActivity(com.papi.nova.diagnostics.NovaShareChooser.create(intent, getString(R.string.pref_save_keyboard_profile)))
                 false
             }
 
