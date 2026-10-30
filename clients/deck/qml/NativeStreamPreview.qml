@@ -595,8 +595,21 @@ Popup {
                     text: "NovaHUD · " + (NovaHudPreferences.enabled ? NovaHudPreferences.title : "Off")
                     onClicked: hudSettings.open()
                     Keys.onUpPressed: inGameMouse.visible && inGameMouse.enabled ? inGameMouse.forceActiveFocus() : inGameWindow.visible ? inGameWindow.forceActiveFocus() : inGameScale.forceActiveFocus()
-                    Keys.onDownPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus()
-                        : liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : doctorAction.forceActiveFocus()
+                    Keys.onDownPressed: liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus()
+                        : liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : doctorAction.forceActiveFocus()
+                }
+                NovaButton {
+                    id: liveBitrateAction
+                    objectName: "native-live-bitrate"
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    enabled: nativePlaying && (liveTuningAction.status.canSetBitrate === true || liveTuningAction.status.bitrateBusy === true || liveTuningAction.status.hostRefreshing === true)
+                    text: "Live Bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
+                    onClicked: if (!liveTuningAction.status.hostRefreshing) liveBitrate.open()
+                    onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
+                    onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)
+                        Qt.callLater(() => { if (nativePlaying && session.controlsVisible && !liveBitrate.opened) inGameHud.forceActiveFocus() })
+                    Keys.onUpPressed: inGameHud.forceActiveFocus()
+                    Keys.onDownPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : doctorAction.forceActiveFocus()
                 }
                 NovaButton {
                     id: liveTuningAction
@@ -635,20 +648,7 @@ Popup {
                         }
                     }
                     onClicked: if (status.canTune && !status.tuningBusy) session.setLiveTuningEnabled(!status.tuningEnabled)
-                    Keys.onUpPressed: inGameHud.forceActiveFocus()
-                    Keys.onDownPressed: liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : doctorAction.forceActiveFocus()
-                }
-                NovaButton {
-                    id: liveBitrateAction
-                    objectName: "native-live-bitrate"
-                    Layout.fillWidth: true; unit: nativePreview.unit
-                    enabled: nativePlaying && (liveTuningAction.status.canSetBitrate === true || liveTuningAction.status.bitrateBusy === true || liveTuningAction.status.hostRefreshing === true)
-                    text: "Live Bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
-                    onClicked: if (!liveTuningAction.status.hostRefreshing) liveBitrate.open()
-                    onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
-                    onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)
-                        Qt.callLater(() => { if (nativePlaying && session.controlsVisible && !liveBitrate.opened) inGameHud.forceActiveFocus() })
-                    Keys.onUpPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : inGameHud.forceActiveFocus()
+                    Keys.onUpPressed: liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : inGameHud.forceActiveFocus()
                     Keys.onDownPressed: doctorAction.forceActiveFocus()
                 }
                 NovaButton {
@@ -657,8 +657,8 @@ Popup {
                     Layout.fillWidth: true; unit: nativePreview.unit
                     text: "Doctor · Session diagnostics"
                     onClicked: doctor.open()
-                    Keys.onUpPressed: liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus()
-                        : liveTuningAction.enabled ? liveTuningAction.forceActiveFocus() : inGameHud.forceActiveFocus()
+                    Keys.onUpPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus()
+                        : liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : inGameHud.forceActiveFocus()
                     Keys.onDownPressed: syncAction.enabled ? syncAction.forceActiveFocus() : baselineAction.forceActiveFocus()
                 }
                 NovaButton {

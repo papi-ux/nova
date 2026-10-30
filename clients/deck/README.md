@@ -1996,3 +1996,9 @@ behavior; physical sleeping-PC acceptance remains unrun.
 The Library's System menu includes **Add Nova to Steam**. Review the sheet and choose Add explicitly with Steam closed (Desktop Mode on Steam Deck). Nova reuses the CLI registration helper, preserves other shortcuts, and refuses if Steam's running state cannot be checked. The entry launches the installed app in standalone mode. Opening or leaving the sheet does not change Steam; headless route checks only open and cancel it. Registration success/refusal/retry are tested with injected operations and isolated VDF tests, not a user Steam installation.
 
 The in-stream Command Center uses compact 16px gutters, 8px spacing and a 64px minimum header at the default scale. At 1280×800 with three controller rows, NovaHUD fits on the first page. The same scroll column reveals focused controls at 130% text on 960×600; buttons retain a 48px minimum touch target. Players and keyboard/mouse guidance remain available, and Reassign shows the join-order prompt when chosen. Headless QML tests verify geometry and lifecycle boundaries; physical 800p readability remains an acceptance check.
+
+With both live controls available, Down from NovaHUD focuses **Live Bitrate**;
+one more Down reaches **Live Tuning**, then Doctor. Up follows the reverse order.
+A on Live Bitrate opens its picker; A on Live Tuning changes the host-wide
+preference. Unavailable rows are skipped. Read the focused label before pressing A
+during a device check.
