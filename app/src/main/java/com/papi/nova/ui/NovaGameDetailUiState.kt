@@ -57,6 +57,11 @@ data class NovaGameDetailUiState(
     val showSteamLaunchMode: Boolean,
     val steamLaunchMode: String,
     val steamLaunchWarning: Boolean,
+    /**
+     * The host's own sentence about this game's Steam launch, which can know what Nova can't: that
+     * Steam may stop to ask which version to start, for one (Polaris #586).
+     */
+    val steamLaunchHostNotice: String? = null,
     val hostStreamDisplayMode: String,
     val hostStreamDisplayModeLabel: String,
     val hostStreamDisplayModeUnavailableReason: String,
@@ -244,6 +249,7 @@ data class NovaGameDetailUiState(
                 showSteamLaunchMode = showSteamLaunchMode,
                 steamLaunchMode = steamLaunchMode,
                 steamLaunchWarning = steamLaunchWarning,
+                steamLaunchHostNotice = steamLaunch?.modeReason?.trim()?.takeIf { it.isNotEmpty() },
                 hostStreamDisplayMode = hostStreamDisplayMode,
                 hostStreamDisplayModeLabel = hostStreamDisplayModeLabel,
                 hostStreamDisplayModeUnavailableReason = hostStreamDisplayModeUnavailableReason,

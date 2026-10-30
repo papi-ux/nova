@@ -3252,6 +3252,8 @@ class NovaGameDetailActivity : NovaActivity() {
     private fun steamLaunchCaption(uiState: NovaGameDetailUiState): String {
         return if (steamLaunchModeFailed) {
             getString(R.string.nova_steam_launch_mode_failed)
+        } else if (uiState.steamLaunchHostNotice != null) {
+            uiState.steamLaunchHostNotice
         } else if (uiState.steamLaunchWarning) {
             getString(R.string.nova_steam_launch_caption_big_picture)
         } else {

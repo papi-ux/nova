@@ -37,6 +37,38 @@ class NovaGameDetailUiStateTest {
         )
     }
 
+    /** Polaris #586: the host says when Steam may stop to ask which version to start. */
+    @Test
+    fun theHostsSteamLaunchSentenceIsCarriedAsItCameOrNotAtAll() {
+        fun notice(reason: String) = NovaGameDetailUiState.from(
+            game = PolarisGame(
+                id = "hades",
+                name = "Hades",
+                steamLaunch = PolarisGame.SteamLaunchContract(modeReason = reason),
+            ),
+            defaultToVirtualDisplay = false,
+            clientSettings = PolarisClientSettings(),
+            profilePreference = "quality",
+        ).steamLaunchHostNotice
+        val sentence = "Steam may ask which version of this game to start, because it has 3 launch options."
+        assertEquals(sentence, notice(sentence))
+        assertEquals(sentence, notice("  $sentence\n"))
+        assertEquals(null, notice(""))
+        assertEquals(null, notice("   "))
+    }
+
+    /** A write that failed is this device's own news; the host's sentence comes next, then Nova's fallback. */
+    @Test
+    fun thePlaySetupCaptionPutsAFailedWriteFirstThenTheHostThenItsOwnWords() {
+        val caption = java.io.File("src/main/java/com/papi/nova/ui/NovaGameDetailActivity.kt").readText()
+            .substringAfter("private fun steamLaunchCaption(").substringBefore("\n    }\n")
+        val failed = caption.indexOf("R.string.nova_steam_launch_mode_failed")
+        val host = caption.indexOf("uiState.steamLaunchHostNotice")
+        val bigPicture = caption.indexOf("R.string.nova_steam_launch_caption_big_picture")
+        val direct = caption.indexOf("R.string.nova_steam_launch_caption_direct")
+        assertTrue("in order: $failed $host $bigPicture $direct", failed in 0 until host && host < bigPicture && bigPicture < direct)
+    }
+
     @Test
     fun agreeingWithTheHostIsNotAnOverride() {
         val state = NovaGameDetailUiState.from(
