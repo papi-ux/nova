@@ -9,6 +9,7 @@ import android.os.Build
 import android.view.Display
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -406,10 +407,6 @@ object ServerHelper {
             return
         }
 
-        parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
-            .putInt("last_played_" + computer.uuid, app.appId)
-            .apply()
-
         val intent = createStartIntent(
             parent,
             app,
@@ -419,8 +416,25 @@ object ServerHelper {
             displayModeExplicit,
             watchOnly,
         )
+        startWithHistory(parent, app, computer, intent)
+    }
+
+    private fun startWithHistory(parent: Activity, app: NvApp, computer: ComputerDetails, intent: Intent) {
+        parent.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE).edit()
+            .putInt("last_played_" + computer.uuid, app.appId).apply()
         parent.startActivity(intent)
         NovaThemeManager.applyFadeTransition(parent)
+    }
+
+    /** Resume exactly the named observation, with the same history and transition as other starts. */
+    internal fun doResumeCaptured(parent: Activity, app: NvApp, computer: ComputerDetails,
+        managerBinder: ComputerManagerService.ComputerManagerBinder, sessionToken: String) {
+        if (sessionToken.isBlank() || computer.state != ComputerDetails.State.ONLINE || computer.activeAddress == null) return
+        val intent = createStartIntent(parent, app, computer, managerBinder, false, false, false)
+        intent.putExtra(Game.EXTRA_RESUME_EXISTING, true)
+        intent.putExtra(Game.EXTRA_EXPECTED_SESSION_TOKEN, sessionToken)
+        intent.putExtra(Game.EXTRA_EXPECTED_SESSION_OWNED, true)
+        startWithHistory(parent, app, computer, intent)
     }
 
     @JvmStatic
@@ -719,22 +733,15 @@ object ServerHelper {
      * NvHTTP's, when the game still runs just after the host accepted the cancel: Polaris answers a
      * cancel before it has closed the game, so the game is still closing.
      */
-    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String,
-        expectedToken: String? = null, expectedApp: NvApp? = null): QuitRefusal? {
+    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): QuitRefusal? {
         val resources = parent.resources
         return try {
             val serverInfo = httpConn.getServerInfo(true)
             if (httpConn.getCurrentGameOwned(serverInfo) == false) {
                 return QuitRefusal(resources.getString(R.string.nova_library_end_started_elsewhere), startedElsewhere = true)
             }
-            val currentToken = httpConn.getCurrentGameSessionToken(serverInfo)
-            if (expectedToken != null && (expectedToken.isBlank() || currentToken != expectedToken ||
-                    httpConn.getCurrentGameOwned(serverInfo) != true ||
-                    expectedApp == null || expectedApp.appId <= 0 || httpConn.getCurrentGame(serverInfo) != expectedApp.appId ||
-                    (!expectedApp.appUUID.isNullOrBlank() && httpConn.getCurrentGameUUID(serverInfo) != expectedApp.appUUID))) {
-                return QuitRefusal(resources.getString(R.string.hosts_end_failed_message, appName))
-            }
-            if (httpConn.quitApp(expectedToken ?: currentToken)) {
+            val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
+            if (httpConn.quitApp(sessionToken)) {
                 null
             } else {
                 QuitRefusal(resources.getString(R.string.applist_quit_fail) + " " + appName)
@@ -759,22 +766,17 @@ object ServerHelper {
         }
     }
 
-    /** End from a named observed session. Never substitute a later session's cancel token. */
-    internal fun doQuitCaptured(
-        parent: Activity,
-        computer: ComputerDetails,
-        app: NvApp,
-        managerBinder: ComputerManagerService.ComputerManagerBinder,
-        sessionToken: String,
-    ) {
+    /** The paired stop endpoint enforces this captured token atomically, including for the owner. */
+    internal fun doQuitCaptured(parent: Activity, computer: ComputerDetails, app: NvApp, sessionToken: String) {
         try {
-            val http = NvHTTP(getCurrentAddressFromComputer(computer), computer.httpsPort,
-                managerBinder.uniqueId, computer.serverCert, PlatformBinding.getCryptoProvider(parent))
+            val address = getCurrentAddressFromComputer(computer)
+            val api = PolarisApiClient(parent, address.address, computer.httpsPort, computer.serverCert)
             Thread {
-                val refusal = quitOnHost(parent, http, app.appName, sessionToken, app)
+                val stopped = api.stopCapturedSession(sessionToken)
                 parent.runOnUiThread {
-                    quitCue(refusal)?.let { NovaHaptics.play(parent, parent.window?.decorView, it) }
-                    if (refusal != null) showQuitRefused(parent, app.appName, refusal.reason)
+                    NovaHaptics.play(parent, parent.window?.decorView,
+                        if (stopped) NovaHapticCue.END_CONFIRMED else NovaHapticCue.REFUSED)
+                    if (!stopped) showQuitRefused(parent, app.appName, null)
                 }
             }.start()
         } catch (e: Exception) {

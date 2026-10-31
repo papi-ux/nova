@@ -2614,6 +2614,24 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
+    /** One paired, token-scoped stop. An uncertain result is never replayed or sent to /cancel. */
+    internal fun stopCapturedSession(sessionToken: String): Boolean {
+        if (sessionToken.isBlank() || sessionToken.length > 2048) return false
+        return try {
+            val body = JSONObject().put("session_token", sessionToken).toString()
+            val request = Request.Builder().url("$baseUrl/session/stop")
+                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body)).build()
+            executeNonRetryable(request).use { response ->
+                if (response.code != 200) return false
+                val bytes = response.body?.let { PolarisArtworkDiskCache.readBounded(it.byteStream(), 32 * 1024) }
+                    ?: return false
+                JSONObject(bytes.toString(Charsets.UTF_8)).opt("status") == true
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun getDesktopGames(): List<PolarisGame> = paginateAllGames(100) { offset ->
         getGamesPageOrThrow(limit = 100, offset = offset, environment = "desktop")
     }

@@ -206,8 +206,8 @@ class NvConnection(
         if (expectedToken != null) {
             val expectedApp = streamConfig.getApp()
             val expectedOwner = streamConfig.getExpectedSessionOwned()
-            if (expectedToken.isBlank() || currentToken != expectedToken || expectedOwner == null ||
-                currentOwner != expectedOwner || context.watchOnlyRequested == expectedOwner ||
+            if (expectedToken.isBlank() || currentToken != expectedToken || expectedOwner != true ||
+                currentOwner != true || context.watchOnlyRequested ||
                 expectedApp == null || expectedApp.appId <= 0 || h.getCurrentGame(serverInfo) != expectedApp.appId ||
                 (!expectedApp.appUUID.isNullOrBlank() && h.getCurrentGameUUID(serverInfo) != expectedApp.appUUID) ||
                 !streamConfig.getResumeExistingOnly() || streamConfig.getForceFreshLaunch()) {

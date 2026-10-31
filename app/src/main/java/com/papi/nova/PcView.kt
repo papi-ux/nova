@@ -2445,7 +2445,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                         val binder = managerBinder
                         if (binder != null) ServerHelper.doQuitCaptured(this, action.computer(),
                             NvApp(action.playing.gameName, action.playing.gameUuid.takeIf { it.isNotBlank() }, action.playing.gameId, false),
-                            binder, action.playing.sessionToken)
+                            action.playing.sessionToken)
                     }
                 },
             ),
@@ -3725,13 +3725,9 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 if (pcGridAdapter.isCurrent(action)) {
                     val binder = managerBinder
                     if (binder != null) {
-                        val intent = ServerHelper.createStartIntent(this,
+                        ServerHelper.doResumeCaptured(this,
                             NvApp(action.playing.gameName, action.playing.gameUuid.takeIf { it.isNotBlank() }, action.playing.gameId, false),
-                            action.computer(), binder, false, false, false)
-                        intent.putExtra(Game.EXTRA_RESUME_EXISTING, true)
-                        intent.putExtra(Game.EXTRA_EXPECTED_SESSION_TOKEN, action.playing.sessionToken)
-                        intent.putExtra(Game.EXTRA_EXPECTED_SESSION_OWNED, true)
-                        startActivity(intent)
+                            action.computer(), binder, action.playing.sessionToken)
                     }
                 }
             }

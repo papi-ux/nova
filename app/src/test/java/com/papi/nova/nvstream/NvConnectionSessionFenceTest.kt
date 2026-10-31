@@ -28,10 +28,20 @@ class NvConnectionSessionFenceTest {
         assertTrue(result.started)
         assertEquals(listOf("resume:session-A:false"), result.requests)
     }
-    @Test fun anExplicitWatchStaysAWatchOfTheObservedSession() {
+    @Test fun aCapturedOwnerResumeCannotBecomeWatch() {
         val result = start(owned = false, watch = true, expectedOwned = false)
+        assertFalse(result.started)
+        assertTrue(result.requests.isEmpty())
+    }
+    @Test fun unrelatedLegacyWatchKeepsItsExistingOwnershipRules() {
+        val result = start(owned = false, watch = true, fenced = false)
         assertTrue(result.started)
         assertEquals(listOf("resume:session-A:true"), result.requests)
+    }
+    @Test fun replacementAfterServerInfoStillReceivesOnlyTheCapturedResumeToken() {
+        val result = start(replaceBeforeRequest = true)
+        assertFalse("the host rejects the stale token instead of resuming B", result.started)
+        assertEquals(listOf("resume:session-A:false"), result.requests)
     }
     @Test fun unrelatedLegacyEntryPointsKeepTheirExistingBehavior() {
         val result = start(token = "session-B", fenced = false)
@@ -46,7 +56,7 @@ class NvConnectionSessionFenceTest {
         assertEquals("neither resume, launch nor cancel may target a replacement", emptyList<String>(), result.requests)
     }
     private fun start(game: Int = 7, token: String? = "session-A", owned: Boolean? = true,
-        watch: Boolean = false, expectedOwned: Boolean = true, fenced: Boolean = true, forceFresh: Boolean = false): Result {
+        watch: Boolean = false, expectedOwned: Boolean = true, fenced: Boolean = true, forceFresh: Boolean = false, replaceBeforeRequest: Boolean = false): Result {
         val builder = StreamConfiguration.Builder().setApp(NvApp("Hades", "game-A", 7, false))
             .setRemoteConfiguration(StreamConfiguration.STREAM_CFG_LOCAL).setResumeExistingOnly(true).setForceFreshLaunch(forceFresh)
         if (fenced) builder.setExpectedSession("session-A", expectedOwned)
@@ -70,7 +80,8 @@ class NvConnectionSessionFenceTest {
                 "launchApp" -> {
                     val ctx = call.getArgument<ConnectionContext>(0)
                     requests += "${call.getArgument<String>(1)}:${ctx.sessionToken}:${call.getArgument<Boolean>(5)}"
-                    true
+                    // Existing /resume rejects a differing nonempty token within launch admission.
+                    !replaceBeforeRequest || ctx.sessionToken == "session-B"
                 }
                 "quitApp" -> { requests += "cancel"; false }
                 else -> RETURNS_DEFAULTS.answer(call)

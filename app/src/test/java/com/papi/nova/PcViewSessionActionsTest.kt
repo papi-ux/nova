@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Looper
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
+import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.computers.ComputerManagerService
 import com.papi.nova.grid.PcGridAdapter
@@ -91,6 +92,7 @@ class PcViewSessionActionsTest {
         assertTrue(intent.getBooleanExtra(Game.EXTRA_RESUME_EXISTING, false))
         assertFalse(intent.getBooleanExtra(Game.EXTRA_WATCH_ONLY, true))
         assertEquals(7, intent.getIntExtra(Game.EXTRA_APP_ID, 0))
+        assertEquals(7, activity.getSharedPreferences("nova_prefs", 0).getInt("last_played_host-1", 0))
     }
 
     @Test fun aWatcherReplacementDuringConfirmationCannotEvenOpenACancelConnection() {
@@ -120,28 +122,55 @@ class PcViewSessionActionsTest {
 
     @Test fun unknownOwnershipCannotBeEnded() = attemptEnd(currentGame = 7, currentToken = "session-A", owned = null)
 
+    @Test fun aReplacementAfterTheFreshCheckCannotBeEndedThroughALegacyOwnerOverride() =
+        attemptEnd(currentGame = 7, currentToken = "session-A", replaceAfterCheck = true)
+
     @Test fun anUnchangedOwnedSessionCanStillBeEnded() = attemptEnd(currentGame = 7, currentToken = "session-A", expected = listOf("session-A"))
 
-    private fun attemptEnd(currentGame: Int, currentToken: String, expected: List<String> = emptyList(), owned: Boolean? = true) {
+    private fun attemptEnd(currentGame: Int, currentToken: String, expected: List<String> = emptyList(), owned: Boolean? = true, replaceAfterCheck: Boolean = false) {
         val page = confirm()
+        if (currentGame != 7) details.runningGameId = currentGame
         assertTrue(page.destructive)
         assertEquals(controller.get().getString(R.string.nova_panel_stay), page.stayLabel)
         val cancelled = CopyOnWriteArrayList<String>()
-        mockConstruction(NvHTTP::class.java) { http, _ ->
-            `when`(http.getServerInfo(true)).thenReturn("<root/>")
-            `when`(http.getCurrentGame("<root/>")).thenReturn(currentGame)
-            `when`(http.getCurrentGameOwned("<root/>")).thenReturn(owned)
-            `when`(http.getCurrentGameSessionToken("<root/>")).thenReturn(currentToken)
-            `when`(http.quitApp(anyString())).thenAnswer { cancelled += it.getArgument<String>(0); true }
-        }.use {
-            page.onConfirm()
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
-            while (cancelled.isEmpty() && NovaSurfaces.of(controller.get()).panel.top !is NovaCommonPage.Notice && System.nanoTime() < deadline) {
-                Shadows.shadowOf(Looper.getMainLooper()).idle()
-                Thread.yield()
+        val posts = CopyOnWriteArrayList<String>()
+        val intercepted = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            assertEquals("POST", request.method)
+            assertEquals("/polaris/v1/session/stop", request.url.encodedPath)
+            val buffer = okio.Buffer()
+            request.body!!.writeTo(buffer)
+            val token = org.json.JSONObject(buffer.readUtf8()).getString("session_token")
+            posts += token
+            val activeToken = if (replaceAfterCheck) "session-B" else currentToken
+            val stopped = owned == true && token == activeToken
+            if (stopped) cancelled += activeToken
+            okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1)
+                .code(if (stopped) 200 else 470).message("synthetic")
+                .body(okhttp3.ResponseBody.create(null, "{\"status\":$stopped}")).build()
+        }.build()
+        mockConstruction(NvHTTP::class.java).use { legacy ->
+            mockConstruction(PolarisApiClient::class.java, withSettings().defaultAnswer(CALLS_REAL_METHODS)) { api, _ ->
+                org.robolectric.util.ReflectionHelpers.setField(api, "baseUrl", "https://127.0.0.1:47984/polaris/v1")
+                org.robolectric.util.ReflectionHelpers.setField(api, "perCallClientCache", intercepted)
+            }.use {
+                page.onConfirm()
+                if (currentGame != 7) {
+                    assertTrue("discovered replacement invalidates the confirmation before any POST", posts.isEmpty())
+                    assertTrue(cancelled.isEmpty())
+                    assertTrue(legacy.constructed().isEmpty())
+                    return
+                }
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+                while (cancelled.isEmpty() && NovaSurfaces.of(controller.get()).panel.top !is NovaCommonPage.Notice && System.nanoTime() < deadline) {
+                    Shadows.shadowOf(Looper.getMainLooper()).idle()
+                    Thread.yield()
+                }
+                assertTrue("the real cancellation path must settle", cancelled.isNotEmpty() || NovaSurfaces.of(controller.get()).panel.top is NovaCommonPage.Notice)
+                assertEquals("End must use only the observed session's token", expected, cancelled.toList())
+                assertEquals("one atomic mutation with captured A; no token refresh", listOf("session-A"), posts.toList())
+                assertTrue("no legacy cancel connection or fallback", legacy.constructed().isEmpty())
             }
-            assertTrue("the real cancellation path must settle", cancelled.isNotEmpty() || NovaSurfaces.of(controller.get()).panel.top is NovaCommonPage.Notice)
-            assertEquals("End must use only the observed session's token", expected, cancelled.toList())
         }
     }
 }
