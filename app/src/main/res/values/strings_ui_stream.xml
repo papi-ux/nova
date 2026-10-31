@@ -133,7 +133,7 @@
     <string name="nova_startup_step_contacting_host">Contacting host</string>
     <string name="nova_startup_step_starting_game">Starting the game</string>
     <string name="nova_startup_step_waiting_for_video">Waiting for video</string>
-    <string name="nova_startup_step_video_ready">Video ready</string>
+    <string name="nova_startup_step_video_ready">Stream connected</string>
     <!-- What TalkBack says for the steps. %1$d is the step under way, %2$d how many there are, %3$s its name. -->
     <string name="nova_startup_steps_description">Step %1$d of %2$d: %3$s</string>
     <!-- How long this start has taken. %1$s is a duration such as 12 s. -->

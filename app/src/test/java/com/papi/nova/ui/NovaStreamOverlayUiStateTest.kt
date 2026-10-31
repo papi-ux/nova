@@ -8,6 +8,14 @@ import org.junit.Test
 
 class NovaStreamOverlayUiStateTest {
 
+    @Test fun theConnectionCallbackDoesNotClaimAFrameHasArrived() {
+        val step = NovaSessionProgressUiState.from("connected").step!!
+        assertEquals(3, step.ordinal)
+        val strings = File("src/main/res/values/strings_ui_stream.xml").readText()
+        val label = Regex("<string name=\"nova_startup_step_video_ready\">(.*?)</string>").find(strings)!!.groupValues[1]
+        assertEquals("Stream connected", label)
+    }
+
     @Test fun spaceProgressDoesNotClaimUnobservedDesktopOrSteamReadiness() {
         val starting = NovaSessionProgressUiState.fromSpace("space_starting")!!
         val video = NovaSessionProgressUiState.fromSpace("video stream establishment")!!
@@ -173,7 +181,7 @@ class NovaStreamOverlayUiStateTest {
             .forEach { assertEquals(NovaStartupStep.STARTING_GAME, it.step) }
         stages.filter { it.state in setOf("video", "audio", "input", "stream_active") }
             .forEach { assertEquals(waiting, it.step) }
-        assertEquals(NovaStartupStep.VIDEO_READY, stages.last().step)
+        assertEquals(NovaStartupStep.STREAM_CONNECTED, stages.last().step)
     }
 
     @Test

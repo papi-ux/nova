@@ -67,7 +67,7 @@ enum class NovaStartupStep(@get:StringRes val label: Int) {
     CONTACTING_HOST(R.string.nova_startup_step_contacting_host),
     STARTING_GAME(R.string.nova_startup_step_starting_game),
     WAITING_FOR_VIDEO(R.string.nova_startup_step_waiting_for_video),
-    VIDEO_READY(R.string.nova_startup_step_video_ready),
+    STREAM_CONNECTED(R.string.nova_startup_step_video_ready),
 }
 
 data class NovaSessionProgressUiState(
@@ -232,7 +232,7 @@ data class NovaSessionProgressUiState(
                 confidenceLabel = "Input ready",
                 confidenceDetail = "Controller, audio, and video channels are established.",
                 progressFraction = 1f,
-                step = NovaStartupStep.VIDEO_READY,
+                step = NovaStartupStep.STREAM_CONNECTED,
                 aliases = setOf("connected")
             )
         )
@@ -477,7 +477,7 @@ private fun NovaStartupSteps(current: NovaStartupStep) {
     ) {
         steps.forEach { step ->
             val mark = when {
-                step < current || (step == current && step == NovaStartupStep.VIDEO_READY) -> "✓"
+                step < current || (step == current && step == NovaStartupStep.STREAM_CONNECTED) -> "✓"
                 step == current -> "●"
                 else -> "○"
             }
