@@ -2618,9 +2618,17 @@ class PolarisApiClient @JvmOverloads constructor(
     internal fun stopCapturedSession(sessionToken: String): Boolean {
         if (sessionToken.isBlank() || sessionToken.length > 2048) return false
         return try {
-            val body = JSONObject().put("session_token", sessionToken).toString()
-            val request = Request.Builder().url("$baseUrl/session/stop")
-                .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body)).build()
+            val json = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),
+                JSONObject().put("session_token", sessionToken).toString())
+            // retryOnConnectionFailure(false) does not suppress HTTP follow-ups such as
+            // 503 Retry-After: 0. This mutation must never be sent a second time.
+            val body = object : okhttp3.RequestBody() {
+                override fun contentType() = json.contentType()
+                override fun contentLength() = json.contentLength()
+                override fun writeTo(sink: okio.BufferedSink) = json.writeTo(sink)
+                override fun isOneShot() = true
+            }
+            val request = Request.Builder().url("$baseUrl/session/stop").post(body).build()
             executeNonRetryable(request).use { response ->
                 if (response.code != 200) return false
                 val bytes = response.body?.let { PolarisArtworkDiskCache.readBounded(it.byteStream(), 32 * 1024) }
