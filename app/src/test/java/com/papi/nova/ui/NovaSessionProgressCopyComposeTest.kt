@@ -67,15 +67,15 @@ class NovaSessionProgressCopyComposeTest {
         rule.onNodeWithText("✓ Contacting host", useUnmergedTree = true).assertExists()
         rule.onNodeWithText("● Starting the game", useUnmergedTree = true).assertExists()
         rule.onNodeWithText("○ Waiting for video", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("○ Video ready", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("○ Stream connected", useUnmergedTree = true).assertExists()
         rule.onNodeWithContentDescription("Step 2 of 4: Starting the game").assertExists()
     }
 
-    @Test fun nothingIsLeftUnderWayOnceVideoIsReady() {
+    @Test fun nothingIsLeftUnderWayOnceTheStreamIsConnected() {
         rule.setPanelContent {
             NovaSessionProgressOverlayContent(NovaSessionProgressUiState.from("input_ready"))
         }
-        rule.onNodeWithText("✓ Video ready", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("✓ Stream connected", useUnmergedTree = true).assertExists()
         rule.onAllNodesWithText("●", substring = true, useUnmergedTree = true).assertCountEquals(0)
     }
 
