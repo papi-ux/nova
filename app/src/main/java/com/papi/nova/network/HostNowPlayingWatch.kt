@@ -14,8 +14,7 @@ import kotlinx.coroutines.withContext
  * Keeps what each host reports of this device's resumable session, for the now-playing pill on the
  * Hosts screen, and only while that screen watches. Only a host already saying this device has a
  * game running is asked, on its own, so a slow one holds up nobody else. An answer of no session,
- * or the host leaving the watch, clears its pill. A failed ask keeps it: that says nothing about the
- * session, and the host's own state answers if it has really gone.
+ * or the host leaving the watch, clears its pill. A failed ask clears it, since an action can no longer be bound to a known session.
  */
 internal class HostNowPlayingWatch(
     private val scope: CoroutineScope,
@@ -26,7 +25,7 @@ internal class HostNowPlayingWatch(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val pause: suspend (Long) -> Unit = { delay(it) },
 ) {
-    data class Target(val uuid: String, val address: String, val httpsPort: Int, val serverCert: X509Certificate)
+    data class Target(val uuid: String, val address: String, val httpsPort: Int, val serverCert: X509Certificate, val gameId: Int = 0, val gameUuid: String? = null)
 
     private val following = HashMap<Target, Job>()
     private var answers: Map<String, NovaHostNowPlaying> = emptyMap()
@@ -53,8 +52,11 @@ internal class HostNowPlayingWatch(
     private suspend fun follow(target: Target) {
         var ask: (() -> NovaHostNowPlaying?)? = null
         while (true) {
-            withContext(io) { runCatching { (ask ?: asker(target).also { ask = it })() } }
-                .onSuccess { show(target.uuid, it) }
+            val answer = withContext(io) { runCatching { (ask ?: asker(target).also { ask = it })() } }
+            show(target.uuid, answer.getOrNull()?.takeIf {
+                (target.gameId == 0 || it.gameId == target.gameId) &&
+                    (target.gameUuid.isNullOrBlank() || it.gameUuid == target.gameUuid)
+            }?.copy(host = NovaHostNowPlaying.Host(target.uuid, target.address, target.httpsPort, target.serverCert)))
             pause(ASK_EVERY_MS)
         }
     }

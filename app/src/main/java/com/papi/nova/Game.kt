@@ -1884,6 +1884,8 @@ com.papi.nova.manager.WorkerLaunchContract.APP_UUID, com.papi.nova.manager.Worke
 .setEnableUltraLowLatency(prefConfig!!.enableUltraLowLatency)
 .setForceFreshLaunch(forceFreshLaunch)
 .setResumeExistingOnly(resumeExistingRequested || automaticReconnect)
+.setExpectedSession(getIntent().getStringExtra(EXTRA_EXPECTED_SESSION_TOKEN),
+    if (getIntent().hasExtra(EXTRA_EXPECTED_SESSION_OWNED)) getIntent().getBooleanExtra(EXTRA_EXPECTED_SESSION_OWNED, false) else null)
 .setBitrate(configuredStreamBitrateKbps)
 .setEnableSops(prefConfig!!.enableSops)
 .setProfilePreference(launchProfilePreference)
@@ -8048,6 +8050,8 @@ const val EXTRA_FORCE_PRIVATE_AFTER_STEAM_CLOSE:String = "ForcePrivateAfterSteam
  private const val EXTRA_LAUNCH_POLICY_TOKEN:String = "NovaLaunchPolicyToken"
  const val EXTRA_RECOVERY_RUN_ID:String = "RecoveryRunId"
  const val EXTRA_RESUME_EXISTING:String = "ResumeExisting"
+ internal const val EXTRA_EXPECTED_SESSION_TOKEN:String = "ExpectedSessionToken"
+ internal const val EXTRA_EXPECTED_SESSION_OWNED:String = "ExpectedSessionOwned"
  const val EXTRA_RECONNECT_ATTEMPT:String = "ReconnectAttempt"
  const val EXTRA_RECONNECT_REQUESTED:String = "ReconnectRequested"
  const val EXTRA_SERVER_COMMANDS:String = "ServerCommands"

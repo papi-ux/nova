@@ -28,6 +28,9 @@ class StreamConfiguration private constructor() {
     private var enableUltraLowLatency = false
     private var forceFreshLaunch = false
     private var resumeExistingOnly = false
+    // Null preserves legacy entry points; a supplied but blank token must be refused.
+    private var expectedSessionToken: String? = null
+    private var expectedSessionOwned: Boolean? = null
     private var profilePreference = "auto"
     private var resolvedProfile = false
     private var workerProfileId = ""
@@ -160,6 +163,12 @@ class StreamConfiguration private constructor() {
 
         fun setForceFreshLaunch(forceFreshLaunch: Boolean): Builder {
             config.forceFreshLaunch = forceFreshLaunch
+            return this
+        }
+
+        fun setExpectedSession(token: String?, ownedByClient: Boolean?): Builder {
+            config.expectedSessionToken = token
+            config.expectedSessionOwned = ownedByClient
             return this
         }
 
@@ -299,6 +308,8 @@ class StreamConfiguration private constructor() {
     fun getForceFreshLaunch(): Boolean = forceFreshLaunch
 
     fun getResumeExistingOnly(): Boolean = resumeExistingOnly
+    fun getExpectedSessionToken(): String? = expectedSessionToken
+    fun getExpectedSessionOwned(): Boolean? = expectedSessionOwned
 
     fun getProfilePreference(): String = profilePreference
 

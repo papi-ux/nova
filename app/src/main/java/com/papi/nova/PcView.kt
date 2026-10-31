@@ -138,6 +138,7 @@ import com.papi.nova.shared.polaris.model.PolarisGame
 import com.papi.nova.ui.NovaEasterEggs
 import com.papi.nova.ui.NovaHostsComingOnline
 import com.papi.nova.ui.SpaceParticleView
+import com.papi.nova.ui.NovaHostSessionAction
 import com.papi.nova.ui.novaHostNowPlaying
 import com.papi.nova.ui.novaNowPlayingGame
 import com.papi.nova.utils.Dialog
@@ -339,7 +340,7 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 nowPlayingClients[target.uuid] = client
                 var artFor: Pair<Int, PolarisGame?>? = null
                 val ask = {
-                    // No answer isn't no session: throwing leaves what the card shows in place.
+                    // An unknown session cannot authorize a named action; the watcher clears it.
                     val status = client.getSessionStatus() ?: throw IOException("no session status")
                     novaHostNowPlaying(status)?.let { playing ->
                         val known = artFor?.takeIf { it.first == playing.gameId }
@@ -1653,7 +1654,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 address == null || cert == null || details.uuid.isNullOrBlank()) {
                 return@mapNotNull null
             }
-            HostNowPlayingWatch.Target(details.uuid, address, details.httpsPort.takeIf { it > 0 } ?: 47984, cert)
+            HostNowPlayingWatch.Target(details.uuid, address, details.httpsPort.takeIf { it > 0 } ?: 47984, cert,
+                details.runningGameId, details.runningGameUUID)
         })
     }
 
@@ -2428,7 +2430,8 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
     }
 
     /** End from the now-playing pill: Stay is focused, because ending loses what the host hasn't saved. */
-    private fun confirmEndRunningGame(computer: ComputerDetails) {
+    private fun confirmEndRunningGame(action: NovaHostSessionAction) {
+        if (!pcGridAdapter.isCurrent(action)) return
         novaSurfaces.open(
             root = NovaCommonPage.Confirm(
                 key = "hosts-end-running-game",
@@ -2437,7 +2440,14 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
                 stayLabel = getString(R.string.nova_panel_stay),
                 actionLabel = getString(R.string.game_dialog_action_end_session),
                 destructive = true,
-                onConfirm = { endRunningGame(computer) },
+                onConfirm = {
+                    if (pcGridAdapter.isCurrent(action)) {
+                        val binder = managerBinder
+                        if (binder != null) ServerHelper.doQuitCaptured(this, action.computer(),
+                            NvApp(action.playing.gameName, action.playing.gameUuid.takeIf { it.isNotBlank() }, action.playing.gameId, false),
+                            binder, action.playing.sessionToken)
+                    }
+                },
             ),
         )
     }
@@ -3710,7 +3720,21 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
             pcGridAdapter.setOnServerActionListener { computer ->
                 showHostPanel(computer)
             }
-            pcGridAdapter.setOnEndSessionListener { computer -> confirmEndRunningGame(computer.details) }
+            pcGridAdapter.setOnEndSessionListener { action -> confirmEndRunningGame(action) }
+            pcGridAdapter.setOnResumeSessionListener { action ->
+                if (pcGridAdapter.isCurrent(action)) {
+                    val binder = managerBinder
+                    if (binder != null) {
+                        val intent = ServerHelper.createStartIntent(this,
+                            NvApp(action.playing.gameName, action.playing.gameUuid.takeIf { it.isNotBlank() }, action.playing.gameId, false),
+                            action.computer(), binder, false, false, false)
+                        intent.putExtra(Game.EXTRA_RESUME_EXISTING, true)
+                        intent.putExtra(Game.EXTRA_EXPECTED_SESSION_TOKEN, action.playing.sessionToken)
+                        intent.putExtra(Game.EXTRA_EXPECTED_SESSION_OWNED, true)
+                        startActivity(intent)
+                    }
+                }
+            }
             pcGridAdapter.setNowPlayingArtwork { view, uuid, game -> nowPlayingClients[uuid]?.loadCoverInto(view, game) }
             UiHelper.applyStatusBarPadding(rv)
             rv.post {

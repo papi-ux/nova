@@ -719,15 +719,22 @@ object ServerHelper {
      * NvHTTP's, when the game still runs just after the host accepted the cancel: Polaris answers a
      * cancel before it has closed the game, so the game is still closing.
      */
-    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String): QuitRefusal? {
+    private fun quitOnHost(parent: Activity, httpConn: NvHTTP, appName: String,
+        expectedToken: String? = null, expectedApp: NvApp? = null): QuitRefusal? {
         val resources = parent.resources
         return try {
             val serverInfo = httpConn.getServerInfo(true)
             if (httpConn.getCurrentGameOwned(serverInfo) == false) {
                 return QuitRefusal(resources.getString(R.string.nova_library_end_started_elsewhere), startedElsewhere = true)
             }
-            val sessionToken = httpConn.getCurrentGameSessionToken(serverInfo)
-            if (httpConn.quitApp(sessionToken)) {
+            val currentToken = httpConn.getCurrentGameSessionToken(serverInfo)
+            if (expectedToken != null && (expectedToken.isBlank() || currentToken != expectedToken ||
+                    httpConn.getCurrentGameOwned(serverInfo) != true ||
+                    expectedApp == null || expectedApp.appId <= 0 || httpConn.getCurrentGame(serverInfo) != expectedApp.appId ||
+                    (!expectedApp.appUUID.isNullOrBlank() && httpConn.getCurrentGameUUID(serverInfo) != expectedApp.appUUID))) {
+                return QuitRefusal(resources.getString(R.string.hosts_end_failed_message, appName))
+            }
+            if (httpConn.quitApp(expectedToken ?: currentToken)) {
                 null
             } else {
                 QuitRefusal(resources.getString(R.string.applist_quit_fail) + " " + appName)
@@ -749,6 +756,29 @@ object ServerHelper {
         } catch (e: IOException) {
             e.printStackTrace()
             QuitRefusal(resources.getString(R.string.nova_library_end_unreachable))
+        }
+    }
+
+    /** End from a named observed session. Never substitute a later session's cancel token. */
+    internal fun doQuitCaptured(
+        parent: Activity,
+        computer: ComputerDetails,
+        app: NvApp,
+        managerBinder: ComputerManagerService.ComputerManagerBinder,
+        sessionToken: String,
+    ) {
+        try {
+            val http = NvHTTP(getCurrentAddressFromComputer(computer), computer.httpsPort,
+                managerBinder.uniqueId, computer.serverCert, PlatformBinding.getCryptoProvider(parent))
+            Thread {
+                val refusal = quitOnHost(parent, http, app.appName, sessionToken, app)
+                parent.runOnUiThread {
+                    quitCue(refusal)?.let { NovaHaptics.play(parent, parent.window?.decorView, it) }
+                    if (refusal != null) showQuitRefused(parent, app.appName, refusal.reason)
+                }
+            }.start()
+        } catch (e: Exception) {
+            showQuitRefused(parent, app.appName, e.message)
         }
     }
 

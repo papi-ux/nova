@@ -200,8 +200,23 @@ class NvConnection(
         }
 
         context.serverCodecModeSupport = h.getServerCodecModeSupport(serverInfo).toInt()
-        context.sessionToken = h.getCurrentGameSessionToken(serverInfo)
-        context.currentGameOwnedByClient = h.getCurrentGameOwned(serverInfo)
+        val currentToken = h.getCurrentGameSessionToken(serverInfo)
+        val currentOwner = h.getCurrentGameOwned(serverInfo)
+        val expectedToken = streamConfig.getExpectedSessionToken()
+        if (expectedToken != null) {
+            val expectedApp = streamConfig.getApp()
+            val expectedOwner = streamConfig.getExpectedSessionOwned()
+            if (expectedToken.isBlank() || currentToken != expectedToken || expectedOwner == null ||
+                currentOwner != expectedOwner || context.watchOnlyRequested == expectedOwner ||
+                expectedApp == null || expectedApp.appId <= 0 || h.getCurrentGame(serverInfo) != expectedApp.appId ||
+                (!expectedApp.appUUID.isNullOrBlank() && h.getCurrentGameUUID(serverInfo) != expectedApp.appUUID) ||
+                !streamConfig.getResumeExistingOnly() || streamConfig.getForceFreshLaunch()) {
+                listener.displayMessage("The observed session is no longer available. Return to Hosts and choose it again.")
+                return false
+            }
+        }
+        context.sessionToken = expectedToken ?: currentToken
+        context.currentGameOwnedByClient = currentOwner
         // currentgameowner is the owner's id on a Desktop session, which is nothing to show
         // anybody. A host that names the device is believed; an id is never put on screen.
         context.currentGameOwnerName = NvHTTP.parseCurrentGameOwnerDeviceName(serverInfo)
