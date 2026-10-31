@@ -119,7 +119,7 @@ ApplicationWindow {
         require(card->isVisible() && item("stream-recap-nothing-missing")->isVisible() && text("stream-recap-nothing-missing")=="0.00% frames missing",
             "a clean run lost its calm line");
         require(!item("stream-recap-clear-skies")->isVisible(),"twelve minutes earned the Clear skies badge");
-        require(item("stream-recap-fps-line")->isVisible() && text("stream-recap-fps-words").contains("58.0 to 60.0"),
+        require(item("stream-recap-fps-line")->isVisible() && text("stream-recap-fps-words").contains("58.0 to 60.0") && text("stream-recap-fps-words").contains("line averages"),
             "the FPS line or its words went missing");
         auto hour = clean; auto rates = hour["rates"].toMap(); rates["spanMs"] = 3600000; hour["rates"] = rates; hour["generation"] = "3";
         session.setStreamRecap(hour); settle();

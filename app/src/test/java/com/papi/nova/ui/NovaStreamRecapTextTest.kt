@@ -40,6 +40,47 @@ class NovaStreamRecapTextTest {
 
     private val verdicts = listOf("healthy", "good", "bad", "poor", "excellent", "regression", "score", "PC", "server", "computer")
 
+    @Test fun aCompressedLineDoesNotLoseTheRawZeroInItsSpokenRange() {
+        val acc = NovaStreamRecap.Accumulator(1L)
+        acc.launch(launch())
+        acc.connected(1_000L)
+        repeat(120) { i ->
+            val at = 2_000L + i
+            acc.accept(sample(at, rendered = if (i == 0) 0.0 else 60.0), at)
+        }
+        val recap = acc.finish(End.CONNECTION_ENDED, null, 4_000L, "2026-10-08T14:00:00Z")!!
+        val trail = recap.fpsTrail!!
+        assertEquals(30.0, trail.min, 0.0)
+        val words = NovaStreamRecapText.fpsTrail(context, recap, trail)
+        assertEquals(text(R.string.nova_recap_fps_trail, text(R.string.nova_recap_rendered_fps), "0.0", "60.0"), words)
+    }
+
+    @Test fun aReceivedTrailUsesOnlyReceivedRawExtrema() {
+        val recap = recap().copy(renderedFps = NovaStreamRecap.Stat(10, 60.0, 50.0, 70.0),
+            receivedFps = NovaStreamRecap.Stat(10, 40.0, 0.0, 80.0))
+        val trail = NovaStreamRecap.FpsTrail(NovaStreamRecap.FpsTrail.Kind.RECEIVED, listOf(35.0, 45.0))
+        assertEquals(text(R.string.nova_recap_fps_trail, text(R.string.nova_recap_received_fps), "0.0", "80.0"),
+            NovaStreamRecapText.fpsTrail(context, recap, trail))
+    }
+
+    @Test fun missingOrInvalidMatchingRawExtremaNameOnlyTheLineAverages() {
+        val trail = NovaStreamRecap.FpsTrail(NovaStreamRecap.FpsTrail.Kind.RENDERED, listOf(30.0, 60.0))
+        val invalid = listOf(null, NovaStreamRecap.Stat(0, 60.0, 0.0, 60.0),
+            NovaStreamRecap.Stat(5, 60.0, Double.NaN, 60.0), NovaStreamRecap.Stat(5, 60.0, 80.0, 60.0))
+        for (raw in invalid) {
+            val recap = recap().copy(renderedFps = raw, receivedFps = NovaStreamRecap.Stat(5, 90.0, 80.0, 100.0))
+            assertEquals(text(R.string.nova_recap_fps_trail_averages, text(R.string.nova_recap_rendered_fps), "30.0", "60.0"),
+                NovaStreamRecapText.fpsTrail(context, recap, trail))
+        }
+    }
+
+    @Test fun noValidRawOrLineRangeStaysUnavailable() {
+        val recap = recap().copy(renderedFps = null)
+        val trail = NovaStreamRecap.FpsTrail(NovaStreamRecap.FpsTrail.Kind.RENDERED, listOf(Double.NaN, 60.0))
+        assertEquals(text(R.string.nova_recap_stat_unavailable, text(R.string.nova_recap_rendered_fps)),
+            NovaStreamRecapText.fpsTrail(context, recap, trail))
+    }
+
     @Test fun thePageGivesEachReadingItsCountAndScopeAndSaysWhatIsNotMeasured() {
         val page = NovaStreamRecapText.page(context, recap())
         assertTrue(page, page.contains(text(R.string.nova_recap_averages)))

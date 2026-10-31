@@ -140,4 +140,5 @@
     <string name="nova_startup_elapsed">%1$s elapsed</string>
     <!-- Session setup: the overlay's title once a stream the player asked for connects, not a reconnect. %1$s is the host's name. -->
     <string name="nova_connected_to">Connected to %1$s</string>
+    <string name="nova_recap_fps_trail_averages">%1$s line averages: %2$s to %3$s</string>
 </resources>

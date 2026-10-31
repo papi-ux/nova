@@ -83,7 +83,18 @@ internal object NovaStreamRecapText {
             recap.codecs == listOf("pyrowave") -> R.string.nova_pyrowave_submitted_fps
             else -> R.string.nova_recap_rendered_fps
         }
-        return context.getString(R.string.nova_recap_fps_trail, context.getString(measure), fps(trail.min), fps(trail.max))
+        val label = context.getString(measure)
+        val raw = (if (trail.kind == NovaStreamRecap.FpsTrail.Kind.RECEIVED) recap.receivedFps else recap.renderedFps)
+            ?.takeIf { it.count > 0 && NovaStreamRecap.fps(it.min) != null &&
+                NovaStreamRecap.fps(it.max) != null && it.min <= it.max }
+        if (raw != null) {
+            return context.getString(R.string.nova_recap_fps_trail, label, fps(raw.min), fps(raw.max))
+        }
+        // The bounded line merges samples into averages. Its extrema cannot stand in for raw ones.
+        if (trail.values.isEmpty() || trail.values.any { NovaStreamRecap.fps(it) == null }) {
+            return context.getString(R.string.nova_recap_stat_unavailable, label)
+        }
+        return context.getString(R.string.nova_recap_fps_trail_averages, label, fps(trail.min), fps(trail.max))
     }
 
     private fun StringBuilder.stat(context: Context, label: Int, stat: NovaStreamRecap.Stat?, format: (Double) -> String) {

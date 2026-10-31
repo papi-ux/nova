@@ -51,7 +51,7 @@ Rectangle {
     readonly property bool clearSkies: nothingMissing && !!rates && rates.spanMs >= 3600000
     readonly property var fpsTrail: shown && readings.fpsTrail && readings.fpsTrail.length >= 2 ? readings.fpsTrail : []
     readonly property string fpsTrailWords: fpsTrail.length === 0 ? ""
-        : "Video received over this stream: " + Math.min.apply(null, fpsTrail).toFixed(1) + " to " + Math.max.apply(null, fpsTrail).toFixed(1) + " fps"
+        : "Video received line averages: " + Math.min.apply(null, fpsTrail).toFixed(1) + " to " + Math.max.apply(null, fpsTrail).toFixed(1) + " fps"
     readonly property var tiles: [
         { key: "received", label: "Video received",
           value: rates ? rates.receivedFps.toFixed(1) + " fps" : "Unknown",
