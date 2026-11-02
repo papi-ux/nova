@@ -533,12 +533,23 @@ Popup {
                 Label {
                     objectName: "native-stream-connection-copy"
                     Layout.fillWidth: true
-                    text: nativeSessionState.copy + (nativeSessionState.audioCopy ? "\n" + nativeSessionState.audioCopy : "")
+                    text: nativeSessionState.copy
                     textFormat: Text.PlainText; wrapMode: Text.WordWrap
-                    color: nativeSessionState.audioCopy ? NovaTheme.warning : NovaTheme.secondary
+                    color: NovaTheme.secondary
                     font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                     Layout.preferredHeight: font.pixelSize * 2.4
                     maximumLineCount: 2; elide: Text.ElideRight
+                }
+                Label {
+                    // The compact connection copy above may elide; an audio warning keeps
+                    // its own uncapped line so the full warning stays readable.
+                    objectName: "native-stream-audio-warning"
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: nativeSessionState.audioCopy || ""
+                    textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.warning
+                    font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
                 }
                 Label {
                     Layout.fillWidth: true

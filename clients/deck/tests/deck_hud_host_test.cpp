@@ -820,9 +820,38 @@ void commandCenterPresentation() {
     require(!DeckHudHostReducer::unavailable().contains("receivedBitrateKbps"), "host fabricated a measured receive rate");
     std::cout << "[OK] Command Center: units, confirmed history, pending, dedupe, bound, owner, connection, host, session and review fences\n";
 }
+void commandCenterReviewStability() {
+    QFile file(QStringLiteral(NOVA_DECK_TUNING_FIXTURE)); require(file.open(QIODevice::ReadOnly), "fixture missing");
+    QJsonObject stable;
+    for (const auto& entry : QJsonDocument::fromJson(file.readAll()).array())
+        if (entry.toObject().value("name") == "stable") stable = entry.toObject().value("live_tuning").toObject();
+    auto o = envelope(); o["live_tuning"] = stable;
+    auto sample = parse(o);
+    // An encoder without runtime bitrate updates never settles an applied target.
+    sample.hostTuningAllowed = true; sample.live->supported = false; sample.live->state = "unavailable";
+    sample.live->requested = 0; sample.live->applied = 0;
+    DeckHudHostReducer reducer(context);
+    const auto review = [&] { ++sample.live->sequence; return reducer.accept(sample).value("tuningReviewVersion").toString(); };
+    const auto first = review();
+    require(!first.isEmpty(), "unsupported encoder offered no review");
+    for (int i = 0; i < 3; ++i) require(review() == first, "unsupported repeated snapshot invalidated confirmation");
+    sample.live->supported = true; sample.live->state = "applying";
+    require(review() == first, "unsettled encoder state invalidated confirmation");
+    sample.hostTuningAllowed = false; const auto revoked = review();
+    require(revoked != first, "permission loss kept the old confirmation");
+    sample.hostTuningAllowed = true; const auto restored = review();
+    require(restored != revoked && restored != first, "permission recovery revived the old confirmation");
+    reducer.interrupt(); const auto reconnected = review();
+    require(reconnected != restored, "connection interruption kept the old confirmation");
+    require(review() == reconnected, "reconnected repeated snapshot invalidated confirmation");
+    sample.live->enabled = !sample.live->enabled; const auto toggled = review();
+    require(toggled != reconnected, "effective tuning change kept the old confirmation");
+    std::cout << "[OK] Command Center review: stable across unsettled polls; permission, connection and state fences\n";
+}
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     commandCenterPresentation();
+    commandCenterReviewStability();
     hdrStreamFact();
     parserAndReducer(); requestUnitWrites(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves(); liveTuningLines();
     std::cout << "HUD host telemetry passed: Android contract, session authority, provenance, staleness, worker isolation and cancellation\n";
