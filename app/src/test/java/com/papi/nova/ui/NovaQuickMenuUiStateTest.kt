@@ -276,7 +276,7 @@ class NovaQuickMenuUiStateTest {
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }
 
         assertEquals("Touch Controls", touchControls.label)
-        assertEquals("On-screen overlay; physical gamepad stays active.", touchControls.caption)
+        assertEquals("This device. On-screen overlay; physical gamepad stays active.", touchControls.caption)
         assertEquals("Off", touchControls.chip!!.label)
     }
 
@@ -1171,7 +1171,7 @@ class NovaQuickMenuUiStateTest {
         assertTrue(hidden.hudMode.options.none { it.enabled })
 
         val hudRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD }
-        assertEquals("Long press the HUD to open Command Center.", hudRow.caption)
+        assertEquals("This device. Long press the HUD to open Command Center.", hudRow.caption)
         val statsRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.PERF_STATS }
         assertTrue(statsRow.caption.contains("Legacy Moonlight"))
     }
