@@ -1033,16 +1033,21 @@ int main(int argc, char** argv) {
     require(doctorFixture.open(QIODevice::ReadOnly), "Doctor fixture missing");
     const auto finding = nova::deck::polaris::doctorPresentation(QJsonDocument::fromJson(doctorFixture.readAll()).object());
     session.transition("active", true, "Game is active."); session.showControls();
-    // A fixed bitrate still saving after host tuning was withdrawn: NovaHUD's Down reaches that row, and
-    // Doctor's Up comes back to it, so Down then Up returns to where the player started.
+    // With write permission withdrawn, both read-only details rows stay in the
+    // D-pad route. Navigating either direction must not submit a host change.
     session.tuning = {{"canTune", false}, {"bitrateBusy", true}};
     emit session.hudChanged(); settle();
-    require(!tuning->isEnabled() && bitrateAction->isEnabled(), "bitrate-only Command Center state not reached");
+    require(tuning->isEnabled() && bitrateAction->isEnabled(), "read-only stream details became unreachable");
+    const int writesBeforeReadOnlyNavigation = session.tuningWrites + session.bitrateWrites;
     hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateAction, "NovaHUD Down skipped the enabled Live Bitrate row");
     key(*window, Qt::Key_Down);
-    focused(*window, root->findChild<QQuickItem*>("native-doctor"), "Live Bitrate Down did not reach Doctor");
-    key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Doctor Up did not return to Live Bitrate");
+    focused(*window, tuning, "Live Bitrate Down skipped read-only Live Tuning details");
+    key(*window, Qt::Key_Down);
+    focused(*window, root->findChild<QQuickItem*>("native-doctor"), "Live Tuning Down did not reach Doctor");
+    key(*window, Qt::Key_Up); focused(*window, tuning, "Doctor Up skipped read-only Live Tuning details");
+    key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Live Tuning Up did not return to Live Bitrate");
+    require(session.tuningWrites + session.bitrateWrites == writesBeforeReadOnlyNavigation, "read-only details navigation submitted a host change");
     session.tuning = {{"hostFresh", true}, {"doctor", finding}, {"canRefreshDiagnostics", true},
         {"appliedBitrate", "20.0M"}, {"qualityLimit", "40.0M"}, {"host", "4.2ms"}, {"bitrate", "19.6M"},
         {"jitter", "2ms"}, {"incoming", "60.0"}, {"decoded", "59.9"}, {"resolution", "1280×800"}, {"codec", "H.264"}};
@@ -1051,6 +1056,9 @@ int main(int argc, char** argv) {
     auto* doctorPopup = root->findChild<QObject*>("doctor-popup");
     require(doctorAction && doctorPopup, "Doctor entry missing");
     hudAction->forceActiveFocus(); key(*window, Qt::Key_Down);
+    focused(*window, bitrateAction, "read-only Bitrate details left the Doctor navigation route");
+    key(*window, Qt::Key_Down); focused(*window, tuning, "read-only Live Tuning details left the Doctor navigation route");
+    key(*window, Qt::Key_Down);
     focused(*window, doctorAction, "Doctor unreachable when host tuning is unavailable");
     key(*window, Qt::Key_Return);
     // Repeater delegates belong to the visual tree, not the QObject owner tree.
