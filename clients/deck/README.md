@@ -1840,11 +1840,12 @@ settings stay separate. Keep in step starts on for new pairings after the initia
 profile check; conflicting profiles require a choice through **Review Sync**.
 Existing pairings keep their saved setting. The screen also refreshes while open.
 
-During a game, **Command Center → Polaris Sync** compares saved profiles with the
+During a game, **Command Center → More stream tools → Polaris Sync** compares saved profiles with the
 encoder's current bitrate and offers **Match Nova**, **Send Nova** and **Clear
 paired profile**. Sending saves Nova's device defaults to the paired profile:
-resolution/frame rate apply next stream, while bitrate is requested now and turns
-Live Tuning off. The screen confirms a saved profile separately from an applied
+resolution/frame rate apply next stream, while bitrate is requested now and pauses
+automatic adjustment for this stream. The saved host Live Tuning preference stays
+unchanged. The screen confirms a saved profile separately from an applied
 encoder bitrate. An uncertain response requires review; Nova does not resend it.
 Clear affects the next stream and does not request a live bitrate change.
 
@@ -1998,8 +1999,21 @@ The Library's System menu includes **Add Nova to Steam**. Review the sheet and c
 
 The in-stream Command Center uses compact 16px gutters, 8px spacing and a 64px minimum header at the default scale. At 1280×800 with three controller rows, NovaHUD fits on the first page. The same scroll column reveals focused controls at 130% text on 960×600; buttons retain a 48px minimum touch target. Players and keyboard/mouse guidance remain available, and Reassign shows the join-order prompt when chosen. Headless QML tests verify geometry and lifecycle boundaries; physical 800p readability remains an acceptance check.
 
-With both live controls available, Down from NovaHUD focuses **Live Bitrate**;
+Down from NovaHUD focuses **Bitrate**;
 one more Down reaches **Live Tuning**, then Doctor. Up follows the reverse order.
-A on Live Bitrate opens its picker; A on Live Tuning changes the host-wide
-preference. Unavailable rows are skipped. Read the focused label before pressing A
-during a device check.
+A on either row opens **Stream details**, with Bitrate focused for the direct
+shortcut. Details remain readable when host feedback or write permission is
+unavailable. The separate host setting requires a confirmation that explains its
+effect on future streams; opening details never changes it. The displayed tuning
+state describes the current stream, because the saved host preference is not
+independently reported by this API.
+
+The shared details distinguish advertised selected/effective request budgets and
+request limits from requested video targets, encoder-confirmed applied targets,
+and fresh measured receive rates. Missing or stale feedback is unavailable.
+Recent changes lists at most five confirmed host transitions in this connection;
+initial snapshots, unchanged polls and pending targets add nothing. Actor and
+reason stay neutral unless established, and Doctor retains its existing receipt
+and Undo authority. More stream tools holds Polaris Sync, working baselines and
+moment reports, with Back returning to the parent row. Native QML and physical
+Deck qualification are separate from the portable source checks.

@@ -58,7 +58,15 @@ ApplicationWindow {
             session.stops==0 && session.disconnects==0 && session.starts==0 && session.resumes==0 && session.reconnects==0 &&
             session.baselineSaves==0 && session.baselineClears==0 && session.baselineCompares==0 && session.baselineStatusReads==0;
     };
+    const auto ensureTools = [&] {
+        auto* tools = root->findChild<QObject*>("native-stream-tools-popup"); require(tools,"tools popup missing");
+        if (!tools->property("opened").toBool()) {
+            item("native-stream-tools")->forceActiveFocus(); QTest::qWait(50); press(Qt::Key_Return);
+            require(tools->property("opened").toBool(), "More stream tools did not open");
+        }
+    };
     const auto openMoment = [&] {
+        ensureTools();
         const int before = session.momentMarks;
         item("native-report-moment")->forceActiveFocus(); QTest::qWait(50); press(Qt::Key_Return);
         require(opened() && session.momentMarks==before+1 && session.momentPending && focusName()=="moment-report-keep-playing", "mark/open/safe focus failed");
@@ -68,10 +76,12 @@ ApplicationWindow {
         item("moment-report-save")->forceActiveFocus(); QTest::qWait(30); press(Qt::Key_Return);
         require(session.momentSaves==before+1 && session.momentSavedToken==token,"explicit Save did not carry the frozen token exactly once");
     };
-    item("native-working-baseline")->forceActiveFocus(); QTest::qWait(30); press(Qt::Key_Down);
+    ensureTools(); item("native-working-baseline")->forceActiveFocus(); QTest::qWait(30); press(Qt::Key_Down);
     require(focusName()=="native-report-moment","baseline Down lost moment row");
     press(Qt::Key_Up); require(focusName()=="native-working-baseline","moment Up lost baseline row");
-    press(Qt::Key_Down); press(Qt::Key_Down); require(focusName()=="native-preview-action","moment Down lost Close");
+    press(Qt::Key_Down); press(Qt::Key_Down); require(focusName()=="native-stream-tools-back","moment Down lost tools Back");
+    press(Qt::Key_Return); require(focusName()=="native-stream-tools","tools Back lost parent");
+    ensureTools();
     // A refused mark creates no pending report and must not claim frozen bytes.
     session.setMomentFocus(false);
     item("native-report-moment")->forceActiveFocus(); QTest::qWait(30); press(Qt::Key_Return);

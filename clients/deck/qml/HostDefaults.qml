@@ -62,7 +62,7 @@ Popup {
             profileActions: profileActions.map((action, index) => ({ id: action.id, enabled: action.enabled, center: center(profileButtons.itemAt(index)) })) }
     }
     function back() {
-        if (sessionBitrate.opened) sessionBitrate.close()
+        if (sessionBitrate.opened) sessionBitrate.back()
         else if (streamEditor.opened) streamEditor.back()
         else if (timeoutPicker.opened) timeoutPicker.close()
         else close()
@@ -113,7 +113,7 @@ Popup {
     }
     LiveBitrate {
         id: sessionBitrate; objectName: "sync-live-bitrate-picker"; session: host.session; unit: host.unit
-        onClosed: if (host.opened && host.sessionView) sessionActions.focusBitrate()
+        onClosed: if (host.opened && host.sessionView) sessionActions.focusSaved()
     }
     function timeoutLabel(seconds) {
         return seconds < 0 || seconds === undefined ? "Not supplied"
@@ -231,7 +231,8 @@ Popup {
                 session: host.session; profileState: host.status; unit: host.unit
                 onReadingFocus: facts.forceActiveFocus()
                 onFooterFocus: done.forceActiveFocus()
-                onBitrateRequested: sessionBitrate.open()
+                onBitrateRequested: sessionBitrate.openDetails(true)
+                onTuningRequested: sessionBitrate.openDetails(false)
             }
             NovaScrollColumn {
                 id: actions
