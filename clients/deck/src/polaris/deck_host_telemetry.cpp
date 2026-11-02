@@ -92,6 +92,8 @@ std::optional<DeckHostTelemetry> parseHostTelemetry(std::string_view json) {
         (!downgrade.isEmpty() && !in(downgrade, {"none", "unknown", "not_applicable"}));
     // Polaris reports hdr10, sdr_10bit or sdr_8bit. Only hdr10 is HDR; 10-bit SDR is not.
     t.hdrStream = code(health, "hdr_effective_mode") == "hdr10";
+    const auto hdrMode = code(health, "hdr_effective_mode");
+    if (in(hdrMode, {"hdr10", "sdr_10bit", "sdr_8bit"})) t.hdrMode = hdrMode;
     const auto evidence = doctor.value("evidence").toArray();
     if (evidence.size() > 128) return {}; // Bound processing as well as wire bytes.
     for (const auto& value : evidence) {

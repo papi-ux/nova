@@ -18,6 +18,7 @@ Popup {
     contentItem: ColumnLayout {
         spacing: 12 * appearance.unit * NovaTheme.controlScale
         Label { text: "Appearance"; color: NovaTheme.text; font.pixelSize: 28 * appearance.unit * NovaTheme.fontScale; font.bold: true }
+        Label { Layout.fillWidth: true; text: "This device · Nova interface · Applies immediately"; color: NovaTheme.secondary; wrapMode: Text.WordWrap; font.pixelSize: 16 * appearance.unit * NovaTheme.fontScale }
         Label { Layout.fillWidth: true; text: "Theme · " + NovaTheme.label; color: NovaTheme.secondary; wrapMode: Text.WordWrap; font.pixelSize: 18 * appearance.unit * NovaTheme.fontScale }
         NovaScrollColumn {
             Layout.fillWidth: true

@@ -766,8 +766,63 @@ void hdrStreamFact() {
         require(!view(foreign).value("hdrStream").toBool(), "another or inactive session's HDR reached this HUD");
     }
 }
+void commandCenterPresentation() {
+    QFile file(QStringLiteral(NOVA_DECK_TUNING_FIXTURE)); require(file.open(QIODevice::ReadOnly), "fixture missing");
+    QJsonObject stable;
+    for (const auto& entry : QJsonDocument::fromJson(file.readAll()).array())
+        if (entry.toObject().value("name") == "stable") stable = entry.toObject().value("live_tuning").toObject();
+    auto o = envelope(); o["live_tuning"] = stable;
+    auto sample = parse(o);
+    DeckHudHostReducer reducer(context);
+    auto current = reducer.accept(sample);
+    require(current.value("requestedVideoKbps").toInt() == sample.live->requested &&
+        current.value("videoLimitKbps").toInt() == sample.live->qualityLimit,
+        "Command Center lost distinct video target and limit");
+    require(current.value("recentChanges").toList().isEmpty(), "initial snapshot became an adjustment");
+    require(!current.contains("selectedRequestBudgetKbps") && !current.contains("effectiveRequestBudgetKbps"),
+        "unadvertised budgets were inferred from video rates");
+    const auto firstReview = current.value("tuningReviewVersion");
+    const auto next = [&](int applied, const char* state) {
+        ++sample.live->sequence; sample.live->state = state; sample.live->applied = applied;
+        return reducer.accept(sample);
+    };
+    require(next(14000, "applying").value("recentChanges").toList().isEmpty(), "pending change became success");
+    current = next(14000, "adjusting");
+    auto recent = current.value("recentChanges").toList();
+    require(recent.size() == 1 && recent.first().toMap().value("actor") == "Host" &&
+        recent.first().toMap().value("appliedKbps").toInt() == 14000,
+        "confirmed encoder change missing or falsely attributed");
+    require(next(14000, "stable").value("recentChanges").toList() == recent, "unchanged poll duplicated history");
+    require(next(14000, "stable").value("tuningReviewVersion") == firstReview, "unchanged poll invalidated confirmation");
+    sample.live->revision = QString(64, 'b');
+    require(next(14000, "stable").value("tuningReviewVersion") != firstReview, "host setting change retained old confirmation");
+    for (int i = 0; i < 9; ++i) current = next(15000 + i * 1000, "stable");
+    require(current.value("recentChanges").toList().size() == 5, "recent history is unbounded");
+    sample.owned = false;
+    require(reducer.accept(sample).value("recentChanges").toList().isEmpty(), "foreign owner retained history");
+    sample.owned = true;
+    require(next(19000, "stable").value("recentChanges").toList().isEmpty(), "owner recovery invented a change");
+    next(20000, "stable"); reducer.interrupt();
+    require(next(21000, "stable").value("recentChanges").toList().isEmpty(), "reconnect retained old history");
+    next(22000, "stable"); sample.live->instance = "replacement-instance";
+    require(next(23000, "stable").value("recentChanges").toList().isEmpty(), "host replacement retained history");
+    next(24000, "stable"); ++sample.live->generation; ++*sample.generation;
+    require(next(25000, "stable").value("recentChanges").toList().isEmpty(), "session replacement retained history");
+    --sample.live->generation; --*sample.generation;
+    require(next(26000, "stable").value("recentChanges").toList().isEmpty(), "replacement session bridged old history");
+    sample.bitrateUnitsSupported = true;
+    sample.bitrateUnits = DeckBitrateUnits{400000, 178988, 26000, 512, 10, 2, 200000, 300000, "host"};
+    current = next(26000, "stable");
+    require(current.value("selectedRequestBudgetKbps").toInt() == 400000 &&
+        current.value("effectiveRequestBudgetKbps").toInt() == 200000 && current.value("requestLimitKbps").toInt() == 300000 &&
+        current.value("appliedBitrateKbps").toInt() == 26000,
+        "advertised request budgets were conflated with encoder video targets");
+    require(!DeckHudHostReducer::unavailable().contains("receivedBitrateKbps"), "host fabricated a measured receive rate");
+    std::cout << "[OK] Command Center: units, confirmed history, pending, dedupe, bound, owner, connection, host, session and review fences\n";
+}
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    commandCenterPresentation();
     hdrStreamFact();
     parserAndReducer(); requestUnitWrites(); eventParser(); eventResynchronization(); encoderConfirmationAfterEvent(); doctorProvenance(); doctorDetails(); manualDiagnosticsRefresh(); observerBoundaries(); liveTuningSaves(); fixedBitrateSaves(); liveTuningLines();
     std::cout << "HUD host telemetry passed: Android contract, session authority, provenance, staleness, worker isolation and cancellation\n";

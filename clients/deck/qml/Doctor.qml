@@ -114,7 +114,6 @@ Popup {
                             : "Connect to a paired Polaris host for current Doctor findings. Session shows the readings available on this device."
                         color: NovaTheme.secondary
                     }
-                    Copy { visible: doctor.available && !!doctor.finding.highlight; text: "Evidence: " + (doctor.finding.highlight || ""); color: NovaTheme.warning }
                     Heading { visible: doctor.available; text: "Try first" }
                     Copy { visible: doctor.available; text: doctor.finding.advice || "" }
                     Copy {
@@ -128,6 +127,7 @@ Popup {
                     visible: doctor.page === 1
                     Layout.fillWidth: true; spacing: 14 * doctor.unit
                     Heading { text: "Measured evidence" }
+                    Copy { visible: doctor.available && !!doctor.finding.highlight; text: "Evidence: " + (doctor.finding.highlight || ""); color: NovaTheme.warning }
                     Copy { objectName: "doctor-confidence"; visible: doctor.available; text: "Confidence: " + (doctor.finding.confidence || "unknown"); color: NovaTheme.secondary }
                     Copy { visible: !doctor.available || !(doctor.finding.evidence || []).length; text: "No current supported evidence is available."; color: NovaTheme.secondary }
                     Repeater {
