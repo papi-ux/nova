@@ -193,8 +193,10 @@ private val launchProfileUuid: String? by lazy {
 private fun launchSharedPreferences(): android.content.SharedPreferences =
     ProfilesManager.getInstance().getOverlayingSharedPreferences(this, launchProfileUuid)
 internal val novaCommandCenterChanges = com.papi.nova.ui.NovaCommandCenterChanges()
+@Volatile private var lastCommandCenterMedia: com.papi.nova.ui.NovaCommandCenterMediaSample? = null
 internal fun commandCenterStream(status: com.papi.nova.api.PolarisSessionStatus?, picture: com.papi.nova.manager.NovaLiveBitratePresentation) =
-    com.papi.nova.ui.commandCenterStream(this, status, picture, lastCompanionPerfSample,
+    com.papi.nova.ui.commandCenterStream(this, status, picture,
+        com.papi.nova.ui.currentCommandCenterMedia(lastCommandCenterMedia, novaApiClient, conn, status),
         android.os.SystemClock.elapsedRealtime(), isStreamActive && connected,
         configuredStreamBitrateKbps,
         novaCommandCenterChanges.snapshot(novaApiClient, conn))
@@ -3711,6 +3713,7 @@ stopListeningForExternalDisplayRemoval()
         stopPolarisLiveSessionStatusRefresh()
 novaLiveBitrate.retire()
 novaCommandCenterChanges.clear()
+lastCommandCenterMedia = null
 runtimeTasks.cancelAll()
 stopCursorVisibilitySync()
 if (novaEventSource != null) novaEventSource!!.stop()
@@ -5790,6 +5793,7 @@ connecting = connected
 isStreamActive = false
 novaLiveBitrate.retire()
 novaCommandCenterChanges.clear()
+lastCommandCenterMedia = null
 runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
@@ -6546,8 +6550,15 @@ performanceOverlayBig!!.setText(text)
 })
 }
 override fun onPerfSample(sample:PerfOverlaySample) {
+val sampleApi = novaApiClient
+val sampleConnection = conn
+val sampleStatus = sampleApi?.sessionStatusUpdates?.value
 runOnUiThread(object : Runnable {
 override fun run() {
+if (sampleApi === novaApiClient && sampleConnection === conn && isStreamActive && connected && !isFinishing && !isDestroyed)
+{
+lastCommandCenterMedia = com.papi.nova.ui.bindCommandCenterMedia(sampleApi, sampleConnection, sampleStatus, sample)
+}
 lastCompanionPerfSample = sample
 val recoveryTracker = reconnectRecoveryTracker
 if (recoveryTracker != null && recoveryTracker.onSample(sample.framesRendered, android.os.SystemClock.elapsedRealtime()))

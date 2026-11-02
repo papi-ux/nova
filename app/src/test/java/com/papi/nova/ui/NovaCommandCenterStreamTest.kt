@@ -61,7 +61,7 @@ class NovaCommandCenterStreamTest {
     }
     @Test fun staleMissingFutureAndMismatchedMediaAreUnavailable() {
         listOf(details(sample = null), details(now = 6001), details(now = 999), details(s = null),
-            details(sample = sample(generation = 42)), details(s = status().copy(appSessionId = ""))).forEach {
+            details(s = status().copy(appSessionId = ""))).forEach {
             assertEquals(context.getString(R.string.nova_cc_media_unavailable), it.overview)
         }
     }
@@ -73,6 +73,33 @@ class NovaCommandCenterStreamTest {
         assertFalse(details(downgraded).overview.contains("HDR10"))
         assertTrue(details(hdr.copy(health = hdr.health.copy(hdrDowngradeReason = "headless_hdr_unavailable"))).overview.contains("HDR status unavailable"))
         assertTrue(details().overview.contains("HDR status unavailable"))
+    }
+    @Test fun decoderEpochDoesNotNeedToMatchHostGeneration() {
+        // MediaCodec emits a local decoder epoch; PyroWave leaves it at zero.
+        // Neither counter is Polaris's independently assigned session generation.
+        for (media in listOf(sample(generation = 1), sample(generation = 0).copy(codec = "PyroWave"))) {
+            val overview = details(status(), sample = media).overview
+            assertTrue(media.codec, overview.contains("1920 × 1080"))
+            assertTrue(media.codec, overview.contains(media.codec))
+        }
+    }
+    @Test fun mediaBindingRejectsReplacedConnectionsAndHostScopesWithoutChangingDecoderEpoch() {
+        val api = Any(); val connection = Any(); val current = status()
+        for (media in listOf(sample(generation = 1), sample(generation = 0).copy(codec = "PyroWave"))) {
+            val bound = bindCommandCenterMedia(api, connection, current, media)
+            assertSame(media, currentCommandCenterMedia(bound, api, connection, current))
+            assertNull(currentCommandCenterMedia(bound, Any(), connection, current))
+            assertNull(currentCommandCenterMedia(bound, api, Any(), current))
+            assertNull(currentCommandCenterMedia(bound, api, connection, null))
+            assertNull(currentCommandCenterMedia(bound, api, connection, current.copy(streamingActive = false)))
+            assertNull(currentCommandCenterMedia(bound, api, connection, status(live().copy(hostInstance = "replacement"))))
+            val replacement = status(live().copy(appSessionId = "new", sessionGeneration = 42))
+                .copy(appSessionId = "new", sessionGeneration = 42)
+            assertNull(currentCommandCenterMedia(bound, api, connection, replacement))
+            assertNull(bindCommandCenterMedia(api, null, current, media))
+            assertNull(bindCommandCenterMedia(api, connection, current.copy(authorityContractValid = false), media))
+            assertEquals(if (media.codec == "PyroWave") 0L else 1L, media.sessionGeneration)
+        }
     }
     @Test fun missingHostWithdrawsCurrentRatesEvenIfTheOldPictureStillExists() {
         val d = details(s = null, picture = NovaLiveBitratePresentation(rate = NovaLiveBitrateState(
@@ -114,6 +141,26 @@ class NovaCommandCenterStreamTest {
         assertTrue(history.snapshot(api, conn).isEmpty())
         history.observe(api, conn, status(live(3, 10000)), 9000)
         assertTrue(history.snapshot(api, conn).isEmpty())
+    }
+    @Test fun manualPauseRecordsOnlyTheEncoderConfirmedTarget() {
+        val history = NovaCommandCenterChanges(); val api = Any(); val conn = Any()
+        history.observe(api, conn, status(), 1000)
+        history.observe(api, conn,
+            status(live(2, applied = 20000, requested = 15000, state = "off").copy(enabled = false)), 2000)
+        assertTrue(history.snapshot(api, conn).isEmpty())
+        history.observe(api, conn,
+            status(live(3, applied = 15000, state = "off").copy(enabled = false)), 3000)
+        assertEquals(listOf(NovaConfirmedStreamChange(20000, 15000)), history.snapshot(api, conn))
+        history.observe(api, conn,
+            status(live(4, applied = 15000, state = "off").copy(enabled = false)), 4000)
+        assertEquals(1, history.snapshot(api, conn).size)
+        // Some off snapshots have no requested target; the positive applied field
+        // still reports an encoder-confirmed transition, independently of a POST.
+        history.observe(api, conn,
+            status(live(5, applied = 15000, requested = 0, state = "off").copy(enabled = false)), 5000)
+        history.observe(api, conn,
+            status(live(6, applied = 12000, requested = 0, state = "off").copy(enabled = false)), 6000)
+        assertEquals(NovaConfirmedStreamChange(15000, 12000), history.snapshot(api, conn).first())
     }
     @Test fun hostSessionAndConnectionReplacementClearHistory() {
         listOf("host", "session", "connection", "api").forEach { replacement ->

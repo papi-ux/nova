@@ -18,6 +18,31 @@ data class NovaCommandCenterStream(
 
 data class NovaConfirmedStreamChange(val beforeKbps: Int, val appliedKbps: Int)
 
+/** One observation from Game's existing renderer callback, bound to its connection and host scope. */
+internal data class NovaCommandCenterMediaSample(
+    val sample: PerfOverlaySample,
+    val api: Any,
+    val connection: Any,
+    val scope: Triple<String, Long, String>,
+)
+
+private fun commandCenterMediaScope(status: PolarisSessionStatus?): Triple<String, Long, String>? {
+    if (status == null || !status.authorityContractValid || !status.streamingActive || status.shutdownRequested ||
+        status.appSessionId.isBlank() || status.sessionGeneration <= 0 ||
+        (status.liveTuningPresent && status.liveTuning == null && !status.liveTuningUnavailable)) return null
+    val live = status.liveTuning
+    if (live != null && (live.appSessionId != status.appSessionId || live.sessionGeneration != status.sessionGeneration)) return null
+    return Triple(status.appSessionId, status.sessionGeneration, live?.hostInstance.orEmpty())
+}
+
+internal fun bindCommandCenterMedia(api: Any?, connection: Any?, status: PolarisSessionStatus?, sample: PerfOverlaySample): NovaCommandCenterMediaSample? {
+    val scope = commandCenterMediaScope(status) ?: return null
+    return if (api != null && connection != null) NovaCommandCenterMediaSample(sample, api, connection, scope) else null
+}
+
+internal fun currentCommandCenterMedia(bound: NovaCommandCenterMediaSample?, api: Any?, connection: Any?, status: PolarisSessionStatus?): PerfOverlaySample? =
+    bound?.takeIf { it.api === api && it.connection === connection && it.scope == commandCenterMediaScope(status) }?.sample
+
 /**
  * Owned by Game, fed by its existing status attachment. Only settled encoder observations count;
  * a request/POST acknowledgement is not an encoder application. Unknown actors remain Host.
@@ -53,8 +78,9 @@ internal class NovaCommandCenterChanges {
         }
         if (live.sequence <= sequence) return
         sequence = live.sequence; lastAt = nowMs
-        if (live.state !in setOf("stable", "adjusting") || live.appliedBitrateKbps <= 0 ||
-            live.requestedBitrateKbps != live.appliedBitrateKbps) return
+        if (live.state !in setOf("stable", "adjusting", "off") || live.appliedBitrateKbps <= 0 ||
+            (live.requestedBitrateKbps != live.appliedBitrateKbps &&
+                !(live.state == "off" && live.requestedBitrateKbps == 0))) return
         baseline?.takeIf { it != live.appliedBitrateKbps }?.let {
             entries.addFirst(NovaConfirmedStreamChange(it, live.appliedBitrateKbps))
             while (entries.size > 4) entries.removeLast()
@@ -94,7 +120,7 @@ internal fun commandCenterStream(
     val fresh = sample?.takeIf { active && it.monotonicTimestampMs > 0 &&
         nowMs - it.monotonicTimestampMs in 0..5_000L &&
         status != null && status.streamingActive && status.appSessionId.isNotBlank() &&
-        status.sessionGeneration > 0 && it.sessionGeneration == status.sessionGeneration }
+        status.sessionGeneration > 0 }
     val overview = if (fresh == null) context.getString(R.string.nova_cc_media_unavailable) else {
         val resolution = if (fresh.width > 0 && fresh.height > 0) "${fresh.width} × ${fresh.height}" else unavailable
         val fps = fresh.incomingFps.takeIf { it.isFinite() && it >= 0 }?.let {
