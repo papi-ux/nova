@@ -43,7 +43,7 @@ Popup {
     readonly property int maximumKbps: status.maximumBitrateKbps || 300000
     readonly property int suggestedKbps: status.bitrateUnitsMode === "request" ? Math.min(status.suggestedBitrateKbps || 0, maximumKbps, 300000) : 0
     function clamp(value) { return Math.max(minimumKbps, Math.min(maximumKbps, Math.round(value))) }
-    function adjust(delta) { if (!status.tuningBusy) draftKbps = clamp(draftKbps + delta) }
+    function adjust(delta) { if (canWriteBitrate) draftKbps = clamp(draftKbps + delta) }
     function format(kbps) { return kbps > 0 ? (kbps / 1000).toFixed(kbps % 1000 ? 1 : 0) + " Mbps" : "Unavailable" }
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -179,12 +179,16 @@ Popup {
             NovaButton {
                 id: suggested
                 objectName: "live-bitrate-suggested"
-                visible: bitrate.suggestedKbps > 0
-                enabled: bitrate.canWriteBitrate
+                // A focused draft control stays present and enabled through a host
+                // refresh so controller focus survives. It edits only the local draft,
+                // and only while a write is allowed; Apply remains the only write.
+                visible: bitrate.suggestedKbps > 0 || activeFocus
+                enabled: bitrate.canWriteBitrate || activeFocus
                 Layout.fillWidth: true; unit: bitrate.unit
                 text: "Use recommended · " + bitrate.format(bitrate.suggestedKbps)
-                onClicked: bitrate.draftKbps = bitrate.clamp(bitrate.suggestedKbps)
-                Keys.onDownPressed: decrease.forceActiveFocus()
+                onClicked: if (bitrate.canWriteBitrate && bitrate.suggestedKbps > 0) bitrate.draftKbps = bitrate.clamp(bitrate.suggestedKbps)
+                Keys.onUpPressed: bitrateTab.forceActiveFocus()
+                Keys.onDownPressed: if (decrease.enabled) decrease.forceActiveFocus(); else apply.forceActiveFocus()
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -192,13 +196,13 @@ Popup {
                 NovaButton {
                     id: decrease
                     objectName: "live-bitrate-minus"
-                    enabled: bitrate.canWriteBitrate
+                    enabled: bitrate.canWriteBitrate || activeFocus
                     Layout.fillWidth: true; unit: bitrate.unit
                     text: "− 10 Mbps"
                     onClicked: bitrate.adjust(-10000)
                     Keys.onLeftPressed: bitrate.adjust(-10000)
-                    Keys.onRightPressed: increase.forceActiveFocus()
-                    Keys.onUpPressed: if (suggested.visible) suggested.forceActiveFocus(); else bitrateTab.forceActiveFocus()
+                    Keys.onRightPressed: if (increase.enabled) increase.forceActiveFocus()
+                    Keys.onUpPressed: if (suggested.visible && suggested.enabled) suggested.forceActiveFocus(); else bitrateTab.forceActiveFocus()
                     Keys.onDownPressed: apply.forceActiveFocus()
                 }
                 Label {
@@ -213,13 +217,13 @@ Popup {
                 NovaButton {
                     id: increase
                     objectName: "live-bitrate-plus"
-                    enabled: bitrate.canWriteBitrate
+                    enabled: bitrate.canWriteBitrate || activeFocus
                     Layout.fillWidth: true; unit: bitrate.unit
                     text: "+ 10 Mbps"
                     onClicked: bitrate.adjust(10000)
-                    Keys.onLeftPressed: decrease.forceActiveFocus()
+                    Keys.onLeftPressed: if (decrease.enabled) decrease.forceActiveFocus()
                     Keys.onRightPressed: bitrate.adjust(10000)
-                    Keys.onUpPressed: if (suggested.visible) suggested.forceActiveFocus(); else bitrateTab.forceActiveFocus()
+                    Keys.onUpPressed: if (suggested.visible && suggested.enabled) suggested.forceActiveFocus(); else bitrateTab.forceActiveFocus()
                     Keys.onDownPressed: apply.forceActiveFocus()
                 }
             }
@@ -228,10 +232,10 @@ Popup {
                 Layout.fillWidth: true
                 from: bitrate.minimumKbps; to: bitrate.maximumKbps; stepSize: 1000; snapMode: Slider.SnapAlways
                 value: bitrate.draftKbps
-                enabled: bitrate.canWriteBitrate
+                enabled: bitrate.canWriteBitrate || activeFocus
                 activeFocusOnTab: false
                 Accessible.name: bitrate.draftUnits + " in kilobits per second"
-                onMoved: bitrate.draftKbps = bitrate.clamp(value)
+                onMoved: if (bitrate.canWriteBitrate) bitrate.draftKbps = bitrate.clamp(value)
                 Keys.onDownPressed: apply.forceActiveFocus()
                 Keys.onUpPressed: bitrate.focusBitrate()
             }

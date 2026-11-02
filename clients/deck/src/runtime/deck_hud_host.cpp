@@ -89,8 +89,10 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
             retired_.insert(last_->instance);
             interrupt();
         }
-        if (!last_ || !confirmed_ || last_->revision != live.revision || last_->enabled != live.enabled ||
-            last_->instance != live.instance) reviewVersion_ = ++reviewSerial;
+        if (!last_ || reviewInterrupted_ || reviewAllowed_ != s.hostTuningAllowed || last_->revision != live.revision ||
+            last_->enabled != live.enabled || last_->instance != live.instance) {
+            reviewVersion_ = ++reviewSerial; reviewInterrupted_ = false; reviewAllowed_ = s.hostTuningAllowed;
+        }
         last_ = live;
         out["tuningReviewVersion"] = QString::number(reviewVersion_);
         out["tuningStateCopy"] = !live.enabled ? "Off for this stream" : !live.supported || live.state == "unavailable" ? "Unavailable"

@@ -56,6 +56,24 @@ QQuickItem* visualChild(QQuickItem* item, const QString& name) {
     for (auto* child : item->childItems()) if (auto* found = visualChild(child, name)) return found;
     return nullptr;
 }
+// The full audio warning has its own painted line below the compact connection copy:
+// visible, unelided, at its full wrapped height, and inside the Command Center
+// viewport when the column is at its top.
+void requireAudioWarning(QObject* root, const QString& expected) {
+    auto* warning = root->findChild<QQuickItem*>("native-stream-audio-warning");
+    auto* connection = root->findChild<QQuickItem*>("native-stream-connection-copy");
+    auto* scroll = root->findChild<QQuickItem*>("native-command-center-scroll");
+    require(warning && connection && scroll, "Command Center audio warning controls missing");
+    scroll->setProperty("contentY", 0.0); settle();
+    require(warning->isVisible() && warning->property("text").toString() == expected, "Command Center hid or rewrote the audio warning");
+    require(!connection->property("text").toString().contains(expected), "audio warning still shared the elided connection line");
+    require(!warning->property("truncated").toBool() && warning->property("lineCount").toInt() >= 1 &&
+        warning->height() + 0.5 >= warning->property("contentHeight").toReal(), "audio warning was elided or clipped");
+    const qreal top = warning->mapToItem(scroll, QPointF(0, 0)).y();
+    require(top >= 0 && top + warning->height() <= scroll->height() + 0.5, "audio warning fell outside the Command Center viewport");
+    require(connection->mapToItem(scroll, QPointF(0, connection->height())).y() <= top + 0.5, "audio warning overlapped the connection copy");
+    require(warning->width() > 0 && warning->width() <= scroll->width() + 0.5, "audio warning escaped the Command Center width");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -213,7 +231,7 @@ int main(int argc, char** argv) {
         require(centerScroll->property("contentY") == priorScroll && qAbs(doctor->y() - priorDoctorY) < 1,
             "status refresh moved the live card or scroll under focus");
         session.audioCopy = "Audio output unavailable."; session.transition("active", true, "Game is connected."); settle();
-        require(root->findChild<QObject*>("native-stream-connection-copy")->property("text").toString().contains(session.audioCopy), "compact overview hid the audio warning");
+        requireAudioWarning(root.get(), session.audioCopy);
         session.tuning = ready;
         session.tuning["doctor"] = QVariantMap{{"available", true}, {"title", "Video needs attention"}};
         session.tuning["doctorCanApply"] = true; session.tuning["doctorActionLabel"] = "Review bitrate change";
@@ -231,6 +249,11 @@ int main(int argc, char** argv) {
         require(received->property("text").toString().contains("Unavailable"), "stale receive feedback remained measured");
         QMetaObject::invokeMethod(preview, "leave"); settle();
         focused(*window, bitrateAction, "status refresh lost details return focus");
+        // The longest active connection copy and audio outage, at large text.
+        session.audioCopy = "Audio is unavailable. Check your SteamOS audio output, then reconnect the stream.";
+        session.transition("active", true, "Native stream connected. Continue to send controls to the game.");
+        session.showControls(); QMetaObject::invokeMethod(root.get(), "largeText"); settle();
+        requireAudioWarning(root.get(), session.audioCopy);
         std::cout << "[OK] NovaHUD Down order and activation boundaries" << std::endl;
         return 0;
     }
@@ -763,6 +786,7 @@ int main(int argc, char** argv) {
     settle();
     focused(*window, primary, "audio outage lost Continue game focus");
     require(primary->property("text") == "Close" && !audioNotice->isVisible(), "audio outage changed stream controls");
+    requireAudioWarning(root.get(), session.audioCopy);
     screenshot("native-audio-waiting-960.png");
     session.audioCopy.clear();
     session.transition("active", true, "Your game is connected.");
@@ -920,10 +944,34 @@ int main(int argc, char** argv) {
     focused(*window, bitrateAction, "refresh details Back lost origin");
     session.tuning = readyBitrate; emit session.hudChanged(); settle();
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
+    // A transient host refresh keeps the focused draft control and its D-pad route;
+    // it can neither edit the draft nor write until fresh owner feedback returns.
+    const QVariantMap refreshing{{"canSetBitrate", false}, {"hostRefreshing", true}, {"bitrateCopy", "Refreshing host state…"}};
+    const auto draftBeforeRefresh = bitratePopup->property("draftKbps");
+    session.tuning = refreshing; emit session.hudChanged(); settle();
+    focused(*window, bitrateMinus, "host refresh dropped the focused decrement control");
+    key(*window, Qt::Key_Left); key(*window, Qt::Key_Right);
+    focused(*window, bitrateMinus, "host refresh moved focus to an unavailable sibling");
+    require(bitratePopup->property("draftKbps") == draftBeforeRefresh && session.bitrateWrites == 0, "refresh-time draft control edited or wrote");
+    session.tuning = readyBitrate; emit session.hudChanged(); settle();
+    focused(*window, bitrateMinus, "decrement focus did not survive fresh-refresh-fresh");
+    session.tuning = refreshing; emit session.hudChanged(); settle();
+    QMetaObject::invokeMethod(preview, "leave"); settle();
+    require(!bitratePopup->property("opened").toBool() && session.bitrateWrites == 0, "Back during refresh kept the picker or wrote");
+    focused(*window, bitrateAction, "Back from a refreshing draft control lost its origin row");
+    session.tuning = readyBitrate; emit session.hudChanged(); settle();
+    key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "reopened picker did not focus the decrement control");
     require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
     key(*window,Qt::Key_Up);focused(*window,useSuggested,"suggestion unreachable by controller");key(*window,Qt::Key_Return);
     require(bitratePopup->property("draftKbps")==201125 && session.bitrateWrites==0,"suggestion rounded advice or mutated host");
     require(bitratePopup->findChild<QObject*>("live-bitrate-received")->property("text").toString().contains("18.8 Mbps"),"received payload line missing");
+    session.tuning = refreshing; emit session.hudChanged(); settle();
+    focused(*window, useSuggested, "host refresh dropped the focused suggestion");
+    require(useSuggested->isVisible(), "focused suggestion vanished during refresh");
+    bitratePopup->setProperty("draftKbps", 20000); key(*window, Qt::Key_Return);
+    require(bitratePopup->property("draftKbps") == 20000 && session.bitrateWrites == 0, "refresh-time suggestion edited the draft or wrote");
+    session.tuning = readyBitrate; emit session.hudChanged(); settle();
+    focused(*window, useSuggested, "suggestion focus did not survive fresh-refresh-fresh");
     bitratePopup->setProperty("draftKbps",20000);key(*window,Qt::Key_Down);
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 30000 && session.bitrateWrites == 0, "draft adjustment mutated host");

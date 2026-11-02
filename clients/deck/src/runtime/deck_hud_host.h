@@ -36,7 +36,7 @@ public:
     static QVariantMap unavailable();
     QVariantMap accept(const polaris::DeckHostTelemetry& sample);
     // A failed read: the next Live Tuning reading starts a new line baseline.
-    void interrupt() { lines_.interrupt(); recent_.clear(); confirmed_.reset(); }
+    void interrupt() { lines_.interrupt(); recent_.clear(); confirmed_.reset(); reviewInterrupted_ = true; }
 private:
     DeckHudHostContext context_;
     std::function<qint64()> clock_;
@@ -45,6 +45,9 @@ private:
     std::optional<polaris::DeckLiveTuningTelemetry> confirmed_;
     QVariantList recent_;
     quint64 reviewVersion_ = 0;
+    // The confirmation review follows owner scope, permission and the effective
+    // setting, not whether an encoder target has settled yet.
+    bool reviewInterrupted_ = true, reviewAllowed_ = false;
     QSet<QString> retired_;
 };
 struct DeckHudHostTiming { int intervalMs = 1000, staleMs = 3500, maxBackoffMs = 8000, confirmationMs = 5000, eventRetryMs = 1000; };
