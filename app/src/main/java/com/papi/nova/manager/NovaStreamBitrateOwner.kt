@@ -39,6 +39,8 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
     private var operationInputs:NovaLiveStreamInputs?=null
     private val busy=AtomicBoolean(false)
     private var result:String?=null
+    private var diagnosticObservationRevision=0L
+    private var diagnosticObservationElapsedMs:Long?=null
     private val mutableState=MutableStateFlow(NovaLiveBitratePresentation())
     val state=mutableState.asStateFlow()
 
@@ -48,9 +50,66 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
     private fun key(s:PolarisSessionStatus)=s.appSessionId to s.sessionGeneration
     private fun validKey(s:PolarisSessionStatus)=s.appSessionId.isNotBlank() && s.sessionGeneration>0
 
+    /** A read only projection: no status refresh, publication, admission or transport call. */
+    fun diagnosticSnapshot():Map<String,Any?> = synchronized(lock) {
+        val nowApi=currentApi()
+        val nowConnection=currentConnection()
+        val observed=status
+        val published=mutableState.value
+        val token=NovaLiveBitrateToken(streamRevision,inputRevision)
+        val live=observed?.liveTuning
+        val liveScopeMatches=observed?.let { s -> live?.let {
+            it.appSessionId==s.appSessionId && it.sessionGeneration==s.sessionGeneration
+        } }
+        linkedMapOf(
+            "observationRevision" to diagnosticObservationRevision,
+            "observationElapsedMs" to diagnosticObservationElapsedMs,
+            "currentApiPresent" to (nowApi!=null),
+            "currentConnectionPresent" to (nowConnection!=null),
+            "attachmentPresent" to (api!=null && connection!=null),
+            "apiMatches" to (api!=null && api===nowApi),
+            "connectionMatches" to (connection!=null && connection===nowConnection),
+            "streamActive" to streamActive(),
+            "statusAvailable" to (observed!=null),
+            "contractValid" to observed?.authorityContractValid,
+            "observedStreaming" to observed?.streamingActive,
+            "observedShutdown" to observed?.shutdownRequested,
+            "observedOwned" to observed?.ownedByClient,
+            "ownerRoleMatches" to observed?.let { it.clientRole=="owner" },
+            "observedViewer" to observed?.isViewer,
+            "hostTuningAllowed" to observed?.controls?.hostTuningAllowed,
+            "canAdjustHostTuning" to observed?.canAdjustHostTuning,
+            "observedAppPresent" to observed?.appSessionIdPresent,
+            "observedAppNonblank" to observed?.let { it.appSessionId.isNotBlank() },
+            "observedGeneration" to observed?.sessionGeneration,
+            "observedGenerationPositive" to observed?.let { it.sessionGeneration>0 },
+            "attachedGeneration" to identity?.second,
+            "attachedAppMatches" to observed?.let { s -> identity?.let { it.first==s.appSessionId } },
+            "attachedGenerationMatches" to observed?.let { s -> identity?.let { it.second==s.sessionGeneration } },
+            "liveScopeMatches" to liveScopeMatches,
+            "scopeFingerprint" to if(liveScopeMatches==true) NovaBitrateScopeFingerprint.of(
+                live?.hostInstance,observed?.appSessionId,observed?.sessionGeneration) else null,
+            "hostSequence" to live?.sequence,
+            "denied" to denied,
+            "inputsMatchObservation" to (inputSignature as? List<*>)?.let { it.firstOrNull()==streamInputs() },
+            "inputReadOnly" to (streamInputs().readOnlyReason!=null),
+            "streamRevision" to streamRevision,
+            "inputRevision" to inputRevision,
+            "publishedTokenMatchesCurrent" to published.token?.let { it==token },
+            "publishedCanChange" to published.rate.canChange,
+            "publishedBusy" to published.rate.busy,
+            "publishedUnits" to published.rate.units.name,
+            "publishedRequestedKbps" to published.rate.requestedKbps,
+            "publishedRequestedKnown" to (published.rate.requestedKbps!=null),
+            "publishedMinimumKbps" to published.rate.minimumKbps.takeIf { controller!=null },
+            "publishedMaximumKbps" to published.rate.maximumKbps.takeIf { controller!=null },
+        )
+    }
+
     fun retire(): Unit = synchronized(lock) {
         controllerJob?.cancel();controllerJob=null;controller=null;identity=null;denial=null;denied=false
         api=null;connection=null;capabilities=null;status=null;inputSignature=null;streamRevision++;inputRevision++
+        diagnosticObservationRevision++;diagnosticObservationElapsedMs=null
         result=null;mutableState.value=NovaLiveBitratePresentation()
     }
 
@@ -65,6 +124,7 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
             retire();api=observedApi;connection=observedConnection
         }
         if (caps!=null && capabilities==null) capabilities=caps
+        diagnosticObservationRevision++;diagnosticObservationElapsedMs=android.os.SystemClock.elapsedRealtime()
         status=reading
         if (reading==null) { controller?.observe(null);publish();return@synchronized }
         val actualDenial=validKey(reading) && (reading.isViewer || (reading.authorityContractValid && reading.isStreaming &&

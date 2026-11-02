@@ -28,6 +28,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -108,6 +109,7 @@ data class NovaQuickMenuCallbacks(
     val onBitrateStep: (com.papi.nova.manager.NovaLiveBitrateToken?, Int) -> Unit = { _, _ -> },
     val onBitrateExact: (com.papi.nova.manager.NovaLiveBitratePresentation) -> Unit = {},
     val onBitrateRecommended: (com.papi.nova.manager.NovaLiveBitrateToken?) -> Unit = {},
+    val onBitrateDiagnostic: ((com.papi.nova.manager.NovaLiveBitratePresentation) -> Unit)? = null,
     val onQuickKey: (NovaQuickMenuActionId) -> Unit = {},
     val onOverlayAction: (NovaQuickMenuActionId) -> Unit = {},
     val onHudModeSelect: (NovaHudMode) -> Unit = {},
@@ -610,6 +612,7 @@ private fun NovaPageScope.NovaQuickMenuStabilityCard(
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val picture by ui.slice { it.liveBitrate }
+    callbacks.onBitrateDiagnostic?.let { observe -> SideEffect { observe(picture) } }
     val colors = LocalNovaComposeColors.current
     val rate = picture.rate
     val enabled = rate.canChange && !rate.busy

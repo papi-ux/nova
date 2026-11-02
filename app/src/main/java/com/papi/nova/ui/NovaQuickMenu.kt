@@ -177,6 +177,8 @@ class NovaQuickMenu(
     private class MenuSession(val device: GameInputDevice?, val rootKey: String) {
         var scope: NovaPageScope? = null
         var bitrateJob: kotlinx.coroutines.Job? = null
+        var bitrateDiagnostic: NovaBitrateMenuDiagnostic? = null
+        var bitrateDiagnosticJob: kotlinx.coroutines.Job? = null
         var anchorRef: WeakReference<View>? = null
         val anchor: View? get() = anchorRef?.get()
     }
@@ -212,6 +214,7 @@ class NovaQuickMenu(
         game.setNovaHudCovered(true)
         fun onMenuClosed() {
             menu.bitrateJob?.cancel()
+            menu.bitrateDiagnosticJob?.cancel()
             retireWorkingBaseline()
             game.setNovaHudCovered(false)
             game.cancelRuntimeTask("NovaQuickMenuLiveTuning")
@@ -222,6 +225,7 @@ class NovaQuickMenu(
                     doctorVerificationRunnable = null
                 }
             }
+            menu.bitrateDiagnostic?.record(NovaBitrateMenuDiagnostic.Event.MENU_CLOSED)
         }
 
         fun keys(vararg vk: Int) = ShortArray(vk.size) { vk[it].toShort() }
@@ -976,16 +980,22 @@ class NovaQuickMenu(
 
         fun bitrateMenuCurrent(): Boolean = menuValidationIsCurrent() && menuShowing() &&
             game.novaApiClient === commandClient && game.conn === commandConnection
+        if (NovaBitrateMenuDiagnostic.enabled()) {
+            menu.bitrateDiagnostic = NovaBitrateMenuDiagnostic(game.novaLiveBitrate, surfaces.panel,
+                menuValidationGeneration, ::menuValidationIsCurrent, ::menuShowing,
+                { game.novaApiClient === commandClient }, { game.conn === commandConnection })
+        }
         val bitrateAction = game.novaBitrateAction(::bitrateMenuCurrent)
         fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) =
             bitrateAction(token, direction, kbps)
         val callbacks = NovaQuickMenuCallbacks(
+            onBitrateDiagnostic = menu.bitrateDiagnostic?.let { diagnostic -> diagnostic::pictureRendered },
             onBitrateStep = { token, direction -> changeBitrate(token, direction = direction) },
             onBitrateRecommended = { token -> changeBitrate(token) },
             onBitrateExact = { picture ->
                 val rate = picture.rate
                 if (bitrateMenuCurrent() && rate.canChange && !rate.busy) {
-                    surfaces.panel.push(com.papi.nova.ui.panel.NovaCommonPage.Form(
+                    val form = com.papi.nova.ui.panel.NovaCommonPage.Form(
                         key = "stream-bitrate-exact", title = "Bitrate for this stream",
                         fields = listOf(com.papi.nova.ui.panel.NovaField("kbps", "Bitrate (kbps)",
                             rate.requestedKbps?.toString().orEmpty(), com.papi.nova.ui.panel.NovaFieldKind.Number)),
@@ -999,7 +1009,9 @@ class NovaQuickMenu(
                                 else -> { changeBitrate(picture.token, kbps = value); null }
                             }
                         },
-                    ))
+                    )
+                    surfaces.panel.push(form)
+                    menu.bitrateDiagnostic?.formOpened(form, picture)
                 }
             },
             onDismiss = { dismiss() },
@@ -1297,7 +1309,17 @@ class NovaQuickMenu(
         }
 
         menu.bitrateJob = game.lifecycleScope.launch {
-            game.novaLiveBitrate.state.collect { if (menuValidationIsCurrent() && menuShowing()) refreshState() }
+            game.novaLiveBitrate.state.collect {
+                if (menuValidationIsCurrent() && menuShowing()) refreshState()
+                menu.bitrateDiagnostic?.record(NovaBitrateMenuDiagnostic.Event.OWNER)
+            }
+        }
+        menu.bitrateDiagnostic?.let { diagnostic ->
+            menu.bitrateDiagnosticJob = game.lifecycleScope.launch {
+                snapshotFlow { surfaces.panel.top to surfaces.panel.depth }.collect {
+                    diagnostic.record(NovaBitrateMenuDiagnostic.Event.FORM_LIFETIME)
+                }
+            }
         }
         if (apiClient != null) {
             game.launchReplacingRuntimeIo("NovaQuickMenuLiveTuning") {
@@ -1306,6 +1328,7 @@ class NovaQuickMenu(
                         if (!menuValidationIsCurrent()) return@runOnMainIfRuntimeActive
                         publishCurrentSessionStatus()
                         refreshState()
+                        menu.bitrateDiagnostic?.record(NovaBitrateMenuDiagnostic.Event.STATUS)
                     }
                 }
             }

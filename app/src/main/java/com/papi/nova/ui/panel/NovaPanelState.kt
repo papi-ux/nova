@@ -112,6 +112,7 @@ class NovaPanelState {
         entries.indexOfFirst { it.id == entry.id }.takeIf { it > 0 }?.let { entries[it - 1] }
 
     internal fun contains(key: String): Boolean = entries.any { it.page.key == key }
+    internal fun contains(page: NovaPage): Boolean = entries.any { it.page === page }
 
     /** Opens the panel at [edge] with [root] as its only page, replacing anything it showed. */
     fun open(root: NovaPage, edge: NovaEdge = NovaEdge.End, returnFocus: NovaFocusReturn = NovaFocusReturn.None) {
