@@ -50,7 +50,7 @@ class NovaCommandCenterSplitRowsComposeTest {
         adjust: (NovaQuickMenuUiState) -> NovaQuickMenuUiState = { it },
     ): NovaTestKeys {
         state = MutableStateFlow(adjust(NovaQuickMenuUiState.preview(rule.activity)))
-        panel.open(CommandCenterPage.Root("Command Center"))
+        panel.open(CommandCenterPage.StreamDetails())
         val keys = rule.setPanelContent {
             // The theme under test inks destructive words and both fills alike; each role gets its own.
             val theme = LocalNovaComposeColors.current
@@ -64,8 +64,10 @@ class NovaCommandCenterSplitRowsComposeTest {
                 colors = LocalNovaComposeColors.current
                 Box(Modifier.fillMaxSize()) {
                     NovaPageStackHost(state = panel, containFocus = false) { page ->
-                        if (page is CommandCenterPage.Root) {
-                            NovaQuickMenuContent(state = state, callbacks = NovaQuickMenuCallbacks(), place = place)
+                        when (page) {
+                            is CommandCenterPage.Root -> NovaQuickMenuContent(state, NovaQuickMenuCallbacks(), place = place)
+                            is CommandCenterPage.StreamDetails, CommandCenterPage.TechnicalDetails -> NovaCommandCenterDetails(page as CommandCenterPage, state, NovaQuickMenuCallbacks(), place)
+                            else -> Unit
                         }
                     }
                 }
@@ -112,7 +114,11 @@ class NovaCommandCenterSplitRowsComposeTest {
         val keys = open(adjust = liveTuning(on = true))
         assertEquals("Live Tuning's title is a row's title", colors.textPrimary, labelColour("Live Tuning"))
         assertEquals("End Session keeps the destructive words", colors.destructive, labelColour("End Session"))
+        panel.push(CommandCenterPage.TechnicalDetails)
+        rule.frames(16)
         assertEquals("so does Clear Game Profile", colors.destructive, labelColour("Clear Game Profile"))
+        panel.pop()
+        rule.frames(16)
 
         focus("Live Tuning")
         keys.press(NovaTestKeys.CENTER)
@@ -152,25 +158,21 @@ class NovaCommandCenterSplitRowsComposeTest {
     fun noSplitIsWhereTheCommandCenterReopens() {
         val place = NovaQuickMenuPlace()
         val keys = open(place = place, adjust = liveTuning(on = true))
-        val altF4 = rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_alt_f4)
-        fun reopensOnClose() {
-            panel.close()
-            rule.frames(16)
-            panel.open(CommandCenterPage.Root("Command Center"))
-            rule.waitForIdle()
-            rule.frames(4)
-            rule.onNodeWithText("Close").assertIsFocused()
-        }
-        listOf("Live Tuning", "Clear Game Profile", "End Session", altF4).forEach { split ->
-            focus(split)
-            rule.onNodeWithText(split).assertIsFocused()
-            reopensOnClose()
-        }
         focus("Live Tuning")
         keys.press(NovaTestKeys.CENTER)
         rule.frames(16)
         rule.onNodeWithText("Stay").assertIsFocused()
-        reopensOnClose()
+        panel.close()
+        rule.frames(16)
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.frames(4)
+        rule.onNodeWithText("Close").assertIsFocused()
+        focus("End Session")
+        panel.close()
+        rule.frames(16)
+        panel.open(CommandCenterPage.Root("Command Center"))
+        rule.frames(4)
+        rule.onNodeWithText("Close").assertIsFocused()
     }
 
     /**

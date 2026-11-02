@@ -26,7 +26,7 @@ class NovaCommandCenterResultsInPlaceTest {
     fun aFailedLiveTuningSaveIsSaidOnItsRow() {
         val confirm = menu.section("onLiveTuning = ", "onToggleAdvanced = {")
         assertFalse("nothing about the save floats", confirm.contains("NovaSnackbar"))
-        assertTrue("the confirm goes through the Command Center's own switch", confirm.contains("host::switchLiveTuning"))
+        assertTrue("the confirm goes through the Command Center's own switch", confirm.contains("if (bitrateMenuCurrent()) host.switchLiveTuning(enable)"))
         val save = hostStatus.section("fun switchLiveTuning(", "private fun take(")
         assertTrue("the save goes through the one that says its result on the row", save.contains("liveTuning?.request(enable, observed)"))
         assertFalse(hostStatus.contains("NovaSnackbar"))

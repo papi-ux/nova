@@ -18,6 +18,10 @@ enum class NovaQuickMenuActionId {
     END_STREAM,
     STABILITY,
     LIVE_TUNING,
+    STREAM_DETAILS,
+    BITRATE_DETAILS,
+    DOCTOR_DETAILS,
+    TECHNICAL_DETAILS,
     SYNC_STATUS,
     ADVANCED_TUNING,
     CLEAR_GAME_PROFILE,
@@ -205,6 +209,7 @@ data class NovaQuickMenuUiState(
     val hudPositionCorner: NovaHudCorner? = null,
     /** The control round trip is under 2 ms, which the Doctor's card remarks on (#424). */
     val fasterThanLight: Boolean = false,
+    val stream: NovaCommandCenterStream = NovaCommandCenterStream(),
     val liveBitrate: com.papi.nova.manager.NovaLiveBitratePresentation = com.papi.nova.manager.NovaLiveBitratePresentation(),
 ) {
     /**
@@ -343,10 +348,10 @@ data class NovaQuickMenuUiState(
                 )
                 hdrDowngradeSummary != null -> hdrDowngradeSummary
                 status.hasHealthConcerns -> status.healthToneLabel
-                status.hasAuthoritativeDoctorResult ->
-                    context.getString(R.string.nova_quick_menu_health_steady)
+                status.hasAuthoritativeDoctorResult -> context.getString(
+                    if (status.authoritativeDoctorVerdictIsHealthy) R.string.nova_quick_menu_health_steady else R.string.nova_cc_health_unavailable)
                 status.health.summary.isNotBlank() -> status.health.summary
-                else -> context.getString(R.string.nova_quick_menu_health_steady)
+                else -> context.getString(R.string.nova_cc_health_unavailable)
             }
             val healthTone = when {
                 status == null -> NovaQuickMenuTone.MUTED
@@ -1017,7 +1022,7 @@ data class NovaQuickMenuUiState(
                 return context.getString(R.string.nova_cc_live_tuning_waiting_host)
             }
             val enabled = live?.enabled ?: (status.tuning.adaptiveBitrateEnabled || status.adaptiveBitrateEnabled)
-            if (!enabled) return context.getString(R.string.nova_cc_live_tuning_off_caption)
+            if (!enabled) return context.getString(R.string.nova_cc_tuning_off)
             // Older hosts expose preference and target only. Never claim encoder acknowledgement.
             if (live == null) return context.getString(R.string.nova_cc_live_tuning_on_unconfirmed)
             val state = context.getString(
@@ -1027,20 +1032,11 @@ data class NovaQuickMenuUiState(
                     "applying" -> R.string.nova_cc_live_tuning_applying
                     "measuring" -> R.string.nova_cc_live_tuning_measuring
                     "adjusting" -> R.string.nova_cc_live_tuning_adjusting
-                    else -> R.string.nova_cc_live_tuning_steady
+                    "stable" -> R.string.nova_cc_tuning_stable
+                    else -> R.string.nova_cc_live_tuning_waiting_host
                 }
             )
-            return when {
-                live.state == "unavailable" && live.reason.isNotBlank() ->
-                    context.getString(R.string.nova_cc_live_tuning_state_reason, state, live.reason.replace('_', ' '))
-                live.state != "unavailable" && live.appliedBitrateKbps > 0 -> context.getString(
-                    R.string.nova_cc_live_tuning_state_figures,
-                    state,
-                    StreamPolicyUiState.formatMbps(live.appliedBitrateKbps),
-                    StreamPolicyUiState.formatMbps(live.qualityLimitKbps),
-                )
-                else -> context.getString(R.string.nova_cc_live_tuning_state, state)
-            }
+            return listOfNotNull(state, liveTuningReason(context, live)).joinToString(". ")
         }
 
         private fun syncAction(

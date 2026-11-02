@@ -45,6 +45,22 @@ sealed interface CommandCenterPage : NovaPage {
         override val width: NovaPanelWidth get() = NovaPanelWidth.Wide
     }
 
+    /** Shared read-only explanation, with separately guarded controls. */
+    data class StreamDetails(val focusBitrate: Boolean = false) : CommandCenterPage {
+        override val title = "Stream details"
+        override val key = "command-center-stream-details"
+    }
+
+    data object DoctorDetails : CommandCenterPage {
+        override val title = "Doctor details"
+        override val key = "command-center-doctor-details"
+    }
+
+    data object TechnicalDetails : CommandCenterPage {
+        override val title = "Technical details"
+        override val key = "command-center-technical-details"
+    }
+
     /** A page that is a column of sections of rows. */
     sealed interface Listing : CommandCenterPage {
         val sections: List<CommandCenterSection>
@@ -310,10 +326,10 @@ object NovaCommandCenterKeys {
     const val CLOSE_APP_KEY: String = "alt-f4"
 
     /**
-     * The default keys the Command Center's root already offers, pinned under the session strip or
-     * in its Quick Keys grid. More Keys pushed from the root leaves them out, so each key shows once.
+     * The three keys pinned under the session strip. More Keys leaves these out and carries
+     * every remaining default key, including the deliberate Alt + F4 confirmation.
      */
-    val OnTheRoot: Set<String> = setOf("esc", "win", "alt-enter", CLOSE_APP_KEY, "f11", "insert", "ctrl-v", "ctrl-1", "ctrl-2")
+    val OnTheRoot: Set<String> = setOf("esc", "win", "alt-enter")
 
     fun defaults(context: Context): List<NovaCommandCenterKey> = listOf(
         key(context, "esc", R.string.game_menu_send_keys_esc, KeyboardTranslator.VK_ESCAPE),

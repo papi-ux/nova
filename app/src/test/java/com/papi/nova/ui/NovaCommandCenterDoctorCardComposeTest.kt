@@ -198,7 +198,8 @@ class NovaCommandCenterDoctorCardComposeTest {
         val initial = build(healthy, controlRttMs = 1)
         assertEquals(true, initial.fasterThanLight)
         open(initial)
-        rule.onNode(hasText(remark, substring = true)).assertExists()
+        rule.onAllNodes(hasText(remark, substring = true)).assertCountEquals(0)
+        rule.onNodeWithText("Doctor details").assertExists()
 
         show(build(healthy, controlRttMs = 2))
         rule.onAllNodes(hasText(remark, substring = true)).assertCountEquals(0)

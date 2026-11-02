@@ -1,6 +1,5 @@
 package com.papi.nova.ui
 
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,7 +38,7 @@ class NovaCommandCenterOpeningComposeTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val panel = NovaPanelState()
-    private val advanced get() = rule.activity.getString(R.string.nova_quick_menu_advanced_tuning)
+    private val advanced get() = rule.activity.getString(R.string.nova_cc_technical_details)
 
     private lateinit var state: MutableStateFlow<NovaQuickMenuUiState>
 
@@ -47,13 +46,15 @@ class NovaCommandCenterOpeningComposeTest {
         state = MutableStateFlow(NovaQuickMenuUiState.preview(rule.activity))
         panel.open(CommandCenterPage.Root("Command Center"))
         val callbacks = NovaQuickMenuCallbacks(
-            onToggleAdvanced = { state.value = state.value.copy(advancedExpanded = !state.value.advancedExpanded) },
+            onTechnicalDetails = { panel.push(CommandCenterPage.TechnicalDetails) },
         )
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
                 NovaPageStackHost(state = panel, containFocus = false) { page ->
-                    if (page is CommandCenterPage.Root) {
-                        NovaQuickMenuContent(state = state, callbacks = callbacks, place = place)
+                    when (page) {
+                        is CommandCenterPage.Root -> NovaQuickMenuContent(state, callbacks, place = place)
+                        CommandCenterPage.TechnicalDetails -> NovaCommandCenterDetails(CommandCenterPage.TechnicalDetails, state, callbacks, place)
+                        else -> Unit
                     }
                 }
             }
@@ -121,76 +122,45 @@ class NovaCommandCenterOpeningComposeTest {
     }
 
     @Test
-    @Config(qualifiers = TALL)
-    fun expandingAdvancedShowsItsRowsAndKeepsFocusOnTheToggle() {
+    fun technicalControlsPushAPageAndBackRestoresItsRootEntry() {
         val keys = open()
         focus(advanced)
         keys.press(NovaTestKeys.CENTER)
-        rule.waitForIdle()
         rule.frames(16)
-
+        assertTrue(panel.top is CommandCenterPage.TechnicalDetails)
+        rule.onNodeWithText("Close").assertIsDisplayed()
+        rule.onNodeWithText("Clear Game Profile").performScrollTo().assertIsDisplayed()
+        keys.back()
+        rule.frames(16)
+        assertTrue(panel.top is CommandCenterPage.Root)
         rule.onNodeWithText(advanced).assertIsFocused()
         rule.onNodeWithText(advanced).assertIsDisplayed()
-        assertLastAdvancedRowIsWhollyInTheList()
     }
 
-    /** Too short for the whole block: the toggle is still shown, with the first row coming in under it. */
     @Test
-    fun expandingAdvancedOnAShortListStartsItsRowsInView() {
+    fun technicalControlsKeepTheFixedHeaderWhileTheirListScrolls() {
         val keys = open()
         focus(advanced)
         keys.press(NovaTestKeys.CENTER)
-        rule.waitForIdle()
         rule.frames(16)
-
+        rule.onNodeWithText("Clear Game Profile").performScrollTo()
+        rule.onNodeWithText("Close").assertIsDisplayed()
+        rule.onNodeWithText("Disconnect").assertIsDisplayed()
+        rule.onNodeWithText("End Session").assertIsDisplayed()
+        val row = rule.onNodeWithText("Clear Game Profile").getUnclippedBoundsInRoot()
         val list = rule.onNodeWithTag(NOVA_CC_SECTIONS_TAG).getUnclippedBoundsInRoot()
-        val toggle = rule.onNodeWithText(advanced).getUnclippedBoundsInRoot()
-        val first = rule.onNodeWithText(state.value.advancedRows.first().label).getUnclippedBoundsInRoot()
-        assertTrue("the toggle starts at ${toggle.top}, the list at ${list.top}", toggle.top >= list.top)
-        assertTrue("the first row starts at ${first.top}, the list ends at ${list.bottom}", first.top < list.bottom)
+        assertTrue(row.bottom <= list.bottom)
     }
 
     @Test
-    fun aControllerMovesDownFromTheToggleIntoAdvancedsRows() {
+    fun closingTechnicalControlsThenReopeningStartsAtTheTop() {
         val keys = open()
         focus(advanced)
         keys.press(NovaTestKeys.CENTER)
-        rule.waitForIdle()
-        rule.frames(16)
-        keys.press(NovaTestKeys.DOWN)
-        rule.frames(8)
-
-        rule.onNodeWithText("Clear Game Profile").assertIsFocused()
-        rule.onNodeWithText("Clear Game Profile").assertIsDisplayed()
-    }
-
-    /** With animation off the rows are simply there; no scroll plays out over frames. */
-    @Test
-    @Config(qualifiers = TALL)
-    fun expandingAdvancedJumpsWhenAnimationIsOff() {
-        Settings.Global.putFloat(rule.activity.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
-        val keys = open()
-        focus(advanced)
-        keys.press(NovaTestKeys.CENTER)
-        rule.frames(3)
-
-        assertLastAdvancedRowIsWhollyInTheList()
-    }
-
-    /** An opening with Advanced already open is not an expansion, so it does not scroll there. */
-    @Test
-    fun reopeningWithAdvancedOpenStaysAtTheTop() {
-        val keys = open()
-        focus(advanced)
-        keys.press(NovaTestKeys.CENTER)
-        rule.waitForIdle()
         rule.frames(16)
         focus("Close")
         reopen()
-
         rule.onNodeWithText("Close").assertIsFocused()
         rule.onNodeWithText("Live Tuning").assertIsDisplayed()
     }
 }
-
-private const val TALL = "w900dp-h720dp-land"

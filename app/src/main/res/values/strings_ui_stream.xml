@@ -69,7 +69,7 @@
     <string name="nova_cc_live_tuning">Live Tuning</string>
     <string name="nova_cc_live_tuning_turn_on">Turn On</string>
     <string name="nova_cc_live_tuning_turn_off">Turn Off</string>
-    <string name="nova_cc_live_tuning_consequence">Changes Polaris for every device.</string>
+    <string name="nova_cc_live_tuning_consequence">Changes the saved Polaris preference for every device and future streams. Turning On also resumes automatic adjustment in this stream.</string>
     <string name="nova_cc_live_tuning_unknown">Unknown</string>
     <string name="nova_cc_live_tuning_fixed">Fixed</string>
     <string name="nova_cc_live_tuning_saving">Saving…</string>

@@ -139,6 +139,9 @@ class NovaStreamBitrateOwnerTest {
         assertEquals(NovaBitrateChange.APPLIED, owner.change(owner.state.value.token, { true }, kbps = 40000))
         assertEquals(listOf(34988), posts)
         assertEquals(40000, owner.state.value.rate.requestedKbps)
+        assertEquals("the fake encoder still reports the old applied value", 25987, parsed(json()).liveTuning?.appliedBitrateKbps)
+        assertEquals("Requested for this stream", owner.state.value.result)
+        assertFalse(owner.state.value.result!!.contains("Changed"))
         assertNull(owner.state.value.rate.receivedKbps)
     }
 }

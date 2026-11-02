@@ -624,11 +624,15 @@ class NovaQuickMenu(
                     validatedScopeId = doctorReceiptDisplayScopeId
                 )
             ).let { state ->
+                val sameAttachment = game.novaApiClient === commandClient && game.conn === commandConnection
+                val picture = game.novaLiveBitrate.state.value.let { picture ->
+                    if (sameAttachment && sessionStatus != null && !host.unavailable) picture
+                    else picture.copy(rate = picture.rate.copy(canChange = false, requestedKbps = null, negotiatedUnits = null),
+                        reason = "Stream status unavailable. Reopen Command Center")
+                }
                 (if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state)
-                    .copy(liveBitrate = game.novaLiveBitrate.state.value.let { picture ->
-                        if (game.novaApiClient === commandClient && game.conn === commandConnection) picture
-                        else picture.copy(rate = picture.rate.copy(canChange = false), reason = "Stream changed. Reopen Command Center")
-                    })
+                    .copy(liveBitrate = picture,
+                        stream = game.commandCenterStream(sessionStatus.takeIf { sameAttachment && !host.unavailable }, picture))
             }
         }
 
@@ -980,6 +984,15 @@ class NovaQuickMenu(
         fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) =
             bitrateAction(token, direction, kbps)
         val callbacks = NovaQuickMenuCallbacks(
+            onStreamDetails = { focusBitrate ->
+                if (menuValidationIsCurrent() && menuShowing()) surfaces.panel.push(CommandCenterPage.StreamDetails(focusBitrate))
+            },
+            onDoctorDetails = {
+                if (menuValidationIsCurrent() && menuShowing()) surfaces.panel.push(CommandCenterPage.DoctorDetails)
+            },
+            onTechnicalDetails = {
+                if (menuValidationIsCurrent() && menuShowing()) surfaces.panel.push(CommandCenterPage.TechnicalDetails)
+            },
             onBitrateStep = { token, direction -> changeBitrate(token, direction = direction) },
             onBitrateRecommended = { token -> changeBitrate(token) },
             onBitrateExact = { picture ->
@@ -990,7 +1003,7 @@ class NovaQuickMenu(
                         fields = listOf(com.papi.nova.ui.panel.NovaField("kbps", "Bitrate (kbps)",
                             rate.requestedKbps?.toString().orEmpty(), com.papi.nova.ui.panel.NovaFieldKind.Number)),
                         submitLabel = "Apply for this stream",
-                        warning = "${rate.minimumKbps} to ${rate.maximumKbps} kbps",
+                        warning = "${game.getString(R.string.nova_cc_scope_stream)}\n${rate.minimumKbps} to ${rate.maximumKbps} kbps (${if (rate.units == com.papi.nova.manager.NovaBitrateUnits.REQUEST) "request budget" else "video target"})",
                         onSubmit = { values ->
                             val value = values["kbps"]?.toIntOrNull()
                             when {
@@ -1037,7 +1050,7 @@ class NovaQuickMenu(
             },
             // The state the split offered, not a flip of whatever the host says now; the result
             // is said in the row's own caption (NovaLiveTuningSave).
-            onLiveTuning = host::switchLiveTuning,
+            onLiveTuning = { enable -> if (bitrateMenuCurrent()) host.switchLiveTuning(enable) },
             onToggleAdvanced = {
                 haptic {
                     advancedTuningVisible = !advancedTuningVisible
@@ -1285,6 +1298,8 @@ class NovaQuickMenu(
             }
             when (page) {
                 is CommandCenterPage.Root -> NovaQuickMenuContent(state = uiState, callbacks = callbacks, place = rootPlace)
+                is CommandCenterPage.StreamDetails, CommandCenterPage.DoctorDetails, CommandCenterPage.TechnicalDetails ->
+                    NovaCommandCenterDetails(page as CommandCenterPage, state = uiState, callbacks = callbacks, place = rootPlace)
                 is CommandCenterPage.Listing -> CommandCenterListingPage(page)
                 is NovaSteamPage -> NovaSteamControls(page)
                 is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)

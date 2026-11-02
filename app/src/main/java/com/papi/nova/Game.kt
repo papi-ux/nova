@@ -192,6 +192,13 @@ private val launchProfileUuid: String? by lazy {
 }
 private fun launchSharedPreferences(): android.content.SharedPreferences =
     ProfilesManager.getInstance().getOverlayingSharedPreferences(this, launchProfileUuid)
+internal val novaCommandCenterChanges = com.papi.nova.ui.NovaCommandCenterChanges()
+internal fun commandCenterStream(status: com.papi.nova.api.PolarisSessionStatus?, picture: com.papi.nova.manager.NovaLiveBitratePresentation) =
+    com.papi.nova.ui.commandCenterStream(this, status, picture, lastCompanionPerfSample,
+        android.os.SystemClock.elapsedRealtime(), isStreamActive && connected,
+        configuredStreamBitrateKbps,
+        novaCommandCenterChanges.snapshot(novaApiClient, conn))
+
 internal val novaLiveBitrate by lazy {
     com.papi.nova.manager.NovaStreamBitrateOwner(lifecycleScope,
         { novaApiClient }, { conn }, { isStreamActive && connected && !isFinishing && !isDestroyed },
@@ -224,6 +231,8 @@ private fun attachNovaLiveBitrate() {
     runtimeTasks.launchIoReplacing("NovaStreamBitrateStatus") {
         client.sessionStatusUpdates.collect { reading ->
             novaLiveBitrate.observe(client, connection, reading, currentNovaCapabilities())
+            if (novaApiClient === client && conn === connection)
+                novaCommandCenterChanges.observe(client, connection, reading, android.os.SystemClock.elapsedRealtime())
         }
     }
 }
@@ -3701,6 +3710,7 @@ stopListeningForExternalDisplayRemoval()
  // Nova: clean up Polaris integration
         stopPolarisLiveSessionStatusRefresh()
 novaLiveBitrate.retire()
+novaCommandCenterChanges.clear()
 runtimeTasks.cancelAll()
 stopCursorVisibilitySync()
 if (novaEventSource != null) novaEventSource!!.stop()
@@ -5779,6 +5789,7 @@ connected = false
 connecting = connected
 isStreamActive = false
 novaLiveBitrate.retire()
+novaCommandCenterChanges.clear()
 runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()

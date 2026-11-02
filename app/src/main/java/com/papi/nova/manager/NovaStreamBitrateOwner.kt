@@ -138,7 +138,7 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
             denied || !allowed -> "This stream does not allow tuning"
             rate.units==NovaBitrateUnits.UNKNOWN -> "Bitrate units unavailable"
             !rate.canChange -> "This host cannot change this stream's bitrate"
-            else -> "Changed for this stream only"
+            else -> "Changes apply to this stream only"
         }
         val numbers=if(inputs.width>0 && inputs.height>0 && inputs.fps>0)
             "${NovaSize(inputs.width,inputs.height).label} · ${inputs.fps} fps · ${rate.codec.uppercase()}" else "Stream details unavailable"
@@ -156,15 +156,15 @@ class NovaStreamBitrateOwner(private val scope:CoroutineScope,
                 (direction==null && kbps==null && presentation.rate.recommendedKbps==null) ||
                 !menuCurrent() || !busy.compareAndSet(false,true)) return NovaBitrateChange.UNAVAILABLE
             operationToken=token;operationInputs=streamInputs();permit=menuCurrent
-            result="Changing for this stream";publish()
+            result="Requesting bitrate for this stream";publish()
             attached
         }
         try {
             val outcome=when { direction!=null -> captured.step(direction);kbps!=null -> captured.setBitrate(kbps);else -> captured.useRecommended() }
             synchronized(lock) {
                 if (controller===captured && token==mutableState.value.token) result=when(outcome) {
-                    NovaBitrateChange.APPLIED -> "Changed for this stream"
-                    NovaBitrateChange.AT_LIMIT -> "This stream is already at that bitrate"
+                    NovaBitrateChange.APPLIED -> "Requested for this stream"
+                    NovaBitrateChange.AT_LIMIT -> "This bitrate is already requested for the stream"
                     NovaBitrateChange.SESSION_CHANGED -> "Stream changed. Reopen Command Center"
                     else -> "Could not change bitrate. Try again"
                 }

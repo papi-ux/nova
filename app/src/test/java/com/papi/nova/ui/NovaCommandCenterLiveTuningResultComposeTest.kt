@@ -157,11 +157,11 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         state = MutableStateFlow(build())
         host.redraw = { state.value = build() }
         val callbacks = NovaQuickMenuCallbacks(onLiveTuning = host::switchLiveTuning)
-        panel.open(CommandCenterPage.Root("Command Center"))
+        panel.open(CommandCenterPage.StreamDetails())
         val keys = rule.setPanelContent {
             Box(Modifier.fillMaxSize()) {
                 NovaPageStackHost(state = panel, containFocus = false) { page ->
-                    if (page is CommandCenterPage.Root) NovaQuickMenuContent(state = state, callbacks = callbacks)
+                    if (page is CommandCenterPage.StreamDetails) NovaCommandCenterDetails(page, state = state, callbacks = callbacks)
                 }
             }
         }
@@ -170,7 +170,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
     }
 
     // The row itself: the Sync card's caption can name Live Tuning too.
-    private val row = hasAnyAncestor(hasTestTag("nova-cc-live-tuning")) and hasClickAction()
+    private val row = hasAnyAncestor(hasTestTag("nova-cc-live-tuning-host")) and hasClickAction()
 
     /** A, Right, A on the Live Tuning row, past the split's guard; [armed] happens while it is armed. */
     private fun switchLiveTuning(keys: NovaTestKeys, armed: () -> Unit = {}) {
@@ -224,7 +224,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
         timers.toList().forEach { it.second() }
         rule.waitForIdle()
         rule.onNodeWithText(kept).assertDoesNotExist()
-        rule.onNodeWithText("Steady. 20 Mbps applied, 20 Mbps limit.").assertExists()
+        rule.onNodeWithText("Maintaining current bitrate").assertExists()
         assertStateSaidOnce(string(R.string.nova_quick_menu_on))
         rule.onNode(row).assertIsFocused()
     }
@@ -252,7 +252,7 @@ class NovaCommandCenterLiveTuningResultComposeTest {
 
         rule.onNodeWithText(string(R.string.nova_cc_live_tuning_kept_on)).assertDoesNotExist()
         rule.onNodeWithText(string(R.string.nova_cc_live_tuning_kept_off)).assertDoesNotExist()
-        rule.onNodeWithText(string(R.string.nova_cc_live_tuning_off_caption)).assertExists()
+        rule.onNodeWithText(string(R.string.nova_cc_tuning_off)).assertExists()
         assertStateSaidOnce(string(R.string.nova_quick_menu_off))
     }
 
