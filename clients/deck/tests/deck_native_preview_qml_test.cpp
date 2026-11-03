@@ -159,6 +159,35 @@ int main(int argc, char** argv) {
         auto* doctor = root->findChild<QQuickItem*>("native-doctor");
         auto* bitratePopup = root->findChild<QObject*>("live-bitrate-popup");
         require(hudAction && bitrateAction && tuning && doctor && bitratePopup, "missing HUD focus controls");
+        // Exercise both real presentation rows with the same session feedback.
+        QQmlComponent syncComponent(&engine);
+        syncComponent.setData(imports + R"(
+            SessionSyncActions { session: testSession; profileState: ({}) }
+        )", QUrl());
+        std::unique_ptr<QObject> syncActions(syncComponent.create());
+        require(syncActions != nullptr, qPrintable(syncComponent.errorString()));
+        auto* syncTuning = syncActions->findChild<QQuickItem*>("sync-live-tuning");
+        require(syncTuning, "missing real Sync tuning row");
+        const auto checkTuningCopy = [&](const QVariantMap& status, const char* expected) {
+            session.tuning = status; emit session.hudChanged(); settle();
+            const QString text = "Live Tuning · " + QString::fromUtf8(expected);
+            require(tuning->property("text") == text, "Command Center conflated unknown and reported tuning state");
+            require(syncTuning->property("text") == text, "Sync conflated unknown and reported tuning state");
+        };
+        std::cout << "[RUN] Live Tuning row vocabulary" << std::endl;
+        checkTuningCopy({}, "Unknown");
+        checkTuningCopy({{"hostFresh", true}, {"tuningKnown", false}}, "Unknown");
+        checkTuningCopy({{"hostFresh", true}, {"tuningKnown", false}, {"tuningStateCopy", "Unknown"}}, "Unknown");
+        checkTuningCopy({{"hostFresh", false}, {"tuningKnown", true}, {"tuningStateCopy", "On"}}, "Unknown");
+        for (const char* reported : {"Unavailable", "On", "Off for this stream"})
+            checkTuningCopy({{"hostFresh", true}, {"tuningKnown", true}, {"tuningStateCopy", reported}}, reported);
+        checkTuningCopy({{"hostFresh", true}, {"tuningBusy", true}, {"tuningStateCopy", "On"}}, "Saving…");
+        session.tuning = {{"hostRefreshing", true}}; emit session.hudChanged(); settle();
+        require(tuning->property("text") == "Live Tuning · Refreshing…" &&
+            syncTuning->property("text") == "Live Tuning · Unknown", "refresh changed the existing row progress vocabulary");
+        require(session.tuningWrites == 0 && session.bitrateWrites == 0 && session.stops == 0 && session.disconnects == 0,
+            "tuning vocabulary observation changed host or stream state");
+        std::cout << "[OK] Live Tuning row vocabulary" << std::endl;
         auto* toggle = bitratePopup->findChild<QQuickItem*>("stream-details-host-tuning");
         auto* confirm = bitratePopup->findChild<QQuickItem*>("stream-details-tuning-confirm");
         auto* confirmation = bitratePopup->findChild<QObject*>("stream-details-tuning-confirmation");

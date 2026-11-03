@@ -49,14 +49,14 @@ QVariantMap DeckHudHostReducer::unavailable() {
         {"tuningLabel", "Tuning: Unknown"}, {"tuningTone", "muted"},
         {"appliedBitrate", "--"}, {"requestedBitrate", "--"}, {"qualityLimit", "--"},
         {"canTune", false}, {"tuningKnown", false}, {"tuningEnabled", false}, {"tuningBusy", false},
-        {"tuningCopy", "Live Tuning is unavailable for this stream."},
+        {"tuningCopy", "Current Live Tuning state is unknown."},
         {"canSetBitrate", false}, {"appliedBitrateKbps", 0}, {"requestedBitrateKbps", 0}, {"bitrateRequestKbps", 0}, {"bitrateBusy", false},
         {"bitrateCopy", "Live bitrate is unavailable for this stream."},
         {"bitrateUnitsMode", "unknown"}, {"maximumBitrateKbps", 300000}, {"minimumBitrateKbps", 1000}, {"suggestedBitrateKbps", 0},
         {"canSyncProfile", false}, {"syncBusy", false}, {"syncPhase", "idle"}, {"syncCopy", ""}, {"syncVersion", 0},
         {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false},
         {"hdrStream", false}, {"hdrCopy", "HDR unavailable"},
-        {"tuningStateCopy", "Live Tuning unavailable"}, {"tuningReasonCopy", "Current host feedback is unavailable."},
+        {"tuningStateCopy", "Unknown"}, {"tuningReasonCopy", "Current host feedback is unavailable."},
         {"tuningReviewVersion", QString{}}, {"requestedVideoKbps", 0}, {"videoLimitKbps", 0},
         {"recentChanges", QVariantList{}}};
 }

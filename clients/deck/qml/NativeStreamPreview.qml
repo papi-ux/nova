@@ -706,7 +706,7 @@ Popup {
                     onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
                     onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)
                         Qt.callLater(() => inGameHud.forceActiveFocus())
-                    text: "Live Tuning · " + (status.hostRefreshing ? "Refreshing…" : status.tuningBusy ? "Saving…" : status.hostFresh ? status.tuningStateCopy || "Unavailable" : "Unavailable")
+                    text: "Live Tuning · " + (status.hostRefreshing ? "Refreshing…" : status.tuningBusy ? "Saving…" : status.hostFresh ? status.tuningStateCopy || "Unknown" : "Unknown")
                     Accessible.description: "Open stream details. " + (status.hostFresh ? status.tuningReasonCopy || "Current host feedback is unavailable." : "Current host feedback is unavailable.")
                     contentItem: Column {
                         spacing: 6 * nativePreview.unit

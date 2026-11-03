@@ -51,12 +51,12 @@ NovaScrollColumn {
     Copy { text: "APPLIES NOW"; font.pixelSize: 12 * actions.unit * NovaTheme.fontScale }
     Action {
         id: tuning; position: 0; objectName: "sync-live-tuning"
-        text: "Live Tuning · " + (actions.live.tuningBusy ? "Saving…" : actions.live.hostFresh ? actions.live.tuningStateCopy || "Unavailable" : "Unavailable")
+        text: "Live Tuning · " + (actions.live.tuningBusy ? "Saving…" : actions.live.hostFresh ? actions.live.tuningStateCopy || "Unknown" : "Unknown")
         opacity: actions.live.canTune || activeFocus ? 1 : 0.55
         Accessible.description: "Open stream details. Changing the host setting requires confirmation."
         onClicked: actions.tuningRequested()
     }
-    Copy { text: actions.live.tuningCopy || "Live Tuning is unavailable for this stream." }
+    Copy { text: actions.live.tuningCopy || "Current Live Tuning state is unknown." }
     Action {
         id: bitrate; position: 1; objectName: "sync-live-bitrate"
         text: "Change live bitrate"

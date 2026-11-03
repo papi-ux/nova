@@ -767,11 +767,36 @@ void hdrStreamFact() {
     }
 }
 void commandCenterPresentation() {
+    std::cout << "[RUN] Live Tuning unknown versus reported state" << std::endl;
+    const auto unknown = [](const QVariantMap& state) {
+        require(!state.value("tuningKnown").toBool() && !state.value("canTune").toBool() &&
+            state.value("tuningLabel") == "Tuning: Unknown" && state.value("tuningStateCopy") == "Unknown",
+            "unreported Live Tuning state must read Unknown without write authority");
+        require(state.value("tuningCopy").toString().contains("unknown", Qt::CaseInsensitive),
+            "unreported Live Tuning explanation must preserve unknown state");
+    };
+    unknown(DeckHudHostReducer::unavailable());
+    unknown(view(envelope()));
+    auto malformed = envelope(); malformed["live_tuning"] = QJsonObject{{"enabled", true}};
+    unknown(view(malformed));
     QFile file(QStringLiteral(NOVA_DECK_TUNING_FIXTURE)); require(file.open(QIODevice::ReadOnly), "fixture missing");
     QJsonObject stable;
     for (const auto& entry : QJsonDocument::fromJson(file.readAll()).array())
         if (entry.toObject().value("name") == "stable") stable = entry.toObject().value("live_tuning").toObject();
     auto o = envelope(); o["live_tuning"] = stable;
+    require(view(o).value("tuningKnown").toBool() && view(o).value("tuningStateCopy") == "On",
+        "reported Live Tuning On became unknown");
+    auto off = stable; off["enabled"] = false; off["state"] = "off";
+    auto reported = envelope(); reported["live_tuning"] = off;
+    require(view(reported).value("tuningKnown").toBool() && view(reported).value("tuningStateCopy") == "Off for this stream",
+        "reported Live Tuning Off became unknown");
+    for (const bool supported : {false, true}) {
+        auto unavailable = stable; unavailable["supported"] = supported; unavailable["state"] = "unavailable";
+        reported["live_tuning"] = unavailable;
+        require(view(reported).value("tuningKnown").toBool() && view(reported).value("tuningStateCopy") == "Unavailable",
+            "reported unsupported or unavailable Live Tuning became unknown");
+    }
+    std::cout << "[OK] Live Tuning unknown versus reported state" << std::endl;
     auto sample = parse(o);
     DeckHudHostReducer reducer(context);
     auto current = reducer.accept(sample);
