@@ -20,6 +20,8 @@ internal class DoctorTelemetryUploadGate {
 
     fun release(token: Long): Boolean = activeToken.compareAndSet(token, NO_TOKEN)
 
+    fun isCurrent(token: Long): Boolean = token != NO_TOKEN && activeToken.get() == token
+
     fun invalidate() {
         activeToken.set(NO_TOKEN)
     }

@@ -20,6 +20,9 @@ data class PerfOverlaySample(
     val sessionGeneration: Long = 0L,
     /** Encoded payload submitted for decoding; excludes earlier frame drops, audio and wire overhead. */
     val receivedVideoPayloadKbps: Double? = null,
+    /** Independent native population; never uses the legacy Java frame counters above. */
+    val frameSubmission: com.papi.nova.nvstream.jni.NativeFrameSubmissionSnapshot? = null,
+    val frameSubmissionProducer: com.papi.nova.nvstream.FrameSubmissionProducer? = null,
 ) {
     /** The legacy rendered fields count accepted present requests for Android PyroWave. */
     val frameOutputSource: String

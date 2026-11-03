@@ -184,6 +184,8 @@ class PolarisApiClient @JvmOverloads constructor(
     private val liveTuningReducer = LiveTuningReducer()
     private val mutableSessionStatus = kotlinx.coroutines.flow.MutableStateFlow<PolarisSessionStatus?>(null)
     val sessionStatusUpdates: kotlinx.coroutines.flow.StateFlow<PolarisSessionStatus?> = mutableSessionStatus
+    private val frameSubmissionScope = com.papi.nova.binding.video.FrameSubmissionScopeTracker()
+    internal fun frameSubmissionStatus() = frameSubmissionScope.current()
     private data class CommandKeySession(val id: String, val generation: Long) {
         fun matches(status: PolarisSessionStatus) = id.isNotBlank() &&
             id == status.appSessionId && generation == status.sessionGeneration
@@ -211,9 +213,10 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? {
-        if (status == null) { mutableSessionStatus.value = null; return null }
+        if (status == null) { frameSubmissionScope.observe(null); mutableSessionStatus.value = null; return null }
         if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) return mutableSessionStatus.value
         updateCommandKeyAuthority(status)
+        frameSubmissionScope.observe(status)
         mutableSessionStatus.value = status
         return status
     }
@@ -1241,6 +1244,7 @@ class PolarisApiClient @JvmOverloads constructor(
                     lockScreenControl = features?.optBoolean("lock_screen_control") ?: false,
                     cursorVisibilityControl = features?.optBoolean("cursor_visibility_control") ?: false,
                     liveMediaTelemetry = strictBoolean(features, "live_media_telemetry_v1"),
+                    liveMediaFrameSubmissionV1 = LiveMediaTelemetryBody.frameSubmissionSupported(features),
                     doctorV2Shadow = features?.optBoolean("doctor_v2_shadow_v1") ?: false,
                     doctorV2ShadowEnabled = features?.optBoolean("doctor_v2_shadow_enabled") ?: false,
                     doctorTrials = features?.optBoolean("doctor_trials_v1") ?: false,
@@ -1755,33 +1759,11 @@ class PolarisApiClient @JvmOverloads constructor(
             refreshRateHz: Double,
             bitrateKbps: Int,
             topology: String,
-            hdr: Boolean
-        ): JSONObject = JSONObject().apply {
-            put("app_session_id", appSessionId)
-            put("session_generation", sessionGeneration)
-            put("sample", JSONObject().apply {
-                put("monotonic_timestamp_ms", sample.monotonicTimestampMs)
-                put("decoder_generation", sample.sessionGeneration)
-                put("frames_expected", sample.framesExpected)
-                put("frames_received", sample.framesReceived)
-                put("frames_rendered", sample.framesRendered)
-                put("frames_lost", sample.framesLost)
-                put("received_fps", sample.incomingFps)
-                put("rendered_fps", sample.renderedFps)
-                put("target_fps", targetFps)
-                put("refresh_rate_hz", refreshRateHz)
-                put("decode_latency_ms", sample.wireDecodeLatencyMs)
-                put("decode_latency_available", sample.decodeLatencyAvailable)
-                put("frame_output_source", sample.frameOutputSource)
-                sample.hostProcessingLatencyMs?.let { put("host_processing_latency_ms", it) }
-                put("width", sample.width)
-                put("height", sample.height)
-                put("codec", sample.codec)
-                put("bitrate_kbps", bitrateKbps)
-                put("topology", topology)
-                put("hdr", hdr)
-            })
-        }
+            hdr: Boolean,
+            frameSubmission: com.papi.nova.binding.video.FrameSubmissionReport? = null,
+            frameSubmissionSupported: Boolean = false
+        ): JSONObject = LiveMediaTelemetryBody.build(sample, appSessionId, sessionGeneration, targetFps,
+            refreshRateHz, bitrateKbps, topology, hdr, frameSubmission, frameSubmissionSupported)
 
         private fun parseRecoverySafeProfile(json: JSONObject?): PolarisSessionStatus.RecoverySafeProfile =
             PolarisSessionStatus.RecoverySafeProfile(
@@ -1887,6 +1869,10 @@ class PolarisApiClient @JvmOverloads constructor(
                 gameId = json.optInt("game_id", 0),
                 gameUuid = strictOptionalIdentity(json, "game_uuid"),
                 sessionToken = strictOptionalIdentity(json, "session_token"),
+                frameSubmissionLaunchNonce = com.papi.nova.nvstream.FrameSubmissionLaunchIdentity
+                    .parseNonce(json.opt("frame_submission_launch_nonce")).orEmpty(),
+                frameSubmissionScopeTyped = json.opt("streaming_active") is Boolean &&
+                    json.opt("shutdown_requested") is Boolean && json.opt("owner_unique_id") is String,
                 appSessionId = strictOptionalIdentity(json, "app_session_id"),
                 appSessionIdPresent = json.has("app_session_id"),
                 sessionGeneration = sessionGeneration,
@@ -3620,7 +3606,8 @@ class PolarisApiClient @JvmOverloads constructor(
         refreshRateHz: Double,
         bitrateKbps: Int,
         topology: String,
-        hdr: Boolean
+        hdr: Boolean,
+        frameSubmission: (() -> com.papi.nova.binding.video.FrameSubmissionReport?)? = null
     ): Boolean {
         if (appSessionId.isBlank() || sessionGeneration <= 0L ||
             sample.monotonicTimestampMs <= 0L || sample.framesExpected < 0L ||
@@ -3637,7 +3624,11 @@ class PolarisApiClient @JvmOverloads constructor(
                 refreshRateHz = refreshRateHz,
                 bitrateKbps = bitrateKbps,
                 topology = topology,
-                hdr = hdr
+                hdr = hdr,
+                // Evaluate on the actual coroutine immediately before constructing the request.
+                frameSubmission = if (latestCapabilities?.features?.liveMediaFrameSubmissionV1 == true)
+                    frameSubmission?.invoke() else null,
+                frameSubmissionSupported = latestCapabilities?.features?.liveMediaFrameSubmissionV1 == true
             )
             val request = Request.Builder()
                 .url("$baseUrl/session/telemetry")

@@ -6,6 +6,9 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "minisdl.h"
 #include "video_payload_stats.h"
@@ -236,6 +239,46 @@ int64_t nova_video_payload_clock_ms(void) {
         return -1;
     }
     return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+bool nova_video_payload_random_nonce(uint8_t nonce[16]) {
+    /* Kernel entropy only, once per DR setup. Failure affects diagnostics alone. */
+    const int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return false;
+    size_t offset = 0;
+    while (offset < 16) {
+        const ssize_t count = read(fd, nonce + offset, 16 - offset);
+        if (count < 0 && errno == EINTR) continue;
+        if (count <= 0) { close(fd); return false; }
+        offset += (size_t)count;
+    }
+    close(fd);
+    return true;
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_papi_nova_nvstream_jni_MoonBridge_getVideoFrameSubmissionEpoch(JNIEnv *env, jclass clazz) {
+    return nova_video_frame_submission_epoch();
+}
+
+JNIEXPORT jobject JNICALL
+Java_com_papi_nova_nvstream_jni_MoonBridge_getVideoFrameSubmissionSnapshot(JNIEnv *env, jclass clazz,
+                                                                        jlong expectedEpoch) {
+    nova_video_frame_submission_snapshot_t snapshot;
+    if (!nova_video_frame_submission_snapshot(expectedEpoch, &snapshot)) return NULL;
+    jclass type = (*env)->FindClass(env, "com/papi/nova/nvstream/jni/NativeFrameSubmissionSnapshot");
+    if (type == NULL) return NULL;
+    jmethodID constructor = (*env)->GetMethodID(env, type, "<init>", "(Ljava/lang/String;JJJJJJJ)V");
+    if (constructor == NULL) return NULL;
+    jstring nonce = (*env)->NewStringUTF(env, snapshot.connection_nonce);
+    if (nonce == NULL) return NULL;
+    jobject result = (*env)->NewObject(env, type, constructor, nonce,
+        (jlong)snapshot.native_epoch, (jlong)snapshot.snapshot_sequence, (jlong)snapshot.last_frame_index,
+        (jlong)snapshot.decode_units_submitted_total, (jlong)snapshot.payload_bytes_total,
+        (jlong)snapshot.monotonic_timestamp_ms, (jlong)snapshot.last_submission_timestamp_ms);
+    (*env)->DeleteLocalRef(env, nonce);
+    (*env)->DeleteLocalRef(env, type);
+    return result;
 }
 
 JNIEXPORT jlongArray JNICALL

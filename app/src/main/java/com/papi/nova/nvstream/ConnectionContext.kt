@@ -21,6 +21,7 @@ class ConnectionContext {
 
     @JvmField var rtspSessionUrl: String? = null
     @JvmField var sessionToken: String? = null
+    @JvmField @Volatile var frameSubmissionLaunchIdentity: FrameSubmissionLaunchIdentity? = null
     @JvmField var currentGameOwnedByClient: Boolean? = null
     @JvmField var currentGameOwnerName: String? = null
     @JvmField var watchOnlyRequested = false

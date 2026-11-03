@@ -271,6 +271,8 @@ class PyroWaveDecoderRenderer(
     // The window the HUD reads, reset every time it is reported.
     private var windowStartedMs: Long = 0
     private val videoPayloadRate = VideoPayloadRateSampler()
+    private var frameSubmissionEpoch = 0L
+    private var frameSubmissionProducer: com.papi.nova.nvstream.FrameSubmissionProducer? = null
     private var windowFrames: Long = 0
     private var windowSubmitted: Long = 0
 
@@ -303,6 +305,8 @@ class PyroWaveDecoderRenderer(
     // What the library asks.
 
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
+        frameSubmissionEpoch = readFrameSubmissionEpoch()
+        frameSubmissionProducer = MoonBridge.captureFrameSubmissionProducer(this, frameSubmissionEpoch)
         this.format = format
         this.width = width
         this.height = height
@@ -456,6 +460,8 @@ class PyroWaveDecoderRenderer(
                     .takeIf { it > 0 }
                     ?.let { windowHostLatency.toDouble() / 10.0 / it.toDouble() },
                 receivedVideoPayloadKbps = videoPayloadRate.sample(readVideoPayloadSnapshot()),
+                frameSubmission = readFrameSubmissionSnapshot(frameSubmissionEpoch),
+                frameSubmissionProducer = frameSubmissionProducer,
             )
         )
 

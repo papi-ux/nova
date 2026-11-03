@@ -24,6 +24,53 @@ import org.robolectric.annotation.Config
 class PolarisApiClientParsingTest {
 
     @Test
+    fun frameSubmissionFeatureAndOptionalBodyAreStrictAndIndependent() {
+        for (value in listOf(false, "true", 1, 1.0, JSONObject.NULL, JSONObject())) {
+            val capability = PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",
+                JSONObject().put("live_media_frame_submission_v1", value)))
+            assertFalse(capability.features.liveMediaFrameSubmissionV1)
+        }
+        assertFalse(PolarisApiClient.parseCapabilitiesResponse(JSONObject()).features.liveMediaFrameSubmissionV1)
+        assertTrue(PolarisApiClient.parseCapabilitiesResponse(JSONObject().put("features",
+            JSONObject().put("live_media_frame_submission_v1", true))).features.liveMediaFrameSubmissionV1)
+        val native = com.papi.nova.nvstream.jni.NativeFrameSubmissionSnapshot(
+            "1234567890abcdef1234567890abcdef", 7, 2, 50, 10, 50000, 1000, 999)
+        val sample = PerfOverlaySample(60.0, 60.0, 60.0, 1920, 1080, "HEVC", 2, 1, 3.0, 0.0,
+            framesExpected = 100, frameSubmission = native)
+        fun body(capable: Boolean) = PolarisApiClient.buildLiveMediaTelemetryBody(sample, "s", 9,
+            60.0, 120.0, 20000, "private", false,
+            com.papi.nova.binding.video.FrameSubmissionReport(native, "abcdef0123456789abcdef0123456789"), capable).getJSONObject("sample")
+        assertFalse(body(false).has("frame_submission"))
+        assertEquals(10, body(true).getJSONObject("frame_submission").getInt("decode_units_submitted_total"))
+        assertEquals(100, body(true).getInt("frames_expected"))
+    }
+
+    @Test
+    fun optionalLaunchNonceParsingNeverChangesLegacyStatusAcceptance() {
+        for (value in listOf(false, 1, JSONObject.NULL, "", "0".repeat(32), "A".repeat(32), "xyz")) {
+            val status = PolarisApiClient.parseSessionStatusResponse(JSONObject().put("state", "streaming")
+                .put("frame_submission_launch_nonce", value))
+            assertEquals("streaming", status.state)
+            assertEquals("", status.frameSubmissionLaunchNonce)
+        }
+        val nonce = "abcdef0123456789abcdef0123456789"
+        assertEquals(nonce, PolarisApiClient.parseSessionStatusResponse(JSONObject()
+            .put("frame_submission_launch_nonce", nonce)).frameSubmissionLaunchNonce)
+    }
+
+    @Test
+    fun coercedLegacyScopeFieldsCannotValidateTheOptionalFrameScope() {
+        val typed = JSONObject("""{"state":"streaming","streaming_active":true,"shutdown_requested":false,"owner_unique_id":"owner"}""")
+        assertTrue(PolarisApiClient.parseSessionStatusResponse(typed).frameSubmissionScopeTyped)
+        for ((key, value) in listOf("streaming_active" to "true", "shutdown_requested" to "false", "owner_unique_id" to true)) {
+            val malformed = JSONObject(typed.toString()).put(key, value)
+            val parsed = PolarisApiClient.parseSessionStatusResponse(malformed)
+            assertEquals("streaming", parsed.state)
+            assertFalse(parsed.frameSubmissionScopeTyped)
+        }
+    }
+
+    @Test
     fun launchPreflightAuthorityRequiresCompleteTypedCurrentModeEnvelope() {
         assertFalse(PolarisApiClient.hasTypedLaunchModeAuthority(JSONObject()))
         assertFalse(

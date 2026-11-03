@@ -299,6 +299,8 @@ class MediaCodecDecoderRenderer(
     // class tracking a third separate field.
     private var benchmarkStreamGeneration = 0
     private val videoPayloadRate = VideoPayloadRateSampler()
+    private var frameSubmissionEpoch = 0L
+    private var frameSubmissionProducer: com.papi.nova.nvstream.FrameSubmissionProducer? = null
 
     /**
      * One armed/active Nordstern P0-4A benchmark run. Nova's whole run
@@ -1033,6 +1035,8 @@ class MediaCodecDecoderRenderer(
     }
 
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
+        frameSubmissionEpoch = readFrameSubmissionEpoch()
+        frameSubmissionProducer = MoonBridge.captureFrameSubmissionProducer(this, frameSubmissionEpoch)
         resetRollingPerfStatsForNewStream("stream setup")
         loggedSpsPatches.clear()
         targetFps = if (redrawRate > 0) redrawRate else 60
@@ -1796,6 +1800,8 @@ class MediaCodecDecoderRenderer(
                     ?.let { lastTwo.totalHostProcessingLatency.toDouble() / 10.0 / it.toDouble() },
                 sessionGeneration = benchmarkStreamGeneration.toLong() + 1L,
                 receivedVideoPayloadKbps = videoPayloadRate.sample(readVideoPayloadSnapshot()),
+                frameSubmission = readFrameSubmissionSnapshot(frameSubmissionEpoch),
+                frameSubmissionProducer = frameSubmissionProducer,
             )
             perfListener.onPerfSample(perfSample)
 

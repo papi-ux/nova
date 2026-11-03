@@ -361,6 +361,16 @@ if(BUILD_TESTING)
     target_link_libraries(nova_video_payload_stats_test PRIVATE Threads::Threads)
     add_test(NAME nova_video_payload_stats_test COMMAND nova_video_payload_stats_test)
     set_tests_properties(nova_video_payload_stats_test PROPERTIES TIMEOUT 10)
+    add_executable(nova_video_frame_submission_test
+        ../../tools/tests/video_frame_submission_test.c
+        ../../app/src/main/jni/moonlight-core/video_payload_stats.c)
+    target_include_directories(nova_video_frame_submission_test PRIVATE
+        ../../app/src/main/jni/moonlight-core)
+    target_compile_features(nova_video_frame_submission_test PRIVATE c_std_11)
+    target_compile_definitions(nova_video_frame_submission_test PRIVATE NOVA_VIDEO_STATS_TEST=1)
+    target_link_libraries(nova_video_frame_submission_test PRIVATE Threads::Threads)
+    add_test(NAME nova_video_frame_submission_test COMMAND nova_video_frame_submission_test)
+    set_tests_properties(nova_video_frame_submission_test PROPERTIES TIMEOUT 10)
     add_executable(nova_deck_rtsp_harness ../../tools/moonlight_rtsp_harness.c)
     target_compile_definitions(nova_deck_rtsp_harness PRIVATE
         NOVA_RTSP_SOURCE="${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/RtspConnection.c" HAS_SOCKLEN_T NDEBUG)

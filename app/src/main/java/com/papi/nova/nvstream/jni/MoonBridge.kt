@@ -183,6 +183,7 @@ class MoonBridge {
         private var audioRenderer: AudioRenderer? = null
         private var videoRenderer: VideoDecoderRenderer? = null
         private var connectionListener: NvConnectionListener? = null
+        private var frameSubmissionConnection: Pair<Any, com.papi.nova.nvstream.FrameSubmissionLaunchIdentity?>? = null
 
         init {
             System.loadLibrary("moonlight-core")
@@ -327,6 +328,7 @@ class MoonBridge {
             audioRenderer: AudioRenderer?,
             connectionListener: NvConnectionListener?,
         ) {
+            frameSubmissionConnection = null
             this.videoRenderer = videoRenderer
             this.audioRenderer = audioRenderer
             this.connectionListener = connectionListener
@@ -334,10 +336,21 @@ class MoonBridge {
 
         @JvmStatic
         fun cleanupBridge() {
+            frameSubmissionConnection = null
             videoRenderer = null
             audioRenderer = null
             connectionListener = null
         }
+
+        @JvmStatic
+        fun setupFrameSubmissionProducer(connection: Any, launch: com.papi.nova.nvstream.FrameSubmissionLaunchIdentity?) {
+            frameSubmissionConnection = connection to launch
+        }
+
+        @JvmStatic
+        fun captureFrameSubmissionProducer(renderer: VideoDecoderRenderer, epoch: Long): com.papi.nova.nvstream.FrameSubmissionProducer? =
+            frameSubmissionConnection?.takeIf { videoRenderer === renderer && epoch > 0 }
+                ?.let { com.papi.nova.nvstream.FrameSubmissionProducer(it.first, it.second, epoch) }
 
         @JvmStatic external fun startConnection(
             address: String?,
@@ -454,6 +467,8 @@ class MoonBridge {
         @JvmStatic external fun getEstimatedRttInfo(): Long
         /** Connection generation, complete encoded payload bytes, receiver monotonic milliseconds. */
         @JvmStatic external fun getVideoPayloadStats(): LongArray?
+        @JvmStatic external fun getVideoFrameSubmissionEpoch(): Long
+        @JvmStatic external fun getVideoFrameSubmissionSnapshot(expectedEpoch: Long): NativeFrameSubmissionSnapshot?
         @JvmStatic external fun getLaunchUrlQueryParameters(): String
         @JvmStatic external fun guessControllerType(vendorId: Int, productId: Int): Byte
         @JvmStatic external fun guessControllerHasPaddles(vendorId: Int, productId: Int): Boolean

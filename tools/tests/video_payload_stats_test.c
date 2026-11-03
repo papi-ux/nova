@@ -9,6 +9,10 @@
 
 static int64_t now_ms;
 int64_t nova_video_payload_clock_ms(void) { return now_ms; }
+bool nova_video_payload_random_nonce(uint8_t nonce[16]) {
+    for (int i = 0; i < 16; i++) nonce[i] = (uint8_t)(i + 1);
+    return true;
+}
 
 static void* receive_payload(void* unused) {
     (void) unused;

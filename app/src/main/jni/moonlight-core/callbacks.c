@@ -133,10 +133,12 @@ int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* 
     nova_video_payload_begin();
     err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSetupMethod, videoFormat, width, height, redrawRate);
     if ((*env)->ExceptionCheck(env)) {
+        nova_video_payload_stop();
         // This is called on a Java thread, so it's safe to return
         return -1;
     }
     else if (err != 0) {
+        nova_video_payload_stop();
         return err;
     }
 
@@ -176,7 +178,7 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     int ret;
 
     // One complete encoded unit, before splitting parameter sets or observing decoder success.
-    nova_video_payload_record(decodeUnit->fullLength);
+    nova_video_frame_submission_record((uint32_t)decodeUnit->frameNumber, decodeUnit->fullLength);
 
     // Increase the size of our frame data buffer if our frame won't fit
     if ((*env)->GetArrayLength(env, DecodedFrameBuffer) < decodeUnit->fullLength) {

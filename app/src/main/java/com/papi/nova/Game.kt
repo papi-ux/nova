@@ -255,6 +255,7 @@ private var configuredStreamBitrateKbps:Int = 0
 private var configuredStreamHdr:Boolean = false
 @Volatile private var lastCompanionPerfSample:PerfOverlaySample? = null
 private val doctorTelemetryUploadGate:DoctorTelemetryUploadGate = DoctorTelemetryUploadGate()
+private val frameSubmissionEpochBinding = com.papi.nova.binding.video.FrameSubmissionEpochBinding()
 private val doctorTelemetryUploadFailureLogged:AtomicBoolean = AtomicBoolean(false)
 private var preferStableRefreshMultipleForAutoSafe:Boolean = false
 private var audioHapticEngine:com.papi.nova.ui.AudioHapticEngine? = null
@@ -288,10 +289,10 @@ private var displayWidth:Int = 0
 private var displayHeight:Int = 0
 private var currentOrientation:Int = 0
 
- var conn:NvConnection? = null
+ @Volatile var conn:NvConnection? = null
 
  // Nova: Polaris integration
-     var novaApiClient:com.papi.nova.api.PolarisApiClient? = null
+     @Volatile var novaApiClient:com.papi.nova.api.PolarisApiClient? = null
 private var novaFeatureScope:Long = 0L
 @Volatile private var lastPolarisSessionStatus:com.papi.nova.api.PolarisSessionStatus? = null
 private var polarisSessionStatusRefreshInFlight:AtomicBoolean = AtomicBoolean(false)
@@ -308,7 +309,7 @@ private var reconnectRecoveryTracker:com.papi.nova.manager.ReconnectRecoveryTrac
 private var spinner:SpinnerDialog? = null
 private var displayedFailureDialog:Boolean = false
 private var connecting:Boolean = false
- @JvmField var connected:Boolean = false
+ @JvmField @Volatile var connected:Boolean = false
 private var autoEnterPip:Boolean = false
 private var surfaceCreated:Boolean = false
 private var attemptedConnection:Boolean = false
@@ -5798,6 +5799,7 @@ runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
 stopPolarisLiveSessionStatusRefresh()
 doctorTelemetryUploadGate.invalidate()
+frameSubmissionEpochBinding.retire()
 runtimeTasks.cancel("NovaDoctorTelemetry")
  // Raw Doctor sampling runs independently of HUD visibility.
 val summary:Map<String, Any> = doctorTelemetry.summary()
@@ -6486,7 +6488,7 @@ else if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
 hideSystemUi(2000)
 }
 }
-private fun uploadDoctorSample(sample:PerfOverlaySample) {
+private fun uploadDoctorSample(sample:PerfOverlaySample, frameSubmission:com.papi.nova.binding.video.FrameSubmissionBinding?) {
 if (!connected)
 {
 return
@@ -6523,7 +6525,14 @@ targetFps = sampleTargetFps,
 refreshRateHz = sampleRefreshRateHz,
 bitrateKbps = sampleBitrateKbps,
 topology = effectiveTopology,
-hdr = sampleHdr
+hdr = sampleHdr,
+frameSubmission = {
+frameSubmission?.current(novaApiClient, conn, client.frameSubmissionStatus(),
+    com.papi.nova.binding.video.readFrameSubmissionEpoch(),
+    currentNovaCapabilities()?.features?.liveMediaFrameSubmissionV1 == true,
+    doctorTelemetryUploadGate.isCurrent(uploadToken) && isStreamActive && connected && !isFinishing && !isDestroyed,
+    liveStatus.appSessionId, liveStatus.sessionGeneration, android.os.SystemClock.elapsedRealtime())
+}
 )
 if (!accepted && doctorTelemetryUploadFailureLogged.compareAndSet(false, true))
 {
@@ -6553,6 +6562,13 @@ override fun onPerfSample(sample:PerfOverlaySample) {
 val sampleApi = novaApiClient
 val sampleConnection = conn
 val sampleStatus = sampleApi?.sessionStatusUpdates?.value
+val sampleFrameSubmission = sampleApi?.let {
+frameSubmissionEpochBinding.capture(sample.frameSubmission, sampleApi, sampleConnection,
+    sampleConnection?.getFrameSubmissionLaunchIdentity(),
+    sampleApi.frameSubmissionStatus(), com.papi.nova.binding.video.readFrameSubmissionEpoch(),
+    currentNovaCapabilities()?.features?.liveMediaFrameSubmissionV1 == true,
+    isStreamActive && connected && !isFinishing && !isDestroyed, sample.frameSubmissionProducer)
+}
 runOnUiThread(object : Runnable {
 override fun run() {
 if (sampleApi === novaApiClient && sampleConnection === conn && isStreamActive && connected && !isFinishing && !isDestroyed)
@@ -6570,7 +6586,7 @@ novaResilienceManager?.onReconnectSuccess()
 doctorTelemetry.recordPerfSample(sample)
 streamRecap.accept(sample, android.os.SystemClock.elapsedRealtime())
 latestControlRttMs = sample.rttMs
-uploadDoctorSample(sample)
+uploadDoctorSample(sample, sampleFrameSubmission)
                 if (novaHud != null && novaHud!!.isShowing)
 {
 novaHud!!.updateFromPerfSample(sample)

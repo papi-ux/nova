@@ -319,6 +319,7 @@ class NvHTTP @Throws(IOException::class) constructor(
         path: String,
         query: String?,
         requestBody: RequestBody?,
+        launchAttempt: FrameSubmissionLaunchAttempt? = null,
     ): ResponseBody {
         if (!isExpectedBaseUrl(baseUrl)) {
             throw IOException("Unexpected NvHTTP target")
@@ -347,7 +348,11 @@ class NvHTTP @Throws(IOException::class) constructor(
             builder.post(requestBody).build()
         }
 
-        val response = performAndroidTlsHack(client).newCall(request).execute()
+        val transport = performAndroidTlsHack(client)
+        val attemptTransport = if (launchAttempt == null) transport else transport.newBuilder()
+            .addNetworkInterceptor { chain -> launchAttempt.intercept(chain) { isExpectedNvHttpUrl(it, path) } }
+            .build()
+        val response = attemptTransport.newCall(request).execute()
         val body = response.body
 
         if (response.isSuccessful) {
@@ -380,9 +385,10 @@ class NvHTTP @Throws(IOException::class) constructor(
         path: String,
         query: String?,
         requestBody: RequestBody?,
+        launchAttempt: FrameSubmissionLaunchAttempt? = null,
     ): String {
         try {
-            val resp = openHttpConnection(client, baseUrl, path, query, requestBody)
+            val resp = openHttpConnection(client, baseUrl, path, query, requestBody, launchAttempt)
             val respString = resp.string()
             resp.close()
 
@@ -741,6 +747,8 @@ class NvHTTP @Throws(IOException::class) constructor(
             ""
         }
 
+        context.frameSubmissionLaunchIdentity = null
+        val frameSubmissionLaunchAttempt = FrameSubmissionLaunchAttempt()
         val xmlStr = openHttpConnectionToString(
             httpClientLongConnectNoReadTimeout,
             getHttpsUrl(true),
@@ -771,12 +779,16 @@ class NvHTTP @Throws(IOException::class) constructor(
                 "&gcmap=" + streamConfig.getAttachedGamepadMask() +
                 "&gcpersist=" + (if (streamConfig.getPersistGamepadsAfterDisconnect()) 1 else 0) +
                 MoonBridge.getLaunchUrlQueryParameters(),
+            requestBody = null,
+            launchAttempt = frameSubmissionLaunchAttempt,
         )
         return if ((verb == "launch" && getXmlString(xmlStr, "gamesession", true) != "0") ||
             (verb == "resume" && getXmlString(xmlStr, "resume", true) != "0")
         ) {
             context.rtspSessionUrl = getXmlString(xmlStr, "sessionUrl0", false)
             context.sessionToken = getXmlString(xmlStr, "sessionToken", false)
+            if (!watchOnly) context.frameSubmissionLaunchIdentity = frameSubmissionLaunchAttempt.complete(
+                parseFrameSubmissionLaunchEcho(xmlStr), context.sessionToken)
             context.currentGameOwnedByClient = !watchOnly
             true
         } else {
@@ -979,6 +991,34 @@ class NvHTTP @Throws(IOException::class) constructor(
         @Throws(XmlPullParserException::class, IOException::class)
         fun getXmlString(str: String, tagname: String, throwIfMissing: Boolean): String? {
             return getXmlString(StringReader(str), tagname, throwIfMissing)
+        }
+
+        /** Optional direct-root echo only. Malformed optional identity cannot fail a legacy launch. */
+        internal fun parseFrameSubmissionLaunchEcho(xml: String): String? {
+            return try {
+                val parser = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()
+                parser.setInput(StringReader(xml))
+                var found = false
+                var nonce: String? = null
+                var root = false
+                var event = parser.eventType
+                while (event != XmlPullParser.END_DOCUMENT) {
+                    if (event == XmlPullParser.START_TAG) {
+                        if (parser.depth == 1) {
+                            if (root || parser.name != "root" || !parser.namespace.isNullOrEmpty()) return null
+                            root = true
+                            verifyResponseStatus(parser)
+                        }
+                        if (parser.name == FrameSubmissionLaunchAttempt.QUERY) {
+                            if (found || parser.depth != 2 || !parser.namespace.isNullOrEmpty()) return null
+                            found = true
+                            nonce = com.papi.nova.nvstream.FrameSubmissionLaunchIdentity.parseNonce(parser.nextText())
+                        }
+                    }
+                    event = parser.next()
+                }
+                nonce.takeIf { root && found }
+            } catch (_: Exception) { null }
         }
 
         @JvmStatic

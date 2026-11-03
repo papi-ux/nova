@@ -48,7 +48,11 @@ data class PolarisSessionStatus(
     val recovery: RecoveryReceipt = RecoveryReceipt(),
     val recoveryRecords: List<RecoveryReceipt> = emptyList(),
     val pyrowaveBitrate: PolarisPyrowaveAdvice? = null,
-    val bitrateUnits: PolarisBitrateUnits? = null
+    val bitrateUnits: PolarisBitrateUnits? = null,
+    /** Exact active stream launch-attempt echo; absence/malformed disables optional diagnostics only. */
+    val frameSubmissionLaunchNonce: String = "",
+    /** Strict optional diagnostic scope shape; never changes legacy authority or counter handling. */
+    val frameSubmissionScopeTyped: Boolean = false
 ) {
     data class RecoveryReceipt(
         val status: Boolean = true,

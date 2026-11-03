@@ -15,6 +15,19 @@ import org.robolectric.annotation.Config
 class NvHttpServerInfoParsingTest {
 
     @Test
+    fun launchAttemptEchoRequiresOneStrictSuccessfulDirectRootValue() {
+        val nonce = "abcdef0123456789abcdef0123456789"
+        val tag = "<frameSubmissionLaunchNonce>$nonce</frameSubmissionLaunchNonce>"
+        assertEquals(nonce, NvHTTP.parseFrameSubmissionLaunchEcho("<root status_code=\"200\">$tag</root>"))
+        for (xml in listOf("<root status_code=\"200\"/>", "<root status_code=\"500\">$tag</root>",
+                "<root status_code=\"200\">$tag$tag</root>", "<root status_code=\"200\"><nested>$tag</nested></root>",
+                "<root status_code=\"200\"><frameSubmissionLaunchNonce>0</frameSubmissionLaunchNonce></root>",
+                "<root status_code=\"200\">$tag<broken")) {
+            assertNull(NvHTTP.parseFrameSubmissionLaunchEcho(xml))
+        }
+    }
+
+    @Test
     fun parsesPrettyPrintedApolloAppListWithWhitespace() {
         val appList = """
             <root status_code="200">

@@ -524,6 +524,8 @@ class NvConnection(
         return context.sessionToken
     }
 
+    fun getFrameSubmissionLaunchIdentity(): FrameSubmissionLaunchIdentity? = context.frameSubmissionLaunchIdentity
+
     @Throws(IOException::class, XmlPullParserException::class)
     private fun launchNotRunningApp(h: NvHTTP, context: ConnectionContext): Boolean {
         val streamConfig = context.streamConfig!!
@@ -668,6 +670,7 @@ class NvConnection(
 
             synchronized(MoonBridge::class.java) {
                 MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener)
+                MoonBridge.setupFrameSubmissionProducer(this@NvConnection, context.frameSubmissionLaunchIdentity)
                 val ret = MoonBridge.startConnection(
                     context.serverAddress!!.address,
                     context.serverAppVersion,
