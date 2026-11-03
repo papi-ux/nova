@@ -2,10 +2,13 @@
 
 A deterministic fake clock, observation and app drive the settling helper. Linux-only
 process-note controls read a test-owned Python child; no X server or device is involved.
+The exit-wait checks read the route and shell sources statically; neither is run.
 """
+import ast
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -277,6 +280,125 @@ class ProcessFailureNote(unittest.TestCase):
             app.stdin.close()
             app.wait(timeout=5)
         self.assertIn("unavailable", deck_ui_input.settling_process_failure_note(app))
+
+
+TESTS = Path(__file__).resolve().parent
+SHUTDOWN_MARKER = "NOVA_DECK_SMOKE_SHUTDOWN_V1 "
+
+
+class TimedOutApp:
+    """Times out exactly as subprocess.Popen.wait does and keeps the exception it raised."""
+
+    def __init__(self):
+        self.args, self.pid, self.waits, self.raised = ["/opt/nova-deck", "--standalone"], 4321, [], None
+
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        self.raised = subprocess.TimeoutExpired(self.args, timeout)
+        raise self.raised
+
+    def poll(self):
+        return None
+
+
+class ExitWaitFailureNote(unittest.TestCase):
+    """Nova #434: an exit-deadline miss keeps its bounded evidence before the fixture cleans up."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.log = Path(self.directory.name) / "app.log"
+        self.log.write_text("Nova Linux ready\n" + SHUTDOWN_MARKER + "watchdog-delivered\n"
+                            "fetch https://10.0.0.1/applist\n", encoding="utf-8")
+        self.state = {"focus": "game-7", "busy": True, "nativePreviewOpen": True, "playSetup": {"bitrateKbps": 1}}
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def test_timeout_reraises_the_original_exception_with_evidence_taken_before_cleanup(self):
+        app = TimedOutApp()
+        snapshot = {"pid": app.pid, "startTicks": 9, "state": "S", "wchan": "do_sys_poll"}
+        with mock.patch.object(deck_ui_input, "_process_snapshot", side_effect=[snapshot, snapshot]), \
+             mock.patch.object(deck_ui_input.time, "sleep"):
+            try:  # Not assertRaises: it drops __traceback__, which this test inspects.
+                deck_ui_input.wait_for_app_exit(app, 10, lambda: self.state, self.log)
+            except subprocess.TimeoutExpired as caught:
+                error = caught
+            else:
+                self.fail("the exit wait unexpectedly returned")
+        self.log.unlink()  # The fixture removes app.log only after the exception has left the seam.
+        self.assertIs(error, app.raised)
+        self.assertEqual(app.waits, [10])
+        self.assertEqual((error.cmd, error.timeout, str(error)),
+                         (app.args, 10, f"Command '{app.args}' timed out after 10 seconds"))
+        frame = error.__traceback__
+        while frame.tb_next is not None:
+            frame = frame.tb_next
+        self.assertEqual(frame.tb_frame.f_code.co_name, "wait")  # Still raised from app.wait itself.
+        state_and_log, process = error.__notes__
+        header, _, rest = state_and_log.partition("\n")
+        self.assertEqual(json.loads(header.removeprefix("[settling state] ")),
+                         {"focus": "game-7", "busy": True, "nativePreviewOpen": True, "artwork": {}})
+        self.assertIn(SHUTDOWN_MARKER + "watchdog-delivered", rest)
+        self.assertIn("[line withheld]", rest)
+        self.assertNotIn("10.0.0.1", rest)
+        self.assertLessEqual(len(rest.partition("\n")[2].encode("utf-8")), deck_ui_input.NOTE_LOG_TAIL_BYTES)
+        self.assertEqual(json.loads(process.removeprefix("[settling process] ")), [snapshot, snapshot])
+
+    def test_an_exit_within_the_deadline_collects_nothing(self):
+        app = mock.Mock()
+        app.wait.return_value = 0
+        read_state = mock.Mock(side_effect=AssertionError("state read on success"))
+        with mock.patch.object(deck_ui_input, "attach_settling_failure_note") as attach:
+            self.assertEqual(deck_ui_input.wait_for_app_exit(app, 10, read_state, self.log), 0)
+        app.wait.assert_called_once_with(timeout=10)
+        attach.assert_not_called()
+
+    def test_a_real_child_past_its_deadline_keeps_popen_timeout_and_is_still_running(self):
+        # EOF, rather than a signal, ends only this control's child.
+        app = subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],
+                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                deck_ui_input.wait_for_app_exit(app, 0.05, lambda: self.state, self.log)
+            self.assertIsNone(app.poll())
+        finally:
+            app.stdin.close()
+            app.wait(timeout=5)
+        error = raised.exception
+        self.assertEqual((error.cmd, error.timeout), (app.args, 0.05))
+        self.assertEqual(len(error.__notes__), 2)
+        self.assertIn(SHUTDOWN_MARKER + "watchdog-delivered", error.__notes__[0])
+        if sys.platform == "linux":
+            samples = json.loads(error.__notes__[1].removeprefix("[settling process] "))
+            self.assertEqual([sample["pid"] for sample in samples], [app.pid, app.pid])
+        else:
+            self.assertTrue(error.__notes__[1].startswith("[settling process unavailable: "))
+
+    def test_the_restart_watchdog_route_waits_through_the_helper_with_its_deadlines_unchanged(self):
+        # Static read only; nothing from the route is imported or run.
+        tree = ast.parse((TESTS / "deck_library_navigation_test.py").read_text(encoding="utf-8"))
+        bare = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Call)
+                and ast.unparse(node.func) == "app.wait"
+                and any(keyword.arg == "timeout" and ast.unparse(keyword.value) == "10" for keyword in node.keywords)]
+        self.assertEqual(bare, [])
+        phases = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If):
+                continue
+            direct = [ast.unparse(statement) for statement in node.body]
+            if any("'--frontend-smoke-exit-after-ms', '6000'" in text and "subprocess.Popen" in text for text in direct):
+                phases.append([text for text in direct if "wait_for_app_exit" in text or "app.wait" in text])
+        self.assertEqual(phases, [["wait_for_app_exit(app, 10, state, log)"]])
+
+    def test_smoke_shutdown_markers_are_fixed_text_the_log_filter_keeps(self):
+        main = (TESTS.parent / "src" / "main.cpp").read_text(encoding="utf-8")
+        phases = re.findall(r'"' + SHUTDOWN_MARKER + r'([a-z-]+)', main)
+        self.assertEqual(sorted(phases), ["about-to-quit", "event-loop-returned", "watchdog-delivered"])
+        self.log.write_text("".join(SHUTDOWN_MARKER + phase + " result=0\n" for phase in phases), encoding="utf-8")
+        note = deck_ui_input.settling_failure_note(dict, self.log)
+        self.assertNotIn("[line withheld]", note)
+        for phase in phases:
+            self.assertIn(SHUTDOWN_MARKER + phase, note)
 
 
 if __name__ == "__main__":

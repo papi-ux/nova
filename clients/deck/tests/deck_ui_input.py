@@ -4,6 +4,7 @@ import collections
 import json
 import os
 from pathlib import Path
+import subprocess
 import time
 
 # Failure evidence only: nothing below changes the success predicate, the deadline,
@@ -192,3 +193,13 @@ def attach_settling_failure_note(error, read_state, log_path, app=None):
             error.add_note(settling_process_failure_note(app))
         except Exception:
             pass
+
+
+def wait_for_app_exit(app, timeout, read_state, log_path):
+    """app.wait(timeout=timeout), unchanged on success. On TimeoutExpired, while the child and the
+    fixture directory still exist, attach the existing bounded notes and re-raise the original."""
+    try:
+        return app.wait(timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        attach_settling_failure_note(error, read_state, log_path, app=app)
+        raise

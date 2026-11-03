@@ -17,7 +17,7 @@ import time
 from urllib.parse import urlsplit, parse_qs
 from xml.sax.saxutils import escape
 from deck_artwork_fixture import artwork_png
-from deck_ui_input import attach_settling_failure_note, wait_for_ui_observations
+from deck_ui_input import attach_settling_failure_note, wait_for_app_exit, wait_for_ui_observations
 
 # One compact JSON record per app phase, on stdout, so CTest keeps it in LastTest.log and
 # JUnit output even when the test passes. Measurement only: nothing here waits, decides or
@@ -2716,7 +2716,9 @@ def main():
                     assert not state()["rumble"]["enabled"], "rumble preference lost on restart or PC switch"
                 assert identity.read_bytes() == before and not violations, "Play Setup restart changed credentials or sent a mutation"
                 timing.mark("navigated")
-                app.wait(timeout=10)
+                # Nova #434: a missed exit deadline keeps bounded state, filtered app-log and process
+                # notes before cleanup removes them; the 10 s wait and its TimeoutExpired are unchanged.
+                wait_for_app_exit(app, 10, state, log)
                 timing.exited(app.returncode)
                 assert app.returncode == 0, log.read_text()
                 after_exit()

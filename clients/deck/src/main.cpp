@@ -1705,6 +1705,18 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                       << QString::fromStdString(presenterReadiness.detail);
 
 
+    // Smoke-only shutdown checkpoints (Nova #434): fixed, flushed text with no
+    // identifiers. Connected before every existing aboutToQuit slot of this run,
+    // so it marks the boundary ahead of their synchronous shutdown work; the
+    // scope object disconnects it when this run returns.
+    const int frontendSmokeExitAfterMs = intArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-exit-after-ms"), 0);
+    QObject smokeShutdownMarkerScope;
+    if (frontendSmokeExitAfterMs > 0) {
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &smokeShutdownMarkerScope, [] {
+            std::cout << "NOVA_DECK_SMOKE_SHUTDOWN_V1 about-to-quit" << std::endl;
+        });
+    }
+
     // Constructed before the engine so it outlives every QML binding to it.
     // Native credentials are never passed to a Moonlight process that neither
     // owns that identity nor knows these saved hosts.
@@ -1997,7 +2009,6 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.rootContext()->setContextProperty("novaEmptyHostFocusTarget", toQString(nova::deck::initialHostFocusTarget(nova::deck::emptyHostListState())));
 
     const bool smokeExit = appArguments.contains("--smoke-exit");
-    const int frontendSmokeExitAfterMs = intArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-exit-after-ms"), 0);
     const QString frontendSmokeCapturePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-capture"));
     const QString graphicsStatePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-graphics-state"));
     const QString librarySmokeStatePath = stringArgumentAfter(appArguments, QStringLiteral("--frontend-smoke-library-state"));
@@ -2157,7 +2168,10 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
                 }
             }
             if (frontendSmokeExitAfterMs > 0 && object != nullptr) {
-                QTimer::singleShot(frontendSmokeExitAfterMs, object, [] { QCoreApplication::quit(); });
+                QTimer::singleShot(frontendSmokeExitAfterMs, object, [] {
+                    std::cout << "NOVA_DECK_SMOKE_SHUTDOWN_V1 watchdog-delivered" << std::endl;
+                    QCoreApplication::quit();
+                });
                 return;
             }
             if (smokeExit && object != nullptr) {
@@ -2170,6 +2184,8 @@ int runDeck(QGuiApplication& app, const QStringList& appArguments) {
     engine.loadFromModule("Nova.Deck", "Main");
 
     const int eventLoopResult = app.exec();
+    if (frontendSmokeExitAfterMs > 0)
+        std::cout << "NOVA_DECK_SMOKE_SHUTDOWN_V1 event-loop-returned result=" << eventLoopResult << std::endl;
     const bool manageRequested = !engine.rootObjects().isEmpty() &&
         engine.rootObjects().first()->property("managePcsRequested").toBool();
     gameShortcuts.shutdown();
