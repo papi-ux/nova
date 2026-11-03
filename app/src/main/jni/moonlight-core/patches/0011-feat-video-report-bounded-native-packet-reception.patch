@@ -1,0 +1,963 @@
+From 55b79fece5b4e7227e70410a62a9a5d3586abeab Mon Sep 17 00:00:00 2001
+From: nova <nova@papi-ux.com>
+Date: Tue, 3 Nov 2026 13:30:00 -0500
+Subject: [PATCH] feat(video): report bounded native packet reception
+
+Nova #442, the client half of a private, negotiated, observation-only
+extension paired with Polaris #615. The host offers
+x-ss-video.packetReceptionFeedbackVersion:1; the client echoes
+x-ml-video.packetReceptionFeedbackVersion:1, exactly once each, only for a
+Sunshine host on encrypted control protocol 13 with control v2 enabled,
+session-ID connect data present and a monotonic clock. Video is observed
+in whichever encryption mode existing policy negotiated; the extension
+never requests or changes encryption. Old, unknown, malformed, duplicated
+or one-sided peers stream exactly as before.
+
+The video receive thread reads a monotonic microsecond clock immediately
+after a positive recvUdpSocket() and keeps the original UDP length. Only
+the RTP queue's acceptance branch commits a packet, after queuePacket()
+accepted an original (past AES-GCM when video is encrypted) and before
+reconstructFrame() can stage, submit or free it. Runts, AES-GCM failures, the pre-decrypt
+old-frame filter, duplicates, rejected packets, late parity and
+FEC-synthesized packets never count. RtpvAddPacket() keeps its behavior
+and RtpvAddObservedPacket() carries the capture.
+
+The collector is fixed memory: counters, the frame range, and the first
+accepted packet in each of sixteen 6.25 ms bins, under a short mutex with
+no per-packet allocation. The existing periodic control tick takes at
+most one snapshot and sends a 52 + 10 * n byte (<= 212) big-endian report
+as message 0x7F10, unreliable and unsequenced on the generic channel,
+flushed by the existing ping. A failed send drops only that observation.
+There is no retry, queue or catch-up.
+
+Clock failure or regression sends one zero-time CLOCK_UNAVAILABLE
+sentinel and stops the extension until a new native connection. Long
+intervals are INCOMPLETE without samples. Control stop retires the
+collector and destroy clears it, so a new connection starts again at
+sequence 1 with a new origin.
+
+PltGetMonotonicMicros() reports failure instead of falling back to wall
+time. The wire contract is Nova's docs/native-packet-reception-feedback.md.
+This is not a packet census, capacity, one-way delay or health signal, and
+no client code acts on it.
+---
+ src/ControlStream.c   |  21 ++
+ src/PacketReception.c | 489 ++++++++++++++++++++++++++++++++++++++++++
+ src/PacketReception.h | 151 +++++++++++++
+ src/Platform.c        |  29 +++
+ src/Platform.h        |   1 +
+ src/RtpVideoQueue.c   |  14 +-
+ src/RtpVideoQueue.h   |   5 +
+ src/RtspConnection.c  |   5 +
+ src/SdpGenerator.c    |   8 +
+ src/VideoStream.c     |  14 +-
+ 10 files changed, 735 insertions(+), 2 deletions(-)
+ create mode 100644 src/PacketReception.c
+ create mode 100644 src/PacketReception.h
+
+diff --git a/src/ControlStream.c b/src/ControlStream.c
+index 2f0bcbe..f57103f 100644
+--- a/src/ControlStream.c
++++ b/src/ControlStream.c
+@@ -402,6 +402,7 @@ void destroyControlStream(void) {
+     freeBasicLbqList(LbqDestroyLinkedBlockingQueue(&asyncCallbackQueue));
+ 
+     PltDeleteMutex(&enetMutex);
++    PacketReceptionDestroy();
+ }
+ 
+ static void queueFrameInvalidationTuple(uint32_t startFrame, uint32_t endFrame) {
+@@ -1419,6 +1420,22 @@ static void lossStatsThreadFunc(void* context) {
+ 
+                     free(queuedFrameStatus);
+                 }
++
++                // At most one negotiated reception observation per tick, never queued or retried.
++                // The ping below flushes it; a failed send drops only this observation.
++                {
++                    uint8_t receptionReport[PACKET_RECEPTION_MAX_PAYLOAD_BYTES];
++                    int receptionReportLength = PacketReceptionTakeReport(receptionReport, sizeof(receptionReport));
++
++                    if (receptionReportLength > 0) {
++                        sendMessageEnet(PACKET_RECEPTION_PTYPE,
++                                        (short)receptionReportLength,
++                                        receptionReport,
++                                        CTRL_CHANNEL_GENERIC,
++                                        ENET_PACKET_FLAG_UNSEQUENCED,
++                                        true);
++                    }
++                }
+             }
+ 
+             // Send the message (and don't expect a response)
+@@ -1609,6 +1626,7 @@ static void requestIdrFrameFunc(void* context) {
+ // Stops the control stream
+ int stopControlStream(void) {
+     stopping = true;
++    PacketReceptionStop();
+     LbqSignalQueueShutdown(&invalidReferenceFrameTuples);
+     LbqSignalQueueShutdown(&frameFecStatusQueue);
+     LbqSignalQueueDrain(&asyncCallbackQueue);
+@@ -1899,6 +1917,9 @@ int startControlStream(void) {
+         return err;
+     }
+ 
++    // Only the Sunshine periodic-ping path below carries reception observations.
++    PacketReceptionStart(encryptedControlStream && usePeriodicPing && IS_SUNSHINE());
++
+     err = PltCreateThread("LossStats", lossStatsThreadFunc, NULL, &lossStatsThread);
+     if (err != 0) {
+         stopping = true;
+diff --git a/src/PacketReception.c b/src/PacketReception.c
+new file mode 100644
+index 0000000..f015edb
+--- /dev/null
++++ b/src/PacketReception.c
+@@ -0,0 +1,489 @@
++#include "Limelight-internal.h"
++
++// Observation-only accepted-original RTP reception report. See PacketReception.h.
++
++// The internal sample stays one fixed 16-byte record so the collector remains a bounded array.
++typedef char PacketReceptionSampleSizeCheck[(sizeof(PACKET_RECEPTION_SAMPLE) == 16) ? 1 : -1];
++typedef char PacketReceptionPayloadSizeCheck[(PACKET_RECEPTION_MAX_PAYLOAD_BYTES == 212) ? 1 : -1];
++
++static bool isAsciiSpace(char c) {
++    return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
++}
++
++int PacketReceptionParseHostOffer(const char* sdpPayload) {
++    static const char prefix[] = "a=" PACKET_RECEPTION_HOST_ATTRIBUTE;
++    const size_t prefixLength = sizeof(prefix) - 1;
++    const char* line;
++    int result = PACKET_RECEPTION_OFFER_ABSENT;
++
++    if (sdpPayload == NULL) {
++        return PACKET_RECEPTION_OFFER_ABSENT;
++    }
++
++    line = sdpPayload;
++    while (*line != 0) {
++        const char* newline = strchr(line, '\n');
++        const char* lineEnd = newline != NULL ? newline : line + strlen(line);
++
++        if ((size_t)(lineEnd - line) >= prefixLength && memcmp(line, prefix, prefixLength) == 0) {
++            const char* value = line + prefixLength;
++
++            // A longer attribute name that merely shares this prefix is someone else's attribute.
++            if (value == lineEnd || *value == ':' || isAsciiSpace(*value)) {
++                const char* valueEnd;
++
++                if (value == lineEnd || *value != ':') {
++                    return PACKET_RECEPTION_OFFER_REFUSED;
++                }
++
++                value++;
++                while (value < lineEnd && isAsciiSpace(*value)) {
++                    value++;
++                }
++                valueEnd = lineEnd;
++                while (valueEnd > value && isAsciiSpace(valueEnd[-1])) {
++                    valueEnd--;
++                }
++
++                // Exactly one attribute with exactly one token, "1". Anything else, including an
++                // identical duplicate, refuses only this extension.
++                if (valueEnd - value != 1 || *value != '1' || result != PACKET_RECEPTION_OFFER_ABSENT) {
++                    return PACKET_RECEPTION_OFFER_REFUSED;
++                }
++                result = PACKET_RECEPTION_OFFER_VERSION_1;
++            }
++        }
++
++        if (newline == NULL) {
++            break;
++        }
++        line = newline + 1;
++    }
++
++    return result;
++}
++
++bool PacketReceptionGatesPass(bool sunshine, bool encryptedControlProtocol13, int hostOffer,
++                              bool controlConnectDataPresent, uint32_t encryptionEnabled, bool clockSupported) {
++    // SS_ENC_VIDEO is deliberately not a gate: plaintext LAN video is observed too, and the host
++    // labels media authentication from its own session settings.
++    return sunshine &&
++           encryptedControlProtocol13 &&
++           hostOffer == PACKET_RECEPTION_OFFER_VERSION_1 &&
++           controlConnectDataPresent &&
++           (encryptionEnabled & SS_ENC_CONTROL_V2) != 0 &&
++           clockSupported;
++}
++
++void PacketReceptionCollectorStart(PPACKET_RECEPTION_COLLECTOR collector, bool clockValid, uint64_t originUs) {
++    memset(collector, 0, sizeof(*collector));
++    if (!clockValid) {
++        // Negotiated but unable to time anything: the first tick reports the clock failure.
++        collector->clockFailed = true;
++        return;
++    }
++
++    collector->originUs = originUs;
++    collector->windowStartUs = originUs;
++    collector->lastClockUs = originUs;
++}
++
++void PacketReceptionCollectorNoteReceiveCall(PPACKET_RECEPTION_COLLECTOR collector) {
++    if (!collector->retired) {
++        // Serial progress counter; consumers compare deltas, so wrapping is expected.
++        collector->receiveLoopTick++;
++    }
++}
++
++static void addSaturating(uint32_t* value, uint32_t amount, bool* saturated) {
++    if (UINT32_MAX - *value < amount) {
++        *value = UINT32_MAX;
++        *saturated = true;
++    }
++    else {
++        *value += amount;
++    }
++}
++
++void PacketReceptionCollectorCommit(PPACKET_RECEPTION_COLLECTOR collector, const PACKET_RECEPTION_CAPTURE* capture,
++                                    bool clockValid, uint64_t commitUs,
++                                    uint32_t frameIndex, uint16_t rtpSequence, bool isParity) {
++    const int kind = isParity ? 1 : 0;
++    uint64_t bin;
++    PACKET_RECEPTION_SAMPLE* sample;
++
++    if (collector->retired) {
++        return;
++    }
++
++    // The socket read happened earlier on this same thread, after the collector origin. A failed
++    // read or any time running backwards ends timing for this native connection.
++    if (!collector->clockFailed &&
++            (!clockValid || !capture->clockValid ||
++             commitUs < collector->lastClockUs ||
++             capture->socketReadUs > commitUs ||
++             capture->socketReadUs < collector->originUs)) {
++        collector->clockFailed = true;
++    }
++
++    // Counts belong to the interval in which the packet was accepted, not the one it was read in.
++    addSaturating(&collector->windowPackets[kind], 1, &collector->windowIncomplete);
++    addSaturating(&collector->windowUdpBytes[kind], capture->udpBytes, &collector->windowIncomplete);
++    if (!collector->windowHasAccepted) {
++        collector->windowHasAccepted = true;
++        collector->windowFirstFrame = frameIndex;
++        collector->windowLastFrame = frameIndex;
++    }
++    else {
++        if (frameIndex < collector->windowFirstFrame) {
++            collector->windowFirstFrame = frameIndex;
++        }
++        if (frameIndex > collector->windowLastFrame) {
++            collector->windowLastFrame = frameIndex;
++        }
++    }
++
++    if (collector->clockFailed) {
++        return;
++    }
++
++    collector->lastClockUs = commitUs;
++    collector->lastAcceptedUs = commitUs;
++    collector->hasLastAccepted = true;
++
++    // First accepted original per nominal bin, at most sixteen, never replaced. The sample keeps
++    // the earlier socket-read time even when acceptance happened later.
++    bin = (commitUs - collector->windowStartUs) / PACKET_RECEPTION_BIN_US;
++    if (bin >= PACKET_RECEPTION_MAX_SAMPLES) {
++        collector->windowSampleLimit = true;
++        return;
++    }
++    if (collector->windowBinMask & (1u << bin)) {
++        return;
++    }
++
++    LC_ASSERT(collector->windowSampleCount < PACKET_RECEPTION_MAX_SAMPLES);
++    collector->windowBinMask |= (uint16_t)(1u << bin);
++    sample = &collector->windowSamples[collector->windowSampleCount++];
++    sample->socketReadUs = capture->socketReadUs;
++    sample->frameIndex = frameIndex;
++    sample->rtpSequence = rtpSequence;
++    sample->reserved = 0;
++}
++
++static void resetWindow(PPACKET_RECEPTION_COLLECTOR collector) {
++    collector->windowHasAccepted = false;
++    collector->windowIncomplete = false;
++    collector->windowSampleLimit = false;
++    collector->windowBinMask = 0;
++    collector->windowSampleCount = 0;
++    collector->windowPackets[0] = collector->windowPackets[1] = 0;
++    collector->windowUdpBytes[0] = collector->windowUdpBytes[1] = 0;
++    collector->windowFirstFrame = collector->windowLastFrame = 0;
++}
++
++bool PacketReceptionCollectorTakeReport(PPACKET_RECEPTION_COLLECTOR collector, bool clockValid, uint64_t nowUs,
++                                        PPACKET_RECEPTION_REPORT report) {
++    uint64_t intervalUs;
++    bool longInterval;
++    uint8_t i;
++
++    if (collector->retired) {
++        return false;
++    }
++
++    // Stop before the report sequence could wrap.
++    if (collector->lastSequence == UINT32_MAX) {
++        collector->retired = true;
++        return false;
++    }
++
++    if (!collector->clockFailed && (!clockValid || nowUs < collector->lastClockUs)) {
++        collector->clockFailed = true;
++    }
++
++    // A zero-length interval has nothing to report and does not consume a sequence number.
++    if (!collector->clockFailed && nowUs == collector->windowStartUs) {
++        return false;
++    }
++
++    memset(report, 0, sizeof(*report));
++    report->reportSequence = ++collector->lastSequence;
++    report->receiveLoopTick = collector->receiveLoopTick;
++    report->acceptedDataPackets = collector->windowPackets[0];
++    report->acceptedParityPackets = collector->windowPackets[1];
++    report->acceptedDataUdpBytes = collector->windowUdpBytes[0];
++    report->acceptedParityUdpBytes = collector->windowUdpBytes[1];
++    if (collector->windowHasAccepted) {
++        report->flags |= PACKET_RECEPTION_FLAG_HAS_ACCEPTED;
++        report->firstFrame = collector->windowFirstFrame;
++        report->lastFrame = collector->windowLastFrame;
++    }
++
++    if (collector->clockFailed) {
++        // One zero-time sentinel, then nothing until a fresh native connection.
++        report->flags |= PACKET_RECEPTION_FLAG_INCOMPLETE | PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE;
++        report->intervalUs = 0;
++        report->intervalEndUs = 0;
++        report->lastAcceptedAgeUs = UINT32_MAX;
++        report->sampleCount = 0;
++        collector->retired = true;
++        resetWindow(collector);
++        return true;
++    }
++
++    intervalUs = nowUs - collector->windowStartUs;
++    longInterval = intervalUs > PACKET_RECEPTION_MAX_INTERVAL_US;
++    report->intervalUs = intervalUs > UINT32_MAX ? UINT32_MAX : (uint32_t)intervalUs;
++    report->intervalEndUs = nowUs - collector->originUs;
++    if (longInterval || collector->windowIncomplete) {
++        report->flags |= PACKET_RECEPTION_FLAG_INCOMPLETE;
++    }
++    if (collector->windowSampleLimit) {
++        report->flags |= PACKET_RECEPTION_FLAG_TIMING_SAMPLE_LIMIT;
++    }
++
++    if (collector->hasLastAccepted) {
++        uint64_t age = nowUs - collector->lastAcceptedUs;
++        report->lastAcceptedAgeUs = age >= UINT32_MAX ? UINT32_MAX : (uint32_t)age;
++    }
++    else {
++        report->lastAcceptedAgeUs = UINT32_MAX;
++    }
++
++    // A long or saturated scheduling interval carries no timing samples at all.
++    if (!longInterval) {
++        for (i = 0; i < collector->windowSampleCount; i++) {
++            const PACKET_RECEPTION_SAMPLE* sample = &collector->windowSamples[i];
++            uint64_t age = nowUs - sample->socketReadUs;
++
++            if (age > PACKET_RECEPTION_MAX_SAMPLE_AGE_US || age > report->intervalEndUs) {
++                // Too old to describe: omit it rather than move it, and say so.
++                report->flags |= PACKET_RECEPTION_FLAG_INCOMPLETE;
++                continue;
++            }
++
++            report->samples[report->sampleCount].frameIndex = sample->frameIndex;
++            report->samples[report->sampleCount].rtpSequence = sample->rtpSequence;
++            report->samples[report->sampleCount].socketReadAgeUs = (uint32_t)age;
++            report->sampleCount++;
++        }
++    }
++
++    collector->windowStartUs = nowUs;
++    collector->lastClockUs = nowUs;
++    resetWindow(collector);
++    return true;
++}
++
++void PacketReceptionCollectorRetire(PPACKET_RECEPTION_COLLECTOR collector) {
++    collector->retired = true;
++}
++
++static void putBe16(uint8_t* p, uint16_t value) {
++    p[0] = (uint8_t)(value >> 8);
++    p[1] = (uint8_t)value;
++}
++
++static void putBe32(uint8_t* p, uint32_t value) {
++    p[0] = (uint8_t)(value >> 24);
++    p[1] = (uint8_t)(value >> 16);
++    p[2] = (uint8_t)(value >> 8);
++    p[3] = (uint8_t)value;
++}
++
++static void putBe64(uint8_t* p, uint64_t value) {
++    putBe32(p, (uint32_t)(value >> 32));
++    putBe32(p + 4, (uint32_t)value);
++}
++
++int PacketReceptionSerialize(const PACKET_RECEPTION_REPORT* report, uint8_t* buffer, size_t bufferLength) {
++    size_t length;
++    uint8_t i;
++
++    if (report == NULL || buffer == NULL ||
++            report->sampleCount > PACKET_RECEPTION_MAX_SAMPLES ||
++            (report->flags & ~PACKET_RECEPTION_FLAGS_DEFINED) != 0) {
++        return -1;
++    }
++
++    length = PACKET_RECEPTION_HEADER_BYTES + (size_t)PACKET_RECEPTION_SAMPLE_BYTES * report->sampleCount;
++    if (bufferLength < length) {
++        return -1;
++    }
++
++    buffer[0] = PACKET_RECEPTION_VERSION;
++    buffer[1] = report->flags;
++    buffer[2] = report->sampleCount;
++    buffer[3] = 0;
++    putBe32(buffer + 4, report->reportSequence);
++    putBe32(buffer + 8, report->intervalUs);
++    putBe64(buffer + 12, report->intervalEndUs);
++    putBe32(buffer + 20, report->receiveLoopTick);
++    putBe32(buffer + 24, report->acceptedDataPackets);
++    putBe32(buffer + 28, report->acceptedParityPackets);
++    putBe32(buffer + 32, report->acceptedDataUdpBytes);
++    putBe32(buffer + 36, report->acceptedParityUdpBytes);
++    putBe32(buffer + 40, report->lastAcceptedAgeUs);
++    putBe32(buffer + 44, report->firstFrame);
++    putBe32(buffer + 48, report->lastFrame);
++
++    for (i = 0; i < report->sampleCount; i++) {
++        uint8_t* sample = buffer + PACKET_RECEPTION_HEADER_BYTES + (size_t)PACKET_RECEPTION_SAMPLE_BYTES * i;
++        putBe32(sample, report->samples[i].frameIndex);
++        putBe16(sample + 4, report->samples[i].rtpSequence);
++        putBe32(sample + 6, report->samples[i].socketReadAgeUs);
++    }
++
++    return (int)length;
++}
++
++// Production state. collectorEnabled is written only before the control and video threads that
++// use it are created, and after they are joined; everything else they touch is under the mutex.
++static PACKET_RECEPTION_COLLECTOR collector;
++static PLT_MUTEX collectorMutex;
++static bool collectorEnabled;
++static int hostOffer;
++static bool controlConnectDataPresent;
++static bool negotiated;
++static bool (*receptionClock)(uint64_t* nowUs) = PltGetMonotonicMicros;
++
++#ifdef NOVA_PACKET_RECEPTION_TEST
++void PacketReceptionSetTestClock(bool (*clock)(uint64_t* nowUs)) {
++    receptionClock = clock != NULL ? clock : PltGetMonotonicMicros;
++}
++#endif
++
++void PacketReceptionResetNegotiation(void) {
++    LC_ASSERT(!collectorEnabled);
++    hostOffer = PACKET_RECEPTION_OFFER_ABSENT;
++    controlConnectDataPresent = false;
++    negotiated = false;
++}
++
++void PacketReceptionNoteHostOffer(const char* describePayload) {
++    hostOffer = PacketReceptionParseHostOffer(describePayload);
++    if (hostOffer == PACKET_RECEPTION_OFFER_REFUSED) {
++        Limelog("Packet reception feedback offer is malformed or unsupported; leaving it off\n");
++    }
++}
++
++void PacketReceptionNoteControlConnectData(bool present) {
++    controlConnectDataPresent = present;
++}
++
++bool PacketReceptionNegotiate(void) {
++    uint64_t probeUs = 0;
++
++    negotiated = PacketReceptionGatesPass(IS_SUNSHINE(), APP_VERSION_AT_LEAST(7, 1, 431), hostOffer,
++                                          controlConnectDataPresent, EncryptionFeaturesEnabled, true) &&
++                 receptionClock(&probeUs);
++    return negotiated;
++}
++
++void PacketReceptionNegotiationWithdrawn(void) {
++    negotiated = false;
++}
++
++void PacketReceptionStart(bool controlPathEligible) {
++    uint64_t originUs = 0;
++    bool clockValid;
++
++    LC_ASSERT(!collectorEnabled);
++    if (!negotiated || !controlPathEligible) {
++        return;
++    }
++
++    if (PltCreateMutex(&collectorMutex) != 0) {
++        Limelog("Packet reception feedback unavailable: mutex creation failed\n");
++        return;
++    }
++
++    clockValid = receptionClock(&originUs);
++    PacketReceptionCollectorStart(&collector, clockValid, originUs);
++    collectorEnabled = true;
++}
++
++bool PacketReceptionIsEnabled(void) {
++    return collectorEnabled;
++}
++
++void PacketReceptionNoteReceive(int receiveResult, PPACKET_RECEPTION_CAPTURE capture) {
++    if (!collectorEnabled) {
++        return;
++    }
++
++    if (receiveResult > 0) {
++        capture->socketReadUs = 0;
++        capture->clockValid = receptionClock(&capture->socketReadUs);
++        capture->udpBytes = (uint32_t)receiveResult;
++    }
++
++    if (receiveResult >= 0) {
++        PltLockMutex(&collectorMutex);
++        PacketReceptionCollectorNoteReceiveCall(&collector);
++        PltUnlockMutex(&collectorMutex);
++    }
++}
++
++void PacketReceptionCommit(const PACKET_RECEPTION_CAPTURE* capture, uint32_t frameIndex, uint16_t rtpSequence, bool isParity) {
++    uint64_t commitUs = 0;
++    bool clockValid;
++
++    if (!collectorEnabled || capture == NULL) {
++        return;
++    }
++
++    // The clock is read under the lock so commit and snapshot times are ordered.
++    PltLockMutex(&collectorMutex);
++    clockValid = receptionClock(&commitUs);
++    PacketReceptionCollectorCommit(&collector, capture, clockValid, commitUs, frameIndex, rtpSequence, isParity);
++    PltUnlockMutex(&collectorMutex);
++}
++
++int PacketReceptionTakeReport(uint8_t* buffer, size_t bufferLength) {
++    PACKET_RECEPTION_REPORT report;
++    uint64_t nowUs = 0;
++    bool clockValid;
++    bool take;
++    int length;
++
++    if (!collectorEnabled) {
++        return 0;
++    }
++
++    PltLockMutex(&collectorMutex);
++    clockValid = receptionClock(&nowUs);
++    take = PacketReceptionCollectorTakeReport(&collector, clockValid, nowUs, &report);
++    PltUnlockMutex(&collectorMutex);
++
++    if (!take) {
++        return 0;
++    }
++
++    // Encoded outside the lock, so the receive thread never waits on encoding or ENet.
++    length = PacketReceptionSerialize(&report, buffer, bufferLength);
++    return length > 0 ? length : 0;
++}
++
++void PacketReceptionStop(void) {
++    if (!collectorEnabled) {
++        return;
++    }
++
++    PltLockMutex(&collectorMutex);
++    PacketReceptionCollectorRetire(&collector);
++    PltUnlockMutex(&collectorMutex);
++}
++
++void PacketReceptionDestroy(void) {
++    if (collectorEnabled) {
++        PltDeleteMutex(&collectorMutex);
++        collectorEnabled = false;
++    }
++
++    memset(&collector, 0, sizeof(collector));
++    hostOffer = PACKET_RECEPTION_OFFER_ABSENT;
++    controlConnectDataPresent = false;
++    negotiated = false;
++}
+diff --git a/src/PacketReception.h b/src/PacketReception.h
+new file mode 100644
+index 0000000..e4484cc
+--- /dev/null
++++ b/src/PacketReception.h
+@@ -0,0 +1,151 @@
++#pragma once
++
++#include <stdbool.h>
++#include <stddef.h>
++#include <stdint.h>
++
++// Nova/Polaris private, observation-only packet reception report (version 1).
++//
++// The client counts and samples only original RTP video packets that the RTP queue accepted (after
++// AES-GCM succeeded, when video encryption was already negotiated), and sends at most one bounded
++// report per existing periodic control tick over the authenticated encrypted control channel. It is
++// not a packet census, a loss denominator, a capacity or one-way-delay measurement, or a health
++// signal, and nothing in this library acts on it. The full wire contract lives in Nova's
++// docs/native-packet-reception-feedback.md.
++
++// Client-to-host control message type, sent inside the existing encrypted control v2 framing.
++// A private matched Polaris/Nova allocation, not an upstream registry reservation.
++#define PACKET_RECEPTION_PTYPE 0x7F10
++#define PACKET_RECEPTION_VERSION 1
++
++// Host DESCRIBE offer and client ANNOUNCE echo. Both carry exactly the token "1".
++#define PACKET_RECEPTION_HOST_ATTRIBUTE "x-ss-video.packetReceptionFeedbackVersion"
++#define PACKET_RECEPTION_CLIENT_ATTRIBUTE "x-ml-video.packetReceptionFeedbackVersion"
++
++#define PACKET_RECEPTION_HEADER_BYTES 52
++#define PACKET_RECEPTION_SAMPLE_BYTES 10
++#define PACKET_RECEPTION_MAX_SAMPLES 16
++#define PACKET_RECEPTION_MAX_PAYLOAD_BYTES \
++    (PACKET_RECEPTION_HEADER_BYTES + PACKET_RECEPTION_SAMPLE_BYTES * PACKET_RECEPTION_MAX_SAMPLES)
++
++// Sixteen nominal 6.25 ms bins cover the first 100 ms after a snapshot.
++#define PACKET_RECEPTION_BIN_US 6250
++#define PACKET_RECEPTION_MAX_INTERVAL_US 2000000
++#define PACKET_RECEPTION_MAX_SAMPLE_AGE_US 2000000
++
++#define PACKET_RECEPTION_FLAG_HAS_ACCEPTED 0x01
++#define PACKET_RECEPTION_FLAG_INCOMPLETE 0x02
++#define PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE 0x04
++#define PACKET_RECEPTION_FLAG_TIMING_SAMPLE_LIMIT 0x08
++#define PACKET_RECEPTION_FLAGS_DEFINED 0x0F
++
++// Result of reading the host's DESCRIBE offer.
++#define PACKET_RECEPTION_OFFER_ABSENT 0
++#define PACKET_RECEPTION_OFFER_VERSION_1 1
++#define PACKET_RECEPTION_OFFER_REFUSED (-1)
++
++// Socket-read facts captured on the receive thread immediately after a positive UDP return.
++// They are plain locals there; nothing here points into a packet buffer.
++typedef struct _PACKET_RECEPTION_CAPTURE {
++    uint64_t socketReadUs;
++    uint32_t udpBytes;
++    bool clockValid;
++} PACKET_RECEPTION_CAPTURE, *PPACKET_RECEPTION_CAPTURE;
++
++// Internal sample: monotonic socket-read time plus the packet's original identity.
++typedef struct _PACKET_RECEPTION_SAMPLE {
++    uint64_t socketReadUs;
++    uint32_t frameIndex;
++    uint16_t rtpSequence;
++    uint16_t reserved;
++} PACKET_RECEPTION_SAMPLE;
++
++typedef struct _PACKET_RECEPTION_REPORT_SAMPLE {
++    uint32_t frameIndex;
++    uint16_t rtpSequence;
++    uint32_t socketReadAgeUs;
++} PACKET_RECEPTION_REPORT_SAMPLE;
++
++// One decoded report, before or after its fixed big-endian encoding.
++typedef struct _PACKET_RECEPTION_REPORT {
++    uint8_t flags;
++    uint8_t sampleCount;
++    uint32_t reportSequence;
++    uint32_t intervalUs;
++    uint64_t intervalEndUs;
++    uint32_t receiveLoopTick;
++    uint32_t acceptedDataPackets;
++    uint32_t acceptedParityPackets;
++    uint32_t acceptedDataUdpBytes;
++    uint32_t acceptedParityUdpBytes;
++    uint32_t lastAcceptedAgeUs;
++    uint32_t firstFrame;
++    uint32_t lastFrame;
++    PACKET_RECEPTION_REPORT_SAMPLE samples[PACKET_RECEPTION_MAX_SAMPLES];
++} PACKET_RECEPTION_REPORT, *PPACKET_RECEPTION_REPORT;
++
++// Fixed-size collector state. All times are monotonic microseconds from one clock source.
++typedef struct _PACKET_RECEPTION_COLLECTOR {
++    bool clockFailed;
++    bool retired;
++    bool hasLastAccepted;
++    bool windowHasAccepted;
++    bool windowIncomplete;
++    bool windowSampleLimit;
++    uint16_t windowBinMask;
++    uint8_t windowSampleCount;
++    uint64_t originUs;
++    uint64_t windowStartUs;
++    uint64_t lastClockUs;
++    uint64_t lastAcceptedUs;
++    uint32_t lastSequence;
++    uint32_t receiveLoopTick;
++    uint32_t windowPackets[2];
++    uint32_t windowUdpBytes[2];
++    uint32_t windowFirstFrame;
++    uint32_t windowLastFrame;
++    PACKET_RECEPTION_SAMPLE windowSamples[PACKET_RECEPTION_MAX_SAMPLES];
++} PACKET_RECEPTION_COLLECTOR, *PPACKET_RECEPTION_COLLECTOR;
++
++// Pure collector operations. They never read a clock, lock or allocate: callers pass the time
++// they read and serialize access. The production entrypoints below do exactly that.
++void PacketReceptionCollectorStart(PPACKET_RECEPTION_COLLECTOR collector, bool clockValid, uint64_t originUs);
++void PacketReceptionCollectorNoteReceiveCall(PPACKET_RECEPTION_COLLECTOR collector);
++void PacketReceptionCollectorCommit(PPACKET_RECEPTION_COLLECTOR collector, const PACKET_RECEPTION_CAPTURE* capture,
++                                    bool clockValid, uint64_t commitUs,
++                                    uint32_t frameIndex, uint16_t rtpSequence, bool isParity);
++bool PacketReceptionCollectorTakeReport(PPACKET_RECEPTION_COLLECTOR collector, bool clockValid, uint64_t nowUs,
++                                        PPACKET_RECEPTION_REPORT report);
++void PacketReceptionCollectorRetire(PPACKET_RECEPTION_COLLECTOR collector);
++
++// Exact big-endian encoding. Returns the encoded length (52 + 10 * sampleCount), or -1 if the
++// report cannot be represented or the buffer is too small. Never writes past bufferLength.
++int PacketReceptionSerialize(const PACKET_RECEPTION_REPORT* report, uint8_t* buffer, size_t bufferLength);
++
++// Reads the host DESCRIBE offer: exactly one attribute carrying the single token "1" after trimming
++// surrounding ASCII whitespace. Malformed, unknown or duplicated (even identical) refuses it.
++int PacketReceptionParseHostOffer(const char* sdpPayload);
++
++// All gates the extension requires. Encrypted control v2 is mandatory; video encryption is observed
++// in either existing mode and never requested or changed by this extension.
++bool PacketReceptionGatesPass(bool sunshine, bool encryptedControlProtocol13, int hostOffer,
++                              bool controlConnectDataPresent, uint32_t encryptionEnabled, bool clockSupported);
++
++// Production lifecycle, called by the RTSP, control and video stream code.
++void PacketReceptionResetNegotiation(void);
++void PacketReceptionNoteHostOffer(const char* describePayload);
++void PacketReceptionNoteControlConnectData(bool present);
++bool PacketReceptionNegotiate(void);
++void PacketReceptionNegotiationWithdrawn(void);
++void PacketReceptionStart(bool controlPathEligible);
++bool PacketReceptionIsEnabled(void);
++void PacketReceptionNoteReceive(int receiveResult, PPACKET_RECEPTION_CAPTURE capture);
++void PacketReceptionCommit(const PACKET_RECEPTION_CAPTURE* capture, uint32_t frameIndex, uint16_t rtpSequence, bool isParity);
++int PacketReceptionTakeReport(uint8_t* buffer, size_t bufferLength);
++void PacketReceptionStop(void);
++void PacketReceptionDestroy(void);
++
++#ifdef NOVA_PACKET_RECEPTION_TEST
++// Test-only clock replacement for lifecycle fixtures. Production builds have no such hook.
++void PacketReceptionSetTestClock(bool (*clock)(uint64_t* nowUs));
++#endif
+diff --git a/src/Platform.c b/src/Platform.c
+index 9782e00..86f9cbb 100644
+--- a/src/Platform.c
++++ b/src/Platform.c
+@@ -437,6 +437,35 @@ uint64_t PltGetMillis(void) {
+ #endif
+ }
+ 
++// Monotonic microseconds with an explicit failure result. Unlike PltGetMillis(), there is no
++// wall-clock fallback: a caller that needs monotonic time must be able to tell it has none.
++bool PltGetMonotonicMicros(uint64_t* nowUs) {
++#if defined(LC_WINDOWS)
++    LARGE_INTEGER frequency, counter;
++
++    if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0 ||
++            !QueryPerformanceCounter(&counter) || counter.QuadPart < 0) {
++        return false;
++    }
++
++    *nowUs = ((uint64_t)counter.QuadPart / (uint64_t)frequency.QuadPart) * 1000000 +
++             (((uint64_t)counter.QuadPart % (uint64_t)frequency.QuadPart) * 1000000) / (uint64_t)frequency.QuadPart;
++    return true;
++#elif defined(CLOCK_MONOTONIC) && !defined(NO_CLOCK_GETTIME)
++    struct timespec tv;
++
++    if (clock_gettime(CLOCK_MONOTONIC, &tv) != 0 || tv.tv_sec < 0 || tv.tv_nsec < 0 || tv.tv_nsec >= 1000000000L) {
++        return false;
++    }
++
++    *nowUs = ((uint64_t)tv.tv_sec * 1000000) + ((uint64_t)tv.tv_nsec / 1000);
++    return true;
++#else
++    (void)nowUs;
++    return false;
++#endif
++}
++
+ bool PltSafeStrcpy(char* dest, size_t dest_size, const char* src) {
+     LC_ASSERT(dest_size > 0);
+ 
+diff --git a/src/Platform.h b/src/Platform.h
+index 20d03f5..5d7c3c2 100644
+--- a/src/Platform.h
++++ b/src/Platform.h
+@@ -148,4 +148,5 @@ int initializePlatform(void);
+ void cleanupPlatform(void);
+ 
+ uint64_t PltGetMillis(void);
++bool PltGetMonotonicMicros(uint64_t* nowUs);
+ bool PltSafeStrcpy(char* dest, size_t dest_size, const char* src);
+diff --git a/src/RtpVideoQueue.c b/src/RtpVideoQueue.c
+index d5dbe94..2415bc9 100644
+--- a/src/RtpVideoQueue.c
++++ b/src/RtpVideoQueue.c
+@@ -540,6 +540,11 @@ uint32_t RtpvGetCurrentFrameNumber(PRTP_VIDEO_QUEUE queue) {
+ }
+ 
+ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_QUEUE_ENTRY packetEntry) {
++    return RtpvAddObservedPacket(queue, packet, length, packetEntry, NULL);
++}
++
++int RtpvAddObservedPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_QUEUE_ENTRY packetEntry,
++                          const PACKET_RECEPTION_CAPTURE* receptionCapture) {
+     if (isBefore16(packet->sequenceNumber, queue->nextContiguousSequenceNumber)) {
+         // Reject packets behind our current buffer window
+         return RTPF_RET_REJECTED;
+@@ -726,7 +731,8 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
+     LC_ASSERT_VT(((nvPacket->multiFecBlocks >> 6) & 0x3) == queue->multiFecLastBlockNumber);
+ 
+     LC_ASSERT_VT((nvPacket->flags & FLAG_EOF) || length - dataOffset == StreamConfig.packetSize);
+-    if (!queuePacket(queue, packetEntry, packet, length, !isBefore16(packet->sequenceNumber, queue->bufferFirstParitySequenceNumber), false)) {
++    bool isParity = !isBefore16(packet->sequenceNumber, queue->bufferFirstParitySequenceNumber);
++    if (!queuePacket(queue, packetEntry, packet, length, isParity, false)) {
+         return RTPF_RET_REJECTED;
+     }
+     else {
+@@ -762,6 +768,12 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
+             queue->receivedParityPackets++;
+             LC_ASSERT(queue->receivedParityPackets <= queue->bufferParityPackets);
+         }
++
++        // An original packet was accepted (after AES-GCM, when video is encrypted). Record it now:
++        // reconstruction below may stage, submit or free it, and synthesized packets never get here.
++        if (receptionCapture != NULL) {
++            PacketReceptionCommit(receptionCapture, nvPacket->frameIndex, packet->sequenceNumber, isParity);
++        }
+         
+         // Try to submit this frame. If we haven't received enough packets,
+         // this will fail and we'll keep waiting.
+diff --git a/src/RtpVideoQueue.h b/src/RtpVideoQueue.h
+index ec42c04..5ecafe6 100644
+--- a/src/RtpVideoQueue.h
++++ b/src/RtpVideoQueue.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "Video.h"
++#include "PacketReception.h"
+ 
+ typedef struct _RTPV_QUEUE_ENTRY {
+     struct _RTPV_QUEUE_ENTRY* next;
+@@ -53,5 +54,9 @@ typedef struct _RTP_VIDEO_QUEUE {
+ void RtpvInitializeQueue(PRTP_VIDEO_QUEUE queue);
+ void RtpvCleanupQueue(PRTP_VIDEO_QUEUE queue);
+ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_QUEUE_ENTRY packetEntry);
++// Same as RtpvAddPacket(); a non-NULL capture also commits an accepted original to the
++// packet reception observer before reconstruction can stage or submit the packet.
++int RtpvAddObservedPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_QUEUE_ENTRY packetEntry,
++                          const PACKET_RECEPTION_CAPTURE* receptionCapture);
+ uint32_t RtpvGetCurrentFrameNumber(PRTP_VIDEO_QUEUE queue);
+ void RtpvSubmitQueuedPackets(PRTP_VIDEO_QUEUE queue);
+diff --git a/src/RtspConnection.c b/src/RtspConnection.c
+index 81f6508..ab7f480 100644
+--- a/src/RtspConnection.c
++++ b/src/RtspConnection.c
+@@ -963,6 +963,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+     LC_ASSERT(RtspPortNumber != 0);
+ 
+     // Initialize global state
++    PacketReceptionResetNegotiation();
+     useEnet = (AppVersionQuad[0] >= 5) && (AppVersionQuad[0] <= 7) && (AppVersionQuad[2] < 404);
+     currentSeqNumber = 1;
+     hasSessionId = false;
+@@ -1232,6 +1233,9 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+         }
+         EncryptionFeaturesEnabled = 0;
+ 
++        // Private observation-only packet reception offer: exact version 1 or nothing
++        PacketReceptionNoteHostOffer(response.payload);
++
+         // Parse the Opus surround parameters out of the RTSP DESCRIBE response.
+         ret = parseOpusConfigurations(&response);
+         if (ret != 0) {
+@@ -1388,6 +1392,7 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
+ 
+         // Parse the Sunshine control connect data extension if present
+         connectData = getOptionContent(response.options, "X-SS-Connect-Data");
++        PacketReceptionNoteControlConnectData(connectData != NULL);
+         if (connectData != NULL) {
+             ControlConnectData = (uint32_t)strtoul(connectData, NULL, 0);
+         }
+diff --git a/src/SdpGenerator.c b/src/SdpGenerator.c
+index 86120a4..415ab25 100644
+--- a/src/SdpGenerator.c
++++ b/src/SdpGenerator.c
+@@ -302,6 +302,14 @@ static PSDP_OPTION getAttributesList(char*urlSafeAddr) {
+         snprintf(payloadStr, sizeof(payloadStr), "%u", EncryptionFeaturesEnabled);
+         err |= addAttributeString(&optionHead, "x-ss-general.encryptionEnabled", payloadStr);
+ 
++        // Echo the observation-only packet reception version only after the encryption choice
++        // above, and only if every gate holds. It observes either video mode and never changes
++        // that choice. A failed allocation drops the echo rather than the session.
++        if (PacketReceptionNegotiate() &&
++                addAttributeString(&optionHead, PACKET_RECEPTION_CLIENT_ATTRIBUTE, "1") != 0) {
++            PacketReceptionNegotiationWithdrawn();
++        }
++
+         // Enable YUV444 if requested
+         if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_YUV444) {
+             err |= addAttributeString(&optionHead, "x-ss-video[0].chromaSamplingType", "1");
+diff --git a/src/VideoStream.c b/src/VideoStream.c
+index a2def84..0992ba5 100644
+--- a/src/VideoStream.c
++++ b/src/VideoStream.c
+@@ -91,8 +91,15 @@ static void VideoReceiveThreadProc(void* context) {
+     bool useSelect;
+     int waitingForVideoMs;
+     bool encrypted;
++    bool observeReception;
++    PACKET_RECEPTION_CAPTURE receptionCapture;
+ 
+     encrypted = !!(EncryptionFeaturesEnabled & SS_ENC_VIDEO);
++
++    // Fixed for this receive thread: the control stream started (or did not start) the
++    // negotiated reception observer before this thread was created.
++    observeReception = PacketReceptionIsEnabled();
++    memset(&receptionCapture, 0, sizeof(receptionCapture));
+     decryptedSize = StreamConfig.packetSize + MAX_RTP_HEADER_SIZE;
+     minSize = sizeof(RTP_PACKET) + ((EncryptionFeaturesEnabled & SS_ENC_VIDEO) ? sizeof(ENC_VIDEO_HEADER) : 0);
+     receiveSize = decryptedSize + ((EncryptionFeaturesEnabled & SS_ENC_VIDEO) ? sizeof(ENC_VIDEO_HEADER) : 0);
+@@ -138,6 +145,10 @@ static void VideoReceiveThreadProc(void* context) {
+                             encrypted ? encryptedBuffer : buffer,
+                             receiveSize,
+                             useSelect);
++        if (observeReception) {
++            // Socket-read time and original UDP length, before anything else touches the packet.
++            PacketReceptionNoteReceive(err, &receptionCapture);
++        }
+         if (err < 0) {
+             Limelog("Video Receive: recvUdpSocket() failed: %d\n", (int)LastSocketError());
+             ListenerCallbacks.connectionTerminated(LastSocketFail());
+@@ -229,7 +240,8 @@ static void VideoReceiveThreadProc(void* context) {
+         packet->timestamp = BE32(packet->timestamp);
+         packet->ssrc = BE32(packet->ssrc);
+ 
+-        queueStatus = RtpvAddPacket(&rtpQueue, packet, err, (PRTPV_QUEUE_ENTRY)&buffer[decryptedSize]);
++        queueStatus = RtpvAddObservedPacket(&rtpQueue, packet, err, (PRTPV_QUEUE_ENTRY)&buffer[decryptedSize],
++                                            observeReception ? &receptionCapture : NULL);
+ 
+         if (queueStatus == RTPF_RET_QUEUED) {
+             // The queue owns the buffer

@@ -241,7 +241,9 @@ class NativePatchBootstrapTest(unittest.TestCase):
         self.assertIn("PYROWAVE_PROFILE_TOKEN", source)
         self.assertIn("MAX_RTSP_RESPONSE_SIZE", source)
         self.assertIn("sessionToken == NULL", source)
-        self.assertEqual(self.git(self.source, "rev-list", "--count", self.pin + "..HEAD").stdout.strip(), "10")
+        self.assertIn("PacketReceptionNoteHostOffer", source)
+        self.assertTrue((self.source / "src/PacketReception.c").is_file())
+        self.assertEqual(self.git(self.source, "rev-list", "--count", self.pin + "..HEAD").stdout.strip(), "11")
 
     def test_fresh_and_repeat_bootstrap(self):
         self.bootstrap()
@@ -260,6 +262,14 @@ class NativePatchBootstrapTest(unittest.TestCase):
         self.bootstrap()
         self.assert_patched()
         self.git(self.source, "merge-base", "--is-ancestor", old, "HEAD")
+
+    def test_upgrade_from_ten_patches_adds_only_the_reception_patch(self):
+        patches = sorted(self.patches.glob("*.patch"))[:10]
+        self.git(self.source, "am", *map(str, patches))
+        old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
+        self.bootstrap()
+        self.assert_patched()
+        self.assertEqual(self.git(self.source, "rev-parse", "HEAD~1").stdout.strip(), old)
 
     def test_conflicting_developer_change_is_preserved(self):
         self.apply_old_eight()
@@ -290,13 +300,15 @@ nova_deck_prepare_rtsp("{self.source.as_posix()}" "{destination.as_posix()}")
         self.prepare(destination)
         source = (destination / "src/RtspConnection.c").read_bytes()
         self.assertTrue(b"MAX_RTSP_RESPONSE_SIZE" in source, "RTSP bound is absent from the generated source")
+        self.assertTrue((destination / "src/PacketReception.c").is_file(), "the Deck copy lacks the reception observer")
         self.assertEqual(self.git(self.source, "status", "--porcelain").stdout, before)
         self.bootstrap()
         # Force the timestamp collision that a fast reconfigure can encounter.
         stamp = (destination / "src/RtspConnection.c").stat().st_mtime_ns
         os.utime(self.source / "src/RtspConnection.c", ns=(stamp, stamp))
         self.prepare(destination)
-        self.assertEqual((destination / "src/RtspConnection.c").read_bytes(), (self.source / "src/RtspConnection.c").read_bytes())
+        for name in ("RtspConnection.c", "VideoStream.c", "RtpVideoQueue.c", "PacketReception.c"):
+            self.assertEqual((destination / "src" / name).read_bytes(), (self.source / "src" / name).read_bytes(), name)
         self.assertEqual(self.git(self.source, "status", "--porcelain").stdout, before)
 
     def test_partial_linux_patch_is_refused(self):

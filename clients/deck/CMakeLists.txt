@@ -166,6 +166,7 @@ set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR
 )
 option(NOVA_DECK_BUILD_PYROWAVE "Build the pinned PyroWave codec" OFF)
 include(cmake/NovaHardenRtsp.cmake)
+set(NOVA_DECK_ORIGINAL_MOONLIGHT_DIR "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}")
 set(NOVA_DECK_RTSP_MOONLIGHT_DIR "${CMAKE_CURRENT_BINARY_DIR}/moonlight-rtsp-source")
 nova_deck_prepare_rtsp("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}" "${NOVA_DECK_RTSP_MOONLIGHT_DIR}")
 set(NOVA_DECK_MOONLIGHT_COMMON_C_DIR "${NOVA_DECK_RTSP_MOONLIGHT_DIR}")
@@ -382,6 +383,26 @@ if(BUILD_TESTING)
         "NOVA_RTSP_HARNESS=$<TARGET_FILE:nova_deck_rtsp_harness>"
         ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/test_moonlight_rtsp.py)
     set_tests_properties(nova_deck_rtsp_hardening_test PROPERTIES TIMEOUT 45)
+    # Packet reception observer fixtures on the Deck's actual prepared core sources (including the
+    # optional PyroWave copy), compiled once more with the fixture clock hook. The production
+    # moonlight-common-c library above has no such hook. Release semantics keep FEC validation off.
+    aux_source_directory("${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src" nova_packet_reception_core_sources)
+    add_executable(nova_packet_reception_harness ../../tools/native_packet_reception_harness.c
+        ${nova_packet_reception_core_sources}
+        "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/reedsolomon/rs.c")
+    target_compile_definitions(nova_packet_reception_harness PRIVATE
+        HAS_SOCKLEN_T NDEBUG NOVA_PACKET_RECEPTION_TEST)
+    target_include_directories(nova_packet_reception_harness PRIVATE
+        "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src"
+        "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/enet/include"
+        "${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/reedsolomon")
+    target_compile_features(nova_packet_reception_harness PRIVATE c_std_11)
+    target_link_libraries(nova_packet_reception_harness PRIVATE enet OpenSSL::Crypto Threads::Threads)
+    add_test(NAME nova_packet_reception_test COMMAND ${CMAKE_COMMAND} -E env
+        "NOVA_PACKET_RECEPTION_HARNESS=$<TARGET_FILE:nova_packet_reception_harness>"
+        "NOVA_MOONLIGHT_SOURCE_DIR=${NOVA_DECK_ORIGINAL_MOONLIGHT_DIR}"
+        ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/test_native_packet_reception.py)
+    set_tests_properties(nova_packet_reception_test PROPERTIES TIMEOUT 90)
     if(NOVA_DECK_BUILD_HDR_VALIDATION)
         add_test(NAME nova_deck_vulkan_import_contract_test
             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/deck_vulkan_import_contract_test.py

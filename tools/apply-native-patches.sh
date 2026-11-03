@@ -53,4 +53,6 @@ done
 grep -q PYROWAVE_PROFILE_TOKEN src/RtspConnection.c
 grep -q MAX_RTSP_RESPONSE_SIZE src/RtspConnection.c
 grep -q 'sessionToken == NULL' src/RtspConnection.c
-echo "Nova's protocol and RTSP hardening patches are applied."
+grep -q PACKET_RECEPTION_PTYPE src/PacketReception.h
+grep -q RtpvAddObservedPacket src/VideoStream.c
+echo "Nova's protocol, RTSP hardening and packet reception patches are applied."

@@ -94,6 +94,7 @@ def moonlightCommonCRequiredFiles = moonlightCommonCRequiredPaths.collect { rela
 // Resolved here rather than inside the task, because the configuration cache will not let a task
 // body reach back into the build script for a file.
 def moonlightNegotiationSource = file("${moonlightCommonCPath}/src/RtspConnection.c")
+def moonlightPacketReceptionSource = file("${moonlightCommonCPath}/src/PacketReception.c")
 def moonlightPatchesPath = "src/main/jni/moonlight-core/patches"
 
 TaskProvider<Task> verifyMoonlightCommonCSubmodule = tasks.register("verifyMoonlightCommonCSubmodule") {
@@ -137,6 +138,16 @@ ${missingPaths.collect { "  - ${moonlightCommonCPath}/${it}" }.join("\n")}
 The moonlight-common-c submodule is missing Nova's upstream RTSP hardening patches.
 Run: bash tools/apply-native-patches.sh
 An earlier PyroWave patch application alone does not include these bounds checks.
+""".stripIndent())
+        }
+
+        // Android.mk compiles the packet reception observer, which only patch 0011 creates. Say
+        // so here instead of letting ndk-build fail on a missing file.
+        if (moonlightNegotiationSource.isFile() && !moonlightPacketReceptionSource.isFile()) {
+            throw new GradleException("""
+The moonlight-common-c submodule is missing Nova's packet reception patch.
+Run: bash tools/apply-native-patches.sh
+A checkout patched before 0011 does not include src/PacketReception.c.
 """.stripIndent())
         }
 

@@ -23,6 +23,7 @@ LOCAL_SRC_FILES := $(NOVA_AUDIO_STREAM_SOURCE) \
                    moonlight-common-c/src/InputStream.c \
                    moonlight-common-c/src/LinkedBlockingQueue.c \
                    moonlight-common-c/src/Misc.c \
+                   moonlight-common-c/src/PacketReception.c \
                    moonlight-common-c/src/Platform.c \
                    moonlight-common-c/src/PlatformCrypto.c \
                    moonlight-common-c/src/PlatformSockets.c \

@@ -62,6 +62,20 @@ eight commits, preservation of conflicting developer edits, Linux source prepara
 of a partial hardening patch. These tests do not establish device-visible behavior or real ENet
 wire delivery.
 
+## Packet reception observation
+
+Patch 0011 is Nova's half of the private, negotiated, observation-only packet reception
+report paired with Polaris #615 ([wire contract](../../../../../../docs/native-packet-reception-feedback.md)).
+It adds `src/PacketReception.{c,h}`, a monotonic microsecond clock with an explicit failure
+result, a socket-read capture in the video receive thread, a commit inside the RTP queue's
+original-acceptance branch, an ANNOUNCE echo and one report per periodic control tick as
+message `0x7F10`. Without the host's exact version-1 offer, a Sunshine protocol-13 session,
+encrypted control v2 and session-ID connect data, nothing is echoed or sent. Android compiles
+the new file from `Android.mk`; the Deck applies 0011 after 0009 and 0010 in its build-private
+copy, before its optional PyroWave patch. `tools/test_native_packet_reception.py` builds the
+patched core with ASan/UBSan and runs the collector, serializer, parser and full loopback
+sessions in both video encryption modes; the Deck registers the same fixtures in CTest.
+
 See [the beta.2 upstream intake](../../../../../../docs/moonlight-upstream-beta2.md) for other changes
 that require separate review. This backport does not move the core pin or timing ABI and does not
 claim an unverified mapping to the CVEs listed in the PC release.
