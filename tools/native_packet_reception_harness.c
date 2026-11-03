@@ -921,13 +921,20 @@ static int startSession(const SESSION_OPTIONS* o, bool* echoed, uint32_t* encryp
     return 0;
 }
 
-static void stopSession(bool checkStoppedCollector) {
-    uint8_t buffer[PACKET_RECEPTION_MAX_PAYLOAD_BYTES];
+static void finishStoppedSession(bool checkStoppedCollector);
 
+static void stopSession(bool checkStoppedCollector) {
     fixtureStopping = true;
     ConnectionInterrupted = true;
     stopVideoStream();
     stopControlStream();
+    finishStoppedSession(checkStoppedCollector);
+}
+
+// Everything after the stage stop functions: destroy, collector checks and fixture teardown.
+static void finishStoppedSession(bool checkStoppedCollector) {
+    uint8_t buffer[PACKET_RECEPTION_MAX_PAYLOAD_BYTES];
+
     if (checkStoppedCollector) {
         // Stop retired it before teardown: nothing pending can still be taken.
         CHECK(PacketReceptionTakeReport(buffer, sizeof(buffer)) == 0, "report after control stop");
@@ -1718,6 +1725,161 @@ static void sessionReceiverClockFault(bool backward) {
     endCase();
 }
 
+// Publication barrier: parks the control thread after its snapshot left the collector mutex and
+// before the control stream enqueues it, then waits up to 500 ms for stop to retire the
+// collector. Retirement observed here means the enqueue that follows happened after it.
+static pthread_mutex_t publicationLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t publicationCond = PTHREAD_COND_INITIALIZER;
+static bool publicationArmed;
+static bool publicationParked;
+static bool publicationReleased;
+static bool publicationSawRetired;
+static int publicationWaitedMs;
+static uint32_t parkedSequence;
+
+static void publicationBarrier(const uint8_t* report, int length) {
+    int waited = 0;
+    bool retired;
+
+    pthread_mutex_lock(&publicationLock);
+    if (!publicationArmed || length < PACKET_RECEPTION_HEADER_BYTES) {
+        pthread_mutex_unlock(&publicationLock);
+        return;
+    }
+    publicationArmed = false;
+    parkedSequence = be32(report + 4);
+    publicationParked = true;
+    pthread_cond_broadcast(&publicationCond);
+    pthread_mutex_unlock(&publicationLock);
+
+    while (waited < 500 && !PacketReceptionTestIsRetired()) {
+        sleepMs(1);
+        waited++;
+    }
+    retired = PacketReceptionTestIsRetired();
+
+    pthread_mutex_lock(&publicationLock);
+    publicationSawRetired = retired;
+    publicationWaitedMs = waited;
+    publicationReleased = true;
+    pthread_mutex_unlock(&publicationLock);
+}
+
+static void* stopStagesThread(void* context) {
+    volatile bool* done = (volatile bool*)context;
+    stopVideoStream();
+    stopControlStream();
+    *done = true;
+    return NULL;
+}
+
+static void sessionStopPublicationFence(void) {
+    SESSION_OPTIONS o = defaultOptions();
+    PACKET_RECEPTION_REPORT reports[64];
+    uint64_t arrivals[64];
+    uint8_t fec[16][32];
+    int pings, fecCount, badTransport, n, i;
+    uint32_t encryptionEnabled;
+    bool echoed, parked, released, sawRetired, parkedArrived = false;
+    volatile bool stopDone = false;
+    pthread_t stopper;
+    uint64_t stopStart, stopUs;
+    uint32_t sequence;
+    int waitedMs;
+
+    beginCase("session_no_report_enqueued_after_stop_retirement");
+    pthread_mutex_lock(&publicationLock);
+    publicationArmed = publicationParked = publicationReleased = publicationSawRetired = false;
+    publicationWaitedMs = 0;
+    parkedSequence = 0;
+    pthread_mutex_unlock(&publicationLock);
+    PacketReceptionSetTestPublicationHook(publicationBarrier);
+    videoEncrypted = true;
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "start failed");
+        PacketReceptionSetTestPublicationHook(NULL);
+        endCase();
+        return;
+    }
+    sleepMs(250);
+
+    // Park the next prepared report between snapshot and enqueue.
+    pthread_mutex_lock(&publicationLock);
+    publicationArmed = true;
+    {
+        struct timespec deadline;
+        struct timeval nowTv;
+        gettimeofday(&nowTv, NULL);
+        deadline.tv_sec = nowTv.tv_sec + 2;
+        deadline.tv_nsec = (long)nowTv.tv_usec * 1000L;
+        while (!publicationParked) {
+            if (pthread_cond_timedwait(&publicationCond, &publicationLock, &deadline) != 0) {
+                break;
+            }
+        }
+    }
+    parked = publicationParked;
+    pthread_mutex_unlock(&publicationLock);
+    CHECK(parked, "control thread never reached the publication window");
+
+    // The real stop stages run on their own thread while the report is parked.
+    fixtureStopping = true;
+    ConnectionInterrupted = true;
+    stopStart = realMonotonicUs();
+    CHECK(pthread_create(&stopper, NULL, stopStagesThread, (void*)&stopDone) == 0, "stopper thread");
+    pthread_join(stopper, NULL);
+    stopUs = realMonotonicUs() - stopStart;
+    finishStoppedSession(true);
+    n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+    PltDestroyCryptoContext(senderCrypto);
+    PacketReceptionSetTestPublicationHook(NULL);
+
+    pthread_mutex_lock(&publicationLock);
+    released = publicationReleased;
+    sawRetired = publicationSawRetired;
+    waitedMs = publicationWaitedMs;
+    sequence = parkedSequence;
+    pthread_mutex_unlock(&publicationLock);
+    for (i = 0; i < n; i++) {
+        CHECK(reports[i].reportSequence == (uint32_t)(i + 1), "sequence %u", reports[i].reportSequence);
+        CHECK(reports[i].reportSequence <= sequence, "a new snapshot followed the parked one: %u", reports[i].reportSequence);
+        if (reports[i].reportSequence == sequence) {
+            parkedArrived = true;
+        }
+    }
+    printf("STOP parked_sequence=%u enqueue_after_retirement=%d waited_ms=%d stop_us=%llu reports=%d parked_report_delivered=%d pings=%d\n",
+           sequence, sawRetired, waitedMs, (unsigned long long)stopUs, n, parkedArrived, pings);
+    CHECK(stopDone && released, "stop stages did not complete (join) or the parked report was never released");
+    // The defect is a prepared report that left the parked window only after retirement and was
+    // still sent. A fence may instead hold retirement until it is enqueued, or drop it.
+    CHECK(!(sawRetired && parkedArrived), "the prepared report was enqueued after stop retired the collector (waited %d ms)", waitedMs);
+    CHECK(stopUs < 5000000, "stop took %llu us", (unsigned long long)stopUs);
+    CHECK(n >= 2 && pings >= 2 && badTransport == 0 && terminationError == 0, "reports %d pings %d", n, pings);
+    endCase();
+
+    // Reconnect once: a normal epoch with periodic reports and pings.
+    beginCase("session_reconnect_after_fenced_stop");
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "restart failed");
+        endCase();
+        return;
+    }
+    sleepMs(350);
+    stopSession(true);
+    PltDestroyCryptoContext(senderCrypto);
+    n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+    CHECK(n >= 2 && reports[0].reportSequence == 1, "reports %d first %u", n, n > 0 ? reports[0].reportSequence : 0);
+    for (i = 0; i < n; i++) {
+        CHECK(reports[i].reportSequence == (uint32_t)(i + 1) &&
+              !(reports[i].flags & (PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE | PACKET_RECEPTION_FLAG_INCOMPLETE)),
+              "report %d sequence %u flags %x", i, reports[i].reportSequence, reports[i].flags);
+    }
+    CHECK(pings >= 2 && badTransport == 0 && terminationError == 0, "pings %d", pings);
+    endCase();
+}
+
 static void sessionGates(void) {
     static const struct { const char* name; int variant; } variants[] = {
         { "offer_absent", 0 }, { "offer_version_2", 1 }, { "offer_duplicated", 2 }, { "connect_data_absent", 3 },
@@ -1821,6 +1983,9 @@ int main(int argc, char** argv) {
     else if (strcmp(command, "session-gates") == 0) {
         sessionGates();
     }
+    else if (strcmp(command, "stop-publication") == 0) {
+        sessionStopPublicationFence();
+    }
     else if (strcmp(command, "clock-review") == 0) {
         clockReviewLifecycle();
         sessionReceiverClockFault(false);
@@ -1828,7 +1993,7 @@ int main(int argc, char** argv) {
         sessionSnapshotEarlierThanReceiveRead();
     }
     else {
-        fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates|clock-review\n", argv[0]);
+        fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates|clock-review|stop-publication\n", argv[0]);
         return 2;
     }
 

@@ -183,9 +183,12 @@ unavailable observation and clears prior derived metrics (ROOT clarification 01)
 ## Lifecycle and bounds
 
 The collector starts when the native control stream starts, before the loss-stats and video
-receive threads exist: origin, sequence, window, samples and progress all reset. Control
-stop retires it before teardown, so no pending snapshot is sent; control destroy clears it.
-A new connection starts again at sequence 1 with a new origin. No Java lifecycle is involved,
+receive threads exist: origin, sequence, window, samples and progress all reset. The
+loss-stats thread is the only publisher. Control stop joins it and only then retires the
+collector, still before ENet teardown: a snapshot that thread already took is enqueued before
+retirement or not at all, and nothing is enqueued after it. Delivery of a report enqueued
+before that point can still complete during the existing graceful disconnect. Control
+destroy clears the collector. A new connection starts again at sequence 1 with a new origin. No Java lifecycle is involved,
 and the existing 10 s first-video/first-frame and control timeouts are unchanged.
 
 Fixed memory: one 344-byte collector (64-bit build) with a sixteen-entry 16-byte sample array,

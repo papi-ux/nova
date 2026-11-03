@@ -49,6 +49,7 @@ EXPECTED_CASES = {
         "lifecycle_delayed_capture_keeps_higher_snapshot_floor",
         "session_snapshot_earlier_than_rejected_receive_read",
     ],
+    "stop-publication": ["session_no_report_enqueued_after_stop_retirement", "session_reconnect_after_fenced_stop"],
 }
 
 
@@ -181,6 +182,9 @@ target_link_libraries(reception PRIVATE moonlight-common-c enet)
 
     def test_receive_thread_clock_faults_survive_rejected_reads(self):
         self.run_fixtures("clock-review")
+
+    def test_stop_never_enqueues_a_report_after_retirement(self):
+        self.run_fixtures("stop-publication")
 
     def test_spec_carries_the_serializer_golden_encodings(self):
         ran = subprocess.run([str(self.harness), "golden"], capture_output=True, text=True, timeout=20)
