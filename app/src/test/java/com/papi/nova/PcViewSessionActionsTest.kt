@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Looper
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
+import com.papi.nova.api.DoctorAiReadings
 import com.papi.nova.api.PolarisApiClient
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.computers.ComputerManagerService
@@ -151,6 +152,8 @@ class PcViewSessionActionsTest {
         }.build()
         mockConstruction(NvHTTP::class.java).use { legacy ->
             mockConstruction(PolarisApiClient::class.java, withSettings().defaultAnswer(CALLS_REAL_METHODS)) { api, _ ->
+                // Construction mocks bypass field initializers; keep real AI retirement in the stop path.
+                org.robolectric.util.ReflectionHelpers.setField(api, "doctorAiReadings", DoctorAiReadings())
                 org.robolectric.util.ReflectionHelpers.setField(api, "baseUrl", "https://127.0.0.1:47984/polaris/v1")
                 org.robolectric.util.ReflectionHelpers.setField(api, "perCallClientCache", intercepted)
             }.use {
