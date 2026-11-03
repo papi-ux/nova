@@ -2218,7 +2218,7 @@
     <string name="nova_cc_rate_limit">Current host video limit</string>
     <string name="nova_cc_rate_requested">Requested video target</string>
     <string name="nova_cc_rate_applied">Encoder-confirmed video target</string>
-    <string name="nova_cc_rate_received">Received video payload (excludes audio and FEC overhead)</string>
+    <string name="nova_cc_rate_received">Video payload to decoder (excludes audio and FEC overhead)</string>
     <string name="nova_cc_receive_not_measured">Unavailable: no fresh video-payload measurement</string>
     <string name="nova_cc_payload_rate_tiny">&lt;0.001 Mbps</string>
     <string name="nova_cc_rate_audio">Negotiated audio budget</string>

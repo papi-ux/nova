@@ -3,8 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Complete encoded payload delivered by the depacketizer, once per decode unit.
- * Includes reconstructed video, not repair shards, socket traffic or decoder output. */
+/* Complete encoded payload submitted to the renderer bridge, once per decode unit.
+ * Includes reconstructed video; excludes frames dropped before submission, repair
+ * shards, socket traffic and decoder output. */
 typedef struct {
     int64_t generation;
     int64_t bytes;
