@@ -662,6 +662,13 @@ static bool receiverFailNext;
 static bool receiverBackwardNext;
 static int receiverFaultsServed;
 static uint64_t lastReceiverReadUs;
+// Ordered snapshot case: after the armed receive read completes, the control thread's next read
+// lands strictly between its previous read and that receive read.
+static bool receiverArmBetween;
+static bool controlBetweenPending;
+static bool controlBetweenStrict;
+static uint64_t armedReceiverReadUs;
+static uint64_t lastControlReadUs;
 
 static bool receiverFaultClock(uint64_t* nowUs) {
     pthread_t self = pthread_self();
@@ -674,7 +681,19 @@ static bool receiverFaultClock(uint64_t* nowUs) {
             fixtureControlThread = self;
             fixtureControlThreadKnown = true;
         }
-        else if (!pthread_equal(self, fixtureControlThread)) {
+        if (pthread_equal(self, fixtureControlThread)) {
+            if (controlBetweenPending && valid) {
+                uint64_t between = lastControlReadUs + (armedReceiverReadUs - lastControlReadUs) / 2;
+                controlBetweenPending = false;
+                controlBetweenStrict = lastControlReadUs < between && between < armedReceiverReadUs;
+                receiverFaultsServed++;
+                *nowUs = between;
+            }
+            else if (valid) {
+                lastControlReadUs = *nowUs;
+            }
+        }
+        else {
             if (receiverFailNext) {
                 receiverFailNext = false;
                 receiverFaultsServed++;
@@ -687,6 +706,11 @@ static bool receiverFaultClock(uint64_t* nowUs) {
             }
             else if (valid) {
                 lastReceiverReadUs = *nowUs;
+                if (receiverArmBetween) {
+                    receiverArmBetween = false;
+                    armedReceiverReadUs = *nowUs;
+                    controlBetweenPending = true;
+                }
             }
         }
     }
@@ -1479,6 +1503,144 @@ static void clockReviewLifecycle(void) {
         endDirectLifecycle(5);
     }
     endCase();
+
+    beginCase("lifecycle_snapshot_earlier_than_completed_rejected_read_sentinel");
+    {
+        // The rejected read at t0+200 ms completed under the mutex before the next snapshot read
+        // its clock, so that snapshot at t0+150 ms is a definite regression even though the
+        // last snapshot (or accepted commit) was earlier still.
+        const CLOCK_STEP snapshotFloor[] = {
+            { true, t0, NULL },
+            { true, t0 + 100000, NULL },        // normal snapshot
+            { true, t0 + 200000, NULL },        // positive read of a packet that is never accepted
+            { true, t0 + 150000, NULL },        // next snapshot reads earlier than that read
+            { true, t0 + 250000, NULL },
+        };
+        const CLOCK_STEP commitFloor[] = {
+            { true, t0, NULL },
+            { true, t0 + 10, NULL },            // read, then accepted
+            { true, t0 + 120000, NULL },        // its commit
+            { true, t0 + 200000, NULL },        // rejected read
+            { true, t0 + 150000, NULL },        // snapshot earlier than the rejected read
+        };
+        CHECK(startDirectLifecycle(snapshotFloor, 5), "observer did not start");
+        CHECK(takeDecodedReport(&r) > 0 && r.flags == 0 && r.reportSequence == 1, "first snapshot");
+        memset(&first, 0, sizeof(first));
+        PacketReceptionNoteReceive(1040, &first);
+        CHECK(first.clockValid && first.socketReadUs == t0 + 200000, "socket read");
+        CHECK(takeDecodedReport(&r) > 0, "no report");
+        CHECK((r.flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE) && (r.flags & PACKET_RECEPTION_FLAG_INCOMPLETE),
+              "snapshot earlier than a completed receive read was accepted: flags %x interval %u", r.flags, r.intervalUs);
+        CHECK(r.reportSequence == 2 && r.intervalUs == 0 && r.intervalEndUs == 0 && r.sampleCount == 0 &&
+              r.lastAcceptedAgeUs == UINT32_MAX, "sentinel fields");
+        CHECK(!(r.flags & PACKET_RECEPTION_FLAG_HAS_ACCEPTED) && r.acceptedDataPackets == 0 && r.receiveLoopTick == 1,
+              "rejected packet counted or tick lost");
+        CHECK(takeDecodedReport(&r) == 0, "report after the sentinel");
+        endDirectLifecycle(5);
+
+        CHECK(startDirectLifecycle(commitFloor, 5), "observer did not start");
+        memset(&first, 0, sizeof(first));
+        memset(&second, 0, sizeof(second));
+        PacketReceptionNoteReceive(1040, &first);
+        PacketReceptionCommit(&first, 4, 9, false);
+        PacketReceptionNoteReceive(1040, &second);
+        CHECK(takeDecodedReport(&r) > 0 && (r.flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE),
+              "snapshot earlier than a rejected read after a commit was accepted: flags %x", r.flags);
+        CHECK((r.flags & PACKET_RECEPTION_FLAG_HAS_ACCEPTED) && r.acceptedDataPackets == 1 && r.firstFrame == 4,
+              "accepted count before the fault must stay an incomplete fact");
+        endDirectLifecycle(5);
+    }
+    endCase();
+
+    beginCase("lifecycle_delayed_capture_keeps_higher_snapshot_floor");
+    {
+        // A read taken at t0+50 ms reaches the mutex after the t0+100 ms snapshot. It must not
+        // lower that floor: a following snapshot at t0+75 ms is still a regression.
+        const CLOCK_STEP steps[] = {
+            { true, t0, NULL },
+            { true, t0 + 50000, snapshotBetweenReadAndLock },
+            { true, t0 + 100000, NULL },
+            { true, t0 + 75000, NULL },
+            { true, t0 + 300000, NULL },
+        };
+        nestedReportLength = 0;
+        CHECK(startDirectLifecycle(steps, 5), "observer did not start");
+        memset(&first, 0, sizeof(first));
+        PacketReceptionNoteReceive(1040, &first);
+        CHECK(nestedReportLength > 0 && nestedReport.flags == 0 && nestedReport.reportSequence == 1, "interleaved snapshot");
+        CHECK(takeDecodedReport(&r) > 0 && (r.flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE) && r.reportSequence == 2,
+              "delayed capture lowered the snapshot floor: flags %x", r.flags);
+        CHECK(takeDecodedReport(&r) == 0, "report after the sentinel");
+        endDirectLifecycle(5);
+    }
+    endCase();
+}
+
+static void sessionSnapshotEarlierThanReceiveRead(void) {
+    SESSION_OPTIONS o = defaultOptions();
+    PACKET_RECEPTION_REPORT reports[64];
+    uint64_t arrivals[64];
+    uint8_t fec[16][32];
+    uint8_t runt[8] = { 0 };
+    int pings, fecCount, badTransport, n, i, sentinels = 0, pingsAfterSentinel = 0, served;
+    uint64_t sentinelArrival = 0, accepted = 0;
+    uint32_t encryptionEnabled;
+    bool echoed, strict;
+
+    beginCase("session_snapshot_earlier_than_rejected_receive_read");
+    pthread_mutex_lock(&fixtureClockLock);
+    fixtureControlThreadKnown = false;
+    receiverFailNext = false;
+    receiverBackwardNext = false;
+    receiverArmBetween = false;
+    controlBetweenPending = false;
+    controlBetweenStrict = false;
+    receiverFaultsServed = 0;
+    lastReceiverReadUs = 0;
+    lastControlReadUs = 0;
+    pthread_mutex_unlock(&fixtureClockLock);
+    PacketReceptionSetTestClock(receiverFaultClock);
+    videoEncrypted = true;
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "start failed");
+        endCase();
+        return;
+    }
+    sleepMs(250);
+    pthread_mutex_lock(&fixtureClockLock);
+    receiverArmBetween = true;
+    pthread_mutex_unlock(&fixtureClockLock);
+    sendto(videoSocket, runt, sizeof(runt), 0, (struct sockaddr*)&clientVideoAddr, sizeof(clientVideoAddr));
+    sleepMs(450);
+    n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+    for (i = 0; i < n; i++) {
+        accepted += reports[i].acceptedDataPackets + reports[i].acceptedParityPackets;
+        CHECK(reports[i].reportSequence == (uint32_t)(i + 1), "sequence %u", reports[i].reportSequence);
+        if (reports[i].flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE) {
+            sentinels++;
+            sentinelArrival = arrivals[i];
+            CHECK(i == n - 1, "report after the clock sentinel");
+        }
+    }
+    if (sentinelArrival != 0) {
+        pingsAfterSentinel = countMessagesAfter(0x0200, sentinelArrival);
+    }
+    stopSession(true);
+    PltDestroyCryptoContext(senderCrypto);
+    PacketReceptionSetTestClock(NULL);
+    pthread_mutex_lock(&fixtureClockLock);
+    served = receiverFaultsServed;
+    strict = controlBetweenStrict;
+    pthread_mutex_unlock(&fixtureClockLock);
+
+    CHECK(served == 1 && strict, "control read between the last snapshot and the receive read served %d strict %d", served, strict);
+    CHECK(n >= 3, "reports %d", n);
+    CHECK(sentinels == 1, "snapshot earlier than a completed receive read produced %d sentinels", sentinels);
+    CHECK(accepted == 0, "a rejected packet was counted");
+    CHECK(pingsAfterSentinel >= 2, "pings after sentinel %d", pingsAfterSentinel);
+    CHECK(badTransport == 0 && terminationError == 0, "transport %d termination %d", badTransport, terminationError);
+    endCase();
 }
 
 static void sessionReceiverClockFault(bool backward) {
@@ -1663,6 +1825,7 @@ int main(int argc, char** argv) {
         clockReviewLifecycle();
         sessionReceiverClockFault(false);
         sessionReceiverClockFault(true);
+        sessionSnapshotEarlierThanReceiveRead();
     }
     else {
         fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates|clock-review\n", argv[0]);

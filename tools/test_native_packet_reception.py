@@ -45,6 +45,9 @@ EXPECTED_CASES = {
         "lifecycle_rejected_read_clock_failure_sentinel", "lifecycle_receiver_backward_reads_sentinel",
         "lifecycle_delayed_capture_before_snapshot_keeps_read_time",
         "session_receiver_clock_failure_on_gcm_rejected_packet", "session_receiver_backward_read_on_rejected_runts",
+        "lifecycle_snapshot_earlier_than_completed_rejected_read_sentinel",
+        "lifecycle_delayed_capture_keeps_higher_snapshot_floor",
+        "session_snapshot_earlier_than_rejected_receive_read",
     ],
 }
 

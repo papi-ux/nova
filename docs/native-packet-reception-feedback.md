@@ -127,7 +127,10 @@ All multibyte fields are **big-endian**, encoded bytewise. Length is exactly
   in locals. Every completed receive call, including a timeout, advances
   `receive_loop_tick`. Under the collector mutex that time is then checked against the
   receive thread's own earlier socket reads and commits only: a read taken before a
-  concurrent control snapshot is valid and keeps its earlier time.
+  concurrent control snapshot is valid and keeps its earlier time. Once checked, the read
+  raises (never lowers) the floor that every later snapshot and commit must meet, so a
+  snapshot reading earlier than a completed receive read is a clock regression even if
+  that packet was rejected.
 * **Commit.** Only inside the RTP queue's acceptance branch, after `queuePacket` accepted an
   original packet and before `reconstructFrame` can stage, submit or free it. Data versus
   parity is the queue's own classification against `bufferFirstParitySequenceNumber`.
