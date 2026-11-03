@@ -45,6 +45,7 @@ LOCAL_SRC_FILES := $(NOVA_AUDIO_STREAM_SOURCE) \
                    moonlight-common-c/enet/unix.c \
                    simplejni.c \
                    callbacks.c \
+                   video_payload_stats.c \
                    minisdl.c \
 
 

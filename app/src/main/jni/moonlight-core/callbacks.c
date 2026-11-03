@@ -5,6 +5,7 @@
 
 #include <Limelight.h>
 #include "worker-audio.h"
+#include "video_payload_stats.h"
 
 #include <opus_multistream.h>
 #include <android/log.h>
@@ -129,6 +130,7 @@ int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* 
     JNIEnv* env = GetThreadEnv();
     int err;
 
+    nova_video_payload_begin();
     err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSetupMethod, videoFormat, width, height, redrawRate);
     if ((*env)->ExceptionCheck(env)) {
         // This is called on a Java thread, so it's safe to return
@@ -148,17 +150,22 @@ void BridgeDrStart(void) {
     JNIEnv* env = GetThreadEnv();
 
     (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeDrStartMethod);
+    if (!(*env)->ExceptionCheck(env)) {
+        nova_video_payload_start();
+    }
 }
 
 void BridgeDrStop(void) {
     JNIEnv* env = GetThreadEnv();
 
+    nova_video_payload_stop();
     (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeDrStopMethod);
 }
 
 void BridgeDrCleanup(void) {
     JNIEnv* env = GetThreadEnv();
 
+    nova_video_payload_stop();
     (*env)->DeleteGlobalRef(env, DecodedFrameBuffer);
 
     (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeDrCleanupMethod);
@@ -167,6 +174,9 @@ void BridgeDrCleanup(void) {
 int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
     JNIEnv* env = GetThreadEnv();
     int ret;
+
+    // One complete encoded unit, before splitting parameter sets or observing decoder success.
+    nova_video_payload_record(decodeUnit->fullLength);
 
     // Increase the size of our frame data buffer if our frame won't fit
     if ((*env)->GetArrayLength(env, DecodedFrameBuffer) < decodeUnit->fullLength) {

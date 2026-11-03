@@ -5,8 +5,10 @@
 
 #include <arpa/inet.h>
 #include <string.h>
+#include <time.h>
 
 #include "minisdl.h"
+#include "video_payload_stats.h"
 #include "controller_type.h"
 #include "controller_list.h"
 
@@ -221,6 +223,29 @@ Java_com_papi_nova_nvstream_jni_MoonBridge_getEstimatedRttInfo(JNIEnv *env, jcla
     }
 
     return ((uint64_t)rtt << 32U) | variance;
+}
+
+int64_t nova_video_payload_clock_ms(void) {
+    struct timespec now;
+#if defined(__ANDROID__)
+    const clockid_t clock_id = CLOCK_BOOTTIME; /* Receiver elapsed time, including suspend. */
+#else
+    const clockid_t clock_id = CLOCK_MONOTONIC;
+#endif
+    if (clock_gettime(clock_id, &now) != 0 || now.tv_sec < 0 || now.tv_sec > INT64_MAX / 1000) {
+        return -1;
+    }
+    return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_com_papi_nova_nvstream_jni_MoonBridge_getVideoPayloadStats(JNIEnv *env, jclass clazz) {
+    nova_video_payload_snapshot_t snapshot;
+    if (!nova_video_payload_snapshot(&snapshot)) return NULL;
+    const jlong values[] = {snapshot.generation, snapshot.bytes, snapshot.now_ms};
+    jlongArray result = (*env)->NewLongArray(env, 3);
+    if (result != NULL) (*env)->SetLongArrayRegion(env, result, 0, 3, values);
+    return result;
 }
 
 JNIEXPORT jstring JNICALL

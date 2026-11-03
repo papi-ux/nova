@@ -2218,8 +2218,9 @@
     <string name="nova_cc_rate_limit">Current host video limit</string>
     <string name="nova_cc_rate_requested">Requested video target</string>
     <string name="nova_cc_rate_applied">Encoder-confirmed video target</string>
-    <string name="nova_cc_rate_received">Measured receive bitrate</string>
-    <string name="nova_cc_receive_not_measured">Unavailable: this client has no receive bitrate measurement</string>
+    <string name="nova_cc_rate_received">Received video payload (excludes audio and FEC overhead)</string>
+    <string name="nova_cc_receive_not_measured">Unavailable: no fresh video-payload measurement</string>
+    <string name="nova_cc_payload_rate_tiny">&lt;0.001 Mbps</string>
     <string name="nova_cc_rate_audio">Negotiated audio budget</string>
     <string name="nova_cc_rate_repair">Negotiated repair overhead</string>
     <string name="nova_cc_reason_encoder">This encoder cannot change bitrate during a stream</string>

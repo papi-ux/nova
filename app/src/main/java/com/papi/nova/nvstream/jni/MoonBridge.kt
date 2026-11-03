@@ -452,6 +452,8 @@ class MoonBridge {
         @JvmStatic external fun getPortFlagsFromTerminationErrorCode(errorCode: Int): Int
         @JvmStatic external fun stringifyPortFlags(portFlags: Int, separator: String?): String
         @JvmStatic external fun getEstimatedRttInfo(): Long
+        /** Connection generation, complete encoded payload bytes, receiver monotonic milliseconds. */
+        @JvmStatic external fun getVideoPayloadStats(): LongArray?
         @JvmStatic external fun getLaunchUrlQueryParameters(): String
         @JvmStatic external fun guessControllerType(vendorId: Int, productId: Int): Byte
         @JvmStatic external fun guessControllerHasPaddles(vendorId: Int, productId: Int): Boolean

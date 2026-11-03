@@ -53,6 +53,25 @@ class NovaCommandCenterStreamTest {
         assertEquals("Unavailable", d.value(R.string.nova_cc_rate_applied))
         assertFalse(d.value(R.string.nova_cc_rate_received).contains("0 Mbps"))
     }
+    @Test fun receivedPayloadHasItsOwnUnitsAndNeedsCurrentValidMedia() {
+        val measured = sample().copy(receivedVideoPayloadKbps = 12000.0)
+        val d = details(sample = measured)
+        assertEquals("12 Mbps", d.value(R.string.nova_cc_rate_received))
+        assertEquals("20 Mbps", d.value(R.string.nova_cc_rate_applied))
+        assertEquals("30 Mbps", d.value(R.string.nova_cc_rate_limit))
+        assertEquals("0 Mbps", details(sample = measured.copy(receivedVideoPayloadKbps = 0.0))
+            .value(R.string.nova_cc_rate_received))
+        assertEquals("<0.001 Mbps", details(sample = measured.copy(receivedVideoPayloadKbps = 0.1))
+            .value(R.string.nova_cc_rate_received))
+        for (bad in listOf(-1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+            assertTrue(details(sample = measured.copy(receivedVideoPayloadKbps = bad))
+                .value(R.string.nova_cc_rate_received).startsWith("Unavailable"))
+        }
+        assertTrue(details(s = null, sample = measured).value(R.string.nova_cc_rate_received).startsWith("Unavailable"))
+        assertTrue(details(sample = measured, now = 7000).value(R.string.nova_cc_rate_received).startsWith("Unavailable"))
+        assertTrue(details(sample = measured.copy(monotonicTimestampMs = 1001))
+            .value(R.string.nova_cc_rate_received).startsWith("Unavailable"))
+    }
     @Test fun advertisedZeroAudioIsExplicitAndUnknownSplitHasNoBreakdown() {
         fun picture(split: Int?) = NovaLiveBitratePresentation(rate = NovaLiveBitrateState(
             negotiatedUnits = PolarisBitrateUnits(50000, 40000, 40000, 0, 20, split)))

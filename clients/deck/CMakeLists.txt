@@ -350,6 +350,17 @@ if(BUILD_TESTING)
 
     endif()
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    # Exercise the Android receiver's portable counter in both native CI lanes.
+    find_package(Threads REQUIRED)
+    add_executable(nova_video_payload_stats_test
+        ../../tools/tests/video_payload_stats_test.c
+        ../../app/src/main/jni/moonlight-core/video_payload_stats.c)
+    target_include_directories(nova_video_payload_stats_test PRIVATE
+        ../../app/src/main/jni/moonlight-core)
+    target_compile_features(nova_video_payload_stats_test PRIVATE c_std_11)
+    target_link_libraries(nova_video_payload_stats_test PRIVATE Threads::Threads)
+    add_test(NAME nova_video_payload_stats_test COMMAND nova_video_payload_stats_test)
+    set_tests_properties(nova_video_payload_stats_test PROPERTIES TIMEOUT 10)
     add_executable(nova_deck_rtsp_harness ../../tools/moonlight_rtsp_harness.c)
     target_compile_definitions(nova_deck_rtsp_harness PRIVATE
         NOVA_RTSP_SOURCE="${NOVA_DECK_MOONLIGHT_COMMON_C_DIR}/src/RtspConnection.c" HAS_SOCKLEN_T NDEBUG)

@@ -167,8 +167,15 @@ internal fun commandCenterStream(
         add(context.getString(R.string.nova_cc_rate_limit) to rate(live?.qualityLimitKbps))
         add(context.getString(R.string.nova_cc_rate_requested) to rate(live?.requestedBitrateKbps?.takeIf { it > 0 } ?: negotiated?.liveEncoderKbps))
         add(context.getString(R.string.nova_cc_rate_applied) to rate(live?.appliedBitrateKbps))
-        // PerfOverlaySample carries frame rates, not measured receive bitrate. Do not use BIT/target.
-        add(context.getString(R.string.nova_cc_rate_received) to context.getString(R.string.nova_cc_receive_not_measured))
+        // Independent receiver byte observation. Never substitute a requested/encoder target.
+        val receivedPayload = fresh?.receivedVideoPayloadKbps?.takeIf { it.isFinite() && it >= 0.0 }
+        val receivedText = receivedPayload?.let {
+            val rounded = java.math.BigDecimal.valueOf(it).movePointLeft(3)
+                .setScale(3, java.math.RoundingMode.HALF_UP)
+            if (it > 0.0 && rounded.signum() == 0) context.getString(R.string.nova_cc_payload_rate_tiny)
+            else rounded.stripTrailingZeros().toPlainString() + " Mbps"
+        } ?: context.getString(R.string.nova_cc_receive_not_measured)
+        add(context.getString(R.string.nova_cc_rate_received) to receivedText)
         negotiated?.takeIf { it.splitKbps != null }?.let {
             add(context.getString(R.string.nova_cc_rate_audio) to commandCenterRate(it.audioKbps))
             add(context.getString(R.string.nova_cc_rate_repair) to "${it.fecPercent}%")

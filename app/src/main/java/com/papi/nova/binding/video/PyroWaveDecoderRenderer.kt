@@ -270,6 +270,7 @@ class PyroWaveDecoderRenderer(
 
     // The window the HUD reads, reset every time it is reported.
     private var windowStartedMs: Long = 0
+    private val videoPayloadRate = VideoPayloadRateSampler()
     private var windowFrames: Long = 0
     private var windowSubmitted: Long = 0
 
@@ -454,6 +455,7 @@ class PyroWaveDecoderRenderer(
                 hostProcessingLatencyMs = windowHostLatencyFrames
                     .takeIf { it > 0 }
                     ?.let { windowHostLatency.toDouble() / 10.0 / it.toDouble() },
+                receivedVideoPayloadKbps = videoPayloadRate.sample(readVideoPayloadSnapshot()),
             )
         )
 

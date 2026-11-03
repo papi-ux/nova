@@ -17,7 +17,9 @@ data class PerfOverlaySample(
     val framesRendered: Long = 0L,
     val framesLost: Long = 0L,
     val hostProcessingLatencyMs: Double? = null,
-    val sessionGeneration: Long = 0L
+    val sessionGeneration: Long = 0L,
+    /** Complete encoded payload delivered for decoding; excludes audio, repair and wire overhead. */
+    val receivedVideoPayloadKbps: Double? = null,
 ) {
     /** The legacy rendered fields count accepted present requests for Android PyroWave. */
     val frameOutputSource: String

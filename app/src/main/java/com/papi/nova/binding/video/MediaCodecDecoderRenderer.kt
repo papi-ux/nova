@@ -298,6 +298,7 @@ class MediaCodecDecoderRenderer(
     // generation_change_count derived from their difference, without this
     // class tracking a third separate field.
     private var benchmarkStreamGeneration = 0
+    private val videoPayloadRate = VideoPayloadRateSampler()
 
     /**
      * One armed/active Nordstern P0-4A benchmark run. Nova's whole run
@@ -1793,7 +1794,8 @@ class MediaCodecDecoderRenderer(
                 hostProcessingLatencyMs = lastTwo.framesWithHostProcessingLatency
                     .takeIf { it > 0 }
                     ?.let { lastTwo.totalHostProcessingLatency.toDouble() / 10.0 / it.toDouble() },
-                sessionGeneration = benchmarkStreamGeneration.toLong() + 1L
+                sessionGeneration = benchmarkStreamGeneration.toLong() + 1L,
+                receivedVideoPayloadKbps = videoPayloadRate.sample(readVideoPayloadSnapshot()),
             )
             perfListener.onPerfSample(perfSample)
 
