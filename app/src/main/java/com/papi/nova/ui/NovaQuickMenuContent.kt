@@ -1201,10 +1201,11 @@ internal fun NovaPageScope.NovaCommandCenterDetails(
                             Text(stringResource(R.string.nova_cc_scope_stream), style = novaPanelType.caption,
                                 color = LocalNovaComposeColors.current.textSecondary)
                         }
+                        // The stream's manual controls lead; the read-only accounting follows them.
+                        NovaQuickMenuBitrateControls(ui, callbacks)
                         ui.value.stream.rates.forEach { (label, value) ->
                             NovaDetailLine(label, value)
                         }
-                        NovaQuickMenuBitrateControls(ui, callbacks)
                         NovaSectionLabel(stringResource(R.string.nova_cc_recent_changes))
                         val stream = ui.value.stream
                         if (stream.recent.isEmpty()) {
