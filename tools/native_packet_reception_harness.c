@@ -1727,7 +1727,7 @@ static void sessionReceiverClockFault(bool backward) {
 
 // Publication barrier: parks the control thread after its snapshot left the collector mutex and
 // before the control stream enqueues it, then waits up to 500 ms for stop to retire the
-// collector. Retirement observed here means the enqueue that follows happened after it.
+// collector. Stop must win: retire while the report is held, and that report must not be sent.
 static pthread_mutex_t publicationLock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t publicationCond = PTHREAD_COND_INITIALIZER;
 static bool publicationArmed;
@@ -1848,12 +1848,13 @@ static void sessionStopPublicationFence(void) {
             parkedArrived = true;
         }
     }
-    printf("STOP parked_sequence=%u enqueue_after_retirement=%d waited_ms=%d stop_us=%llu reports=%d parked_report_delivered=%d pings=%d\n",
+    printf("STOP parked_sequence=%u retired_while_held=%d waited_ms=%d stop_us=%llu reports=%d parked_report_delivered=%d pings=%d\n",
            sequence, sawRetired, waitedMs, (unsigned long long)stopUs, n, parkedArrived, pings);
     CHECK(stopDone && released, "stop stages did not complete (join) or the parked report was never released");
-    // The defect is a prepared report that left the parked window only after retirement and was
-    // still sent. A fence may instead hold retirement until it is enqueued, or drop it.
-    CHECK(!(sawRetired && parkedArrived), "the prepared report was enqueued after stop retired the collector (waited %d ms)", waitedMs);
+    // Stop wins: retirement completes before the publisher join while the prepared report is
+    // held, and that report is then dropped rather than enqueued.
+    CHECK(sawRetired, "stop did not retire the collector before releasing the held publisher (waited %d ms)", waitedMs);
+    CHECK(!parkedArrived, "the held report was still sent instead of being dropped by stop (waited %d ms)", waitedMs);
     CHECK(stopUs < 5000000, "stop took %llu us", (unsigned long long)stopUs);
     CHECK(n >= 2 && pings >= 2 && badTransport == 0 && terminationError == 0, "reports %d pings %d", n, pings);
     endCase();

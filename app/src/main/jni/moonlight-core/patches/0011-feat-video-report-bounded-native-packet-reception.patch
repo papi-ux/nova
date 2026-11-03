@@ -1,4 +1,4 @@
-From 32e3bd85a335dd29ceb640c055e343c672d6154e Mon Sep 17 00:00:00 2001
+From f5178322776ad7a1c2474a7b3d3bce0c9b2927c8 Mon Sep 17 00:00:00 2001
 From: nova <nova@papi-ux.com>
 Date: Tue, 3 Nov 2026 13:30:00 -0500
 Subject: [PATCH] feat(video): report bounded native packet reception
@@ -38,18 +38,19 @@ earlier socket reads and commits, so a read taken before a concurrent
 control snapshot is not mistaken for a regression. Once that check
 completes, the read also raises (never lowers) the floor that later
 snapshots and commits must meet. Long
-intervals are INCOMPLETE without samples. Control stop retires the
-collector only after joining the loss-stats thread, its sole publisher,
-so a snapshot already taken is enqueued before retirement or not at all
-and nothing is enqueued after it; destroy clears the collector, so a new
-connection starts again at sequence 1 with a new origin.
+intervals are INCOMPLETE without samples. Control stop first closes
+report publication under enetMutex, which also guards each report's
+enqueue, then retires the collector, both before joining the loss-stats
+thread: a report prepared but not yet enqueued is dropped. Destroy clears
+the collector, so a new connection starts again at sequence 1 with a new
+origin.
 
 PltGetMonotonicMicros() reports failure instead of falling back to wall
 time. The wire contract is Nova's docs/native-packet-reception-feedback.md.
 This is not a packet census, capacity, one-way delay or health signal, and
 no client code acts on it.
 ---
- src/ControlStream.c   |  26 ++
+ src/ControlStream.c   |  46 ++++
  src/PacketReception.c | 542 ++++++++++++++++++++++++++++++++++++++++++
  src/PacketReception.h | 159 +++++++++++++
  src/Platform.c        |  29 +++
@@ -59,15 +60,33 @@ no client code acts on it.
  src/RtspConnection.c  |   5 +
  src/SdpGenerator.c    |   8 +
  src/VideoStream.c     |  14 +-
- 10 files changed, 801 insertions(+), 2 deletions(-)
+ 10 files changed, 821 insertions(+), 2 deletions(-)
  create mode 100644 src/PacketReception.c
  create mode 100644 src/PacketReception.h
 
 diff --git a/src/ControlStream.c b/src/ControlStream.c
-index 2f0bcbe..5cbedd3 100644
+index 2f0bcbe..86252f6 100644
 --- a/src/ControlStream.c
 +++ b/src/ControlStream.c
-@@ -402,6 +402,7 @@ void destroyControlStream(void) {
+@@ -102,6 +102,9 @@ static uint32_t lastSeenFrame;
+ static bool stopping;
+ static bool disconnectPending;
+ static bool encryptedControlStream;
++// Whether reception reports may still be enqueued. Guarded by enetMutex, which is also held
++// across each enqueue, so stop can close it between a prepared report and its enqueue.
++static bool receptionReportsOpen;
+ static bool hdrEnabled;
+ static SS_HDR_METADATA hdrMetadata;
+ 
+@@ -328,6 +331,7 @@ int initializeControlStream(void) {
+     PltCreateMutex(&enetMutex);
+ 
+     encryptedControlStream = APP_VERSION_AT_LEAST(7, 1, 431);
++    receptionReportsOpen = true;
+ 
+     if (AppVersionQuad[0] == 3) {
+         packetTypes = (short*)packetTypesGen3;
+@@ -402,6 +406,7 @@ void destroyControlStream(void) {
      freeBasicLbqList(LbqDestroyLinkedBlockingQueue(&asyncCallbackQueue));
  
      PltDeleteMutex(&enetMutex);
@@ -75,7 +94,34 @@ index 2f0bcbe..5cbedd3 100644
  }
  
  static void queueFrameInvalidationTuple(uint32_t startFrame, uint32_t endFrame) {
-@@ -1419,6 +1420,22 @@ static void lossStatsThreadFunc(void* context) {
+@@ -714,6 +719,13 @@ static bool sendMessageEnet(short ptype, short paylen, const void* payload, uint
+         // used inside encryptControlMessage().
+         PltLockMutex(&enetMutex);
+ 
++        // Stop closed reception reports: drop this one before it takes a sequence number.
++        if (ptype == PACKET_RECEPTION_PTYPE && !receptionReportsOpen) {
++            PltUnlockMutex(&enetMutex);
++            enet_packet_destroy(enetPacket);
++            return false;
++        }
++
+         encPacket = (PNVCTL_ENCRYPTED_PACKET_HEADER)enetPacket->data;
+         encPacket->encryptedHeaderType = 0x0001;
+         encPacket->length = sizeof(encPacket->seq) + AES_GCM_TAG_LENGTH + sizeof(*packet) + paylen;
+@@ -749,6 +761,12 @@ static bool sendMessageEnet(short ptype, short paylen, const void* payload, uint
+         memcpy(&packet[1], payload, paylen);
+ 
+         PltLockMutex(&enetMutex);
++
++        if (ptype == PACKET_RECEPTION_PTYPE && !receptionReportsOpen) {
++            PltUnlockMutex(&enetMutex);
++            enet_packet_destroy(enetPacket);
++            return false;
++        }
+     }
+ 
+     volatile bool packetFreed = false;
+@@ -1419,6 +1437,22 @@ static void lossStatsThreadFunc(void* context) {
  
                      free(queuedFrameStatus);
                  }
@@ -98,20 +144,23 @@ index 2f0bcbe..5cbedd3 100644
              }
  
              // Send the message (and don't expect a response)
-@@ -1627,6 +1644,12 @@ int stopControlStream(void) {
-     PltInterruptThread(&asyncCallbackThread);
- 
-     PltJoinThread(&lossStatsThread);
+@@ -1609,6 +1643,15 @@ static void requestIdrFrameFunc(void* context) {
+ // Stops the control stream
+ int stopControlStream(void) {
+     stopping = true;
 +
-+    // The loss-stats thread is the only publisher of reception reports. Retire the collector
-+    // only once it has exited, so a snapshot it already took is enqueued before retirement or
-+    // not at all, and nothing is enqueued after it.
++    // Stop wins over a reception report the loss-stats thread prepared but has not enqueued:
++    // close publication under the mutex that guards each enqueue, then retire the collector,
++    // both before joining that thread. A report already enqueued is ordinary in-flight traffic.
++    PltLockMutex(&enetMutex);
++    receptionReportsOpen = false;
++    PltUnlockMutex(&enetMutex);
 +    PacketReceptionStop();
 +
-     PltJoinThread(&requestIdrFrameThread);
-     PltJoinThread(&controlReceiveThread);
-     PltJoinThread(&asyncCallbackThread);
-@@ -1899,6 +1922,9 @@ int startControlStream(void) {
+     LbqSignalQueueShutdown(&invalidReferenceFrameTuples);
+     LbqSignalQueueShutdown(&frameFecStatusQueue);
+     LbqSignalQueueDrain(&asyncCallbackQueue);
+@@ -1899,6 +1942,9 @@ int startControlStream(void) {
          return err;
      }
  
