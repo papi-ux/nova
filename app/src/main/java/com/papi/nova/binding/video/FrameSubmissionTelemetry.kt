@@ -107,6 +107,12 @@ internal class FrameSubmissionScopeTracker {
         val same = FrameSubmissionBinding.scope(status) == FrameSubmissionBinding.scope(observation.status)
         observation = FrameSubmissionScopeObservation(status, if (same) observation.lifetime else Any())
     }
+    /** A discarded status may retire optional work, but cannot replace the accepted status. */
+    @Synchronized fun invalidateIfDifferent(status: PolarisSessionStatus) {
+        if (FrameSubmissionBinding.scope(status) != FrameSubmissionBinding.scope(observation.status)) {
+            observation = observation.copy(lifetime = Any())
+        }
+    }
     @Synchronized fun current(): FrameSubmissionScopeObservation = observation
 }
 

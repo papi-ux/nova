@@ -120,4 +120,31 @@ class FrameSubmissionTransportTest {
         assertFalse(f.requests.single().getJSONObject("sample").has("frame_submission"))
         assertEquals(100, f.requests.single().getJSONObject("sample").getLong("frames_expected"))
     }
+
+    @Test fun rejectedLiveTuningStatusStillFencesOptionalScopeDrift() = runBlocking {
+        val f = Fixture()
+        fun live(sequence: Long) = LiveTuningStatus(true, "stable", true, "test", 20000, 20000, 20000,
+            "c".repeat(64), "host", sequence, 55, "session")
+        val first = status.copy(liveTuning = live(10), liveTuningPresent = true)
+        f.publish(first)
+        val connection = Any()
+        val epoch = com.papi.nova.binding.video.FrameSubmissionEpochBinding()
+        val producer = com.papi.nova.nvstream.FrameSubmissionProducer(connection, launch, 7)
+        fun capture() = epoch.capture(snapshot, f.api, connection, launch,
+            f.api.frameSubmissionStatus(), 7, true, true, producer)
+        val bound = capture()!!
+        val queued = async(start = CoroutineStart.LAZY) {
+            send(f) { bound.current(f.api, connection, f.api.frameSubmissionStatus(), 7,
+                true, true, "session", 55, 1001) }
+        }
+        // The legacy reducer rejects this sequence; the optional scope must still see its drift.
+        f.publish(first.copy(frameSubmissionLaunchNonce = ""))
+        assertSame(first, f.api.sessionStatusUpdates.value)
+        f.publish(first.copy(liveTuning = live(11)))
+        assertTrue(queued.await())
+        assertFalse(f.requests.single().getJSONObject("sample").has("frame_submission"))
+        assertEquals(100, f.requests.single().getJSONObject("sample").getLong("frames_expected"))
+        assertNull(capture())
+        assertNull(capture())
+    }
 }

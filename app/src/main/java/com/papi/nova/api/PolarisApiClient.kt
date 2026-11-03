@@ -214,7 +214,10 @@ class PolarisApiClient @JvmOverloads constructor(
 
     @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? {
         if (status == null) { frameSubmissionScope.observe(null); mutableSessionStatus.value = null; return null }
-        if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) return mutableSessionStatus.value
+        if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) {
+            frameSubmissionScope.invalidateIfDifferent(status)
+            return mutableSessionStatus.value
+        }
         updateCommandKeyAuthority(status)
         frameSubmissionScope.observe(status)
         mutableSessionStatus.value = status
