@@ -6562,7 +6562,7 @@ override fun onPerfSample(sample:PerfOverlaySample) {
 val sampleApi = novaApiClient
 val sampleConnection = conn
 val sampleStatus = sampleApi?.sessionStatusUpdates?.value
-val sampleFrameSubmission = sampleApi?.let {
+val sampleFrameSubmission = if (sample.frameSubmission == null) null else sampleApi?.let {
 frameSubmissionEpochBinding.capture(sample.frameSubmission, sampleApi, sampleConnection,
     sampleConnection?.getFrameSubmissionLaunchIdentity(),
     sampleApi.frameSubmissionStatus(), com.papi.nova.binding.video.readFrameSubmissionEpoch(),

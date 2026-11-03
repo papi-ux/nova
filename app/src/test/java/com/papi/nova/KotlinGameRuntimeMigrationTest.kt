@@ -271,10 +271,10 @@ class KotlinGameRuntimeMigrationTest {
         )
 
         assertTrue(perfSample.contains("doctorTelemetry.recordPerfSample(sample)"))
-        assertTrue(perfSample.contains("uploadDoctorSample(sample)"))
+        assertTrue(perfSample.contains("uploadDoctorSample(sample, sampleFrameSubmission)"))
         assertTrue(
             "raw Doctor telemetry must be uploaded before the optional visible HUD branch",
-            perfSample.indexOf("uploadDoctorSample(sample)") in
+            perfSample.indexOf("uploadDoctorSample(sample, sampleFrameSubmission)") in
                 0 until perfSample.indexOf("if (novaHud != null && novaHud!!.isShowing)")
         )
         assertFalse(source.contains("NovaBitrateAdjust"))
@@ -289,7 +289,7 @@ class KotlinGameRuntimeMigrationTest {
             source.indexOf("override fun stageFailed(")
         )
         val upload = source.substring(
-            source.indexOf("private fun uploadDoctorSample(sample:PerfOverlaySample)"),
+            source.indexOf("private fun uploadDoctorSample(sample:PerfOverlaySample,"),
             source.indexOf("override fun onPerfUpdate(text:String)")
         )
 
