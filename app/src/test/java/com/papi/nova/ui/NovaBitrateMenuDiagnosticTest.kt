@@ -69,6 +69,45 @@ class NovaBitrateMenuDiagnosticTest {
         assertTrue(events.last().isNull("form"))
     }
 
+    @Test fun formLifetimeAndMenuGenerationStayCoherentThroughSharedStreamDetails() {
+        observe()
+        val diagnostic = diagnostic()
+        // The exact form opens from the shared Stream details page, one page above the root.
+        val details = CommandCenterPage.StreamDetails(true)
+        panel.push(details)
+        diagnostic.pictureRendered(owner.state.value)
+        val first = form()
+        panel.push(first); diagnostic.formOpened(first, owner.state.value)
+        assertTrue(events.last().getBoolean("formOnStack"))
+        assertTrue(events.last().getBoolean("formOnTop"))
+        val captured = events.last().getJSONObject("form").toString()
+        // Back from the form lands on Stream details, still inside this opening of the menu.
+        assertTrue(panel.pop())
+        assertEquals(details, panel.top)
+        diagnostic.record(NovaBitrateMenuDiagnostic.Event.FORM_LIFETIME)
+        assertFalse(events.last().getBoolean("formOnStack"))
+        assertFalse(events.last().getBoolean("formOnTop"))
+        assertTrue(events.last().getBoolean("menuShowing"))
+        assertEquals(captured, events.last().getJSONObject("form").toString())
+        // Another exact form with the same key, from the same page, does not revive the closed one.
+        val second = form()
+        panel.push(second)
+        diagnostic.record(NovaBitrateMenuDiagnostic.Event.FORM_LIFETIME)
+        assertFalse(events.last().getBoolean("formOnStack"))
+        diagnostic.formOpened(second, owner.state.value)
+        assertTrue(events.last().getBoolean("formOnStack"))
+        assertEquals(2L, events.last().getLong("formRevision"))
+        // Leaving Stream details for the root keeps the same menu and generation; the form is gone.
+        assertTrue(panel.pop()); assertTrue(panel.pop())
+        diagnostic.record(NovaBitrateMenuDiagnostic.Event.FORM_LIFETIME)
+        assertTrue(events.last().getBoolean("menuShowing"))
+        assertFalse(events.last().getBoolean("formOnStack"))
+        assertFalse(events.last().getBoolean("formOnTop"))
+        assertEquals(setOf(12L), events.map { it.getLong("menuGeneration") }.toSet())
+        assertEquals(1, events.map { it.getLong("menuId") }.toSet().size)
+        assertEquals((1..events.size).map { it.toLong() }, events.map { it.getLong("emissionRevision") })
+    }
+
     @Test fun sameAppGenerationFingerprintDoesNotHideStaleFormAndRenderedToken() {
         observe()
         val diagnostic = diagnostic()

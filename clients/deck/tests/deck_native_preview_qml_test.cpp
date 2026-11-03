@@ -56,6 +56,24 @@ QQuickItem* visualChild(QQuickItem* item, const QString& name) {
     for (auto* child : item->childItems()) if (auto* found = visualChild(child, name)) return found;
     return nullptr;
 }
+// The full audio warning has its own painted line below the compact connection copy:
+// visible, unelided, at its full wrapped height, and inside the Command Center
+// viewport when the column is at its top.
+void requireAudioWarning(QObject* root, const QString& expected) {
+    auto* warning = root->findChild<QQuickItem*>("native-stream-audio-warning");
+    auto* connection = root->findChild<QQuickItem*>("native-stream-connection-copy");
+    auto* scroll = root->findChild<QQuickItem*>("native-command-center-scroll");
+    require(warning && connection && scroll, "Command Center audio warning controls missing");
+    scroll->setProperty("contentY", 0.0); settle();
+    require(warning->isVisible() && warning->property("text").toString() == expected, "Command Center hid or rewrote the audio warning");
+    require(!connection->property("text").toString().contains(expected), "audio warning still shared the elided connection line");
+    require(!warning->property("truncated").toBool() && warning->property("lineCount").toInt() >= 1 &&
+        warning->height() + 0.5 >= warning->property("contentHeight").toReal(), "audio warning was elided or clipped");
+    const qreal top = warning->mapToItem(scroll, QPointF(0, 0)).y();
+    require(top >= 0 && top + warning->height() <= scroll->height() + 0.5, "audio warning fell outside the Command Center viewport");
+    require(connection->mapToItem(scroll, QPointF(0, connection->height())).y() <= top + 0.5, "audio warning overlapped the connection copy");
+    require(warning->width() > 0 && warning->width() <= scroll->width() + 0.5, "audio warning escaped the Command Center width");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -141,53 +159,101 @@ int main(int argc, char** argv) {
         auto* doctor = root->findChild<QQuickItem*>("native-doctor");
         auto* bitratePopup = root->findChild<QObject*>("live-bitrate-popup");
         require(hudAction && bitrateAction && tuning && doctor && bitratePopup, "missing HUD focus controls");
-        const QVariantMap ready{{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", false},
-            {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000},
+        auto* toggle = bitratePopup->findChild<QQuickItem*>("stream-details-host-tuning");
+        auto* confirm = bitratePopup->findChild<QQuickItem*>("stream-details-tuning-confirm");
+        auto* confirmation = bitratePopup->findChild<QObject*>("stream-details-tuning-confirmation");
+        require(toggle && confirm && confirmation, "shared details confirmation controls missing");
+        const QVariantMap ready{{"hostFresh", true}, {"tuningReviewVersion", "review-1"}, {"canTune", true},
+            {"tuningKnown", true}, {"tuningEnabled", false}, {"canSetBitrate", true},
+            {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000},
             {"bitrateUnitsMode", "request"}, {"maximumBitrateKbps", 300000}};
         session.tuning = ready; emit session.hudChanged(); settle();
-        require(tuning->isEnabled() && bitrateAction->isEnabled(), "both live rows must be available");
         hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
-        focused(*window, bitrateAction, "NovaHUD Down must reach Live Bitrate before Live Tuning");
+        focused(*window, bitrateAction, "NovaHUD Down must reach Bitrate before Live Tuning");
         key(*window, Qt::Key_Return);
-        require(bitratePopup->property("opened").toBool() && session.tuningWrites == 0 && session.bitrateWrites == 0,
-            "first Down then A must open the bitrate picker without changing the host");
-        require(QMetaObject::invokeMethod(preview, "leave"), "cannot leave bitrate picker"); settle();
-        focused(*window, bitrateAction, "bitrate picker Back lost its row");
+        require(bitratePopup->property("opened").toBool() && bitratePopup->property("bitratePage").toBool()
+            && session.tuningWrites == 0 && session.bitrateWrites == 0, "direct Bitrate did not open shared details safely");
+        require(QMetaObject::invokeMethod(preview, "leave"), "cannot leave bitrate details"); settle();
+        focused(*window, bitrateAction, "bitrate Back lost its row");
         key(*window, Qt::Key_Down); focused(*window, tuning, "second Down must reach Live Tuning");
         key(*window, Qt::Key_Down); focused(*window, doctor, "Live Tuning Down must reach Doctor");
         key(*window, Qt::Key_Up); focused(*window, tuning, "Doctor Up must return to Live Tuning");
-        key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Live Tuning Up must return to Live Bitrate");
-        key(*window, Qt::Key_Up); focused(*window, hudAction, "Live Bitrate Up must return to NovaHUD");
-        key(*window, Qt::Key_Down); key(*window, Qt::Key_Down); key(*window, Qt::Key_Return);
+        key(*window, Qt::Key_Return);
+        require(bitratePopup->property("opened").toBool() && !bitratePopup->property("bitratePage").toBool()
+            && session.tuningWrites == 0, "first Live Tuning activation mutated the host");
+        toggle->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
+        require(confirmation->property("opened").toBool() && session.tuningWrites == 0,
+            "host toggle skipped deliberate confirmation");
+        require(QMetaObject::invokeMethod(preview, "leave"), "confirmation Back missing"); settle();
+        require(!confirmation->property("opened").toBool() && bitratePopup->property("opened").toBool(), "Back skipped confirmation parent");
+        focused(*window, toggle, "confirmation Back lost toggle focus");
+        key(*window, Qt::Key_Return);
+        session.tuning["tuningReviewVersion"] = "review-2"; emit session.hudChanged(); settle();
+        confirm->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
+        require(session.tuningWrites == 0 && confirmation->property("opened").toBool(), "replaced review retained mutation authority");
+        QMetaObject::invokeMethod(preview, "leave"); settle();
+        toggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+        confirm->forceActiveFocus(); settle(); key(*window, Qt::Key_Return); key(*window, Qt::Key_Return);
         require(session.tuningWrites == 1 && session.tuningRequested && session.bitrateWrites == 0,
-            "deliberate second Down then A must retain the Live Tuning toggle action");
-
-        // Losing host tuning keeps the existing HUD -> bitrate -> Doctor path.
-        session.tuning = ready; session.tuning["canTune"] = false;
-        emit session.hudChanged(); settle();
-        require(!tuning->isEnabled() && bitrateAction->isEnabled(), "bitrate-only state not reached");
-        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
-        focused(*window, bitrateAction, "unavailable tuning changed NovaHUD Down");
-        key(*window, Qt::Key_Down); focused(*window, doctor, "unavailable tuning trapped bitrate Down");
-        key(*window, Qt::Key_Up); focused(*window, bitrateAction, "unavailable tuning changed Doctor Up");
-        key(*window, Qt::Key_Up); focused(*window, hudAction, "unavailable tuning changed bitrate Up");
-
-        // Hosts without fixed-bitrate support retain their tuning-only path.
-        session.tuning = ready; session.tuning["canSetBitrate"] = false;
-        emit session.hudChanged(); settle();
-        require(tuning->isEnabled() && !bitrateAction->isEnabled(), "tuning-only state not reached");
-        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
-        focused(*window, tuning, "unavailable bitrate hid Live Tuning");
-        key(*window, Qt::Key_Down); focused(*window, doctor, "tuning-only Down did not reach Doctor");
-        key(*window, Qt::Key_Up); focused(*window, tuning, "tuning-only Doctor Up lost Live Tuning");
-        key(*window, Qt::Key_Up); focused(*window, hudAction, "tuning-only Up did not return to NovaHUD");
-
-        session.tuning = {}; emit session.hudChanged(); settle();
-        hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
-        focused(*window, doctor, "unavailable live rows changed NovaHUD Down fallback");
-        key(*window, Qt::Key_Up); focused(*window, hudAction, "unavailable live rows changed Doctor Up fallback");
+            "explicit fresh host confirmation did not send exactly one request");
+        QMetaObject::invokeMethod(preview, "leave"); settle(); focused(*window, tuning, "details Back lost its Live Tuning origin");
+        key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Live Tuning Up lost Bitrate");
+        key(*window, Qt::Key_Up); focused(*window, hudAction, "Bitrate Up lost NovaHUD");
+        // Information remains reachable in read-only, unsupported, unknown and stale states.
+        for (const QVariantMap unavailable : {QVariantMap{}, QVariantMap{{"hostRefreshing", true}},
+                QVariantMap{{"hostFresh", true}, {"canTune", false}, {"canSetBitrate", false}},
+                QVariantMap{{"hostFresh", false}, {"canTune", true}, {"canSetBitrate", true}}}) {
+            session.tuning = unavailable; emit session.hudChanged(); settle();
+            hudAction->forceActiveFocus(); key(*window, Qt::Key_Down);
+            focused(*window, bitrateAction, "unavailable writes hid read-only Bitrate details");
+            key(*window, Qt::Key_Return);
+            require(bitratePopup->property("opened").toBool(), "missing feedback blocked explanatory details");
+            focused(*window, bitratePopup->findChild<QQuickItem*>("stream-details-bitrate"), "read-only details did not focus an enabled tab");
+            auto* apply = bitratePopup->findChild<QQuickItem*>("live-bitrate-apply");
+            apply->forceActiveFocus(); key(*window, Qt::Key_Return);
+            require(session.bitrateWrites == 0, "stale or unavailable bitrate callback wrote");
+            QMetaObject::invokeMethod(preview, "leave"); settle();
+            key(*window, Qt::Key_Down); focused(*window, tuning, "read-only traversal lost Live Tuning");
+            key(*window, Qt::Key_Return); toggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+            require(!confirmation->property("opened").toBool() && session.tuningWrites == 1, "unavailable host callback gained authority");
+            QMetaObject::invokeMethod(preview, "leave"); settle();
+        }
         require(session.tuningWrites == 1 && session.bitrateWrites == 0 && session.controlsVisible(),
             "focus traversal mutated the host or dismissed Command Center");
+        doctor->forceActiveFocus(); settle();
+        auto* centerScroll = root->findChild<QQuickItem*>("native-command-center-scroll"); require(centerScroll, "Command Center scroll missing");
+        const auto priorScroll = centerScroll->property("contentY");
+        const auto priorDoctorY = doctor->y();
+        session.tuning = ready; session.tuning["tuningStateCopy"] = "Off for this stream";
+        session.tuning["tuningReasonCopy"] = "Automatic adjustment is off for this stream. The saved host preference is not reported here.";
+        emit session.hudChanged(); settle();
+        focused(*window, doctor, "status refresh stole controller focus");
+        require(centerScroll->property("contentY") == priorScroll && qAbs(doctor->y() - priorDoctorY) < 1,
+            "status refresh moved the live card or scroll under focus");
+        session.audioCopy = "Audio output unavailable."; session.transition("active", true, "Game is connected."); settle();
+        requireAudioWarning(root.get(), session.audioCopy);
+        session.tuning = ready;
+        session.tuning["doctor"] = QVariantMap{{"available", true}, {"title", "Video needs attention"}};
+        session.tuning["doctorCanApply"] = true; session.tuning["doctorActionLabel"] = "Review bitrate change";
+        session.tuning["healthLabel"] = "Stable"; session.tuning["fresh"] = false;
+        emit session.hudChanged(); settle();
+        require(doctor->property("text").toString().contains("Video needs attention"), "root Doctor hid the existing fresh diagnosis");
+        require(root->findChild<QObject*>("native-stream-overview")->property("text").toString().contains("Health unavailable"), "missing client readings showed healthy stream");
+        bitrateAction->forceActiveFocus(); key(*window, Qt::Key_Return);
+        auto* received = bitratePopup->findChild<QObject*>("live-bitrate-received");
+        session.tuning["fresh"] = true; session.tuning["receivedBitrateKbps"] = QVariant(); emit session.hudChanged(); settle();
+        require(received->property("text").toString().contains("Unavailable"), "null receive feedback became measured zero");
+        session.tuning["receivedBitrateKbps"] = 0.0; emit session.hudChanged(); settle();
+        require(received->property("text").toString().contains("0.0 Mbps"), "fresh measured zero became unavailable");
+        session.tuning["fresh"] = false; emit session.hudChanged(); settle();
+        require(received->property("text").toString().contains("Unavailable"), "stale receive feedback remained measured");
+        QMetaObject::invokeMethod(preview, "leave"); settle();
+        focused(*window, bitrateAction, "status refresh lost details return focus");
+        // The longest active connection copy and audio outage, at large text.
+        session.audioCopy = "Audio is unavailable. Check your SteamOS audio output, then reconnect the stream.";
+        session.transition("active", true, "Native stream connected. Continue to send controls to the game.");
+        session.showControls(); QMetaObject::invokeMethod(root.get(), "largeText"); settle();
+        requireAudioWarning(root.get(), session.audioCopy);
         std::cout << "[OK] NovaHUD Down order and activation boundaries" << std::endl;
         return 0;
     }
@@ -720,6 +786,7 @@ int main(int argc, char** argv) {
     settle();
     focused(*window, primary, "audio outage lost Continue game focus");
     require(primary->property("text") == "Close" && !audioNotice->isVisible(), "audio outage changed stream controls");
+    requireAudioWarning(root.get(), session.audioCopy);
     screenshot("native-audio-waiting-960.png");
     session.audioCopy.clear();
     session.transition("active", true, "Your game is connected.");
@@ -810,45 +877,50 @@ int main(int argc, char** argv) {
 
     session.transition("active", true, "Game is active."); session.showControls(); settle();
     auto* tuning = root->findChild<QQuickItem*>("native-live-tuning");
-    require(tuning && !tuning->isEnabled(), "unavailable tuning control is missing or enabled");
-    session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", false}, {"tuningBusy", false},
-        {"tuningCopy", "Changes save immediately. Turning tuning off holds the last confirmed bitrate."}};
+    auto* sharedDetails = root->findChild<QObject*>("live-bitrate-popup");
+    auto* hostToggle = sharedDetails->findChild<QQuickItem*>("stream-details-host-tuning");
+    auto* hostConfirm = sharedDetails->findChild<QQuickItem*>("stream-details-tuning-confirm");
+    auto* hostConfirmation = sharedDetails->findChild<QObject*>("stream-details-tuning-confirmation");
+    require(tuning && tuning->isEnabled(), "unavailable tuning details must remain readable");
+    session.tuning = {{"hostFresh", true}, {"tuningReviewVersion", "review-a"}, {"canTune", true},
+        {"tuningKnown", true}, {"tuningEnabled", false}, {"tuningBusy", false}};
     emit session.hudChanged(); settle();
-    hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
-    focused(*window, tuning, "Live Tuning not reachable from NovaHUD row");
-    const auto readyTuning = session.tuning;
-    session.tuning = {{"canTune", false}, {"hostRefreshing", true}, {"tuningCopy", "Refreshing host state…"}};
-    emit session.hudChanged(); settle(); key(*window, Qt::Key_Return);
-    focused(*window, tuning, "event refresh moved controller focus");
-    require(session.tuningWrites == 0 && tuning->property("text").toString().contains("Refreshing"), "refresh retained stale tuning authority");
-    window->resize(1280, 800); settle(); screenshot("session-events-refresh-1280.png");
-    session.tuning = readyTuning; emit session.hudChanged(); settle();
-    key(*window, Qt::Key_Return);
-    require(session.tuningWrites == 1 && session.tuningRequested && session.controlsVisible(), "D-pad tuning switch did not save in Command Center");
-    require(!session.tuning.value("tuningEnabled").toBool() && tuning->property("text").toString().contains("Saving"), "pending tuning optimistically changed confirmed preference");
-    key(*window, Qt::Key_Return);
-    require(session.tuningWrites == 1, "busy tuning switch sent another mutation");
-    focused(*window, tuning, "pending tuning save lost focus");
+    tuning->forceActiveFocus(); key(*window, Qt::Key_Return);
+    require(sharedDetails->property("opened").toBool() && session.tuningWrites == 0, "opening tuning details changed host setting");
+    hostToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    require(hostConfirmation->property("opened").toBool() && session.tuningWrites == 0, "host control skipped confirmation");
+    session.tuning["hostFresh"] = false; emit session.hudChanged(); settle();
+    hostConfirm->forceActiveFocus(); key(*window, Qt::Key_Return);
+    require(session.tuningWrites == 0, "stale confirmation wrote host setting");
+    QMetaObject::invokeMethod(preview, "leave"); settle();
+    session.tuning["hostFresh"] = true; emit session.hudChanged(); settle();
+    hostToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    hostConfirm->forceActiveFocus(); key(*window, Qt::Key_Return); key(*window, Qt::Key_Return);
+    require(session.tuningWrites == 1 && session.tuningRequested && session.controlsVisible(), "confirmed tuning On did not send exactly one request");
+    require(!session.tuning.value("tuningEnabled").toBool(), "pending tuning changed confirmed preference");
     session.tuning["tuningBusy"] = false; session.tuning["canTune"] = true;
-    session.tuning["tuningEnabled"] = true; session.tuning["tuningCopy"] = "Live Tuning turned on.";
-    emit session.hudChanged(); window->resize(1280, 800); settle(); screenshot("native-live-tuning-on-1280.png");
+    session.tuning["tuningEnabled"] = true; session.tuning["tuningReviewVersion"] = "review-b";
+    emit session.hudChanged(); settle();
+    QMetaObject::invokeMethod(preview, "leave"); settle();
     QMetaObject::invokeMethod(root.get(), "largeText"); window->resize(960, 600); settle();
-    screenshot("native-live-tuning-on-large-960.png");
-    require(tuning->mapToScene(QPointF(0, tuning->height())).y() <= window->height(), "tuning caption clipped below viewport");
-    // Touch uses the same explicit toggle path and keeps the overlay open.
+    // Touch opens the same details without writing; only the confirmation writes.
+    tuning->forceActiveFocus(); settle();
     const auto tuningPoint = tuning->mapToScene(QPointF(tuning->width() / 2, tuning->height() / 2));
     QMouseEvent down(QEvent::MouseButtonPress, tuningPoint, window->mapToGlobal(tuningPoint), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
     QMouseEvent up(QEvent::MouseButtonRelease, tuningPoint, window->mapToGlobal(tuningPoint), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(window, &down); QCoreApplication::sendEvent(window, &up); settle();
-    require(session.tuningWrites == 2 && !session.tuningRequested && session.controlsVisible(), "touch tuning Off did not use the same guarded route");
+    require(sharedDetails->property("opened").toBool() && session.tuningWrites == 1, "touch details opening mutated host");
+    hostToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    hostConfirm->forceActiveFocus(); key(*window, Qt::Key_Return);
+    require(session.tuningWrites == 2 && !session.tuningRequested, "confirmed tuning Off did not use guarded route");
     session.tuning["tuningBusy"] = false; session.tuning["canTune"] = false;
-    session.tuning["tuningCopy"] = "This session doesn't allow host tuning.";
-    emit session.hudChanged(); settle(); screenshot("native-live-tuning-denied.png");
-    require(!tuning->isEnabled() && session.tuningWrites == 2, "permission loss kept switch interactive");
-    focused(*window, hudAction, "permission withdrawal left controller focus invisible");
+    emit session.hudChanged(); settle(); hostToggle->forceActiveFocus(); key(*window, Qt::Key_Return);
+    require(!hostConfirmation->property("opened").toBool() && session.tuningWrites == 2, "permission loss retained host toggle authority");
+    QMetaObject::invokeMethod(preview, "leave"); settle();
+    focused(*window, tuning, "read-only details Back lost original row");
 
 
-    session.tuning = {{"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
+    session.tuning = {{"hostFresh", true}, {"canTune", true}, {"tuningKnown", true}, {"tuningEnabled", true}, {"tuningBusy", false},
         {"canSetBitrate", true}, {"appliedBitrateKbps", 20000}, {"requestedBitrateKbps", 20000}, {"codec", "PyroWave"},
         {"bitrateUnitsMode","request"},{"maximumBitrateKbps",500000},{"suggestedBitrateKbps",201125},{"fresh",true},{"receivedBitrateKbps",18750},
         {"bitrateCopy", "Choose a fixed bitrate. Applying it turns Live Tuning off."}};
@@ -867,14 +939,39 @@ int main(int argc, char** argv) {
     require(useSuggested,"suggested controller action missing");
     session.tuning = {{"canSetBitrate", false}, {"hostRefreshing", true}, {"bitrateCopy", "Refreshing host state…"}};
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Return);
-    focused(*window, bitrateAction, "event refresh moved bitrate row focus");
-    require(!bitratePopup->property("opened").toBool(), "event refresh opened a stale bitrate draft");
+    require(bitratePopup->property("opened").toBool() && session.bitrateWrites == 0, "refresh prevented read-only bitrate details");
+    QMetaObject::invokeMethod(preview, "leave"); settle();
+    focused(*window, bitrateAction, "refresh details Back lost origin");
     session.tuning = readyBitrate; emit session.hudChanged(); settle();
     key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "picker did not focus the decrement control");
+    // A transient host refresh keeps the focused draft control and its D-pad route;
+    // it can neither edit the draft nor write until fresh owner feedback returns.
+    const QVariantMap refreshing{{"canSetBitrate", false}, {"hostRefreshing", true}, {"bitrateCopy", "Refreshing host state…"}};
+    const auto draftBeforeRefresh = bitratePopup->property("draftKbps");
+    session.tuning = refreshing; emit session.hudChanged(); settle();
+    focused(*window, bitrateMinus, "host refresh dropped the focused decrement control");
+    key(*window, Qt::Key_Left); key(*window, Qt::Key_Right);
+    focused(*window, bitrateMinus, "host refresh moved focus to an unavailable sibling");
+    require(bitratePopup->property("draftKbps") == draftBeforeRefresh && session.bitrateWrites == 0, "refresh-time draft control edited or wrote");
+    session.tuning = readyBitrate; emit session.hudChanged(); settle();
+    focused(*window, bitrateMinus, "decrement focus did not survive fresh-refresh-fresh");
+    session.tuning = refreshing; emit session.hudChanged(); settle();
+    QMetaObject::invokeMethod(preview, "leave"); settle();
+    require(!bitratePopup->property("opened").toBool() && session.bitrateWrites == 0, "Back during refresh kept the picker or wrote");
+    focused(*window, bitrateAction, "Back from a refreshing draft control lost its origin row");
+    session.tuning = readyBitrate; emit session.hudChanged(); settle();
+    key(*window, Qt::Key_Return); focused(*window, bitrateMinus, "reopened picker did not focus the decrement control");
     require(bitratePopup->findChild<QQuickItem*>("live-bitrate-pyrowave-guidance")->isVisible(), "PyroWave bitrate guidance missing");
     key(*window,Qt::Key_Up);focused(*window,useSuggested,"suggestion unreachable by controller");key(*window,Qt::Key_Return);
     require(bitratePopup->property("draftKbps")==201125 && session.bitrateWrites==0,"suggestion rounded advice or mutated host");
     require(bitratePopup->findChild<QObject*>("live-bitrate-received")->property("text").toString().contains("18.8 Mbps"),"received payload line missing");
+    session.tuning = refreshing; emit session.hudChanged(); settle();
+    focused(*window, useSuggested, "host refresh dropped the focused suggestion");
+    require(useSuggested->isVisible(), "focused suggestion vanished during refresh");
+    bitratePopup->setProperty("draftKbps", 20000); key(*window, Qt::Key_Return);
+    require(bitratePopup->property("draftKbps") == 20000 && session.bitrateWrites == 0, "refresh-time suggestion edited the draft or wrote");
+    session.tuning = readyBitrate; emit session.hudChanged(); settle();
+    focused(*window, useSuggested, "suggestion focus did not survive fresh-refresh-fresh");
     bitratePopup->setProperty("draftKbps",20000);key(*window,Qt::Key_Down);
     key(*window, Qt::Key_Right); key(*window, Qt::Key_Return);
     require(bitratePopup->property("draftKbps") == 30000 && session.bitrateWrites == 0, "draft adjustment mutated host");
@@ -899,12 +996,16 @@ int main(int argc, char** argv) {
     require(bitratePopup->property("draftKbps") == 310000, "explicit host range was not used");
     session.tuning["appliedBitrateKbps"] = 200000; session.tuning["requestedBitrateKbps"] = 200000;
     session.tuning["bitrateRequestKbps"] = 300000;
+    session.tuning["selectedRequestBudgetKbps"] = 250000;
+    session.tuning["effectiveRequestBudgetKbps"] = 240000;
+    session.tuning["requestedVideoKbps"] = 200000;
     session.tuning["bitrateCopy"] = "Your 300 Mbps request wasn't confirmed. The PC reports a 200 Mbps target. Check the PC's bitrate limits and current settings.";
     emit session.hudChanged(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateApply, "high-rate picker lost Apply focus");
     const auto rateLabels = bitratePopup->findChild<QObject*>("live-bitrate-applied")->property("text").toString();
-    require(rateLabels.contains("Your last request: 300 Mbps") && rateLabels.contains("PC request budget: 200 Mbps") &&
-        rateLabels.contains("Encoder applied: 200 Mbps"), "local request was conflated with the PC target or encoder acknowledgement");
+    require(rateLabels.contains("Your pending / last request: 300 Mbps") && rateLabels.contains("Selected request budget (host): 250 Mbps") &&
+        rateLabels.contains("Effective request budget: 240 Mbps") && rateLabels.contains("Requested video target: 200 Mbps") &&
+        rateLabels.contains("Encoder applied video target: 200 Mbps"), "local request was conflated with the PC target or encoder acknowledgement");
     screenshot("live-bitrate-high-rate-large-960.png");
     require(bitrateApply->mapToScene(QPointF(0, bitrateApply->height())).y() <= window->height(), "high-rate feedback clipped with large text");
     bitratePopup->setProperty("draftKbps", 1000); bitrateMinus->forceActiveFocus(); settle(); key(*window, Qt::Key_Return);
@@ -932,16 +1033,21 @@ int main(int argc, char** argv) {
     require(doctorFixture.open(QIODevice::ReadOnly), "Doctor fixture missing");
     const auto finding = nova::deck::polaris::doctorPresentation(QJsonDocument::fromJson(doctorFixture.readAll()).object());
     session.transition("active", true, "Game is active."); session.showControls();
-    // A fixed bitrate still saving after host tuning was withdrawn: NovaHUD's Down reaches that row, and
-    // Doctor's Up comes back to it, so Down then Up returns to where the player started.
+    // With write permission withdrawn, both read-only details rows stay in the
+    // D-pad route. Navigating either direction must not submit a host change.
     session.tuning = {{"canTune", false}, {"bitrateBusy", true}};
     emit session.hudChanged(); settle();
-    require(!tuning->isEnabled() && bitrateAction->isEnabled(), "bitrate-only Command Center state not reached");
+    require(tuning->isEnabled() && bitrateAction->isEnabled(), "read-only stream details became unreachable");
+    const int writesBeforeReadOnlyNavigation = session.tuningWrites + session.bitrateWrites;
     hudAction->forceActiveFocus(); settle(); key(*window, Qt::Key_Down);
     focused(*window, bitrateAction, "NovaHUD Down skipped the enabled Live Bitrate row");
     key(*window, Qt::Key_Down);
-    focused(*window, root->findChild<QQuickItem*>("native-doctor"), "Live Bitrate Down did not reach Doctor");
-    key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Doctor Up did not return to Live Bitrate");
+    focused(*window, tuning, "Live Bitrate Down skipped read-only Live Tuning details");
+    key(*window, Qt::Key_Down);
+    focused(*window, root->findChild<QQuickItem*>("native-doctor"), "Live Tuning Down did not reach Doctor");
+    key(*window, Qt::Key_Up); focused(*window, tuning, "Doctor Up skipped read-only Live Tuning details");
+    key(*window, Qt::Key_Up); focused(*window, bitrateAction, "Live Tuning Up did not return to Live Bitrate");
+    require(session.tuningWrites + session.bitrateWrites == writesBeforeReadOnlyNavigation, "read-only details navigation submitted a host change");
     session.tuning = {{"hostFresh", true}, {"doctor", finding}, {"canRefreshDiagnostics", true},
         {"appliedBitrate", "20.0M"}, {"qualityLimit", "40.0M"}, {"host", "4.2ms"}, {"bitrate", "19.6M"},
         {"jitter", "2ms"}, {"incoming", "60.0"}, {"decoded", "59.9"}, {"resolution", "1280×800"}, {"codec", "H.264"}};
@@ -950,6 +1056,9 @@ int main(int argc, char** argv) {
     auto* doctorPopup = root->findChild<QObject*>("doctor-popup");
     require(doctorAction && doctorPopup, "Doctor entry missing");
     hudAction->forceActiveFocus(); key(*window, Qt::Key_Down);
+    focused(*window, bitrateAction, "read-only Bitrate details left the Doctor navigation route");
+    key(*window, Qt::Key_Down); focused(*window, tuning, "read-only Live Tuning details left the Doctor navigation route");
+    key(*window, Qt::Key_Down);
     focused(*window, doctorAction, "Doctor unreachable when host tuning is unavailable");
     key(*window, Qt::Key_Return);
     // Repeater delegates belong to the visual tree, not the QObject owner tree.
@@ -1128,7 +1237,9 @@ int main(int argc, char** argv) {
     auto* syncAction=root->findChild<QQuickItem*>("native-polaris-sync");
     auto* syncPopup=root->findChild<QObject*>("native-polaris-sync-view");
     require(syncAction && syncPopup,"Command Center Sync is missing");
-    doctorAction->forceActiveFocus(); key(*window,Qt::Key_Down); focused(*window,syncAction,"D-pad cannot reach Polaris Sync");
+    doctorAction->forceActiveFocus(); key(*window,Qt::Key_Down);
+    focused(*window,root->findChild<QQuickItem*>("native-stream-tools"),"Doctor Down lost More stream tools");
+    key(*window,Qt::Key_Return); focused(*window,syncAction,"tools page did not focus available Polaris Sync");
     key(*window,Qt::Key_Return);
     for(int i=0;i<100 && syncController.busy();++i) settle();
     require(syncPopup->property("opened").toBool() && syncController.state().value("readOnly").toBool() && syncReads>0,"in-game Sync did not load");
@@ -1169,6 +1280,11 @@ int main(int argc, char** argv) {
     for(int i=0;i<100 && syncController.busy();++i) settle();
     focused(*window,syncFacts,"Sync refresh moved reading focus");
     key(*window,Qt::Key_Right); focused(*window,syncTuning,"Sync actions unreachable from readings");
+    const int beforeSyncTuning = session.tuningWrites;
+    key(*window,Qt::Key_Return);
+    require(syncBitratePopup->property("opened").toBool() && !syncBitratePopup->property("bitratePage").toBool()
+        && session.tuningWrites == beforeSyncTuning, "Sync tuning entry bypassed shared details confirmation");
+    QMetaObject::invokeMethod(preview,"leave"); settle(); focused(*window,syncTuning,"Sync tuning Back lost origin");
     key(*window,Qt::Key_Down); focused(*window,syncBitrate,"live bitrate unreachable");
     key(*window,Qt::Key_Return); require(syncBitratePopup->property("opened").toBool(),"nested bitrate picker did not open");
     require(QMetaObject::invokeMethod(preview,"leave"),"nested Sync Back route missing"); settle();

@@ -40,6 +40,7 @@ QString unitsMode(const DeckHostTelemetry& s) {
     return conversion(s) ? "request" : oneOf(s.encoderCodec,{"h264","hevc","av1"}) ? "video" : "unknown";
 }
 using Clock = std::chrono::steady_clock;
+std::atomic<quint64> reviewSerial{0};
 qint64 nowMs() { return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count(); }
 }
 QVariantMap DeckHudHostReducer::unavailable() {
@@ -54,7 +55,10 @@ QVariantMap DeckHudHostReducer::unavailable() {
         {"bitrateUnitsMode", "unknown"}, {"maximumBitrateKbps", 300000}, {"minimumBitrateKbps", 1000}, {"suggestedBitrateKbps", 0},
         {"canSyncProfile", false}, {"syncBusy", false}, {"syncPhase", "idle"}, {"syncCopy", ""}, {"syncVersion", 0},
         {"doctor", QVariantMap{}}, {"canRefreshDiagnostics", false}, {"diagnosticsRefreshing", false},
-        {"hdrStream", false}};
+        {"hdrStream", false}, {"hdrCopy", "HDR unavailable"},
+        {"tuningStateCopy", "Live Tuning unavailable"}, {"tuningReasonCopy", "Current host feedback is unavailable."},
+        {"tuningReviewVersion", QString{}}, {"requestedVideoKbps", 0}, {"videoLimitKbps", 0},
+        {"recentChanges", QVariantList{}}};
 }
 namespace {
 QVariantMap refreshingView() {
@@ -68,20 +72,39 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
     auto out = unavailable();
     if (!s.authorityValid || !s.active || s.ending || !s.owned || s.role != "owner" || context_.gameId <= 0 ||
         context_.gameUuid.isEmpty() || context_.sessionToken.isEmpty() || s.gameId != context_.gameId ||
-        s.gameUuid != context_.gameUuid || s.sessionToken != context_.sessionToken) { lines_.interrupt(); return out; }
+        s.gameUuid != context_.gameUuid || s.sessionToken != context_.sessionToken) { interrupt(); return out; }
     // The whole response is delayed when its typed tuning observation regresses.
     // Never refresh a newer Doctor/bitrate reading with that old response.
     if (s.live) {
         const auto& live = *s.live;
         if (!s.generation || *s.generation != live.generation || s.appSession.isEmpty() || s.appSession != live.appSession ||
-            retired_.contains(live.instance)) { lines_.interrupt(); return out; }
+            retired_.contains(live.instance)) { interrupt(); return out; }
         if (last_ && last_->instance == live.instance && (live.sequence <= last_->sequence ||
-            live.generation != last_->generation || live.appSession != last_->appSession)) return out;
+            live.generation != last_->generation || live.appSession != last_->appSession)) {
+            if (live.generation != last_->generation || live.appSession != last_->appSession) interrupt();
+            return out;
+        }
         if (last_ && last_->instance != live.instance) {
             if (retired_.size() >= 8) return out;
             retired_.insert(last_->instance);
+            interrupt();
+        }
+        if (!last_ || reviewInterrupted_ || reviewAllowed_ != s.hostTuningAllowed || last_->revision != live.revision ||
+            last_->enabled != live.enabled || last_->instance != live.instance) {
+            reviewVersion_ = ++reviewSerial; reviewInterrupted_ = false; reviewAllowed_ = s.hostTuningAllowed;
         }
         last_ = live;
+        out["tuningReviewVersion"] = QString::number(reviewVersion_);
+        out["tuningStateCopy"] = !live.enabled ? "Off for this stream" : !live.supported || live.state == "unavailable" ? "Unavailable"
+            : live.state == "waiting" ? "Waiting" : live.state == "applying" ? "Applying"
+            : live.state == "measuring" ? "Measuring" : live.state == "adjusting" ? "Adjusting" : "On";
+        out["tuningReasonCopy"] = !live.supported ? "This encoder cannot adjust bitrate during the stream."
+            : !live.enabled ? "Automatic adjustment is off for this stream. The saved host preference is not reported here."
+            : live.state == "applying" ? "Waiting for encoder confirmation."
+            : live.state == "measuring" ? "Collecting current feedback."
+            : live.state == "waiting" ? "Waiting for current stream feedback."
+            : live.state == "adjusting" ? "Adjusting the video target. Check Doctor for stream quality."
+            : "Maintaining current bitrate. Check Doctor for stream quality.";
         out["tuningLabel"] = !live.enabled ? "Tuning: Off"
             : live.state == "unavailable" ? "Tuning: Unavailable"
             : live.state == "waiting" ? "Tuning: Waiting"
@@ -97,21 +120,44 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         out["maximumBitrateKbps"] = maximum;
         out["minimumBitrateKbps"] = convert ? std::max(1000,convert->requestFor(1000)) : 1000;
         out["requestedBitrateKbps"] = convert ? convert->requestFor(live.requested) : live.requested;
+        out["requestedVideoKbps"] = live.requested;
+        out["videoLimitKbps"] = live.qualityLimit;
+        // Only the explicit advertised units record establishes these budgets.
+        // A reverse conversion of the current video target is not the original request.
+        if (s.bitrateUnitsSupported && s.bitrateUnits) {
+            out["selectedRequestBudgetKbps"] = s.bitrateUnits->requested;
+            if (s.bitrateUnits->split) out["effectiveRequestBudgetKbps"] = *s.bitrateUnits->split;
+            if (s.bitrateUnits->cap) out["requestLimitKbps"] = *s.bitrateUnits->cap;
+        }
         if (convert && s.pyrowaveAdvice) out["suggestedBitrateKbps"] = std::min({s.pyrowaveAdvice->goal,maximum,automaticBitrateMaximum});
         out["tuningKnown"] = true; out["tuningEnabled"] = live.enabled;
         out["canTune"] = s.hostTuningAllowed && live.generation > 0;
         out["tuningCopy"] = !s.hostTuningAllowed ? "This session doesn't allow host tuning."
             : live.generation <= 0 ? "Waiting for a current game session."
-            : "Changes save immediately. Turning tuning off holds the last confirmed bitrate.";
+            : "Host setting, including future streams. On also resumes automatic adjustment for this stream. The saved host preference is not reported here.";
         // Requested, adaptive target and legacy encoder bitrate are never used
         // as acknowledgements. Even a requested > applied transition shows applied.
         if (live.supported) { out["appliedBitrate"] = bitrate(live.applied); out["appliedBitrateKbps"] = live.applied; }
+        // This is a small observer-local list of confirmed host transitions, never
+        // a log of requests. Applying/measuring snapshots cannot establish success.
+        if (live.supported && live.applied > 0 && oneOf(live.state, {"stable", "adjusting", "off"})) {
+            if (confirmed_ && (confirmed_->applied != live.applied || confirmed_->enabled != live.enabled)) {
+                recent_.prepend(QVariantMap{{"actor", "Host"}, {"appliedKbps", live.applied},
+                    {"text", confirmed_->applied != live.applied
+                        ? "Encoder confirmed " + QString::number(live.applied / 1000.0, 'f', 1) + " Mbps video"
+                        : live.enabled ? QString("Automatic adjustment turned on for this stream") : QString("Automatic adjustment turned off for this stream")},
+                    {"reason", "Reason unavailable"}});
+                while (recent_.size() > 5) recent_.removeLast();
+            }
+            confirmed_ = live;
+        }
+        out["recentChanges"] = recent_;
         out["canSetBitrate"] = out.value("canTune").toBool() && live.supported && live.applied > 0 && mode != "unknown";
         out["bitrateCopy"] = !out.value("canTune").toBool() ? out.value("tuningCopy")
             : mode == "unknown" ? QVariant("Bitrate units are unavailable. Update Polaris and refresh this stream.")
             : !live.supported ? QVariant("This encoder cannot change bitrate during the stream.")
             : !live.applied ? QVariant("Waiting for the encoder's current bitrate.")
-            : QVariant("Choose a fixed bitrate. Applying it turns Live Tuning off.");
+            : QVariant("Choose a fixed video target. Applying it pauses automatic adjustment for this stream.");
         // Presentation only: a line lasts visibleMs from its emission, never from when QML shows it.
         const qint64 now = clock_ ? clock_() : nowMs();
         lines_.observe(&live, oneOf(s.encoderCodec, {"h264", "hevc", "av1"}), now);
@@ -124,11 +170,13 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
         out["tuningTone"] = *s.legacyTuning ? "info" : "muted";
         out["tuningCopy"] = "Update Polaris to change Live Tuning from this device.";
     }
-    if (!s.live) lines_.interrupt();
+    if (!s.live) interrupt();
     out["hostFresh"] = true;
     // Only for this device's own current stream, reached past the gates above; a downgrade
     // reported beside hdr10 contradicts it, and a contradiction shows no chip.
     out["hdrStream"] = s.hdrStream && !s.hdrDowngraded;
+    out["hdrCopy"] = s.hdrDowngraded ? "HDR downgraded" : s.hdrStream ? "HDR10 stream"
+        : oneOf(s.hdrMode, {"sdr_10bit", "sdr_8bit"}) ? "SDR stream" : "HDR unavailable";
     out["doctor"] = s.doctor;
     const bool observation = oneOf(s.primaryIssue, {"network_observation", "control_channel_observation"});
     const bool unknownNetwork = !s.networkWarning && !observation && oneOf(s.primaryIssue, {"network_jitter", "packet_loss", "network_limited"});
@@ -409,14 +457,14 @@ DeckHudHostObserver::DeckHudHostObserver(DeckHudHostFactory factory, DeckHudHost
                 const bool matching = sameOwner && !result.value->live->enabled && result.value->live->qualityLimit == awaiting->bitrateKbps;
                 const bool applied = matching && result.value->live->applied == awaiting->bitrateKbps;
                 if (applied) state->message = awaiting->requestKbps && awaiting->requestKbps != awaiting->bitrateKbps
-                    ? "Applied encoder " + bitrate(awaiting->bitrateKbps) + "bps for your " + bitrate(awaiting->requestKbps) + "bps request. Live Tuning is off."
-                    : "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Live Tuning is off.";
+                    ? "Applied encoder " + bitrate(awaiting->bitrateKbps) + "bps for your " + bitrate(awaiting->requestKbps) + "bps request. Automatic adjustment is paused for this stream."
+                    : "Applied " + bitrate(awaiting->bitrateKbps) + "bps. Automatic adjustment is paused for this stream.";
                 else if (differentTarget) state->message = "Your " + bitrate(awaiting->requestKbps ? awaiting->requestKbps : awaiting->bitrateKbps) + "bps request wasn't confirmed. The PC reports a " +
                     bitrate(result.value->live->qualityLimit) + "bps target. Check the PC's bitrate limits and current settings.";
                 else if (!matching || expired) state->message = "The encoder change wasn't confirmed. Check the current bitrate before trying again.";
                 else state->message = "Requested " + bitrate(awaiting->requestKbps ? awaiting->requestKbps : awaiting->bitrateKbps) + "bps. Waiting for the encoder…";
                 if (awaiting->profile) {
-                    if (applied) state->syncResult("confirmed", "Profile saved. Bitrate applied now: " + bitrate(awaiting->bitrateKbps) + "bps. Resolution and frame rate apply to the next stream. Live Tuning is off.");
+                    if (applied) state->syncResult("confirmed", "Profile saved. Bitrate applied now: " + bitrate(awaiting->bitrateKbps) + "bps. Resolution and frame rate apply to the next stream. Automatic adjustment is paused for this stream.");
                     else if (!matching || expired) state->syncResult("unconfirmed", "Profile saved for the next stream. The live encoder change wasn't confirmed; check the current bitrate before trying again.");
                     else state->syncResult("confirming", "Profile saved. Waiting for the encoder to confirm " + bitrate(awaiting->bitrateKbps) + "bps. Resolution and frame rate apply to the next stream.");
                 }

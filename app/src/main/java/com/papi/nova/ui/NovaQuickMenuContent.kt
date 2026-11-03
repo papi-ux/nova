@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -37,7 +35,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,8 +42,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -91,7 +86,6 @@ import com.papi.nova.ui.panel.novaPanelType
 import com.papi.nova.ui.panel.novaRowRest
 import com.papi.nova.ui.panel.novaScrollEdgeFade
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.StateFlow
 
 data class NovaQuickMenuCallbacks(
@@ -99,6 +93,9 @@ data class NovaQuickMenuCallbacks(
     val onDisconnect: () -> Unit = {},
     val onEndStream: () -> Unit = {},
     val onStability: () -> Unit = {},
+    val onStreamDetails: (focusBitrate: Boolean) -> Unit = {},
+    val onDoctorDetails: () -> Unit = {},
+    val onTechnicalDetails: () -> Unit = {},
     /** Sets Live Tuning to the state its split offered when it armed, On for true. */
     val onLiveTuning: (enable: Boolean) -> Unit = {},
     val onSyncStatus: () -> Unit = {},
@@ -131,6 +128,10 @@ data class NovaQuickMenuCallbacks(
             // Live Tuning's split confirms the state it offered, through onLiveTuning; a bare
             // perform would have to guess, and a guess can turn it the wrong way.
             NovaQuickMenuActionId.LIVE_TUNING -> Unit
+            NovaQuickMenuActionId.STREAM_DETAILS -> onStreamDetails(false)
+            NovaQuickMenuActionId.BITRATE_DETAILS -> onStreamDetails(true)
+            NovaQuickMenuActionId.DOCTOR_DETAILS -> onDoctorDetails()
+            NovaQuickMenuActionId.TECHNICAL_DETAILS -> onTechnicalDetails()
             NovaQuickMenuActionId.SYNC_STATUS -> onSyncStatus()
             NovaQuickMenuActionId.ADVANCED_TUNING -> onToggleAdvanced()
             NovaQuickMenuActionId.CLEAR_GAME_PROFILE -> onClearGameProfile()
@@ -149,7 +150,11 @@ data class NovaQuickMenuCallbacks(
             NovaQuickMenuActionId.DIAGNOSE_STREAM,
             NovaQuickMenuActionId.COPY_HUD_DIAGNOSTICS -> onOverlayAction(action.id)
             NovaQuickMenuActionId.DOCTOR_UNDO -> onDoctorUndo()
-            NovaQuickMenuActionId.MOUSE_MODE,
+            NovaQuickMenuActionId.STREAM_DETAILS,
+    NovaQuickMenuActionId.BITRATE_DETAILS,
+    NovaQuickMenuActionId.DOCTOR_DETAILS,
+    NovaQuickMenuActionId.TECHNICAL_DETAILS,
+    NovaQuickMenuActionId.MOUSE_MODE,
             NovaQuickMenuActionId.CONTROLLER,
             NovaQuickMenuActionId.KEYBOARD,
             NovaQuickMenuActionId.PLAYERS -> onControlAction(action.id)
@@ -204,20 +209,15 @@ fun NovaPageScope.NovaQuickMenuContent(
     val overlaysTitle = stringResource(R.string.nova_quick_menu_overlays)
     val controlsTitle = stringResource(R.string.nova_quick_menu_controls)
     val sessionTitle = stringResource(R.string.nova_quick_menu_session)
-    val quickKeysTitle = stringResource(R.string.nova_quick_menu_quick_keys)
     val showPinnedKeys by ui.slice { it.pinnedQuickKeys.isNotEmpty() }
     val showDiagnosis by ui.slice { it.diagnosis.visible }
     val showReceipt by ui.slice { it.doctorReceiptAction.visible }
-    val advancedExpanded by ui.slice { it.advancedExpanded }
-    val showReport by ui.slice { it.advancedExpanded && it.postSessionReport.visible }
 
     // Reopened in the same stream, the page comes back to the row that had focus, whose focus brings
     // it into view (in-game #16). Otherwise the list opens at the top: it restored its old scroll
     // too, so touch, or focus going up to the header, left it reopening at Controls on Close (#420).
     val sections = rememberScrollState()
     place?.focusKey?.let { novaInitialFocusAt(it) }
-    val advancedTop = remember { intArrayOf(0) }
-    NovaAdvancedReveal(advancedExpanded, sections, advancedTop)
     val hudPreview = remember(callbacks) { NovaHudPreviewFocus(callbacks.onHudPreview) }
     DisposableEffect(hudPreview) { onDispose { hudPreview.clear() } }
     CompositionLocalProvider(LocalNovaQuickMenuPlace provides place) {
@@ -239,9 +239,13 @@ fun NovaPageScope.NovaQuickMenuContent(
                 // The page opens on Close, its safe action (R7); it opened on this strip, which acts
                 // on nothing, so the first A did nothing and the ring sat on a status card.
                 NovaQuickMenuSessionStrip(ui, Modifier)
-                NovaQuickMenuLiveTuningRow(ui, callbacks)
+                NovaQuickMenuRow(
+                    ui.value.liveTuningAction.let { row -> row.copy(id = NovaQuickMenuActionId.STREAM_DETAILS, enabled = true,
+                        caption = stringResource(R.string.nova_cc_current_stream, row.caption)) },
+                    callbacks, novaPlaceFocus(NovaQuickMenuActionId.STREAM_DETAILS).testTag("nova-cc-live-tuning"), opens = true,
+                )
                 // The keys a handheld cannot press any other way stay one reach from the top; the
-                // full grid lives further down with the rest of the sections.
+                // full grid is on More Keys.
                 if (showPinnedKeys) NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)
                 // The strip is a one-line verdict. What explains it, the Doctor's reading and what
                 // Auto is running, comes next instead of three screens down. The card keeps this one
@@ -251,14 +255,18 @@ fun NovaPageScope.NovaQuickMenuContent(
                 // jumped under the player. For a Polaris host it is here from the first frame to
                 // close and the same size whatever it holds, checking, a reading, or the last
                 // reading a few seconds old, so nothing below it moves (review finding 1).
-                if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)
+                if (showDiagnosis) {
+                    NovaQuickMenuDiagnosisCard(ui, callbacks)
+                    NovaQuickMenuRow(NovaQuickMenuAction(NovaQuickMenuActionId.DOCTOR_DETAILS,
+                        stringResource(R.string.nova_cc_doctor_details), caption = stringResource(R.string.nova_cc_supporting_details)),
+                        callbacks, novaPlaceFocus(NovaQuickMenuActionId.DOCTOR_DETAILS), opens = true)
+                }
                 if (showReceipt) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
                 NovaQuickMenuStabilityCard(ui, callbacks)
 
                 // Overlays first because the HUD switch is the frequent tap.
                 NovaSectionLabel(overlaysTitle)
                 NovaQuickMenuOverlayRows(ui, callbacks, hudPreview)
-                NovaQuickMenuMenuOpacityControl(ui, callbacks)
                 NovaQuickMenuHudOpacityControl(ui, callbacks, hudPreview)
 
                 NovaSectionLabel(controlsTitle)
@@ -267,20 +275,9 @@ fun NovaPageScope.NovaQuickMenuContent(
                 NovaSectionLabel(sessionTitle)
                 NovaQuickMenuRows(ui, { rows -> rows.sessionRows.filter { it.visible } }, callbacks)
 
-                // The full grid last of the daily sections, since its top three are pinned above.
-                NovaSectionLabel(quickKeysTitle)
-                NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)
-
-                NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
-                Box(Modifier.onPlaced { advancedTop[0] = it.positionInParent().y.roundToInt() }) {
-                    NovaQuickMenuInfoCard(ui, { it.advancedToggle }, callbacks)
-                }
-                if (advancedExpanded) {
-                    NovaQuickMenuRows(ui, { it.advancedRows }, callbacks)
-                    // Observational history from the host; it explains Auto's fallbacks but never
-                    // changes a launch, so it lives with the other diagnostics.
-                    if (showReport) NovaQuickMenuPostSessionReportCard(ui)
-                }
+                NovaQuickMenuRow(NovaQuickMenuAction(NovaQuickMenuActionId.TECHNICAL_DETAILS,
+                    stringResource(R.string.nova_cc_technical_details)), callbacks,
+                    novaPlaceFocus(NovaQuickMenuActionId.TECHNICAL_DETAILS), opens = true)
             }
         }
     }
@@ -292,27 +289,6 @@ fun NovaPageScope.NovaQuickMenuContent(
  */
 class NovaQuickMenuPlace {
     internal var focusKey: Any? = null
-}
-
-/**
- * Expanding Advanced brings its toggle up to the top of the list, so the rows it just opened are
- * in view under it and focus stays on the toggle, one Down from them. They sat under the list's
- * edge and read as clipped (#420). An opening with Advanced already open is not an expansion.
- */
-@Composable
-private fun NovaAdvancedReveal(expanded: Boolean, sections: ScrollState, advancedTop: IntArray) {
-    val context = LocalContext.current
-    val keepAbove = with(LocalDensity.current) { NovaPanelMetrics.SpaceXl.roundToPx() }
-    val wasExpanded = remember { booleanArrayOf(expanded) }
-    LaunchedEffect(expanded) {
-        val expanding = expanded && !wasExpanded[0]
-        wasExpanded[0] = expanded
-        if (!expanding) return@LaunchedEffect
-        // The new rows have a height, and the list a new end to scroll to, from the next frame.
-        withFrameNanos {}
-        val target = (advancedTop[0] - keepAbove).coerceAtLeast(0)
-        if (novaAnimationsOff(context)) sections.scrollTo(target) else sections.animateScrollTo(target)
-    }
 }
 
 private val LocalNovaQuickMenuPlace = staticCompositionLocalOf<NovaQuickMenuPlace?> { null }
@@ -465,28 +441,6 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
     val copiedLabel = stringResource(R.string.nova_quick_menu_doctor_copied)
     val context = LocalContext.current
     val fasterThanLight by ui.slice { it.fasterThanLight }
-    // Built once per diagnosis, not once per recomposition of the page.
-    val detail = remember(diagnosis, fasterThanLight, context) {
-        val classification = diagnosis.classification.takeIf { it in setOf("HOST", "NET", "CLIENT") }
-        buildList {
-            classification?.let(::add)
-            diagnosis.tryFirst.takeIf { it.isNotBlank() }?.let { add(context.getString(R.string.nova_cc_doctor_try_first, it)) }
-            // Confidence only means something next to the evidence it grades.
-            diagnosis.evidenceHighlight.takeIf { it.isNotBlank() }?.let { evidence ->
-                add(context.getString(R.string.nova_cc_doctor_evidence, evidence))
-                diagnosis.confidence.takeIf { it.isNotBlank() }?.let { add(context.getString(R.string.nova_cc_doctor_confidence, it)) }
-            }
-            // Nova's Doctor, on a control round trip under 2 ms (#424).
-            if (fasterThanLight) add(context.getString(R.string.nova_cc_doctor_faster_than_light))
-        }.joinToString(" · ")
-    }
-    val diagnoseTitle = stringResource(R.string.nova_quick_menu_diagnose_stream)
-    val aiSupportingLine = diagnosis.aiExplanation.takeIf { it.isNotBlank() }?.let {
-        stringResource(R.string.nova_quick_menu_doctor_ai_explanation, it)
-    }
-    val sourceSupportingLine = diagnosis.informationalSource
-        .takeIf { it.isNotBlank() }
-        ?.let { stringResource(R.string.nova_cc_doctor_source, it) }
     // What A does, on the line under the finding (N28). Before the first reading, why A does
     // nothing yet. A reading that only informs reads quieter, "Nothing to fix" ahead of what A
     // does; one the strip warns about says the strip's words there instead; the last reading kept
@@ -500,16 +454,12 @@ private fun NovaPageScope.NovaQuickMenuDiagnosisCard(
         diagnosis.stripVerdict.isNotBlank() -> stringResource(R.string.nova_cc_doctor_strip_says, diagnosis.stripVerdict, does)
         else -> does
     }
-    // The details, then what an AI explanation adds, in the card's detail lines.
-
-    val details = listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine).joinToString(" · ")
-    // The finding is the title and what A does is the line under it, so "Recheck" no longer
-    // shows up as title, chip, and button at once.
-    val action = remember(diagnosis, details, copiedLabel, diagnoseTitle) {
+    val diagnoseTitle = stringResource(R.string.nova_quick_menu_diagnose_stream)
+    val action = remember(diagnosis, copiedLabel, diagnoseTitle) {
         NovaQuickMenuAction(
             id = NovaQuickMenuActionId.DIAGNOSE_STREAM,
             label = diagnosis.likelyCause.trim().trimEnd('.').ifBlank { diagnoseTitle },
-            caption = details,
+            caption = diagnosis.tryFirst,
             chip = if (diagnosis.copied) NovaQuickMenuChip(copiedLabel, NovaQuickMenuTone.INFO) else null,
             enabled = diagnosis.available
         )
@@ -541,13 +491,14 @@ private fun NovaQuickMenuSessionStrip(
     val sessionDetail by ui.slice { it.sessionDetail }
     val healthSummary by ui.slice { it.healthSummary }
     val healthDetail by ui.slice { it.healthDetail }
+    val overview by ui.slice { it.stream.overview }
     val healthTone by ui.slice { it.healthTone }
     val colors = LocalNovaComposeColors.current
     val haptics = rememberNovaHapticFeedback()
     val type = novaPanelType
     val shape = RoundedCornerShape(NovaRadius.row)
     var focused by remember { mutableStateOf(false) }
-    val description = listOf(sessionMode.label, sessionDetail, healthSummary, healthDetail)
+    val description = listOf(sessionMode.label, sessionDetail, healthSummary, healthDetail, overview)
         .filter { it.isNotBlank() }
         .joinToString(". ")
 
@@ -571,13 +522,11 @@ private fun NovaQuickMenuSessionStrip(
     ) {
         NovaQuickMenuChipView(sessionMode)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
-            Text(text = healthSummary, style = type.rowTitle, color = toneColor(healthTone))
+            Text(text = healthSummary, style = type.rowTitle, color = toneColor(healthTone), maxLines = 1, overflow = TextOverflow.Ellipsis)
             // The detail line keeps its place while the host has not answered, or a status read
             // failed, so the rows under the strip do not move as it comes and goes (review finding 1).
-            Text(text = sessionDetail, style = type.caption, color = colors.textSecondary)
-            if (healthDetail.isNotBlank()) {
-                Text(text = healthDetail, style = type.caption, color = colors.textSecondary)
-            }
+            Text(text = listOf(overview, sessionDetail, healthDetail).filter { it.isNotBlank() }.joinToString(" · "),
+                style = type.caption, color = colors.textSecondary, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -612,16 +561,20 @@ private fun NovaPageScope.NovaQuickMenuStabilityCard(
     callbacks: NovaQuickMenuCallbacks,
 ) {
     val picture by ui.slice { it.liveBitrate }
+    NovaQuickMenuRow(NovaQuickMenuAction(NovaQuickMenuActionId.BITRATE_DETAILS,
+        stringResource(R.string.nova_cc_bitrate_details), caption = picture.result ?: picture.reason),
+        callbacks, novaPlaceFocus(NovaQuickMenuActionId.BITRATE_DETAILS), opens = true)
+}
+
+@Composable
+private fun NovaPageScope.NovaQuickMenuBitrateControls(ui: State<NovaQuickMenuUiState>, callbacks: NovaQuickMenuCallbacks) {
+    val picture by ui.slice { it.liveBitrate }
     callbacks.onBitrateDiagnostic?.let { observe -> SideEffect { observe(picture) } }
-    val colors = LocalNovaComposeColors.current
     val rate = picture.rate
     val enabled = rate.canChange && !rate.busy
-    val inset = Modifier.padding(horizontal = NovaPanelMetrics.SpaceMd)
     NovaQuickMenuStaticCard(contentPadding = PaddingValues(vertical = NovaPanelMetrics.SpaceMd)) {
-        Text("Picture", style = novaPanelType.rowTitle, fontWeight = FontWeight.SemiBold,
-            color = colors.textPrimary, modifier = inset)
         NovaStepperRow(
-            title = if (rate.units == com.papi.nova.manager.NovaBitrateUnits.VIDEO) "Video bitrate" else "Bitrate",
+            title = stringResource(if (rate.units == com.papi.nova.manager.NovaBitrateUnits.VIDEO) R.string.nova_cc_video_target else R.string.nova_cc_request_budget),
             value = rate.requestedKbps ?: rate.minimumKbps,
             range = rate.minimumKbps..maxOf(rate.minimumKbps, rate.maximumKbps),
             step = 5000,
@@ -845,7 +798,7 @@ private fun NovaPageScope.NovaQuickMenuOverlayRows(
     callbacks: NovaQuickMenuCallbacks,
     hudPreview: NovaHudPreviewFocus,
 ) {
-    val rows by ui.slice { it.overlayRows }
+    val rows by ui.slice { state -> state.overlayRows.filter { it.id == NovaQuickMenuActionId.NOVA_HUD } }
     rows.forEach { row ->
         NovaQuickMenuRow(row, callbacks, novaPlaceFocus(row.id))
         if (row.id == NovaQuickMenuActionId.NOVA_HUD) {
@@ -1009,7 +962,7 @@ private fun NovaPageScope.NovaQuickMenuLiveTuningRow(
         trailing = row.chip?.let { chip -> { NovaQuickMenuChipView(chip) } },
         stateDescription = row.chip?.label,
         tone = NovaSplitTone.Neutral,
-        modifier = novaPlaceFocus(row.id, reopenHere = false).testTag("nova-cc-live-tuning"),
+        modifier = novaPlaceFocus(row.id, reopenHere = false).testTag("nova-cc-live-tuning-host"),
     )
 }
 
@@ -1040,8 +993,11 @@ private fun NovaQuickMenuRow(
                     title = {
                         Column(verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.SpaceXs)) {
                             Text(text = action.label, style = type.rowTitle, color = colors.textPrimary)
-                            if (action.caption.isNotBlank()) {
-                                Text(text = action.caption, style = type.caption, color = colors.textSecondary)
+                            val liveEntry = action.id == NovaQuickMenuActionId.STREAM_DETAILS || action.id == NovaQuickMenuActionId.BITRATE_DETAILS
+                            if (action.caption.isNotBlank() || liveEntry) {
+                                Text(text = action.caption, style = type.caption, color = colors.textSecondary,
+                                    minLines = if (liveEntry) 2 else 1, maxLines = if (liveEntry) 2 else Int.MAX_VALUE,
+                                    overflow = TextOverflow.Ellipsis)
                             }
                         }
                     },
@@ -1209,5 +1165,93 @@ private fun toneColor(tone: NovaQuickMenuTone): Color {
         NovaQuickMenuTone.INFO -> colors.accent
         NovaQuickMenuTone.WARNING -> colors.warning
         NovaQuickMenuTone.DANGER -> colors.destructive
+    }
+}
+
+/** Panel-native details reuse the opening's state and callbacks; opening a page never writes. */
+@Composable
+internal fun NovaPageScope.NovaCommandCenterDetails(
+    page: CommandCenterPage,
+    state: StateFlow<NovaQuickMenuUiState>,
+    callbacks: NovaQuickMenuCallbacks,
+    place: NovaQuickMenuPlace? = null,
+) {
+    val ui = state.collectAsState()
+    val endSplit = rememberNovaSplitConfirmState()
+    val scroll = rememberScrollState()
+    val hudPreview = remember(callbacks) { NovaHudPreviewFocus(callbacks.onHudPreview) }
+    DisposableEffect(hudPreview) { onDispose { hudPreview.clear() } }
+    if (page is CommandCenterPage.StreamDetails && page.focusBitrate) novaInitialFocusAt("bitrate-details")
+    CompositionLocalProvider(LocalNovaQuickMenuPlace provides place) {
+        Column(Modifier.fillMaxSize()) {
+            NovaQuickMenuHeader(ui, callbacks, endSplit)
+            Column(Modifier.weight(1f).fillMaxWidth().testTag(NOVA_CC_SECTIONS_TAG).novaScrollEdgeFade(scroll).verticalScroll(scroll)
+                .padding(vertical = NovaPanelMetrics.SpaceSm), verticalArrangement = Arrangement.spacedBy(NovaPanelMetrics.RowGap)) {
+                when (page) {
+                    is CommandCenterPage.StreamDetails -> {
+                        NovaQuickMenuSessionStrip(ui, Modifier)
+                        NovaSectionLabel(stringResource(R.string.nova_cc_scope_host))
+                        NovaDetailLine(stringResource(R.string.nova_cc_tuning_scope), "")
+                        // This is the existing guarded host-wide switch, separate from navigation.
+                        NovaQuickMenuLiveTuningRow(ui, callbacks)
+                        Column(Modifier.fillMaxWidth().testTag("nova-cc-bitrate-details-heading").novaRestorableFocus("bitrate-details")
+                            .novaFocusHint(NovaFocusHint.Read).novaFocusRing(RoundedCornerShape(NovaRadius.row), rest = novaRowRest).focusable().padding(NovaPanelMetrics.SpaceMd)) {
+                            Text(stringResource(R.string.nova_cc_bitrate_details), style = novaPanelType.rowTitle,
+                                color = LocalNovaComposeColors.current.textPrimary)
+                            Text(stringResource(R.string.nova_cc_scope_stream), style = novaPanelType.caption,
+                                color = LocalNovaComposeColors.current.textSecondary)
+                        }
+                        ui.value.stream.rates.forEach { (label, value) ->
+                            NovaDetailLine(label, value)
+                        }
+                        NovaQuickMenuBitrateControls(ui, callbacks)
+                        NovaSectionLabel(stringResource(R.string.nova_cc_recent_changes))
+                        val stream = ui.value.stream
+                        if (stream.recent.isEmpty()) {
+                            NovaDetailLine(stringResource(if (stream.historyAvailable) R.string.nova_cc_recent_empty else R.string.nova_cc_recent_unavailable), "")
+                        } else {
+                            stream.recent.forEach { change ->
+                                NovaDetailLine(stringResource(R.string.nova_cc_recent_host,
+                                    commandCenterRate(change.beforeKbps), commandCenterRate(change.appliedKbps)), "")
+                            }
+                        }
+                        NovaDetailLine(stringResource(R.string.nova_cc_recent_limits), "")
+                        // Only the existing fresh receipt route offers Undo; observations create no authority.
+                        if (ui.value.doctorReceiptAction.visible) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
+                    }
+                    CommandCenterPage.DoctorDetails -> {
+                        val diagnosis = ui.value.diagnosis
+                        NovaQuickMenuDiagnosisCard(ui, callbacks)
+                        NovaDetailLine(stringResource(R.string.nova_cc_doctor_evidence, diagnosis.evidence.joinToString(" · ").ifBlank {
+                            stringResource(R.string.nova_cc_no_evidence)
+                        }), "")
+                        if (diagnosis.confidence.isNotBlank()) NovaDetailLine(stringResource(R.string.nova_cc_doctor_confidence, diagnosis.confidence), "")
+                        if (diagnosis.informationalSource.isNotBlank()) NovaDetailLine(stringResource(R.string.nova_cc_doctor_source, diagnosis.informationalSource), "")
+                        // Already opt-in host explanation only; this page invokes no AI provider.
+                        if (diagnosis.aiExplanation.isNotBlank()) NovaDetailLine(stringResource(R.string.nova_quick_menu_doctor_ai_explanation, diagnosis.aiExplanation), "")
+                        if (ui.value.fasterThanLight) NovaDetailLine(stringResource(R.string.nova_cc_doctor_faster_than_light), "")
+                        if (ui.value.doctorReceiptAction.visible) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
+                    }
+                    CommandCenterPage.TechnicalDetails -> {
+                        NovaSectionLabel(stringResource(R.string.nova_cc_scope_device))
+                        NovaQuickMenuMenuOpacityControl(ui, callbacks)
+                        NovaQuickMenuRows(ui, { it.overlayRows.filter { row -> row.id != NovaQuickMenuActionId.NOVA_HUD } }, callbacks)
+                        NovaQuickMenuInfoCard(ui, { it.sync }, callbacks)
+                        NovaSectionLabel(stringResource(R.string.nova_cc_scope_host))
+                        NovaQuickMenuRows(ui, { it.advancedRows }, callbacks)
+                        if (ui.value.postSessionReport.visible) NovaQuickMenuPostSessionReportCard(ui)
+                    }
+                    else -> Unit
+                }
+            }
+        }
+}
+}
+
+@Composable
+private fun NovaDetailLine(label: String, value: String) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)) {
+        Text(label, style = novaPanelType.caption, color = LocalNovaComposeColors.current.textSecondary)
+        if (value.isNotBlank()) Text(value, style = novaPanelType.rowTitle, color = LocalNovaComposeColors.current.textPrimary)
     }
 }

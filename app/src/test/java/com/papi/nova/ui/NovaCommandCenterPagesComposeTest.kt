@@ -60,6 +60,7 @@ class NovaCommandCenterPagesComposeTest {
 
     private val callbacks = NovaQuickMenuCallbacks(
         onDismiss = { dismissed++ },
+        onStreamDetails = { panel.push(CommandCenterPage.StreamDetails(it)) },
         onEndStream = { ended++ },
         onQuickKey = { quickKeys += it },
         onLiveTuning = { liveTuningRequests += it },
@@ -154,6 +155,7 @@ class NovaCommandCenterPagesComposeTest {
                 NovaPageStackHost(state = panel, containFocus = false) { page ->
                     when (page) {
                         is CommandCenterPage.Root -> NovaQuickMenuContent(state = state, callbacks = callbacks, place = place)
+                        is CommandCenterPage.StreamDetails -> NovaCommandCenterDetails(page, state, callbacks)
                         is CommandCenterPage.Listing -> CommandCenterListingPage(page)
                         is CommandCenterPage.MouseMode -> CommandCenterMouseModePage(page)
                         else -> Unit
@@ -260,6 +262,13 @@ class NovaCommandCenterPagesComposeTest {
             )
         }
         rule.mainClock.autoAdvance = false
+        if (panel.top is CommandCenterPage.Root) {
+            focus("Live Tuning")
+            keys.press(NovaTestKeys.CENTER)
+            rule.frames(16)
+            assertTrue(panel.top is CommandCenterPage.StreamDetails)
+            assertTrue("opening details never writes", liveTuningRequests.isEmpty())
+        }
         focus("Live Tuning")
         keys.press(NovaTestKeys.CENTER)
         rule.frames(16)
@@ -267,7 +276,7 @@ class NovaCommandCenterPagesComposeTest {
         assertEquals("one A never rewrites the host's setting", emptyList<Boolean>(), liveTuningRequests)
         rule.onNodeWithText("Stay").assertIsFocused()
         rule.onNodeWithText("Turn Off").assertExists()
-        rule.onNodeWithText("Changes Polaris for every device.").assertExists()
+        rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_live_tuning_consequence)).assertExists()
 
         keys.press(NovaTestKeys.RIGHT)
         rule.advance(450)
@@ -296,6 +305,13 @@ class NovaCommandCenterPagesComposeTest {
         }
         val keys = open(adjust = liveTuning(on = true))
         rule.mainClock.autoAdvance = false
+        if (panel.top is CommandCenterPage.Root) {
+            focus("Live Tuning")
+            keys.press(NovaTestKeys.CENTER)
+            rule.frames(16)
+            assertTrue(panel.top is CommandCenterPage.StreamDetails)
+            assertTrue("opening details never writes", liveTuningRequests.isEmpty())
+        }
         focus("Live Tuning")
         keys.press(NovaTestKeys.CENTER)
         rule.frames(16)
@@ -325,6 +341,13 @@ class NovaCommandCenterPagesComposeTest {
 
     /** A arms Live Tuning's split; the frames let it grow in. */
     private fun armLiveTuning(keys: NovaTestKeys) {
+        if (panel.top is CommandCenterPage.Root) {
+            focus("Live Tuning")
+            keys.press(NovaTestKeys.CENTER)
+            rule.frames(16)
+            assertTrue(panel.top is CommandCenterPage.StreamDetails)
+            assertTrue("opening details never writes", liveTuningRequests.isEmpty())
+        }
         focus("Live Tuning")
         keys.press(NovaTestKeys.CENTER)
         rule.frames(16)
@@ -420,7 +443,6 @@ class NovaCommandCenterPagesComposeTest {
             com.papi.nova.R.string.game_menu_send_keys_esc,
             com.papi.nova.R.string.nova_quick_menu_key_meta,
             com.papi.nova.R.string.game_menu_send_keys_alt_enter,
-            com.papi.nova.R.string.game_menu_send_keys_f11,
         ).forEach { key ->
             val label = rule.activity.getString(key)
             rule.onAllNodesWithText(label).assertCountEquals(1)
@@ -433,7 +455,7 @@ class NovaCommandCenterPagesComposeTest {
         assertTrue("every key the root offers is a real default key", defaults.containsAll(NovaCommandCenterKeys.OnTheRoot))
         assertEquals(
             "one for each key on the root, pinned or in the grid",
-            NovaQuickMenuUiState.quickKeyActions(rule.activity).size,
+            NovaQuickMenuUiState.pinnedQuickKeys(NovaQuickMenuUiState.quickKeyActions(rule.activity)).size,
             NovaCommandCenterKeys.OnTheRoot.size,
         )
     }
@@ -632,29 +654,15 @@ class NovaCommandCenterPagesComposeTest {
     }
 
     @Test
-    fun altF4InTheRootGridSplitsAcrossItsRowAndOneANeverSendsIt() {
+    fun fullKeyGridLivesBehindMoreKeysWhilePinnedKeysRemainOnRoot() {
         val keys = open()
-        val altF4 = rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_alt_f4)
-        val esc = rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_esc)
-        focus(altF4)
-
-        rule.mainClock.autoAdvance = false
-        // Arm, Stay, arm: mashed A never sends it, and leaves the pair armed on Stay.
-        repeat(3) {
-            keys.press(NovaTestKeys.CENTER)
-            rule.frames(16)
-        }
-        assertTrue("mashed A never sends it", quickKeys.isEmpty())
-        rule.onNodeWithText("Stay").assertIsFocused()
-        rule.onNodeWithText(rule.activity.getString(com.papi.nova.R.string.nova_cc_alt_f4_consequence)).assertExists()
-        // Armed, the pair takes its row: the keys beside Alt + F4 step aside, the rows around it stay.
-        rule.onAllNodesWithText(rule.activity.getString(com.papi.nova.R.string.game_menu_send_keys_f11)).assertCountEquals(0)
-        rule.onAllNodesWithText(esc).assertCountEquals(1)
-        keys.press(NovaTestKeys.RIGHT)
-        rule.advance(450)
+        rule.onAllNodesWithText("Alt + F4").assertCountEquals(0)
+        rule.onAllNodesWithText("F11").assertCountEquals(0)
+        focus("More Keys")
         keys.press(NovaTestKeys.CENTER)
-        rule.frames(4)
-
-        assertEquals(listOf(NovaQuickMenuActionId.QUICK_ALT_F4), quickKeys)
+        rule.frames(16)
+        rule.onNodeWithText("Alt + F4").assertExists()
+        rule.onNodeWithText("F11").assertExists()
+        assertTrue(sentKeys.isEmpty())
     }
 }

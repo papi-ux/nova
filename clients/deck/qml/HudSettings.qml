@@ -20,7 +20,7 @@ Popup {
         Label { text: "NovaHUD"; color: NovaTheme.text; font.pixelSize: 28 * settings.unit * NovaTheme.fontScale; font.bold: true }
         Label {
             Layout.fillWidth: true
-            text: "Stream readings at a glance. Drag the HUD to move it; hold it to open Command Center."
+            text: "This device · All streams · Applies immediately. Drag the HUD to move it; hold it to open Command Center."
             wrapMode: Text.WordWrap; color: NovaTheme.secondary
             font.pixelSize: 17 * settings.unit * NovaTheme.fontScale
         }

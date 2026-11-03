@@ -20,6 +20,7 @@ NovaScrollColumn {
     signal readingFocus()
     signal footerFocus()
     signal bitrateRequested()
+    signal tuningRequested()
     reserveScrollBarSpace: true
     spacing: 12 * unit
     function focusSaved() { controls[focusedIndex].forceActiveFocus() }
@@ -50,21 +51,21 @@ NovaScrollColumn {
     Copy { text: "APPLIES NOW"; font.pixelSize: 12 * actions.unit * NovaTheme.fontScale }
     Action {
         id: tuning; position: 0; objectName: "sync-live-tuning"
-        text: "Live Tuning · " + (actions.live.tuningBusy ? "Saving…" : actions.live.tuningKnown ? actions.live.tuningEnabled ? "On" : "Off" : "Unknown")
+        text: "Live Tuning · " + (actions.live.tuningBusy ? "Saving…" : actions.live.hostFresh ? actions.live.tuningStateCopy || "Unavailable" : "Unavailable")
         opacity: actions.live.canTune || activeFocus ? 1 : 0.55
-        Accessible.checkable: true; Accessible.checked: actions.live.tuningEnabled === true
-        onClicked: if (actions.live.canTune && !actions.live.tuningBusy) actions.session.setLiveTuningEnabled(!actions.live.tuningEnabled)
+        Accessible.description: "Open stream details. Changing the host setting requires confirmation."
+        onClicked: actions.tuningRequested()
     }
     Copy { text: actions.live.tuningCopy || "Live Tuning is unavailable for this stream." }
     Action {
         id: bitrate; position: 1; objectName: "sync-live-bitrate"
         text: "Change live bitrate"
         opacity: actions.live.canSetBitrate || activeFocus ? 1 : 0.55
-        onClicked: if (actions.live.canSetBitrate && !actions.live.tuningBusy) actions.bitrateRequested()
+        onClicked: actions.bitrateRequested()
     }
-    Copy { text: "Live bitrate changes leave Play Setup and the saved profile unchanged. Turning tuning off holds the last confirmed bitrate." }
+    Copy { text: "Live bitrate changes pause automatic adjustment for this stream. The saved host preference, Play Setup and saved profile stay unchanged." }
     Copy { text: "SAVE PROFILE + APPLY BITRATE"; font.pixelSize: 12 * actions.unit * NovaTheme.fontScale }
-    Copy { text: "Resolution and frame rate: next stream. Bitrate: apply now, turn Live Tuning off and replace pending Doctor bitrate changes. Per-game choices stay separate." }
+    Copy { text: "Resolution and frame rate: next stream. Bitrate: apply now after encoder confirmation, pause automatic adjustment for this stream and replace pending Doctor bitrate changes. Per-game choices and the saved host Live Tuning preference stay separate." }
     Action {
         id: match; position: 2; objectName: "sync-profile-match"
         text: "Match Nova"

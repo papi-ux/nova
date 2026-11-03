@@ -61,7 +61,14 @@ ApplicationWindow {
             session.diagnosticsRefreshes == 0 && session.doctorApplies == 0 && session.doctorUndos == 0 && session.doctorChecks == 0 &&
             session.stops == 0 && session.disconnects == 0;
     };
+    const auto ensureTools = [&] {
+        if (!opened("native-stream-tools-popup")) {
+            item("native-stream-tools")->forceActiveFocus(); QTest::qWait(50); press(Qt::Key_Return);
+            require(opened("native-stream-tools-popup"), "More stream tools did not open");
+        }
+    };
     const auto openBaseline = [&] {
+        ensureTools();
         auto* row = item("native-working-baseline"); row->forceActiveFocus(); QTest::qWait(50);
         require(focusName() == "native-working-baseline", "Command Center row is not reachable");
         press(Qt::Key_Return); require(opened("working-baseline-popup"), "baseline popup did not open");
@@ -72,14 +79,17 @@ ApplicationWindow {
     // both directions. Never force focus onto a disabled item to test routing.
     require(!item("native-polaris-sync")->isEnabled(), "Sync should be disabled without a host controller");
     item("native-doctor")->forceActiveFocus(); QTest::qWait(50); press(Qt::Key_Down);
-    require(focusName() == "native-working-baseline", "D-pad did not skip unavailable Sync to reach baseline");
-    press(Qt::Key_Up); require(focusName() == "native-doctor", "baseline Up did not skip unavailable Sync");
+    require(focusName() == "native-stream-tools", "Doctor Down lost More stream tools");
+    press(Qt::Key_Return);
+    require(opened("native-stream-tools-popup") && focusName() == "native-working-baseline", "tools did not skip unavailable Sync");
+    press(Qt::Key_Up); require(focusName() == "native-stream-tools-back", "baseline Up did not skip unavailable Sync");
+    press(Qt::Key_Return); require(!opened("native-stream-tools-popup") && focusName() == "native-stream-tools", "tools Back lost parent focus");
 
     // With a controller, preserve Doctor → Sync and verify Sync ↔ baseline.
     require(preview->setProperty("hostSettingsController", QVariant::fromValue(static_cast<QObject*>(&syncController))),
         "cannot attach host controller fixture");
     QTest::qWait(50); require(item("native-polaris-sync")->isEnabled(), "Sync did not enable with its controller");
-    press(Qt::Key_Down); require(focusName() == "native-polaris-sync", "Doctor Down no longer reaches available Sync");
+    press(Qt::Key_Return); require(focusName() == "native-polaris-sync", "tools did not focus available Sync");
     press(Qt::Key_Down); require(focusName() == "native-working-baseline", "Sync Down cannot reach the baseline row");
     press(Qt::Key_Up); require(focusName() == "native-polaris-sync", "baseline Up cannot reach available Sync");
     press(Qt::Key_Down); require(focusName() == "native-working-baseline", "Sync Down lost baseline focus");
@@ -236,7 +246,7 @@ ApplicationWindow {
     QMetaObject::invokeMethod(root.get(), "largeText");
     for (const QSize size : {QSize(960, 600), QSize(360, 640)}) {
         window->resize(size); QTest::qWait(150);
-        auto* row = item("native-working-baseline"); row->forceActiveFocus(); QTest::qWait(80);
+        ensureTools(); auto* row = item("native-working-baseline"); row->forceActiveFocus(); QTest::qWait(80);
         const auto rowRect = row->mapRectToScene(row->boundingRect());
         require(focusName() == "native-working-baseline" && rowRect.top() >= 0 && rowRect.bottom() <= window->height() && row->height() >= 48,
             "large-text baseline row escaped the viewport or shrank");

@@ -22,9 +22,9 @@ class NovaLiveBitrateRowsComposeTest {
     @get:Rule val rule=createAndroidComposeRule<ComponentActivity>()
     private fun show():NovaQuickMenuUiState {
         val state=NovaQuickMenuUiState.preview(rule.activity)
-        val panel=NovaPanelState().apply { open(CommandCenterPage.Root(state.title)) }
+        val panel=NovaPanelState().apply { open(CommandCenterPage.StreamDetails(true)) }
         val flow=MutableStateFlow(state)
-        rule.setPanelContent { NovaPageStackHost(panel) { NovaQuickMenuContent(flow,NovaQuickMenuCallbacks()) } }
+        rule.setPanelContent { NovaPageStackHost(panel) { NovaCommandCenterDetails(CommandCenterPage.StreamDetails(true),flow,NovaQuickMenuCallbacks()) } }
         rule.frames(8)
         return state
     }
@@ -35,7 +35,7 @@ class NovaLiveBitrateRowsComposeTest {
     }
     @Test fun pictureControlsReplaceTheNextLaunchPresetCallback() {
         val state=show()
-        rule.onNodeWithText("Picture").performScrollTo().assertExists()
+        rule.onNodeWithText("Request budget").performScrollTo().assertExists()
         rule.onNodeWithText(state.stability.profileTitle).assertDoesNotExist()
     }
 }

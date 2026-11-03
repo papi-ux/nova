@@ -222,7 +222,7 @@ class NovaQuickMenuUiStateTest {
             )
         )
 
-        assertEquals("Session looks steady.", state.healthSummary)
+        assertEquals("Media health unavailable", state.healthSummary)
         assertFalse(state.healthSummary.contains("Network", ignoreCase = true))
         assertFalse(state.diagnosis.likelyCause.contains("Network", ignoreCase = true))
     }
@@ -276,7 +276,7 @@ class NovaQuickMenuUiStateTest {
         val touchControls = state.controlRows.first { it.id == NovaQuickMenuActionId.CONTROLLER }
 
         assertEquals("Touch Controls", touchControls.label)
-        assertEquals("On-screen overlay; physical gamepad stays active.", touchControls.caption)
+        assertEquals("This device. On-screen overlay; physical gamepad stays active.", touchControls.caption)
         assertEquals("Off", touchControls.chip!!.label)
     }
 
@@ -1171,7 +1171,7 @@ class NovaQuickMenuUiStateTest {
         assertTrue(hidden.hudMode.options.none { it.enabled })
 
         val hudRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.NOVA_HUD }
-        assertEquals("Long press the HUD to open Command Center.", hudRow.caption)
+        assertEquals("This device. Long press the HUD to open Command Center.", hudRow.caption)
         val statsRow = showing.overlayRows.first { it.id == NovaQuickMenuActionId.PERF_STATS }
         assertTrue(statsRow.caption.contains("Legacy Moonlight"))
     }
@@ -1395,11 +1395,11 @@ class NovaQuickMenuUiStateTest {
         val stable = quickState(status = status().copy(liveTuning = live("stable"), liveTuningPresent = true))
         assertEquals("Live Tuning", stable.liveTuningAction.label)
         assertEquals("On", stable.liveTuningAction.chip?.label)
-        assertEquals("Steady. 20 Mbps applied, 20 Mbps limit.", stable.liveTuningAction.caption)
+        assertEquals("Maintaining current bitrate", stable.liveTuningAction.caption)
 
         val off = quickState(status = status().copy(liveTuning = live("off"), liveTuningPresent = true))
         assertEquals("Off", off.liveTuningAction.chip?.label)
-        assertEquals("The bitrate stays where the stream started.", off.liveTuningAction.caption)
+        assertEquals("Automatic adjustment is off", off.liveTuningAction.caption)
     }
 
     /**
@@ -1476,7 +1476,7 @@ class NovaQuickMenuUiStateTest {
         assertEquals("The host kept Live Tuning Off.", quickState(status = off, liveTuningUnconfirmed = true).liveTuningAction.caption)
 
         val applied = quickState(status = off, liveTuningUnconfirmed = false)
-        assertEquals("applied with its answer lost: nothing went wrong", "The bitrate stays where the stream started.", applied.liveTuningAction.caption)
+        assertEquals("applied with its answer lost: nothing went wrong", "Automatic adjustment is off", applied.liveTuningAction.caption)
         assertFalse(applied.liveTuningAction.announce)
 
         val unanswered = quickState(status = on, hostStateUnavailable = true, liveTuningUnconfirmed = false)
@@ -1548,6 +1548,18 @@ class NovaQuickMenuUiStateTest {
 
         assertEquals("Network jitter is dropping frames.", state.healthSummary)
         assertTrue(state.diagnosis.visible)
+    }
+
+    @Test
+    fun stableTuningAndAnIncompleteDoctorVerdictNeverProveHealthyMedia() {
+        val live = com.papi.nova.api.LiveTuningStatus(true, "stable", true, "supported", 20000,
+            20000, 20000, "a".repeat(64), "host", 1, 41, "app-session-1")
+        val onlyTuning = quickState(status = status().copy(liveTuning = live, liveTuningPresent = true))
+        assertEquals("Maintaining current bitrate", onlyTuning.liveTuningAction.caption)
+        assertEquals("Media health unavailable", onlyTuning.healthSummary)
+        val incomplete = quickState(status = status(doctor = PolarisSessionStatus.DoctorStatus(
+            available = true, version = 2, resultId = "ungraded", primaryIssue = "none")))
+        assertEquals("Media health unavailable", incomplete.healthSummary)
     }
 
     private fun quickState(

@@ -89,8 +89,8 @@ class NovaCommandCenterSourceGuardTest {
             content.contains("diagnosis.aiExplanation") &&
                 content.contains("nova_quick_menu_doctor_ai_explanation") &&
                 content.contains("diagnosis.informationalSource") &&
-                content.contains("listOfNotNull(detail.takeIf { it.isNotBlank() }, aiSupportingLine, sourceSupportingLine)") &&
-                content.contains("caption = details,") &&
+                content.contains("CommandCenterPage.DoctorDetails -> {") &&
+                content.contains("NovaDetailLine(stringResource(R.string.nova_quick_menu_doctor_ai_explanation, diagnosis.aiExplanation)") &&
                 content.contains("text = supportingLine") &&
                 content.contains("listOfNotNull(action.label, action.chip?.label, supportingLine")
         )
@@ -476,7 +476,7 @@ class NovaCommandCenterSourceGuardTest {
 
         val sessionStrip = body.indexOf("NovaQuickMenuSessionStrip(ui, Modifier)")
         val pinnedKeys = body.indexOf("NovaQuickKeys(ui, { it.pinnedQuickKeys }, callbacks)")
-        val quickKeysPanel = body.indexOf("NovaSectionLabel(quickKeysTitle)")
+        val technicalPage = body.indexOf("NovaQuickMenuActionId.TECHNICAL_DETAILS")
         val controlsPanel = body.indexOf("NovaSectionLabel(controlsTitle)")
         val sessionPanel = body.indexOf("NovaSectionLabel(sessionTitle)")
         val overlaysPanel = body.indexOf("NovaSectionLabel(overlaysTitle)")
@@ -496,26 +496,18 @@ class NovaCommandCenterSourceGuardTest {
                 stabilityCard in 0 until overlaysPanel
         )
         assertTrue(
-            "the sections a player adjusts follow: Overlays first because the HUD switch is the frequent tap, then Controls and Session, and the full Quick Keys grid last of them because its top three are already pinned under the strip",
-            overlaysPanel in 0 until controlsPanel &&
-                controlsPanel in 0 until sessionPanel &&
-                sessionPanel in 0 until quickKeysPanel &&
-                quickKeysPanel in 0 until syncCard
+            "daily overlays, input and session controls stay on root; technical controls push a page",
+            overlaysPanel in 0 until controlsPanel && controlsPanel in 0 until sessionPanel && sessionPanel in 0 until technicalPage
         )
-        assertTrue(
-            "sync and Advanced stay at the end",
-            syncCard in 0 until advancedToggleCard
-        )
+        assertFalse("the full key grid is one page deeper", body.contains("NovaQuickKeys(ui, { it.gridQuickKeys }, callbacks)"))
         assertTrue(
             "the Doctor card has one place, under the strip, whatever the reading says: a reading that only informs reads quieter there instead of moving (review finding 1, N28)",
             body.split("NovaQuickMenuDiagnosisCard(").size == 2 &&
-                body.contains("if (showDiagnosis) NovaQuickMenuDiagnosisCard(ui, callbacks)")
+                body.contains("if (showDiagnosis) {")
         )
-        assertTrue(
-            "the host safe profile is observational history and lives inside the expanded Advanced section, not in the first paint",
-            reportCard > advancedToggleCard &&
-                body.substring(advancedToggleCard, reportCard).contains("if (advancedExpanded) {")
-        )
+        val technical = content.substringAfter("CommandCenterPage.TechnicalDetails -> {")
+        assertTrue("host history stays one page deeper", technical.contains("NovaQuickMenuPostSessionReportCard(ui)"))
+        assertFalse("history is not on root", body.contains("NovaQuickMenuPostSessionReportCard(ui)"))
         assertTrue(
             "Command Center header should expose an explicit close affordance that invokes the same dismiss callback as scrim/back",
             header.contains("NovaQuickMenuCloseButton(callbacks") &&
@@ -551,7 +543,7 @@ class NovaCommandCenterSourceGuardTest {
         // The sections are the panel's own section labels, in the accent chrome face, as every
         // other panel's are; the pill headers and nested boxes went with the drawer.
         assertTrue(content.contains("NovaSectionLabel(overlaysTitle)"))
-        assertTrue(content.contains("NovaSectionLabel(quickKeysTitle)"))
+        assertTrue(content.contains("R.string.nova_cc_technical_details"))
         assertTrue(content.contains("NovaSectionLabel(controlsTitle)"))
         assertTrue(content.contains("NovaSectionLabel(sessionTitle)"))
         assertTrue(pages.contains("NovaSectionLabel(title)"))

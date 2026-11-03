@@ -98,13 +98,24 @@ Popup {
     readonly property bool recoveryAvailable: resumeAvailable || reconnectAvailable
     readonly property bool nativePlaying: !nativeSessionState.sleeping && nativeSessionState.phase === "active"
 
+    property var streamDetailsReturn: null
+    function openStreamDetails(bitrateFocused) {
+        streamDetailsReturn = bitrateFocused ? liveBitrateAction : liveTuningAction
+        liveBitrate.openDetails(bitrateFocused)
+    }
+    function streamMetric(key) {
+        const readings = session.hud || ({})
+        const value = readings[key]
+        return readings.fresh === true && value !== undefined && value !== "--" && value !== "" ? value : "Unavailable"
+    }
     function leave() {
         if (videoScaling.opened) { videoScaling.close(); return }
         if (polarisSync.opened) { polarisSync.back(); return }
         if (momentReport.opened) { momentReport.back(); return }
         if (workingBaseline.opened || workingBaseline.confirming) { workingBaseline.back(); return }
         if (doctor.opened) { doctor.close(); return }
-        if (liveBitrate.opened) { liveBitrate.close(); return }
+        if (liveBitrate.opened) { liveBitrate.back(); return }
+        if (streamTools.opened) { streamTools.close(); return }
         if (hudSettings.opened) { hudSettings.close(); return }
         if (streamAppearance.opened) { streamAppearance.close(); return }
         if (endConfirmation.opened) { endConfirmation.close(); return }
@@ -163,16 +174,16 @@ Popup {
             // Carried for this launch only: a later resume in the same visit starts plain.
             // Read from the session itself, not a binding that may update after this handler.
             if (session.state.phase === "active" && !session.state.sleeping) { launchArtworkShown = ""; launchTintShown = "" }
-            if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close() }
+            if (!nativePlaying) { endConfirmation.close(); hudSettings.close(); liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close(); streamTools.close() }
             if (nativePreview.opened && !nativePlaying) Qt.callLater(function() {
                 if (nativePreview.opened) nativePreviewAction.forceActiveFocus()
             })
         }
         function onControlsChanged() {
-            if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close() }
+            if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close(); streamTools.close() }
             if (!nativePreview.opened) return
             Qt.callLater(function() {
-                if (!nativePreview.opened || endConfirmation.opened || liveBitrate.opened || doctor.opened || workingBaseline.opened || workingBaseline.confirming || momentReport.opened || polarisSync.opened || videoScaling.opened) return
+                if (!nativePreview.opened || endConfirmation.opened || liveBitrate.opened || doctor.opened || workingBaseline.opened || workingBaseline.confirming || momentReport.opened || polarisSync.opened || videoScaling.opened || streamTools.opened) return
                 if (session.controlsVisible) nativePreviewAction.forceActiveFocus()
                 else nativeStreamContent.forceActiveFocus()
             })
@@ -203,6 +214,7 @@ Popup {
         launchArtworkShown = ""
         launchTintShown = ""
         videoScaling.close()
+        streamTools.close()
         polarisSync.close()
         momentReport.closeAll()
         if (gameTools) gameTools.close()
@@ -513,23 +525,52 @@ Popup {
                 height: Math.ceil(actionCount / columns) * buttonHeight + (Math.ceil(actionCount / columns) - 1) * gap
             }
             NovaScrollColumn {
+                objectName: "native-command-center-scroll"
                 anchors.left: parent.left; anchors.right: parent.right
                 anchors.top: commandHeader.bottom; anchors.bottom: parent.bottom
                 anchors.margins: 16 * nativePreview.unit
                 spacing: 6 * nativePreview.unit * nativePreview.controlDensity
                 Label {
+                    objectName: "native-stream-connection-copy"
                     Layout.fillWidth: true
-                    text: nativeSessionState.copy + (nativeSessionState.audioCopy ? "\n" + nativeSessionState.audioCopy : "")
+                    text: nativeSessionState.copy
+                    textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.secondary
+                    font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
+                    Layout.preferredHeight: font.pixelSize * 2.4
+                    maximumLineCount: 2; elide: Text.ElideRight
+                }
+                Label {
+                    // The compact connection copy above may elide; an audio warning keeps
+                    // its own uncapped line so the full warning stays readable.
+                    objectName: "native-stream-audio-warning"
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: nativeSessionState.audioCopy || ""
+                    textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.warning
+                    font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
+                }
+                Label {
+                    Layout.fillWidth: true
+                    objectName: "native-stream-overview"
+                    readonly property var readings: session.hud || ({})
+                    text: (readings.fresh === true ? nativePreview.streamMetric("resolution") + " · " + nativePreview.streamMetric("codec")
+                        + " · " + (readings.incoming && readings.incoming !== "--" ? readings.incoming + " incoming FPS" : "FPS unavailable")
+                        : "Stream readings unavailable")
+                        + "\n" + (readings.hostFresh === true ? (readings.hdrCopy || "HDR unavailable") + " · " + (readings.fresh === true ? readings.healthLabel || "Health unavailable" : "Health unavailable · client feedback missing") : "Host feedback unavailable")
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                     color: NovaTheme.secondary
                     font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
+                    Layout.preferredHeight: font.pixelSize * 2.4
+                    maximumLineCount: 2; elide: Text.ElideRight
                 }
                 Rectangle { Layout.fillWidth: true; height: 1; color: NovaTheme.divider }
                 Label {
                     objectName: "native-desktop-input-help"
                     Layout.fillWidth: true
-                    text: "Keyboard: Ctrl + Alt + Shift + M: menu; Ctrl + Alt + Shift + F: fullscreen. Escape returns to your game.\nMouse: " + (nativePreview.settingsProvider.mouseMode === "relative"
+                    text: "This device · Mouse: " + (nativePreview.settingsProvider.mouseMode === "relative"
                         ? "Relative Aiming · Resume captures the mouse."
                         : "Direct Pointer for apps and menus.")
                     textFormat: Text.PlainText
@@ -646,9 +687,9 @@ Popup {
                     id: liveBitrateAction
                     objectName: "native-live-bitrate"
                     Layout.fillWidth: true; unit: nativePreview.unit
-                    enabled: nativePlaying && (liveTuningAction.status.canSetBitrate === true || liveTuningAction.status.bitrateBusy === true || liveTuningAction.status.hostRefreshing === true)
-                    text: "Live Bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
-                    onClicked: if (!liveTuningAction.status.hostRefreshing) liveBitrate.open()
+                    enabled: nativePlaying
+                    text: "Bitrate · " + (liveTuningAction.status.hostRefreshing ? "Refreshing…" : liveTuningAction.status.hostFresh && liveTuningAction.status.appliedBitrateKbps > 0 ? liveBitrate.format(liveTuningAction.status.appliedBitrateKbps) : "Unavailable")
+                    onClicked: nativePreview.openStreamDetails(true)
                     onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
                     onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)
                         Qt.callLater(() => { if (nativePlaying && session.controlsVisible && !liveBitrate.opened) inGameHud.forceActiveFocus() })
@@ -661,19 +702,19 @@ Popup {
                     Layout.fillWidth: true
                     unit: nativePreview.unit
                     readonly property var status: session && session.hud ? session.hud : ({})
-                    enabled: nativePlaying && (status.canTune === true || status.tuningBusy === true || status.hostRefreshing === true)
+                    enabled: nativePlaying
                     onEnabledChanged: if (!enabled && activeFocus && nativePlaying) inGameHud.forceActiveFocus()
                     onActiveFocusChanged: if (!activeFocus && !enabled && nativePlaying && session.controlsVisible)
                         Qt.callLater(() => inGameHud.forceActiveFocus())
-                    text: "Live Tuning · " + (status.hostRefreshing ? "Refreshing…" : status.tuningBusy ? "Saving…" : status.tuningKnown ? status.tuningEnabled ? "On" : "Off" : "Unknown")
-                    Accessible.checkable: true
-                    Accessible.checked: status.tuningKnown === true && status.tuningEnabled === true
-                    Accessible.description: status.tuningCopy || "Live Tuning is unavailable for this stream."
+                    text: "Live Tuning · " + (status.hostRefreshing ? "Refreshing…" : status.tuningBusy ? "Saving…" : status.hostFresh ? status.tuningStateCopy || "Unavailable" : "Unavailable")
+                    Accessible.description: "Open stream details. " + (status.hostFresh ? status.tuningReasonCopy || "Current host feedback is unavailable." : "Current host feedback is unavailable.")
                     contentItem: Column {
                         spacing: 6 * nativePreview.unit
                         Text {
                             width: parent.width
                             text: liveTuningAction.text
+                            height: font.pixelSize * 2.5
+                            maximumLineCount: 2; elide: Text.ElideRight
                             textFormat: Text.PlainText
                             font: liveTuningAction.font
                             color: liveTuningAction.activeFocus ? NovaTheme.focusText : NovaTheme.text
@@ -682,16 +723,16 @@ Popup {
                         Text {
                             objectName: "native-live-tuning-copy"
                             width: parent.width
-                            text: (liveTuningAction.status.tuningKnown && liveTuningAction.status.tuningLabel
-                                ? liveTuningAction.status.tuningLabel + ". " : "")
-                                + (liveTuningAction.status.tuningCopy || "Live Tuning is unavailable for this stream.")
+                            height: font.pixelSize * 3.6
+                            maximumLineCount: 3; elide: Text.ElideRight
+                            text: liveTuningAction.status.hostFresh ? liveTuningAction.status.tuningReasonCopy || "Current host feedback is unavailable." : "Current host feedback is unavailable."
                             textFormat: Text.PlainText
                             wrapMode: Text.WordWrap
                             color: liveTuningAction.activeFocus ? NovaTheme.focusText : NovaTheme.secondary
                             font.pixelSize: 15 * nativePreview.unit * NovaTheme.fontScale
                         }
                     }
-                    onClicked: if (status.canTune && !status.tuningBusy) session.setLiveTuningEnabled(!status.tuningEnabled)
+                    onClicked: nativePreview.openStreamDetails(false)
                     Keys.onUpPressed: liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : inGameHud.forceActiveFocus()
                     Keys.onDownPressed: doctorAction.forceActiveFocus()
                 }
@@ -699,48 +740,41 @@ Popup {
                     id: doctorAction
                     objectName: "native-doctor"
                     Layout.fillWidth: true; unit: nativePreview.unit
-                    text: "Doctor · Session diagnostics"
+                    readonly property var readings: session.hud || ({})
+                    readonly property var finding: readings.hostFresh && readings.doctor ? readings.doctor : ({})
+                    text: "Doctor · " + (finding.available === true ? finding.title : "Finding unavailable")
+                    Accessible.description: text + ". " + (readings.hostFresh && readings.doctorCanApply ? readings.doctorActionLabel || "Review the suggested action" : "Open diagnosis and existing actions")
+                    contentItem: Column {
+                        spacing: 6 * nativePreview.unit
+                        Text {
+                            width: parent.width; height: font.pixelSize * 2.5
+                            text: doctorAction.text; font: doctorAction.font
+                            maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.WordWrap; textFormat: Text.PlainText
+                            color: doctorAction.activeFocus ? NovaTheme.focusText : NovaTheme.text
+                        }
+                        Text {
+                            width: parent.width; height: font.pixelSize * 1.3
+                            text: doctorAction.readings.hostFresh && doctorAction.readings.doctorCanApply
+                                ? doctorAction.readings.doctorActionLabel || "Review suggested action" : "Diagnosis and existing actions"
+                            elide: Text.ElideRight; textFormat: Text.PlainText
+                            color: doctorAction.activeFocus ? NovaTheme.focusText : NovaTheme.secondary
+                            font.pixelSize: 15 * nativePreview.unit * NovaTheme.fontScale
+                        }
+                    }
                     onClicked: doctor.open()
                     Keys.onUpPressed: liveTuningAction.enabled ? liveTuningAction.forceActiveFocus()
                         : liveBitrateAction.enabled ? liveBitrateAction.forceActiveFocus() : inGameHud.forceActiveFocus()
-                    Keys.onDownPressed: syncAction.enabled ? syncAction.forceActiveFocus() : baselineAction.forceActiveFocus()
+                    Keys.onDownPressed: streamToolsAction.forceActiveFocus()
                 }
                 NovaButton {
-                    id: syncAction
-                    objectName: "native-polaris-sync"
+                    id: streamToolsAction; objectName: "native-stream-tools"
                     Layout.fillWidth: true; unit: nativePreview.unit
-                    text: "Polaris Sync"
-                    enabled: nativePlaying && nativePreview.hostSettingsController !== null
-                    onClicked: polarisSync.open()
+                    text: "More stream tools"
+                    onClicked: streamTools.open()
                     Keys.onUpPressed: doctorAction.forceActiveFocus()
-                    Keys.onDownPressed: baselineAction.forceActiveFocus()
-                }
-                NovaButton {
-                    id: baselineAction
-                    objectName: "native-working-baseline"
-                    Layout.fillWidth: true; unit: nativePreview.unit
-                    text: "Working baseline · Save or compare"
-                    onClicked: workingBaseline.open()
-                    Keys.onUpPressed: syncAction.enabled ? syncAction.forceActiveFocus() : doctorAction.forceActiveFocus()
-                    Keys.onDownPressed: momentAction.forceActiveFocus()
-                }
-                NovaButton {
-                    id: momentAction
-                    objectName: "native-report-moment"
-                    Layout.fillWidth: true; unit: nativePreview.unit
-                    text: "Report this moment"
-                    enabled: nativePlaying
-                    onClicked: momentReport.open()
-                    Keys.onUpPressed: baselineAction.forceActiveFocus()
                     Keys.onDownPressed: nativePreviewAction.forceActiveFocus()
                 }
-                Label {
-                    objectName: "native-moment-mark-error"
-                    Layout.fillWidth: true
-                    visible: momentReport.markError.length > 0
-                    text: momentReport.markError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
-                    color: NovaTheme.warning; font.pixelSize: 17 * nativePreview.unit * NovaTheme.fontScale
-                }
+
             }
         }
         AppearanceSettings {
@@ -753,12 +787,78 @@ Popup {
             id: videoScaling; settingsProvider: nativePreview.settingsProvider; unit: nativePreview.unit
             onClosed: if (nativePreview.opened && nativePlaying && session.controlsVisible) inGameScale.forceActiveFocus()
         }
+        Popup {
+            id: streamTools; objectName: "native-stream-tools-popup"
+            parent: nativeStreamContent
+            anchors.centerIn: parent
+            width: Math.min(620 * nativePreview.unit, parent.width - 32)
+            height: Math.min(implicitHeight, parent.height - 48)
+            padding: 24 * nativePreview.unit
+            modal: true; focus: true
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+            onOpened: if (syncAction.enabled) syncAction.forceActiveFocus(); else baselineAction.forceActiveFocus()
+            onClosed: if (nativePlaying && session.controlsVisible) streamToolsAction.forceActiveFocus()
+            background: Rectangle { color: NovaTheme.panel; radius: 12; border.color: NovaTheme.divider }
+            contentItem: NovaScrollColumn {
+                spacing: 14 * nativePreview.unit
+                Label { text: "More stream tools"; color: NovaTheme.text; font.pixelSize: 24 * nativePreview.unit * NovaTheme.fontScale }
+                Label {
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                    text: "This device · Ctrl + Alt + Shift + M opens the menu; Ctrl + Alt + Shift + F changes fullscreen. Escape returns to your game."
+                    color: NovaTheme.secondary; font.pixelSize: 16 * nativePreview.unit * NovaTheme.fontScale
+                }
+                NovaButton {
+                    id: syncAction
+                    objectName: "native-polaris-sync"
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Polaris Sync"
+                    enabled: nativePlaying && nativePreview.hostSettingsController !== null
+                    onClicked: polarisSync.open()
+                    Keys.onUpPressed: streamToolsBack.forceActiveFocus()
+                    Keys.onDownPressed: baselineAction.forceActiveFocus()
+                }
+                NovaButton {
+                    id: baselineAction
+                    objectName: "native-working-baseline"
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Working baseline · Save or compare"
+                    onClicked: workingBaseline.open()
+                    Keys.onUpPressed: syncAction.enabled ? syncAction.forceActiveFocus() : streamToolsBack.forceActiveFocus()
+                    Keys.onDownPressed: momentAction.forceActiveFocus()
+                }
+                NovaButton {
+                    id: momentAction
+                    objectName: "native-report-moment"
+                    Layout.fillWidth: true; unit: nativePreview.unit
+                    text: "Report this moment"
+                    enabled: nativePlaying
+                    onClicked: momentReport.open()
+                    Keys.onUpPressed: baselineAction.forceActiveFocus()
+                    Keys.onDownPressed: streamToolsBack.forceActiveFocus()
+                }
+                Label {
+                    objectName: "native-moment-mark-error"
+                    Layout.fillWidth: true
+                    visible: momentReport.markError.length > 0
+                    text: momentReport.markError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                    color: NovaTheme.warning; font.pixelSize: 17 * nativePreview.unit * NovaTheme.fontScale
+                }
+                NovaButton {
+                    id: streamToolsBack; objectName: "native-stream-tools-back"
+                    Layout.fillWidth: true; unit: nativePreview.unit; text: "Back to Command Center"
+                    onClicked: streamTools.close()
+                    Keys.onUpPressed: momentAction.forceActiveFocus()
+                    Keys.onDownPressed: if (syncAction.enabled) syncAction.forceActiveFocus(); else baselineAction.forceActiveFocus()
+                }
+            }
+        }
         LiveBitrate {
             id: liveBitrate
+            parent: nativeStreamContent
             unit: nativePreview.unit
             session: nativePreview.session
             onClosed: if (nativePlaying && session.controlsVisible) {
-                if (liveBitrateAction.enabled) liveBitrateAction.forceActiveFocus()
+                if (streamDetailsReturn && streamDetailsReturn.enabled) streamDetailsReturn.forceActiveFocus()
                 else inGameHud.forceActiveFocus()
             }
         }
