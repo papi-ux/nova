@@ -110,9 +110,42 @@ class NovaCommandCenterStreamTest {
         assertEquals("Unavailable", d.value(R.string.nova_cc_rate_applied))
     }
     @Test fun reasonsMapOnlyKnownContracts() {
-        assertEquals(context.getString(R.string.nova_cc_reason_encoder), liveTuningReason(context, live().copy(reason = "encoder_runtime_update_unsupported")))
+        // BB/current4b reports healthy, not the synthetic supported reason in the shared fixtures.
+        assertNull("healthy must not add a missing-reason warning",
+            liveTuningReason(context, live().copy(reason = "healthy")))
+        for (reason in listOf("encoder_ready", "supported", "")) {
+            assertNull(reason, liveTuningReason(context, live().copy(reason = reason)))
+        }
+        // Real BB/current4b producer values, including lifecycle failures that are not unsupported encoders.
+        val known = mapOf(
+            "encoder_runtime_update_unsupported" to "This encoder cannot change bitrate during a stream",
+            "encoder_not_initialized" to "The encoder has not initialized Live Tuning",
+            "encoder_session_init_failed" to "The encoder could not start",
+            "encoder_session_ended" to "The encoder session ended",
+            "capture_session_ended" to "The capture session ended",
+            "runtime_bitrate_update_failed" to "The encoder could not apply a bitrate change",
+            "session_scope_unavailable" to "Live Tuning feedback is unavailable for this stream",
+            "packet_loss" to "Responding to lost video frames",
+            "standing_queue" to "Responding to sustained network delay",
+            "finding_the_link" to "Testing the bitrate the connection can sustain",
+            "holding_under_a_queue" to "Holding the bitrate after sustained network delay",
+            "holding_under_the_link" to "Holding below the connection limit found by Live Tuning",
+            "waiting_to_climb" to "Holding the bitrate before testing an increase",
+            "testing_a_step_up" to "Testing a higher bitrate",
+            "climbing" to "Raising the bitrate toward the quality limit",
+            "loss_independent_of_bitrate" to "Lowering the bitrate did not help the video frame loss",
+            "frame_pacing" to "Frame timing variation observed",
+            "encode_load" to "Encoder load observed",
+            "doctor_action" to "Doctor requested this bitrate",
+            "paired_client_action" to "A paired client requested this bitrate",
+            "doctor_rollback" to "Restoring the bitrate from before the Doctor change",
+            "disabled" to "Automatic adjustment is disabled",
+            "no_stream" to context.getString(R.string.nova_cc_live_tuning_waiting_stream),
+        )
+        for ((reason, expected) in known) {
+            assertEquals(reason, expected, liveTuningReason(context, live().copy(reason = reason)))
+        }
         assertEquals("Reason unavailable", liveTuningReason(context, live().copy(reason = "private_internal_new_reason")))
-        assertNull(liveTuningReason(context, live()))
     }
     @Test fun manualPauseUsesTheCurrentAdvertisedVideoRequestWithoutClaimingItApplied() {
         val picture = NovaLiveBitratePresentation(rate = NovaLiveBitrateState(requestedKbps = 21856,

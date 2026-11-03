@@ -97,8 +97,31 @@ internal class NovaCommandCenterChanges {
 /** Known protocol causes only; an unknown identifier never becomes player-facing copy. */
 internal fun liveTuningReason(context: Context, live: LiveTuningStatus): String? = when (live.reason) {
     "encoder_runtime_update_unsupported" -> context.getString(R.string.nova_cc_reason_encoder)
+    "encoder_not_initialized" -> context.getString(R.string.nova_cc_reason_encoder_not_initialized)
+    "encoder_session_init_failed" -> context.getString(R.string.nova_cc_reason_encoder_init_failed)
+    "encoder_session_ended" -> context.getString(R.string.nova_cc_reason_encoder_ended)
+    "capture_session_ended" -> context.getString(R.string.nova_cc_reason_capture_ended)
+    "runtime_bitrate_update_failed" -> context.getString(R.string.nova_cc_reason_update_failed)
+    "session_scope_unavailable" -> context.getString(R.string.nova_cc_reason_session_scope)
+    "packet_loss" -> context.getString(R.string.nova_cc_reason_packet_loss)
+    "standing_queue" -> context.getString(R.string.nova_cc_reason_standing_queue)
+    "finding_the_link" -> context.getString(R.string.nova_cc_reason_finding_link)
+    "holding_under_a_queue" -> context.getString(R.string.nova_cc_reason_holding_queue)
+    "holding_under_the_link" -> context.getString(R.string.nova_cc_reason_holding_link)
+    "waiting_to_climb" -> context.getString(R.string.nova_cc_reason_waiting_climb)
+    "testing_a_step_up" -> context.getString(R.string.nova_cc_reason_testing_step)
+    "climbing" -> context.getString(R.string.nova_cc_reason_climbing)
+    "loss_independent_of_bitrate" -> context.getString(R.string.nova_cc_reason_loss_independent)
+    "frame_pacing" -> context.getString(R.string.nova_cc_reason_frame_pacing)
+    "encode_load" -> context.getString(R.string.nova_cc_reason_encode_load)
+    "doctor_action" -> context.getString(R.string.nova_cc_reason_doctor_action)
+    "paired_client_action" -> context.getString(R.string.nova_cc_reason_client_action)
+    "doctor_rollback" -> context.getString(R.string.nova_cc_reason_doctor_rollback)
+    "disabled" -> context.getString(R.string.nova_cc_reason_disabled)
     "no_stream" -> context.getString(R.string.nova_cc_live_tuning_waiting_stream)
-    "supported", "" -> null
+    // Readiness and the controller's healthy marker add no cause beyond the state sentence.
+    // Neither establishes stream quality or fresh media feedback.
+    "healthy", "encoder_ready", "supported", "" -> null
     else -> context.getString(R.string.nova_cc_reason_unavailable)
 }
 

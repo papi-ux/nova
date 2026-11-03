@@ -1397,9 +1397,46 @@ class NovaQuickMenuUiStateTest {
         assertEquals("On", stable.liveTuningAction.chip?.label)
         assertEquals("Maintaining current bitrate", stable.liveTuningAction.caption)
 
-        val off = quickState(status = status().copy(liveTuning = live("off"), liveTuningPresent = true))
+        // These real host reasons must not become missing-reason warnings or media-health verdicts.
+        for (reason in listOf("healthy", "encoder_ready")) {
+            val current = quickState(status = status().copy(
+                liveTuning = live("stable").copy(reason = reason), liveTuningPresent = true))
+            assertEquals(reason, "On", current.liveTuningAction.chip?.label)
+            assertEquals(reason, "Maintaining current bitrate", current.liveTuningAction.caption)
+            assertEquals(reason, "Media health unavailable", current.healthSummary)
+        }
+        val loss = quickState(status = status().copy(
+            liveTuning = live("adjusting").copy(reason = "packet_loss"), liveTuningPresent = true))
+        assertEquals("Adjusting the bitrate. Responding to lost video frames", loss.liveTuningAction.caption)
+        val unknown = quickState(status = status().copy(
+            liveTuning = live("stable").copy(reason = "private_internal_new_reason"), liveTuningPresent = true))
+        assertEquals("Maintaining current bitrate. Reason unavailable", unknown.liveTuningAction.caption)
+
+        val unavailableReasons = mapOf(
+            "encoder_runtime_update_unsupported" to "This encoder cannot change bitrate during a stream",
+            "encoder_not_initialized" to "The encoder has not initialized Live Tuning",
+            "encoder_session_init_failed" to "The encoder could not start",
+            "encoder_session_ended" to "The encoder session ended",
+            "capture_session_ended" to "The capture session ended",
+            "runtime_bitrate_update_failed" to "The encoder could not apply a bitrate change",
+            "session_scope_unavailable" to "Live Tuning feedback is unavailable for this stream",
+        )
+        for ((reason, expected) in unavailableReasons) {
+            val current = quickState(status = status().copy(
+                liveTuning = live("unavailable").copy(reason = reason), liveTuningPresent = true))
+            assertEquals(reason, "Unavailable for this stream. $expected", current.liveTuningAction.caption)
+        }
+
+        val off = quickState(status = status().copy(
+            liveTuning = live("off").copy(reason = "paired_client_action"), liveTuningPresent = true))
         assertEquals("Off", off.liveTuningAction.chip?.label)
         assertEquals("Automatic adjustment is off", off.liveTuningAction.caption)
+
+        val invalid = quickState(status = status().copy(
+            liveTuning = null, liveTuningPresent = true, adaptiveBitrateEnabled = true))
+        assertEquals("Unknown", invalid.liveTuningAction.chip?.label)
+        assertEquals("Waiting for the host to confirm the setting.", invalid.liveTuningAction.caption)
+        assertFalse(invalid.liveTuningAction.enabled)
     }
 
     /**
