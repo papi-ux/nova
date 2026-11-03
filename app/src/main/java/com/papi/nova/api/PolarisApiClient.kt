@@ -212,15 +212,38 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
-    @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? {
-        if (status == null) { frameSubmissionScope.observe(null); mutableSessionStatus.value = null; return null }
+    internal val doctorAiReadings = DoctorAiReadings()
+    private fun observeDoctorAi(status: PolarisSessionStatus?, freshRead: Boolean) {
+        doctorAiReadings.observe(DoctorAiReading(
+            supported = latestCapabilities?.features?.doctorAiExplanationV1 == true,
+            descriptor = status?.doctorAiExplanationRequest,
+            scope = status?.doctorAiScope(),
+            observedAtMs = if (status == null) 0 else if (freshRead) System.nanoTime() / 1_000_000
+                else doctorAiReadings.current.observedAtMs,
+        ))
+    }
+
+    internal fun retireDoctorAiRequests() {
+        doctorAiReadings.observe(DoctorAiReading(supported = latestCapabilities?.features?.doctorAiExplanationV1 == true))
+    }
+
+    // Keep the existing one-argument publication seam and legacy reducer behavior.
+    @Synchronized private fun publishStatus(status: PolarisSessionStatus?): PolarisSessionStatus? =
+        publishStatusObservation(status, false)
+
+    @Synchronized private fun publishStatusObservation(status: PolarisSessionStatus?, freshRead: Boolean): PolarisSessionStatus? {
+        if (status == null) { frameSubmissionScope.observe(null); mutableSessionStatus.value = null; observeDoctorAi(null, false); return null }
         if (status.liveTuning != null && liveTuningReducer.accept(status.liveTuning) == null) {
             frameSubmissionScope.invalidateIfDifferent(status)
+            val previous = doctorAiReadings.current
+            if (status.doctorAiScope() != previous.scope || status.doctorAiExplanationRequest?.enabled != true ||
+                status.doctorAiExplanationRequest.permitted != true) retireDoctorAiRequests()
             return mutableSessionStatus.value
         }
         updateCommandKeyAuthority(status)
         frameSubmissionScope.observe(status)
         mutableSessionStatus.value = status
+        observeDoctorAi(status, freshRead)
         return status
     }
     private val artworkDiskCache = PolarisArtworkDiskCache(context.applicationContext, serverAddress, resolvedHttpsPort)
@@ -1257,7 +1280,8 @@ class PolarisApiClient @JvmOverloads constructor(
                     bitrateUnitsV1 = strictBoolean(features, "bitrate_units_v1"),
                     manualBitrateMaxKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
                         strictIntOrNull(features, "manual_bitrate_max_kbps")),
-                    networkConnectionV1 = strictBoolean(features, "network_connection_v1")
+                    networkConnectionV1 = strictBoolean(features, "network_connection_v1"),
+                    doctorAiExplanationV1 = strictBoolean(features, "doctor_ai_explanation_v1")
                 ),
                 capture = PolarisCapabilities.CaptureInfo(
                     backend = capture?.optString("backend", "") ?: "",
@@ -1863,6 +1887,11 @@ class PolarisApiClient @JvmOverloads constructor(
             val sessionGeneration = strictOptionalNonNegativeLong(json, "session_generation")
 
             return PolarisSessionStatus(
+                doctorAiExplanationRequest = DoctorAiWire.descriptor(doctor?.optJSONObject("ai_explanation_request")),
+                doctorAiScopeTyped = json.opt("streaming_active") is Boolean &&
+                    json.opt("shutdown_requested") is Boolean && json.opt("app_session_id") is String &&
+                    DoctorAiWire.integer(json.opt("session_generation")) != null &&
+                    DoctorAiWire.integer(json.opt("viewer_count")) != null,
                 pyrowaveBitrate = PolarisPyrowaveAdvice.parse(json.optJSONObject("pyrowave_bitrate")),
                 bitrateUnits = PolarisBitrateUnits.parse(json.optJSONObject("bitrate_units")),
                 state = json.optString("state", "unknown"),
@@ -2215,11 +2244,14 @@ class PolarisApiClient @JvmOverloads constructor(
     // sessions, so the next call performs a full handshake instead of offering a
     // resumption the server may refuse.
     private fun resetCallClient() {
+        retireDoctorAiRequests()
         synchronized(this) { perCallClientCache = null }
     }
 
     private fun executeWithTransientRetry(request: Request, beforeDispatch: (() -> Boolean)? = null): okhttp3.Response =
         runWithTransientTlsRetry(onTransient = { resetCallClient() }) {
+            if (request.method != "GET" && request.url.encodedPath != "/polaris/v1/support/client-report")
+                retireDoctorAiRequests()
             // Recovery authority can be retired while a preceding read or TLS retry is on wire.
             check(beforeDispatch?.invoke() != false) { "Client settings write authority retired" }
             execute(request)
@@ -2232,8 +2264,11 @@ class PolarisApiClient @JvmOverloads constructor(
                 .build()
         )
 
-    private fun executeNonRetryable(request: Request): okhttp3.Response =
-        newNonRetryableCall(request).execute()
+    private fun executeNonRetryable(request: Request): okhttp3.Response {
+        // A preceding scope recheck can publish a fresh reading: retire again at actual manual dispatch.
+        retireDoctorAiRequests()
+        return newNonRetryableCall(request).execute()
+    }
 
     private fun executeIdempotentDoctorAction(request: Request): okhttp3.Response = try {
         executeNonRetryable(request)
@@ -2340,6 +2375,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * two apart from a dropped answer.
      */
     fun sleepHost(): PolarisHostSleepResult {
+        retireDoctorAiRequests()
         return try {
             val request = Request.Builder().url("$baseUrl/host/sleep")
                 .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), "{}"))
@@ -2371,6 +2407,7 @@ class PolarisApiClient @JvmOverloads constructor(
     } catch (_: Exception) { null }
 
     fun controlDesktopSteam(action: String, revision: String, confirmed: Boolean = false): PolarisDesktopSteam? {
+        retireDoctorAiRequests()
         if (action !in setOf("open", "big_picture", "quit") || revision.isBlank()) return null
         return try {
             val body = JSONObject().put("action", action).put("revision", revision).put("confirm_game_quit", confirmed)
@@ -2568,7 +2605,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 val json = JSONObject(response.body?.string() ?: return publishStatus(null))
                 val port = json.optInt("events_https_port", 0)
                 advertisedEventsPort = port.takeIf { it in 1..65535 }
-                publishStatus(parseSessionStatusResponse(json))
+                publishStatusObservation(parseSessionStatusResponse(json), freshRead = true)
             }
         } catch (e: Exception) {
             LimeLog.warning("Nova: Session status query failed: ${errorMessage(e)}")
@@ -2605,6 +2642,7 @@ class PolarisApiClient @JvmOverloads constructor(
 
     /** One paired, token-scoped stop. An uncertain result is never replayed or sent to /cancel. */
     internal fun stopCapturedSession(sessionToken: String): Boolean {
+        retireDoctorAiRequests()
         if (sessionToken.isBlank() || sessionToken.length > 2048) return false
         return try {
             val json = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),
@@ -2634,6 +2672,7 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     fun selectSpace(id: String, previousId: String): PolarisSpaces {
+        retireDoctorAiRequests()
         val body = JSONObject().put("space_id", id).put("previous_space_id", previousId).toString()
         val request = Request.Builder().url("$baseUrl/spaces/select")
             .post(okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), body)).build()
@@ -2697,6 +2736,7 @@ class PolarisApiClient @JvmOverloads constructor(
         disconnectResumeTimeoutSeconds: Int? = null,
         mutationAuthority: (() -> Boolean)? = null,
     ): PolarisClientSettings? {
+        retireDoctorAiRequests()
         return try {
             val body = buildClientSettingsUpdateBody(
                 streamDisplayMode = streamDisplayMode,
@@ -3266,6 +3306,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Toggle MangoHud for a game via Polaris API.
      */
     fun setMangoHud(gameId: String, enabled: Boolean): Boolean {
+        retireDoctorAiRequests()
         return try {
             val body = buildMangoHudUpdateBody(gameId, enabled)
             val request = Request.Builder()
@@ -3285,6 +3326,7 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     fun setSteamLaunchMode(gameId: String, mode: String): String? {
+        retireDoctorAiRequests()
         return try {
             val normalizedMode = PolarisGame.SteamLaunchContract.normalizeMode(mode)
             val body = buildSteamLaunchModeUpdateBody(gameId, normalizedMode)
@@ -3327,6 +3369,7 @@ class PolarisApiClient @JvmOverloads constructor(
         confirmed: Boolean = false,
         goalSource: String = ""
     ): PolarisDoctorActionResult? {
+        retireDoctorAiRequests()
         if (actionId in setOf("lower_bitrate", "restore_quality") && requestId.isBlank()) {
             return PolarisDoctorActionResult(
                 status = false,
@@ -3407,6 +3450,7 @@ class PolarisApiClient @JvmOverloads constructor(
     }
 
     fun setBitrateResult(encoderKbps: Int, observed: PolarisSessionStatus?, currentTarget: (() -> Boolean)? = null): PolarisBitrateWriteResult {
+        retireDoctorAiRequests()
         if (encoderKbps !in 1000..com.papi.nova.preferences.NovaBitrateAdvice.MANUAL_MAX_KBPS) return PolarisBitrateWriteResult.Failed
         if (currentTarget?.invoke() == false) return PolarisBitrateWriteResult.SessionChanged
         return try {
@@ -3444,6 +3488,7 @@ class PolarisApiClient @JvmOverloads constructor(
         setLiveTuningEnabled(enabled, mutableSessionStatus.value ?: getSessionStatus())
 
     fun setLiveTuningEnabled(enabled: Boolean, observed: PolarisSessionStatus?): Boolean = synchronized(statusObservationLock) {
+        retireDoctorAiRequests()
         val status = observed?.takeIf {
             it.canAdjustHostTuning && it.appSessionId.isNotBlank() && it.sessionGeneration > 0L
         } ?: return false
@@ -3484,6 +3529,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Toggle the AI optimizer state for subsequent launches.
      */
     fun setAiOptimizerEnabled(enabled: Boolean): Boolean {
+        retireDoctorAiRequests()
         return try {
             val body = org.json.JSONObject().apply { put("enabled", enabled) }
             val request = Request.Builder()
@@ -3506,6 +3552,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Toggle the host cursor visibility during an active Polaris session.
      */
     fun setCursorVisibility(visible: Boolean): Boolean {
+        retireDoctorAiRequests()
         return try {
             val body = org.json.JSONObject().apply { put("visible", visible) }
             val request = Request.Builder()
@@ -3563,6 +3610,7 @@ class PolarisApiClient @JvmOverloads constructor(
                              clientRuntime: JSONObject? = null,
                              appliedStreamSettings: JSONObject? = null,
                              clientPresentation: JSONObject? = null): PolarisSessionStatus.SyncStatus? {
+        if (manualOverride) retireDoctorAiRequests()
         return try {
             val body = buildClientSettingsBody(
                 syncMode = syncMode,
@@ -3594,6 +3642,20 @@ class PolarisApiClient @JvmOverloads constructor(
             LimeLog.warning("Nova: Client settings sync failed: ${errorMessage(e)}")
             null
         }
+    }
+
+    /** One explicit paired explanation request. No retry, provider choice or action fallback. */
+    internal suspend fun explainDoctorReading(request: DoctorAiRequest, stillCurrent: () -> Boolean): DoctorAiResponse {
+        fun current(): Boolean {
+            val reading = doctorAiReadings.current
+            return stillCurrent() && reading.supported && reading.fresh(System.nanoTime() / 1_000_000) &&
+                reading.descriptor?.enabled == true && reading.descriptor.permitted && reading.scope == request.scope
+        }
+        if (!current()) return DoctorAiResponse()
+        return try {
+            val call = DoctorAiHttp.client(clientForCall()).newCall(DoctorAiHttp.request(baseUrl, request))
+            DoctorAiHttp.execute(call, request, ::current)
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { DoctorAiResponse() }
     }
 
     /**
@@ -3737,6 +3799,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Clear the saved Auto Quality profile for a single device+game combo.
      */
     fun clearOptimizerProfile(device: String, game: String): Boolean? {
+        retireDoctorAiRequests()
         return try {
             val body = buildOptimizerProfileClearBody(device, game)
             val request = Request.Builder()
@@ -3781,6 +3844,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Clear all saved Auto Quality profiles for this paired device.
      */
     fun clearOptimizerProfiles(): Boolean? {
+        retireDoctorAiRequests()
         return try {
             val request = Request.Builder()
                 .url("$baseUrl/optimizer/profiles/clear")
@@ -3804,6 +3868,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Launch a game via the Polaris API.
      */
     fun launchGame(gameId: String, displayWidth: Int = 0, displayHeight: Int = 0, displayFps: Int = 0): Boolean {
+        retireDoctorAiRequests()
         return try {
             val body = org.json.JSONObject().apply {
                 put("game_id", gameId)
@@ -3833,6 +3898,7 @@ class PolarisApiClient @JvmOverloads constructor(
      * Request that Polaris unlock the current desktop session.
      */
     fun unlockScreen(): Boolean {
+        retireDoctorAiRequests()
         return try {
             val request = Request.Builder()
                 .url("$webBaseUrl/api/polaris/unlock")

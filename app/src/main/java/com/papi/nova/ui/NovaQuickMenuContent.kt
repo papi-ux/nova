@@ -95,6 +95,7 @@ data class NovaQuickMenuCallbacks(
     val onStability: () -> Unit = {},
     val onStreamDetails: (focusBitrate: Boolean) -> Unit = {},
     val onDoctorDetails: () -> Unit = {},
+    val onDoctorExplain: () -> Unit = {},
     val onTechnicalDetails: () -> Unit = {},
     /** Sets Live Tuning to the state its split offered when it armed, On for true. */
     val onLiveTuning: (enable: Boolean) -> Unit = {},
@@ -1228,8 +1229,9 @@ internal fun NovaPageScope.NovaCommandCenterDetails(
                         }), "")
                         if (diagnosis.confidence.isNotBlank()) NovaDetailLine(stringResource(R.string.nova_cc_doctor_confidence, diagnosis.confidence), "")
                         if (diagnosis.informationalSource.isNotBlank()) NovaDetailLine(stringResource(R.string.nova_cc_doctor_source, diagnosis.informationalSource), "")
-                        // Already opt-in host explanation only; this page invokes no AI provider.
+                        // Previously supplied explanations remain separate from the bound request below.
                         if (diagnosis.aiExplanation.isNotBlank()) NovaDetailLine(stringResource(R.string.nova_quick_menu_doctor_ai_explanation, diagnosis.aiExplanation), "")
+                        NovaDoctorAiDetails(ui.value.doctorAi, callbacks.onDoctorExplain)
                         if (ui.value.fasterThanLight) NovaDetailLine(stringResource(R.string.nova_cc_doctor_faster_than_light), "")
                         if (ui.value.doctorReceiptAction.visible) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
                     }
@@ -1254,5 +1256,35 @@ private fun NovaDetailLine(label: String, value: String) {
     Column(Modifier.fillMaxWidth().padding(horizontal = NovaPanelMetrics.SpaceMd, vertical = NovaPanelMetrics.SpaceSm)) {
         Text(label, style = novaPanelType.caption, color = LocalNovaComposeColors.current.textSecondary)
         if (value.isNotBlank()) Text(value, style = novaPanelType.rowTitle, color = LocalNovaComposeColors.current.textPrimary)
+    }
+}
+
+/** Plain optional prose, kept separate from the deterministic Doctor card and its controls. */
+@Composable
+internal fun NovaDoctorAiDetails(state: NovaDoctorAiState, onExplain: () -> Unit) {
+    NovaSectionLabel(stringResource(R.string.nova_doctor_ai_title))
+    NovaDetailLine(stringResource(R.string.nova_doctor_ai_disclosure), "")
+    val caption = stringResource(when (state.message) {
+        NovaDoctorAiMessage.DISABLED -> R.string.nova_doctor_ai_disabled
+        NovaDoctorAiMessage.READY -> R.string.nova_doctor_ai_ready
+        NovaDoctorAiMessage.PENDING -> R.string.nova_doctor_ai_pending
+        NovaDoctorAiMessage.FALLBACK -> R.string.nova_doctor_ai_fallback
+        NovaDoctorAiMessage.EXPLAINED -> R.string.nova_doctor_ai_informational
+        NovaDoctorAiMessage.UNAVAILABLE -> R.string.nova_doctor_ai_unavailable
+    })
+    Column(Modifier.fillMaxWidth().padding(NovaPanelMetrics.SpaceMd)) {
+        com.papi.nova.ui.compose.NovaActionSurface(
+            onClick = { if (state.enabled) onExplain() }, enabled = state.enabled,
+            modifier = Modifier.fillMaxWidth().testTag("nova-doctor-ai-explain"),
+        ) { color, _ -> Text(stringResource(R.string.nova_doctor_ai_explain), style = novaPanelType.value, color = color) }
+        Text(caption, style = novaPanelType.caption, color = LocalNovaComposeColors.current.textSecondary,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+    }
+    state.text?.let { explanation ->
+        NovaDetailLine(stringResource(R.string.nova_doctor_ai_as_of, state.ageSeconds), "")
+        // Text, not annotated/HTML/Markdown content: no links, commands or setting-value parsing.
+        listOf(explanation.likelyCause, *explanation.evidence.toTypedArray(),
+            *explanation.tryFirst.toTypedArray(), explanation.advancedDetail)
+            .filter { it.isNotBlank() }.forEach { NovaDetailLine(it, "") }
     }
 }

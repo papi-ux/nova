@@ -211,6 +211,7 @@ data class NovaQuickMenuUiState(
     val fasterThanLight: Boolean = false,
     val stream: NovaCommandCenterStream = NovaCommandCenterStream(),
     val liveBitrate: com.papi.nova.manager.NovaLiveBitratePresentation = com.papi.nova.manager.NovaLiveBitratePresentation(),
+    val doctorAi: NovaDoctorAiState = NovaDoctorAiState(),
 ) {
     /**
      * The Quick Keys grid: the keys the pinned strip lacks, so each key shows once (N26). Derived

@@ -2264,4 +2264,14 @@
     <string name="nova_cc_request_budget">Request budget</string>
     <string name="nova_cc_current_stream">This stream: %1$s</string>
     <string name="nova_cc_tuning_scope">On and Off describe automatic adjustment in this stream. The saved host preference is unavailable.</string>
+    <string name="nova_doctor_ai_title">AI explanation</string>
+    <string name="nova_doctor_ai_explain">Explain this reading with AI</string>
+    <string name="nova_doctor_ai_disclosure">Uses the AI provider enabled on your host. Sends selected Doctor diagnosis and stream measurements, excluding names, logs and screenshots.</string>
+    <string name="nova_doctor_ai_ready">Ask for an optional explanation of this reading.</string>
+    <string name="nova_doctor_ai_disabled">Enable AI explanations on your host to use this.</string>
+    <string name="nova_doctor_ai_unavailable">AI explanation is unavailable for this reading.</string>
+    <string name="nova_doctor_ai_pending">Explaining this reading…</string>
+    <string name="nova_doctor_ai_fallback">AI explanation was unavailable. The Doctor reading and its controls are still available.</string>
+    <string name="nova_doctor_ai_informational">Informational explanation. Doctor diagnosis and controls remain unchanged.</string>
+    <string name="nova_doctor_ai_as_of">Reading captured about %1$d seconds ago</string>
 </resources>

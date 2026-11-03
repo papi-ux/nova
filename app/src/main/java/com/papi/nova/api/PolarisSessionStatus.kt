@@ -52,8 +52,22 @@ data class PolarisSessionStatus(
     /** Exact active stream launch-attempt echo; absence/malformed disables optional diagnostics only. */
     val frameSubmissionLaunchNonce: String = "",
     /** Strict optional diagnostic scope shape; never changes legacy authority or counter handling. */
-    val frameSubmissionScopeTyped: Boolean = false
+    val frameSubmissionScopeTyped: Boolean = false,
+    val doctorAiExplanationRequest: DoctorAiDescriptor? = null,
+    /** Strict optional scope shape; never changes legacy authority. */
+    val doctorAiScopeTyped: Boolean = false
 ) {
+    internal fun doctorAiScope(): DoctorAiScope? {
+        val descriptor = doctorAiExplanationRequest ?: return null
+        if (!doctorAiScopeTyped || !authorityContractValid || !streamingActive || shutdownRequested ||
+            !ownedByClient || clientRole != "owner" || viewerCount != 0 || !appSessionIdPresent ||
+            appSessionId.isBlank() || sessionGeneration <= 0 || !descriptor.permitted ||
+            descriptor.sourceResultId != doctor.resultId || descriptor.controllerRevision <= 0 ||
+            !Regex("[0-9a-f]{64}").matches(descriptor.findingFingerprint)) return null
+        return DoctorAiScope(appSessionId, sessionGeneration, descriptor.sourceResultId,
+            descriptor.findingFingerprint, descriptor.controllerRevision)
+    }
+
     data class RecoveryReceipt(
         val status: Boolean = true,
         val state: String = "none",

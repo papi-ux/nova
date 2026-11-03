@@ -37,7 +37,9 @@ data class PolarisCapabilities(
         /** The host answers `GET /network/connection` (schema 1) about this client's control connection. */
         val networkConnectionV1: Boolean = false,
         /** Optional complete-DU diagnostics only; no controller permission. */
-        val liveMediaFrameSubmissionV1: Boolean = false
+        val liveMediaFrameSubmissionV1: Boolean = false,
+        /** Explicit, informational Doctor explanation requests only. */
+        val doctorAiExplanationV1: Boolean = false
     ) {
         constructor(
             aiOptimizer: Boolean,

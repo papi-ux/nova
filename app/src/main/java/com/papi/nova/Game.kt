@@ -222,6 +222,8 @@ internal fun novaBitrateAction(menuCurrent: () -> Boolean):
     val connection = conn
     fun standing() = menuCurrent() && novaApiClient === client && conn === connection
     return { token, direction, kbps ->
+        novaApiClient?.retireDoctorAiRequests()
+        (gameMenuCallbacks as? com.papi.nova.ui.NovaQuickMenu)?.retireDoctorAi()
         if (standing()) launchRuntimeIo("NovaQuickMenuBitrate") {
             novaLiveBitrate.change(token, ::standing, direction, kbps)
         }
@@ -290,9 +292,25 @@ private var displayHeight:Int = 0
 private var currentOrientation:Int = 0
 
  @Volatile var conn:NvConnection? = null
+set(value) {
+val changed = field !== value
+field = value
+if (changed) {
+novaApiClient?.retireDoctorAiRequests()
+(gameMenuCallbacks as? com.papi.nova.ui.NovaQuickMenu)?.retireDoctorAi()
+}
+}
 
  // Nova: Polaris integration
      @Volatile var novaApiClient:com.papi.nova.api.PolarisApiClient? = null
+set(value) {
+val previous = field
+field = value
+if (previous !== value) {
+previous?.retireDoctorAiRequests()
+(gameMenuCallbacks as? com.papi.nova.ui.NovaQuickMenu)?.retireDoctorAi()
+}
+}
 private var novaFeatureScope:Long = 0L
 @Volatile private var lastPolarisSessionStatus:com.papi.nova.api.PolarisSessionStatus? = null
 private var polarisSessionStatusRefreshInFlight:AtomicBoolean = AtomicBoolean(false)
@@ -5783,6 +5801,8 @@ private fun streamRecapStopReason(otherwise:com.papi.nova.diagnostics.NovaStream
 com.papi.nova.diagnostics.NovaStreamRecap.stopReason(hostSessionEnded, quitOnStop, isFinishing, otherwise)
 
 private fun stopConnection() {
+novaApiClient?.retireDoctorAiRequests()
+(gameMenuCallbacks as? com.papi.nova.ui.NovaQuickMenu)?.retireDoctorAi()
 // Includes channels that have not produced a controller context yet. A late
 // service connection must also stay stopped while the termination dialog shows.
 inputDriverStopped = true
@@ -7745,6 +7765,8 @@ finish()
 }
 
  fun disconnect() {
+novaApiClient?.retireDoctorAiRequests()
+(gameMenuCallbacks as? com.papi.nova.ui.NovaQuickMenu)?.retireDoctorAi()
 if (spaceSession && !hostSessionEnded) {
 quit()
 return
@@ -7832,6 +7854,8 @@ connectionTerminated(errorCode)
   * End tile) has already asked, so this does not ask again.
   */
  fun endSession() {
+novaApiClient?.retireDoctorAiRequests()
+(gameMenuCallbacks as? com.papi.nova.ui.NovaQuickMenu)?.retireDoctorAi()
 quitOnStop = true
 markLocalSessionEnd()
 finish()

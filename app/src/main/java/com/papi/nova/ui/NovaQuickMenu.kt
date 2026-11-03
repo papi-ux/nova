@@ -119,11 +119,17 @@ class NovaQuickMenu(
         // A stream going away retires any report still being saved and closes the log it holds.
         game.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                retireDoctorAi()
                 retireWorkingBaseline()
                 momentReporter.retire()
                 game.cancelRuntimeTask(com.papi.nova.diagnostics.NovaMomentReporter.TASK)
             }
             override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
+                session?.doctorAiUnlisten?.invoke()
+                session?.doctorAiUnlisten = null
+                session?.doctorAiUiJob?.cancel()
+                session?.doctorAiPageJob?.cancel()
+                retireDoctorAi()
                 retireWorkingBaseline()
                 momentReporter.retire()
             }
@@ -179,9 +185,16 @@ class NovaQuickMenu(
         var bitrateJob: kotlinx.coroutines.Job? = null
         var bitrateDiagnostic: NovaBitrateMenuDiagnostic? = null
         var bitrateDiagnosticJob: kotlinx.coroutines.Job? = null
+        var doctorAi: NovaDoctorAi? = null
+        var doctorAiUiJob: kotlinx.coroutines.Job? = null
+        var doctorAiPageJob: kotlinx.coroutines.Job? = null
+        var doctorAiUnlisten: (() -> Unit)? = null
         var anchorRef: WeakReference<View>? = null
         val anchor: View? get() = anchorRef?.get()
     }
+
+    /** Connection/API replacement, stream teardown and manual intent retire pending optional prose. */
+    internal fun retireDoctorAi() { session?.doctorAi?.retire() }
 
     override fun showMenu(device: GameInputDevice?) {
         open(device, keysAsRoot = false)
@@ -213,6 +226,11 @@ class NovaQuickMenu(
         // buttons, so the HUD steps away while the Command Center is open.
         game.setNovaHudCovered(true)
         fun onMenuClosed() {
+            menu.doctorAi?.pageVisible(false)
+            menu.doctorAiUnlisten?.invoke()
+            menu.doctorAiUnlisten = null
+            menu.doctorAiUiJob?.cancel()
+            menu.doctorAiPageJob?.cancel()
             menu.bitrateJob?.cancel()
             menu.bitrateDiagnosticJob?.cancel()
             retireWorkingBaseline()
@@ -248,6 +266,18 @@ class NovaQuickMenu(
             runtime = runtime,
         )
         val prefs = PreferenceManager.getDefaultSharedPreferences(game)
+
+        val doctorAi = NovaDoctorAi(game.lifecycleScope, fetch = { request, current ->
+            apiClient?.explainDoctorReading(request) {
+                current() && game.novaApiClient === commandClient && game.conn === commandConnection
+            } ?: com.papi.nova.api.DoctorAiResponse()
+        })
+        menu.doctorAi = doctorAi
+        fun observeDoctorAi(reading: com.papi.nova.api.DoctorAiReading) {
+            doctorAi.observe(if (commandClient != null && commandConnection != null &&
+                game.novaApiClient === commandClient && game.conn === commandConnection)
+                DoctorAiContext(commandClient, commandConnection, reading) else null)
+        }
 
         val sessionStatus by host::status
         var capabilities: PolarisCapabilities? = null
@@ -635,7 +665,7 @@ class NovaQuickMenu(
                         reason = "Stream status unavailable. Reopen Command Center")
                 }
                 (if (diagnosticsCopied) state.copy(diagnosis = state.diagnosis.copy(copied = true)) else state)
-                    .copy(liveBitrate = picture,
+                    .copy(doctorAi = doctorAi.state.value, liveBitrate = picture,
                         stream = game.commandCenterStream(sessionStatus.takeIf { sameAttachment && !host.unavailable }, picture))
             }
         }
@@ -644,6 +674,15 @@ class NovaQuickMenu(
         // shows, so a status refresh recomposes only what changed.
         val uiState = MutableStateFlow(buildState())
         host.redraw = { uiState.value = buildState() }
+        menu.doctorAiUnlisten = apiClient?.doctorAiReadings?.listen(::observeDoctorAi)
+        menu.doctorAiUiJob = game.lifecycleScope.launch {
+            doctorAi.state.collect { if (menuValidationIsCurrent()) uiState.value = buildState() }
+        }
+        menu.doctorAiPageJob = game.lifecycleScope.launch {
+            snapshotFlow { surfaces.panel.top }.collect { page ->
+                doctorAi.pageVisible(menuValidationIsCurrent() && page == CommandCenterPage.DoctorDetails)
+            }
+        }
         fun refreshState() = host.refresh()
 
         fun sendQuickKey(actionId: NovaQuickMenuActionId) {
@@ -689,6 +728,7 @@ class NovaQuickMenu(
         }
 
         fun undoDoctorRun(receipt: DoctorActionReceipt) {
+            doctorAi.retire()
             val client = apiClient ?: return
             val canAdjustHostTuning = sessionStatus?.canAdjustHostTuning == true
             val canCancelLegacyRecovery = receipt.runId.startsWith("recovery-run-")
@@ -950,6 +990,7 @@ class NovaQuickMenu(
         }
 
         fun runDoctorAction() {
+            doctorAi.retire()
             val status = sessionStatus
             val doctor = status?.doctor
             val client = apiClient
@@ -990,8 +1031,10 @@ class NovaQuickMenu(
                 { game.novaApiClient === commandClient }, { game.conn === commandConnection })
         }
         val bitrateAction = game.novaBitrateAction(::bitrateMenuCurrent)
-        fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) =
+        fun changeBitrate(token: com.papi.nova.manager.NovaLiveBitrateToken?, direction: Int? = null, kbps: Int? = null) {
+            doctorAi.retire()
             bitrateAction(token, direction, kbps)
+        }
         val callbacks = NovaQuickMenuCallbacks(
             onBitrateDiagnostic = menu.bitrateDiagnostic?.let { diagnostic -> diagnostic::pictureRendered },
             onStreamDetails = { focusBitrate ->
@@ -999,6 +1042,13 @@ class NovaQuickMenu(
             },
             onDoctorDetails = {
                 if (menuValidationIsCurrent() && menuShowing()) surfaces.panel.push(CommandCenterPage.DoctorDetails)
+            },
+            onDoctorExplain = {
+                if (bitrateMenuCurrent() && surfaces.panel.top == CommandCenterPage.DoctorDetails &&
+                    !doctorActionPendingRegistry.isPending()) {
+                    apiClient?.doctorAiReadings?.current?.let(::observeDoctorAi)
+                    doctorAi.explain()
+                }
             },
             onTechnicalDetails = {
                 if (menuValidationIsCurrent() && menuShowing()) surfaces.panel.push(CommandCenterPage.TechnicalDetails)
@@ -1044,6 +1094,7 @@ class NovaQuickMenu(
                 }
             },
             onSyncStatus = {
+                doctorAi.retire()
                 haptic {
                     if (apiClient == null) return@haptic
                     if (sessionStatus?.syncStatus?.needsRelaunch == true) {
@@ -1062,7 +1113,7 @@ class NovaQuickMenu(
             },
             // The state the split offered, not a flip of whatever the host says now; the result
             // is said in the row's own caption (NovaLiveTuningSave).
-            onLiveTuning = { enable -> if (bitrateMenuCurrent()) host.switchLiveTuning(enable) },
+            onLiveTuning = { enable -> doctorAi.retire(); if (bitrateMenuCurrent()) host.switchLiveTuning(enable) },
             onToggleAdvanced = {
                 haptic {
                     advancedTuningVisible = !advancedTuningVisible
@@ -1070,6 +1121,7 @@ class NovaQuickMenu(
                 }
             },
             onClearGameProfile = {
+                doctorAi.retire()
                 haptic {
                     val gameName = currentProfileGameName()
                     val status = sessionStatus
@@ -1105,6 +1157,7 @@ class NovaQuickMenu(
                 }
             },
             onMangoHud = {
+                doctorAi.retire()
                 haptic {
                     val gameUuid = currentGameUuid()
                     val status = sessionStatus
@@ -1225,6 +1278,7 @@ class NovaQuickMenu(
                 }
             },
             onControlAction = { actionId ->
+                doctorAi.retire()
                 haptic {
                     when (actionId) {
                         NovaQuickMenuActionId.MOUSE_MODE -> {
