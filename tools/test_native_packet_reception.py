@@ -41,6 +41,11 @@ EXPECTED_CASES = {
     "session-reconnect": ["session_reconnect_fresh_epoch"],
     "session-clock": ["session_clock_failure_sentinel", "session_clock_regression_sentinel"],
     "session-gates": ["session_gates_no_echo_no_reports", "sdp_gates_without_session"],
+    "clock-review": [
+        "lifecycle_rejected_read_clock_failure_sentinel", "lifecycle_receiver_backward_reads_sentinel",
+        "lifecycle_delayed_capture_before_snapshot_keeps_read_time",
+        "session_receiver_clock_failure_on_gcm_rejected_packet", "session_receiver_backward_read_on_rejected_runts",
+    ],
 }
 
 
@@ -170,6 +175,9 @@ target_link_libraries(reception PRIVATE moonlight-common-c enet)
 
     def test_negotiation_gates(self):
         self.run_fixtures("session-gates")
+
+    def test_receive_thread_clock_faults_survive_rejected_reads(self):
+        self.run_fixtures("clock-review")
 
     def test_spec_carries_the_serializer_golden_encodings(self):
         ran = subprocess.run([str(self.harness), "golden"], capture_output=True, text=True, timeout=20)

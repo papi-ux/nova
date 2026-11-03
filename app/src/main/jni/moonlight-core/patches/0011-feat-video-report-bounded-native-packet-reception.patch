@@ -1,4 +1,4 @@
-From 55b79fece5b4e7227e70410a62a9a5d3586abeab Mon Sep 17 00:00:00 2001
+From dc7da0dae49b10fc103d67f744dc1dd9ecfb2778 Mon Sep 17 00:00:00 2001
 From: nova <nova@papi-ux.com>
 Date: Tue, 3 Nov 2026 13:30:00 -0500
 Subject: [PATCH] feat(video): report bounded native packet reception
@@ -31,7 +31,11 @@ flushed by the existing ping. A failed send drops only that observation.
 There is no retry, queue or catch-up.
 
 Clock failure or regression sends one zero-time CLOCK_UNAVAILABLE
-sentinel and stops the extension until a new native connection. Long
+sentinel and stops the extension until a new native connection. A
+failed or backward socket-read clock counts even when that packet is
+never accepted; the receive thread's reads are checked against its own
+earlier socket reads and commits, so a read taken before a concurrent
+control snapshot is not mistaken for a regression. Long
 intervals are INCOMPLETE without samples. Control stop retires the
 collector and destroy clears it, so a new connection starts again at
 sequence 1 with a new origin.
@@ -42,8 +46,8 @@ This is not a packet census, capacity, one-way delay or health signal, and
 no client code acts on it.
 ---
  src/ControlStream.c   |  21 ++
- src/PacketReception.c | 489 ++++++++++++++++++++++++++++++++++++++++++
- src/PacketReception.h | 151 +++++++++++++
+ src/PacketReception.c | 512 ++++++++++++++++++++++++++++++++++++++++++
+ src/PacketReception.h | 155 +++++++++++++
  src/Platform.c        |  29 +++
  src/Platform.h        |   1 +
  src/RtpVideoQueue.c   |  14 +-
@@ -51,7 +55,7 @@ no client code acts on it.
  src/RtspConnection.c  |   5 +
  src/SdpGenerator.c    |   8 +
  src/VideoStream.c     |  14 +-
- 10 files changed, 735 insertions(+), 2 deletions(-)
+ 10 files changed, 762 insertions(+), 2 deletions(-)
  create mode 100644 src/PacketReception.c
  create mode 100644 src/PacketReception.h
 
@@ -110,10 +114,10 @@ index 2f0bcbe..f57103f 100644
          stopping = true;
 diff --git a/src/PacketReception.c b/src/PacketReception.c
 new file mode 100644
-index 0000000..f015edb
+index 0000000..2e8bb29
 --- /dev/null
 +++ b/src/PacketReception.c
-@@ -0,0 +1,489 @@
+@@ -0,0 +1,512 @@
 +#include "Limelight-internal.h"
 +
 +// Observation-only accepted-original RTP reception report. See PacketReception.h.
@@ -202,6 +206,7 @@ index 0000000..f015edb
 +    collector->originUs = originUs;
 +    collector->windowStartUs = originUs;
 +    collector->lastClockUs = originUs;
++    collector->receiverLastClockUs = originUs;
 +}
 +
 +void PacketReceptionCollectorNoteReceiveCall(PPACKET_RECEPTION_COLLECTOR collector) {
@@ -209,6 +214,22 @@ index 0000000..f015edb
 +        // Serial progress counter; consumers compare deltas, so wrapping is expected.
 +        collector->receiveLoopTick++;
 +    }
++}
++
++void PacketReceptionCollectorNoteSocketRead(PPACKET_RECEPTION_COLLECTOR collector, const PACKET_RECEPTION_CAPTURE* capture) {
++    if (collector->retired || collector->clockFailed) {
++        return;
++    }
++
++    // A failed or backward socket-read clock ends timing whether or not the packet is accepted
++    // later; the packet itself is not counted here. Compare only with the receive thread's own
++    // earlier facts: a control snapshot may read a later time between this read and the mutex,
++    // so lastClockUs is not a bound for a read taken before that snapshot.
++    if (!capture->clockValid || capture->socketReadUs < collector->receiverLastClockUs) {
++        collector->clockFailed = true;
++        return;
++    }
++    collector->receiverLastClockUs = capture->socketReadUs;
 +}
 +
 +static void addSaturating(uint32_t* value, uint32_t amount, bool* saturated) {
@@ -264,6 +285,7 @@ index 0000000..f015edb
 +    }
 +
 +    collector->lastClockUs = commitUs;
++    collector->receiverLastClockUs = commitUs;
 +    collector->lastAcceptedUs = commitUs;
 +    collector->hasLastAccepted = true;
 +
@@ -535,8 +557,13 @@ index 0000000..f015edb
 +        capture->udpBytes = (uint32_t)receiveResult;
 +    }
 +
++    // The time above stays the read made right after the socket returned; only its check
++    // against the receive thread's earlier facts happens under the mutex.
 +    if (receiveResult >= 0) {
 +        PltLockMutex(&collectorMutex);
++        if (receiveResult > 0) {
++            PacketReceptionCollectorNoteSocketRead(&collector, capture);
++        }
 +        PacketReceptionCollectorNoteReceiveCall(&collector);
 +        PltUnlockMutex(&collectorMutex);
 +    }
@@ -605,10 +632,10 @@ index 0000000..f015edb
 +}
 diff --git a/src/PacketReception.h b/src/PacketReception.h
 new file mode 100644
-index 0000000..e4484cc
+index 0000000..68b7b86
 --- /dev/null
 +++ b/src/PacketReception.h
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,155 @@
 +#pragma once
 +
 +#include <stdbool.h>
@@ -708,6 +735,9 @@ index 0000000..e4484cc
 +    uint64_t originUs;
 +    uint64_t windowStartUs;
 +    uint64_t lastClockUs;
++    // Latest clock fact the receive thread itself observed (socket read or commit), so its reads
++    // are checked in that thread's own order even when the packet is never accepted.
++    uint64_t receiverLastClockUs;
 +    uint64_t lastAcceptedUs;
 +    uint32_t lastSequence;
 +    uint32_t receiveLoopTick;
@@ -722,6 +752,7 @@ index 0000000..e4484cc
 +// they read and serialize access. The production entrypoints below do exactly that.
 +void PacketReceptionCollectorStart(PPACKET_RECEPTION_COLLECTOR collector, bool clockValid, uint64_t originUs);
 +void PacketReceptionCollectorNoteReceiveCall(PPACKET_RECEPTION_COLLECTOR collector);
++void PacketReceptionCollectorNoteSocketRead(PPACKET_RECEPTION_COLLECTOR collector, const PACKET_RECEPTION_CAPTURE* capture);
 +void PacketReceptionCollectorCommit(PPACKET_RECEPTION_COLLECTOR collector, const PACKET_RECEPTION_CAPTURE* capture,
 +                                    bool clockValid, uint64_t commitUs,
 +                                    uint32_t frameIndex, uint16_t rtpSequence, bool isParity);

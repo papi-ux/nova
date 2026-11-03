@@ -651,6 +651,86 @@ static bool fixtureClock(uint64_t* nowUs) {
     return true;
 }
 
+// Receiver-thread-only clock faults for the clock review sessions. The control (loss-stats)
+// thread is the first non-main thread to read the clock: it reports as soon as it starts, long
+// before any video is sent, and only the receive thread reads the clock for a positive receive.
+static pthread_mutex_t fixtureClockLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t harnessMainThread;
+static pthread_t fixtureControlThread;
+static bool fixtureControlThreadKnown;
+static bool receiverFailNext;
+static bool receiverBackwardNext;
+static int receiverFaultsServed;
+static uint64_t lastReceiverReadUs;
+
+static bool receiverFaultClock(uint64_t* nowUs) {
+    pthread_t self = pthread_self();
+    bool valid;
+
+    pthread_mutex_lock(&fixtureClockLock);
+    valid = PltGetMonotonicMicros(nowUs);
+    if (!pthread_equal(self, harnessMainThread)) {
+        if (!fixtureControlThreadKnown) {
+            fixtureControlThread = self;
+            fixtureControlThreadKnown = true;
+        }
+        else if (!pthread_equal(self, fixtureControlThread)) {
+            if (receiverFailNext) {
+                receiverFailNext = false;
+                receiverFaultsServed++;
+                valid = false;
+            }
+            else if (receiverBackwardNext && valid) {
+                receiverBackwardNext = false;
+                receiverFaultsServed++;
+                *nowUs = lastReceiverReadUs - 1000;
+            }
+            else if (valid) {
+                lastReceiverReadUs = *nowUs;
+            }
+        }
+    }
+    pthread_mutex_unlock(&fixtureClockLock);
+    return valid;
+}
+
+// Scripted clock for single-threaded lifecycle fixtures through the production entrypoints. A
+// step may run a callback before it returns, which interleaves a control snapshot between a
+// socket-read clock read and the receive path taking the collector mutex.
+typedef struct {
+    bool valid;
+    uint64_t value;
+    void (*before)(void);
+} CLOCK_STEP;
+
+static CLOCK_STEP clockScript[16];
+static int clockScriptLength;
+static int clockScriptIndex;
+static bool clockScriptOverrun;
+
+static bool scriptedClock(uint64_t* nowUs) {
+    CLOCK_STEP step;
+
+    if (clockScriptIndex >= clockScriptLength) {
+        clockScriptOverrun = true;
+        *nowUs = 0;
+        return false;
+    }
+    step = clockScript[clockScriptIndex++];
+    if (step.before != NULL) {
+        step.before();
+    }
+    *nowUs = step.value;
+    return step.valid;
+}
+
+static void setClockScript(const CLOCK_STEP* steps, int count) {
+    memcpy(clockScript, steps, sizeof(CLOCK_STEP) * (size_t)count);
+    clockScriptLength = count;
+    clockScriptIndex = 0;
+    clockScriptOverrun = false;
+}
+
 typedef struct {
     const char* describe;
     bool connectData;
@@ -1256,6 +1336,226 @@ static void sessionClock(bool regression) {
     endCase();
 }
 
+static int takeDecodedReport(PACKET_RECEPTION_REPORT* report) {
+    uint8_t wire[PACKET_RECEPTION_MAX_PAYLOAD_BYTES];
+    const char* why = NULL;
+    int length = PacketReceptionTakeReport(wire, sizeof(wire));
+
+    memset(report, 0, sizeof(*report));
+    if (length > 0) {
+        CHECK(decodeReport(wire, (size_t)length, report, &why) == 0, "report refused by host decoder: %s", why ? why : "?");
+    }
+    return length;
+}
+
+// Production negotiation (SDP generator, real clock probe), then the scripted clock from the
+// collector origin on. No threads: the test thread calls the receive, commit and report entrypoints.
+static bool startDirectLifecycle(const CLOCK_STEP* steps, int count) {
+    SESSION_OPTIONS o = defaultOptions();
+    uint32_t encryptionEnabled = 0;
+
+    PacketReceptionSetTestClock(NULL);
+    if (!negotiate(&o, &encryptionEnabled)) {
+        return false;
+    }
+    setClockScript(steps, count);
+    PacketReceptionSetTestClock(scriptedClock);
+    PacketReceptionStart(true);
+    return PacketReceptionIsEnabled();
+}
+
+static void endDirectLifecycle(int expectedClockReads) {
+    CHECK(clockScriptIndex == expectedClockReads && !clockScriptOverrun, "clock reads %d of %d, overrun %d",
+          clockScriptIndex, expectedClockReads, clockScriptOverrun);
+    PacketReceptionStop();
+    PacketReceptionDestroy();
+    PacketReceptionSetTestClock(NULL);
+}
+
+static PACKET_RECEPTION_REPORT nestedReport;
+static int nestedReportLength;
+
+static void snapshotBetweenReadAndLock(void) {
+    nestedReportLength = takeDecodedReport(&nestedReport);
+}
+
+static void clockReviewLifecycle(void) {
+    const uint64_t t0 = 5000000;
+    PACKET_RECEPTION_CAPTURE first, second;
+    PACKET_RECEPTION_REPORT r;
+
+    beginCase("lifecycle_rejected_read_clock_failure_sentinel");
+    {
+        const CLOCK_STEP steps[] = {
+            { true, t0, NULL },                 // collector origin
+            { false, 0, NULL },                 // socket read of a packet that is never accepted
+            { true, t0 + 100000, NULL },        // clock recovered for the report
+            { true, t0 + 200000, NULL },        // the tick after the sentinel
+        };
+        CHECK(startDirectLifecycle(steps, 4), "observer did not start");
+        memset(&first, 0, sizeof(first));
+        PacketReceptionNoteReceive(1040, &first);
+        CHECK(!first.clockValid, "fixture clock did not fail the read");
+        CHECK(takeDecodedReport(&r) > 0, "no report");
+        CHECK((r.flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE) && (r.flags & PACKET_RECEPTION_FLAG_INCOMPLETE),
+              "observed receive clock failure was forgotten: flags %x interval %u", r.flags, r.intervalUs);
+        CHECK(r.reportSequence == 1 && r.intervalUs == 0 && r.intervalEndUs == 0 && r.sampleCount == 0 &&
+              r.lastAcceptedAgeUs == UINT32_MAX, "sentinel fields");
+        CHECK(!(r.flags & PACKET_RECEPTION_FLAG_HAS_ACCEPTED) && r.acceptedDataPackets == 0 && r.acceptedParityPackets == 0 &&
+              r.acceptedDataUdpBytes == 0 && r.firstFrame == 0 && r.lastFrame == 0, "a never-accepted packet was counted");
+        CHECK(r.receiveLoopTick == 1, "tick %u", r.receiveLoopTick);
+        CHECK(takeDecodedReport(&r) == 0, "report after the sentinel");
+        endDirectLifecycle(4);
+    }
+    endCase();
+
+    beginCase("lifecycle_receiver_backward_reads_sentinel");
+    {
+        const CLOCK_STEP rejectedOnly[] = {
+            { true, t0, NULL },
+            { true, t0 + 40000, NULL },         // rejected read
+            { true, t0 + 39000, NULL },         // later rejected read, earlier time
+            { true, t0 + 100000, NULL },
+            { true, t0 + 200000, NULL },
+        };
+        const CLOCK_STEP afterCommit[] = {
+            { true, t0, NULL },
+            { true, t0 + 10, NULL },            // read, then accepted
+            { true, t0 + 20, NULL },            // its commit on the same receive thread
+            { true, t0 + 15, NULL },            // next read is earlier than that commit, then rejected
+            { true, t0 + 100000, NULL },
+        };
+        CHECK(startDirectLifecycle(rejectedOnly, 5), "observer did not start");
+        memset(&first, 0, sizeof(first));
+        memset(&second, 0, sizeof(second));
+        PacketReceptionNoteReceive(1040, &first);
+        PacketReceptionNoteReceive(1040, &second);
+        CHECK(takeDecodedReport(&r) > 0 && (r.flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE),
+              "backward receive read was forgotten: flags %x", r.flags);
+        CHECK(r.acceptedDataPackets == 0 && r.receiveLoopTick == 2, "counts %u tick %u", r.acceptedDataPackets, r.receiveLoopTick);
+        CHECK(takeDecodedReport(&r) == 0, "report after the sentinel");
+        endDirectLifecycle(5);
+
+        CHECK(startDirectLifecycle(afterCommit, 5), "observer did not start");
+        memset(&first, 0, sizeof(first));
+        memset(&second, 0, sizeof(second));
+        PacketReceptionNoteReceive(1040, &first);
+        PacketReceptionCommit(&first, 3, 100, false);
+        PacketReceptionNoteReceive(1040, &second);
+        CHECK(takeDecodedReport(&r) > 0 && (r.flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE),
+              "read earlier than a receive-thread commit was forgotten: flags %x", r.flags);
+        CHECK((r.flags & PACKET_RECEPTION_FLAG_HAS_ACCEPTED) && r.acceptedDataPackets == 1 && r.firstFrame == 3,
+              "accepted count before the fault must stay an incomplete fact");
+        endDirectLifecycle(5);
+    }
+    endCase();
+
+    beginCase("lifecycle_delayed_capture_before_snapshot_keeps_read_time");
+    {
+        // Read at t0+50 ms; the control tick snapshots at t0+100 ms before the receive path gets
+        // the mutex; the packet is accepted at t0+130 ms and reported at t0+200 ms.
+        const CLOCK_STEP steps[] = {
+            { true, t0, NULL },
+            { true, t0 + 50000, snapshotBetweenReadAndLock },
+            { true, t0 + 100000, NULL },
+            { true, t0 + 130000, NULL },
+            { true, t0 + 200000, NULL },
+        };
+        nestedReportLength = 0;
+        CHECK(startDirectLifecycle(steps, 5), "observer did not start");
+        memset(&first, 0, sizeof(first));
+        PacketReceptionNoteReceive(1040, &first);
+        CHECK(first.clockValid && first.socketReadUs == t0 + 50000, "socket read time %llu", (unsigned long long)first.socketReadUs);
+        CHECK(nestedReportLength > 0 && nestedReport.reportSequence == 1 && nestedReport.flags == 0 &&
+              nestedReport.intervalUs == 100000 && nestedReport.receiveLoopTick == 0, "interleaved snapshot");
+        PacketReceptionCommit(&first, 7, 42, false);
+        CHECK(takeDecodedReport(&r) > 0, "no report");
+        CHECK(r.flags == PACKET_RECEPTION_FLAG_HAS_ACCEPTED, "false clock fault for a read taken before the snapshot: flags %x", r.flags);
+        CHECK(r.reportSequence == 2 && r.intervalUs == 100000 && r.intervalEndUs == 200000 && r.receiveLoopTick == 1, "header");
+        CHECK(r.acceptedDataPackets == 1 && r.sampleCount == 1 && r.samples[0].frameIndex == 7 && r.samples[0].rtpSequence == 42,
+              "sample identity");
+        CHECK(r.samples[0].socketReadAgeUs == 150000 && r.samples[0].socketReadAgeUs > r.intervalUs,
+              "earlier socket-read time not preserved: age %u", r.samples[0].socketReadAgeUs);
+        endDirectLifecycle(5);
+    }
+    endCase();
+}
+
+static void sessionReceiverClockFault(bool backward) {
+    SESSION_OPTIONS o = defaultOptions();
+    FRAME_SHARDS f;
+    PACKET_RECEPTION_REPORT reports[64];
+    uint64_t arrivals[64];
+    uint8_t fec[16][32];
+    int pings, fecCount, badTransport, n, i, sentinels = 0, pingsAfterSentinel = 0, served;
+    uint64_t sentinelArrival = 0, accepted = 0;
+    uint32_t encryptionEnabled;
+    bool echoed;
+
+    beginCase(backward ? "session_receiver_backward_read_on_rejected_runts" : "session_receiver_clock_failure_on_gcm_rejected_packet");
+    pthread_mutex_lock(&fixtureClockLock);
+    fixtureControlThreadKnown = false;
+    receiverFailNext = false;
+    receiverBackwardNext = false;
+    receiverFaultsServed = 0;
+    lastReceiverReadUs = 0;
+    pthread_mutex_unlock(&fixtureClockLock);
+    PacketReceptionSetTestClock(receiverFaultClock);
+    videoEncrypted = true;
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "start failed");
+        endCase();
+        return;
+    }
+    sleepMs(250);
+    if (backward) {
+        uint8_t runt[8] = { 0 };
+        sendto(videoSocket, runt, sizeof(runt), 0, (struct sockaddr*)&clientVideoAddr, sizeof(clientVideoAddr));
+        sleepMs(20);
+        pthread_mutex_lock(&fixtureClockLock);
+        receiverBackwardNext = true;
+        pthread_mutex_unlock(&fixtureClockLock);
+        sendto(videoSocket, runt, sizeof(runt), 0, (struct sockaddr*)&clientVideoAddr, sizeof(clientVideoAddr));
+    }
+    else {
+        // Full-size and positive, but it fails AES-GCM, so the queue never sees it.
+        buildFrame(&f, 0, 1);
+        pthread_mutex_lock(&fixtureClockLock);
+        receiverFailNext = true;
+        pthread_mutex_unlock(&fixtureClockLock);
+        sendShard(&f, 0, 1, true);
+    }
+    sleepMs(450);
+    n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+    for (i = 0; i < n; i++) {
+        accepted += reports[i].acceptedDataPackets + reports[i].acceptedParityPackets;
+        CHECK(reports[i].reportSequence == (uint32_t)(i + 1), "sequence %u", reports[i].reportSequence);
+        if (reports[i].flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE) {
+            sentinels++;
+            sentinelArrival = arrivals[i];
+            CHECK(i == n - 1, "report after the clock sentinel");
+        }
+    }
+    if (sentinelArrival != 0) {
+        pingsAfterSentinel = countMessagesAfter(0x0200, sentinelArrival);
+    }
+    stopSession(true);
+    PltDestroyCryptoContext(senderCrypto);
+    PacketReceptionSetTestClock(NULL);
+    pthread_mutex_lock(&fixtureClockLock);
+    served = receiverFaultsServed;
+    pthread_mutex_unlock(&fixtureClockLock);
+
+    CHECK(served == 1, "receive-thread clock fault served %d times", served);
+    CHECK(n >= 3, "reports %d", n);
+    CHECK(sentinels == 1, "observed receive-thread clock fault produced %d sentinels", sentinels);
+    CHECK(accepted == 0, "a rejected packet was counted");
+    CHECK(pingsAfterSentinel >= 2, "pings after sentinel %d", pingsAfterSentinel);
+    CHECK(badTransport == 0 && terminationError == 0, "transport %d termination %d", badTransport, terminationError);
+    endCase();
+}
+
 static void sessionGates(void) {
     static const struct { const char* name; int variant; } variants[] = {
         { "offer_absent", 0 }, { "offer_version_2", 1 }, { "offer_duplicated", 2 }, { "connect_data_absent", 3 },
@@ -1333,6 +1633,8 @@ static void sessionGates(void) {
 int main(int argc, char** argv) {
     const char* command = argc > 1 ? argv[1] : "";
 
+    harnessMainThread = pthread_self();
+
     if (strcmp(command, "unit") == 0) {
         unitTests();
     }
@@ -1357,8 +1659,13 @@ int main(int argc, char** argv) {
     else if (strcmp(command, "session-gates") == 0) {
         sessionGates();
     }
+    else if (strcmp(command, "clock-review") == 0) {
+        clockReviewLifecycle();
+        sessionReceiverClockFault(false);
+        sessionReceiverClockFault(true);
+    }
     else {
-        fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates\n", argv[0]);
+        fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates|clock-review\n", argv[0]);
         return 2;
     }
 

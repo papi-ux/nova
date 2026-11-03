@@ -125,7 +125,9 @@ All multibyte fields are **big-endian**, encoded bytewise. Length is exactly
 * **Capture.** On the video receive thread, immediately after `recvUdpSocket` returns a
   positive length, the client reads the monotonic clock and keeps the original UDP length
   in locals. Every completed receive call, including a timeout, advances
-  `receive_loop_tick`.
+  `receive_loop_tick`. Under the collector mutex that time is then checked against the
+  receive thread's own earlier socket reads and commits only: a read taken before a
+  concurrent control snapshot is valid and keeps its earlier time.
 * **Commit.** Only inside the RTP queue's acceptance branch, after `queuePacket` accepted an
   original packet and before `reconstructFrame` can stage, submit or free it. Data versus
   parity is the queue's own classification against `bufferFirstParitySequenceNumber`.
@@ -158,8 +160,10 @@ clock. None of them identifies a cause or authorizes recovery.
 | Clock failure or regression | One sentinel at the next tick: flags `INCOMPLETE` and `CLOCK_UNAVAILABLE` (plus `HAS_ACCEPTED` if counts are retained), `sample_count = 0`, `interval_us = interval_end_us = 0`, `last_accepted_age_us = 0xFFFFFFFF`. Then the extension stays off until a fresh native connection. No epoch restarts inside a session |
 
 Clock failure includes an unsupported clock at collector start, a failed read, and any
-time that runs backwards between socket read, commit and snapshot. An unsupported clock
-at ANNOUNCE time means no echo. There is no `gettimeofday` fallback.
+time that runs backwards between socket read, commit and snapshot. A failed or backward
+socket-read clock ends timing even when that packet is then rejected or never reaches the
+queue; the packet itself is still never counted or sampled. An unsupported clock at
+ANNOUNCE time means no echo. There is no `gettimeofday` fallback.
 
 ## Host validation (Polaris #615)
 
@@ -181,7 +185,7 @@ stop retires it before teardown, so no pending snapshot is sent; control destroy
 A new connection starts again at sequence 1 with a new origin. No Java lifecycle is involved,
 and the existing 10 s first-video/first-frame and control timeouts are unchanged.
 
-Fixed memory: one 336-byte collector (64-bit build) with a sixteen-entry 16-byte sample array,
+Fixed memory: one 344-byte collector (64-bit build) with a sixteen-entry 16-byte sample array,
 one stack report and one 212-byte stack wire buffer per tick. No per-packet allocation.
 One clock read per positive socket return and one per accepted commit, O(1) under a short
 mutex; O(16) at the tick, with encoding and the ENet call outside that mutex. Encrypted
