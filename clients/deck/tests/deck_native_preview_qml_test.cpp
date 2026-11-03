@@ -10,6 +10,8 @@
 #include "deck_doctor_fixture.h"
 #include "runtime/deck_doctor_actions.h"
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QFile>
 
 #include <QDir>
@@ -20,20 +22,87 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickWindow>
+#include <QSemaphore>
 #include <QThread>
 #include <QTemporaryDir>
 #include <QVariantMap>
 
 #include <cstdlib>
+#include <array>
 #include <iostream>
 
 #include "deck_preview_fixture.h"
 
 namespace {
+// Sample only at explicit key checkpoints. Signal callbacks count notifications;
+// they neither process events nor schedule work. Serialize only on first failure.
+class SyncEvidence;
+SyncEvidence* syncEvidence = nullptr;
+class SyncEvidence final : public QObject {
+public:
+    SyncEvidence(QQuickWindow& window, PreviewSession& session,
+        nova::deck::runtime::DeckHostSettingsController& controller, QQuickItem* match)
+        : window_(window), session_(session), controller_(controller) {
+        for (auto* item = match; item; item = item->parentItem()) {
+            if (item->metaObject()->indexOfProperty("canSend") >= 0) { actions_ = item; break; }
+        }
+        connect(&controller_, &nova::deck::runtime::DeckHostSettingsController::stateChanged,
+            this, [this] { ++stateChanges_; });
+        connect(&session_, &PreviewSession::hudChanged, this, [this] { ++hudChanges_; });
+        syncEvidence = this;
+    }
+    ~SyncEvidence() override { syncEvidence = nullptr; }
+    QQuickItem* actions() const { return actions_; }
+    void record(const char* point, int code, bool accepted = false) {
+        auto& sample = samples_[serial_++ % samples_.size()];
+        const auto state = controller_.state();
+        sample = {point, code, accepted, session_.syncWrites, session_.syncCalls, session_.syncClear,
+            controller_.busy(), actions_ && actions_->property("ready").toBool(),
+            actions_ && actions_->property("canSend").toBool(), actions_ && actions_->property("canClear").toBool(),
+            state.value("phase").toString(), state.value("profileState").toString(),
+            window_.activeFocusItem() ? window_.activeFocusItem()->objectName() : QString{}, stateChanges_, hudChanges_};
+    }
+    void dump() const {
+        QJsonArray samples;
+        const auto begin = serial_ > samples_.size() ? serial_ - samples_.size() : 0;
+        for (auto i = begin; i < serial_; ++i) {
+            const auto& s = samples_[i % samples_.size()];
+            samples.append(QJsonObject{{"serial", int(i)}, {"point", s.point}, {"key", s.code}, {"accepted", s.accepted},
+                {"writes", s.writes}, {"calls", s.calls}, {"clear", s.clear}, {"busy", s.busy},
+                {"ready", s.ready}, {"canSend", s.canSend}, {"canClear", s.canClear},
+                {"phase", s.phase}, {"profileState", s.profileState}, {"focus", s.focus},
+                {"stateChanges", s.stateChanges}, {"hudChanges", s.hudChanges}});
+        }
+        const QJsonObject value{{"writes", session_.syncWrites}, {"calls", session_.syncCalls}, {"clear", session_.syncClear},
+            {"host", session_.syncHost}, {"display", session_.syncDisplay}, {"bitrate", session_.syncBitrate},
+            {"review", QJsonObject::fromVariantMap(session_.syncReview)},
+            {"controller", QJsonObject::fromVariantMap(controller_.state())},
+            {"live", QJsonObject::fromVariantMap(session_.tuning)}, {"windowActive", window_.isActive()},
+            {"actionsFound", actions_ != nullptr}, {"keys", samples}};
+        std::cerr << "NOVA_SYNC_FIRST_FAILURE " << QJsonDocument(value).toJson(QJsonDocument::Compact).constData() << std::endl;
+    }
+private:
+    struct Sample {
+        const char* point = ""; int code = 0; bool accepted = false;
+        int writes = 0, calls = 0; bool clear = false, busy = false, ready = false, canSend = false, canClear = false;
+        QString phase, profileState, focus; int stateChanges = 0, hudChanges = 0;
+    };
+    QQuickWindow& window_;
+    PreviewSession& session_;
+    nova::deck::runtime::DeckHostSettingsController& controller_;
+    QQuickItem* actions_ = nullptr;
+    std::array<Sample, 16> samples_{};
+    std::size_t serial_ = 0;
+    int stateChanges_ = 0, hudChanges_ = 0;
+};
 void require(bool ok, const char* message) {
     // Failed assertions may leave Qt rendering threads active. Terminate the
     // isolated fixture directly; success still exercises normal object teardown.
-    if (!ok) { std::cerr << message << '\n'; std::_Exit(1); }
+    if (!ok) {
+        std::cerr << message << '\n';
+        if (syncEvidence) syncEvidence->dump();
+        std::_Exit(1);
+    }
 }
 void settle() {
     for (int tick = 0; tick < 10; ++tick) {
@@ -44,9 +113,13 @@ void settle() {
 void key(QQuickWindow& window, int code) {
     QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
     QKeyEvent release(QEvent::KeyRelease, code, Qt::NoModifier);
+    if (syncEvidence) syncEvidence->record("before-press", code);
     QCoreApplication::sendEvent(&window, &press);
+    if (syncEvidence) syncEvidence->record("after-press", code, press.isAccepted());
     QCoreApplication::sendEvent(&window, &release);
+    if (syncEvidence) syncEvidence->record("after-release", code, release.isAccepted());
     settle();
+    if (syncEvidence) syncEvidence->record("after-settle", code);
 }
 void focused(QQuickWindow& window, QObject* expected, const char* message) {
     require(window.activeFocusItem() == expected, message);
@@ -141,7 +214,7 @@ int main(int argc, char** argv) {
     auto* library = root->findChild<QQuickItem*>("library");
     require(preview && primary && end && disconnect && resumeReturn && confirmation && stay && confirmEnd && controls && library, "missing production preview controls");
     const auto screenshot = [&](const char* name) {
-        if (argc < 2) return;
+        if (argc < 2 || argv[1][0] == '-') return;
         require(QDir().mkpath(QString::fromLocal8Bit(argv[1])), "cannot create capture directory");
         require(window->grabWindow().save(QDir(QString::fromLocal8Bit(argv[1])).filePath(name)),
                 "cannot save preview capture");
@@ -1250,13 +1323,20 @@ int main(int argc, char** argv) {
     auto syncSettings = *nova::deck::polaris::parseHostSettings(host_settings_fixture::json(host_settings_fixture::settings()));
     syncSettings.desiredDisplay = "1920x1080x60";
     std::atomic<int> syncReads{0}, syncWrites{0};
+    const bool syncProfileBusy = app.arguments().contains("--sync-profile-busy");
+    std::atomic_bool holdSyncRead{false};
+    QSemaphore syncReadEntered, releaseSyncRead;
     nova::deck::runtime::DeckHostSettingsController syncController;
     syncController.setPlaySettings(&settings); syncController.setWindowActive(true); syncController.setSessionActive(true);
     syncController.setTarget("fixture-host","Living Room PC",[&]() -> std::optional<nova::deck::runtime::DeckHostSettingsTarget> {
         nova::deck::runtime::DeckHostSettingsTarget t;
         t.identityValid=[] { return true; };
         t.capabilities=[] { nova::deck::polaris::DeckPolarisCapabilities c; c.clientSettings=true; return nova::deck::polaris::DeckPolarisResult<nova::deck::polaris::DeckPolarisCapabilities>{nova::deck::polaris::DeckPolarisRequestStatus::Ok,200,{},c}; };
-        t.read=[&](const auto&) { ++syncReads; return nova::deck::polaris::DeckPolarisResult<nova::deck::polaris::DeckHostSettings>{nova::deck::polaris::DeckPolarisRequestStatus::Ok,200,{},syncSettings}; };
+        t.read=[&](const auto&) {
+            ++syncReads;
+            if (holdSyncRead) { syncReadEntered.release(); releaseSyncRead.acquire(); }
+            return nova::deck::polaris::DeckPolarisResult<nova::deck::polaris::DeckHostSettings>{nova::deck::polaris::DeckPolarisRequestStatus::Ok,200,{},syncSettings};
+        };
         t.idle=[](const auto&) { return nova::deck::polaris::DeckPolarisResult<bool>{nova::deck::polaris::DeckPolarisRequestStatus::Ok,200,{},false}; };
         t.writeMode=[&](const auto&,const auto&) { ++syncWrites; return nova::deck::polaris::DeckPolarisResult<nova::deck::polaris::DeckHostSettings>{}; };
         return t;
@@ -1277,13 +1357,14 @@ int main(int argc, char** argv) {
     auto* syncFacts=syncPopup->findChild<QQuickItem*>("host-defaults-plan");
     require(syncBack && syncRefresh && syncFacts,"Sync navigation missing");
     require(syncBack->mapToScene(QPointF(0,syncBack->height())).y()<=window->height(),"Sync footer clips at large text");
+    int syncReadyBudget = 0;
     const auto readySync = [&] {
+        syncReadyBudget = 100;
         session.tuning = {{"canSyncProfile",true},{"canTune",true},{"canSetBitrate",true},{"hostFresh",true},
             {"tuningKnown",true},{"tuningEnabled",true},{"appliedBitrateKbps",20000},
             {"tuningCopy","Changes save immediately. Turning tuning off holds the last confirmed bitrate."},
             {"syncVersion",session.tuning.value("syncVersion").toInt()+1}};
         emit session.hudChanged(); settle();
-        for (int i=0;i<100 && syncController.busy();++i) settle();
     };
     readySync();
     auto* syncTuning=syncPopup->findChild<QQuickItem*>("sync-live-tuning");
@@ -1294,6 +1375,19 @@ int main(int argc, char** argv) {
     auto* syncResult=syncPopup->findChild<QQuickItem*>("sync-result");
     auto* syncBitratePopup=syncPopup->findChild<QObject*>("sync-live-bitrate-picker");
     require(syncTuning && syncBitrate && syncMatch && syncSend && syncClear && syncResult && syncBitratePopup,"session Sync controls missing");
+    SyncEvidence syncTrace(*window, session, syncController, syncMatch);
+    require(syncTrace.actions(), "Sync eligibility evidence object missing");
+    const auto awaitSyncReady = [&](bool clearProfile) {
+        // Move readySync's existing budget to the action boundary: navigation
+        // can start a profile poll without moving the focused action.
+        const char* permission = clearProfile ? "canClear" : "canSend";
+        while (!syncTrace.actions()->property(permission).toBool() && syncReadyBudget > 0) {
+            --syncReadyBudget;
+            settle();
+        }
+        syncTrace.record("activation-ready", 0);
+        require(syncTrace.actions()->property(permission).toBool(), "Sync profile action did not become ready");
+    };
     syncBack->forceActiveFocus(); key(*window,Qt::Key_Up); focused(*window,syncTuning,"Sync actions not controller accessible");
     auto* syncTitle=syncPopup->findChild<QQuickItem*>("host-settings-title");
     require(syncTitle && syncTitle->mapToScene(QPointF(0,0)).y() >= 0 &&
@@ -1322,6 +1416,7 @@ int main(int argc, char** argv) {
     key(*window,Qt::Key_Down); focused(*window,syncMatch,"Match Nova unreachable");
     key(*window,Qt::Key_Down); focused(*window,syncSend,"Send Nova unreachable");
     screenshot("polaris-sync-send-review-960-large.png");
+    awaitSyncReady(false);
     key(*window,Qt::Key_Return);
     require(session.syncWrites==1 && session.syncHost=="fixture-host" && !session.syncClear &&
         session.syncReview==syncSettings.profileReview() && session.syncDisplay==syncController.state().value("novaDisplay").toString() &&
@@ -1337,10 +1432,41 @@ int main(int argc, char** argv) {
         syncBack->mapToScene(QPointF(0,syncBack->height())).y()<=window->height(),"uncertain result or footer clipped");
     screenshot("polaris-sync-unconfirmed-960-large.png");
     readySync(); key(*window,Qt::Key_Down); focused(*window,syncClear,"Clear profile unreachable");
+    awaitSyncReady(true);
     tap(syncClear); require(session.syncWrites==2 && session.syncClear && session.syncDisplay.isEmpty() && session.syncBitrate==0,"touch Clear sent live settings");
-    readySync(); key(*window,Qt::Key_Up); key(*window,Qt::Key_Up); focused(*window,syncMatch,"Match Nova return route failed");
+    readySync();
+    if (syncProfileBusy) {
+        // Inject a read at the navigation seam, rather than depending on when
+        // the production poll happens to fire. No timer cadence is changed.
+        // The setup and final activation share this scenario's original budget.
+        awaitSyncReady(false);
+        holdSyncRead = true;
+        require(syncController.refresh(), "controlled Sync read refused");
+        require(syncReadEntered.tryAcquire(1, 1000), "controlled Sync read did not enter");
+    }
+    key(*window,Qt::Key_Up); key(*window,Qt::Key_Up); focused(*window,syncMatch,"Match Nova return route failed");
+    if (syncProfileBusy) {
+        const int calls = session.syncCalls;
+        key(*window, Qt::Key_Return);
+        require(syncController.busy() && !syncTrace.actions()->property("canSend").toBool() &&
+            session.syncWrites == 2 && session.syncClear && session.syncCalls == calls,
+            "busy Match activation invoked or submitted a profile");
+        std::cout << "[OK] controlled busy Match refused: writes=2 clear=true calls=" << calls << std::endl;
+        holdSyncRead = false;
+        releaseSyncRead.release();
+        // No event processing here: the read may finish, but only the GUI
+        // controller poll can publish ready before the intended activation.
+    }
+    awaitSyncReady(false);
+    if (syncProfileBusy)
+        require(session.syncWrites == 2 && session.syncCalls == 2 && session.syncClear,
+            "profile completion queued or replayed a busy activation");
     key(*window,Qt::Key_Return); require(session.syncWrites==3 && !session.syncClear,"Match Nova did not submit the explicit profile");
+    if (syncProfileBusy)
+        std::cout << "[OK] controlled ready Match submitted once: writes=3 clear=false calls=" << session.syncCalls
+            << " remainingTicks=" << syncReadyBudget << std::endl;
     readySync(); key(*window,Qt::Key_Down); key(*window,Qt::Key_Down);
+    awaitSyncReady(true);
     session.tuning["canSyncProfile"]=false; emit session.hudChanged(); settle();
     key(*window,Qt::Key_Return); require(session.syncWrites==3,"revoked authority allowed profile mutation");
     screenshot("polaris-sync-unavailable-960-large.png");

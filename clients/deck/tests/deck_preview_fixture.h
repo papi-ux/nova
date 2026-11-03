@@ -52,12 +52,13 @@ public:
         emit hudChanged(); return true;
     }
     int bitrateWrites = 0, requestedBitrate = 0;
-    int syncWrites = 0;
+    int syncWrites = 0, syncCalls = 0;
     QString syncHost, syncDisplay;
     int syncBitrate = 0;
     bool syncClear = false;
     QVariantMap syncReview;
     Q_INVOKABLE bool setSyncProfile(const QString& host, const QString& display, int kbps, bool clear, const QVariantMap& review) {
+        ++syncCalls;
         if (!tuning.value("canSyncProfile").toBool() || tuning.value("syncBusy").toBool() ||
             (!clear && !tuning.value("canSetBitrate").toBool())) return false;
         ++syncWrites; syncHost = host; syncDisplay = display; syncBitrate = kbps; syncClear = clear; syncReview = review;

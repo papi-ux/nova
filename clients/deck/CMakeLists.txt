@@ -1249,6 +1249,11 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             set_tests_properties(nova_deck_native_preview_qml_test PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
                 TIMEOUT 90)
+            add_test(NAME nova_deck_sync_profile_busy_qml_test
+                COMMAND nova_deck_native_preview_qml_test --sync-profile-busy)
+            set_tests_properties(nova_deck_sync_profile_busy_qml_test PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+                TIMEOUT 90)
             add_executable(nova_deck_launch_artwork_qml_test tests/deck_launch_artwork_qml_test.cpp tests/deck_preview_fixture.h)
             target_link_libraries(nova_deck_launch_artwork_qml_test PRIVATE nova_deck_core Qt6::QuickControls2)
             target_compile_definitions(nova_deck_launch_artwork_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
