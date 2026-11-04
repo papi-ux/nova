@@ -76,6 +76,22 @@ copy, before its optional PyroWave patch. `tools/test_native_packet_reception.py
 patched core with ASan/UBSan and runs the collector, serializer, parser and full loopback
 sessions in both video encryption modes; the Deck registers the same fixtures in CTest.
 
+## Reception transport
+
+Patch 0012 keeps stock ENet's unreliable packet throttle from silently discarding 0011's
+reports. Only for a connection whose negotiated observer actually started timing, the control
+stream sets the control peer's throttle deceleration to zero with
+`enet_peer_throttle_configure()` and restores a throttle that the START acknowledgements
+already lowered. If the extension retires mid-stream, it restores the previous deceleration.
+This is peer-wide: other unreliable control traffic and the reliable window are no longer
+RTT-throttled, and ENet tells the host. Reports stay unreliable and unsequenced, one per tick.
+Bounded rows log the throttle state for an active connection. Android applies it with the
+series; the Deck applies it after 0011 in the same build-private copy. The
+[wire contract](../../../../../../docs/native-packet-reception-feedback.md#enet-unreliable-throttle-patch-0012)
+lists the exact gate, lifecycle and side effects. `tools/test_native_packet_reception.py` drives
+the production control stream and ENet through a delaying loopback relay against a stock
+control.
+
 See [the beta.2 upstream intake](../../../../../../docs/moonlight-upstream-beta2.md) for other changes
 that require separate review. This backport does not move the core pin or timing ABI and does not
 claim an unverified mapping to the CVEs listed in the PC release.

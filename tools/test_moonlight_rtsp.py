@@ -243,7 +243,8 @@ class NativePatchBootstrapTest(unittest.TestCase):
         self.assertIn("sessionToken == NULL", source)
         self.assertIn("PacketReceptionNoteHostOffer", source)
         self.assertTrue((self.source / "src/PacketReception.c").is_file())
-        self.assertEqual(self.git(self.source, "rev-list", "--count", self.pin + "..HEAD").stdout.strip(), "11")
+        self.assertIn("startReceptionTransport", (self.source / "src/ControlStream.c").read_text())
+        self.assertEqual(self.git(self.source, "rev-list", "--count", self.pin + "..HEAD").stdout.strip(), "12")
 
     def test_fresh_and_repeat_bootstrap(self):
         self.bootstrap()
@@ -263,8 +264,16 @@ class NativePatchBootstrapTest(unittest.TestCase):
         self.assert_patched()
         self.git(self.source, "merge-base", "--is-ancestor", old, "HEAD")
 
-    def test_upgrade_from_ten_patches_adds_only_the_reception_patch(self):
+    def test_upgrade_from_ten_patches_adds_only_the_reception_patches(self):
         patches = sorted(self.patches.glob("*.patch"))[:10]
+        self.git(self.source, "am", *map(str, patches))
+        old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
+        self.bootstrap()
+        self.assert_patched()
+        self.assertEqual(self.git(self.source, "rev-parse", "HEAD~2").stdout.strip(), old)
+
+    def test_upgrade_from_eleven_patches_adds_only_the_transport_patch(self):
+        patches = sorted(self.patches.glob("*.patch"))[:11]
         self.git(self.source, "am", *map(str, patches))
         old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
         self.bootstrap()

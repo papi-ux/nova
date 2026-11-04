@@ -22,12 +22,14 @@ function(nova_deck_prepare_rtsp source destination)
     set(git_patch_command "${CMAKE_COMMAND}" -E env
         --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE
         "GIT_CEILING_DIRECTORIES=${patch_ceiling}" "${GIT_EXECUTABLE}" apply --whitespace=error)
-    # The RTSP hardening pair, then the packet reception observer, which the
-    # Deck shares with Android. The optional PyroWave patch applies afterward.
+    # The RTSP hardening pair, then the packet reception observer and its
+    # transport fix, which the Deck shares with Android. The optional PyroWave
+    # patch applies afterward.
     set(rtsp_patches
         0009-upstream-harden-RTSP-responses-and-Session.patch
         0010-clean-Session-errors-and-map-Windows-size-error.patch
-        0011-feat-video-report-bounded-native-packet-reception.patch)
+        0011-feat-video-report-bounded-native-packet-reception.patch
+        0012-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch)
     # Later patches change earlier context. Unwind verified patches in reverse
     # order on this generated copy, then apply the complete chain in order.
     set(reverse_patches ${rtsp_patches})

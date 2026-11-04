@@ -55,4 +55,5 @@ grep -q MAX_RTSP_RESPONSE_SIZE src/RtspConnection.c
 grep -q 'sessionToken == NULL' src/RtspConnection.c
 grep -q PACKET_RECEPTION_PTYPE src/PacketReception.h
 grep -q RtpvAddObservedPacket src/VideoStream.c
+grep -q startReceptionTransport src/ControlStream.c
 echo "Nova's protocol, RTSP hardening and packet reception patches are applied."
