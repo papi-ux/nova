@@ -1,10 +1,10 @@
 {
   "upstream_repository": "papi-ux/polaris",
-  "upstream_commit": "17fbd438326bd4acd6d399b6c4693a4b5c1cf90b",
+  "upstream_commit": "07e68ae6292f61f57830f0bdfbad139d3e714ebe",
   "upstream_schema": "docs/nova-contract.json",
-  "schema_sha256": "5635f5c429375bc0eba456bd444e59012389a36c3344196c277150eae0dad1e4",
+  "schema_sha256": "ff38a357ec532c67936b8b7de9c976c745018026c19071c1cb7aa7b532c3f85e",
   "upstream_generator": "scripts/generate-polaris-contract.py",
   "generator_sha256": "9f790644cbcae30dc10ab33956c6c508cec94f089cade9d406f39350d945186d",
   "nova_driver": "tools/generate-nova-polaris-contract.py",
-  "scope": "Batch C: all declared Nova contract consumers; explicit re-vendor only"
+  "scope": "Explicit re-vendor for session_vrr and session_vrr_host_pacing readers (Nova #241); all declared consumers preserved"
 }

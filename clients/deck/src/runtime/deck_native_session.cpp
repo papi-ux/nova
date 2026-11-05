@@ -864,7 +864,7 @@ void DeckNativeSessionController::poll() {
             }
             nextHud = hudMetrics_.sample(*hudSample);
             newMomentSample = true;
-            appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
+
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
         }
@@ -872,6 +872,10 @@ void DeckNativeSessionController::poll() {
     const auto hostView = !finished && !shared_->cancelled && next.value("phase") == "active"
         ? hostHud : DeckHudHostReducer::unavailable();
     for (auto it = hostView.cbegin(); it != hostView.cend(); ++it) nextHud.insert(it.key(), it.value());
+    if (nextHud.value("sourceTimeRequested") != "off" && nextHud.value("sourceTimeFallback") == "none" &&
+        hostView.value("hostSourceTimeFallback") != "none")
+        nextHud["sourceTimeFallback"] = hostView.value("hostSourceTimeFallback", "host_status_missing");
+    if (newMomentSample) appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
     if (nextHud.value("hostFresh").toBool() && nextHud.value("bitrateUnitsMode") == "request" &&
         nextHud.value("suggestedBitrateKbps").toInt() == 0 && hudSample && hudSample->codec == "PyroWave") {
         nextHud["suggestedBitrateKbps"] = std::min(nextHud.value("maximumBitrateKbps",300000).toInt(),

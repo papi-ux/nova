@@ -475,6 +475,13 @@ int main(int argc, char** argv) {
     check(settings.framePacingMode()=="balanced" && DeckPlaySettings(config.filePath("play.ini")).framePacingMode()=="balanced", "Balanced did not persist");
     focused("settings-row-pacing"); click("settings-reset-pacing");
     check(settings.framePacingMode()=="latency" && settings.load("host","game")==override && reads==0 && writes==0, "pacing reset crossed scope");
+    query("host frame timing"); key(Qt::Key_Down); focused("settings-row-source_time_pacing"); key(Qt::Key_Return);
+    focused("settings-choice-0"); key(Qt::Key_Down); controllerBack();
+    check(settings.sourceTimePacing()=="off", "source timing navigation saved a choice");
+    focused("settings-row-source_time_pacing"); key(Qt::Key_Return); key(Qt::Key_Down); key(Qt::Key_Return);
+    check(settings.sourceTimePacing()=="auto" && DeckPlaySettings(config.filePath("play.ini")).sourceTimePacing()=="auto", "source timing choice did not persist");
+    focused("settings-row-source_time_pacing"); click("settings-reset-source_time_pacing");
+    check(settings.sourceTimePacing()=="off" && reads==0 && writes==0, "source timing reset contacted host or changed default");
     // Global search ignores the selected category; whitespace and multiple words work.
     checkpoint("audio-search-controls");
     query("  audio   channels  "); key(Qt::Key_Down); focused("settings-row-channels");

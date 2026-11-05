@@ -468,12 +468,63 @@ std::optional<DeckPolarisGamesPage> parseGamesPage(const std::string_view json) 
     return page;
 }
 
+std::optional<DeckSessionVrrHostPacing> parseSessionVrrHostPacing(const QJsonObject& o) {
+    const auto fresh = o.value(v1::session_vrr_host_pacing::fresh);
+    const auto state = o.value(v1::session_vrr_host_pacing::state);
+    if (!fresh.isBool() || !state.isString() || state.toString().isEmpty() || state.toString().size() > 80) return {};
+    return DeckSessionVrrHostPacing{fresh.toBool(), state.toString()};
+}
+std::optional<DeckSessionVrr> parseSessionVrr(const QJsonObject& o) {
+    const auto schema = o.value(v1::session_vrr::schema);
+    const auto generation = o.value(v1::session_vrr::session_generation);
+    const auto requested = o.value(v1::session_vrr::requested);
+    const auto requestedFrom = o.value(v1::session_vrr::requested_from);
+    const auto permission = o.value(v1::session_vrr::host_permission);
+    const auto effective = o.value(v1::session_vrr::effective);
+    const auto mode = o.value(v1::session_vrr::pacing_mode);
+    const auto capture = o.value(v1::session_vrr::capture_pacing);
+    const auto fallback = o.value(v1::session_vrr::fallback_reason);
+    const auto host = o.value(v1::session_vrr::host_pacing);
+    const auto token = [](const QJsonValue& value) {
+        if (!value.isString()) return false;
+        const auto text = value.toString();
+        return !text.isEmpty() && text.size() <= 80 && std::all_of(text.cbegin(), text.cend(), [](QChar c) {
+            return (c >= QChar('a') && c <= QChar('z')) || (c >= QChar('0') && c <= QChar('9')) || c == QChar('_');
+        });
+    };
+    const auto gen = generation.toDouble(-1);
+    if (!schema.isDouble() || schema.toDouble() != 1 || !generation.isDouble() ||
+        !std::isfinite(gen) || gen < 0 || gen > 9007199254740991.0 || std::floor(gen) != gen ||
+        !token(requested) || !token(requestedFrom) || !permission.isBool() || !effective.isBool() ||
+        !token(mode) || !token(capture) || (!fallback.isNull() && !token(fallback))) return {};
+    DeckSessionVrr record;
+    record.sessionGeneration = qint64(gen); record.requested = requested.toString(); record.requestedFrom = requestedFrom.toString();
+    record.hostPermission = permission.toBool(); record.effective = effective.toBool();
+    record.pacingMode = mode.toString(); record.capturePacing = capture.toString();
+    if (!fallback.isNull()) record.fallbackReason = fallback.toString();
+    if (!host.isUndefined()) {
+        if (!host.isObject()) return {};
+        record.hostPacing = parseSessionVrrHostPacing(host.toObject());
+        if (!record.hostPacing) return {};
+    }
+    return record;
+}
+DeckSessionVrrReading readSessionVrr(const QJsonValue& value) {
+    using Kind = DeckSessionVrrReading::Kind;
+    if (value.isUndefined()) return {};
+    if (value.isNull()) return {Kind::Null, {}};
+    if (!value.isObject()) return {Kind::Malformed, {}};
+    auto record = parseSessionVrr(value.toObject());
+    return {record ? Kind::Present : Kind::Malformed, std::move(record)};
+}
+
 std::optional<DeckPolarisSessionStatus> parseSessionStatus(const std::string_view json) {
     const auto object = parseObject(json);
     if (!object) {
         return std::nullopt;
     }
     DeckPolarisSessionStatus status;
+    status.vrr = readSessionVrr(object->value("vrr"));
     status.state = toStd(object->value(QStringLiteral("state")).toString(QStringLiteral("unknown")));
     status.streamingActive = object->value(QStringLiteral("streaming_active")).toBool(false);
     status.game = toStd(object->value(QStringLiteral("game")).toString());

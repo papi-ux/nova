@@ -211,3 +211,24 @@ create a source-paced state. NovaHUD shows all three for an enabled request (als
 OFF in Debug), independently of the nominal display-mode chip. The existing
 opt-in qualification trace includes one bounded allowlisted `source_time` object
 per sample with these three facts and the versioned delivery limits.
+
+## Host status intake
+
+Deck reads `session_vrr` and `session_vrr_host_pacing` exactly as declared by
+Polaris `07e68ae6292f61f57830f0bdfbad139d3e714ebe`. Absent, JSON null, malformed
+and present records remain distinct backend states. Optional host-pacing absence
+never implies a receipt; malformed/null host-pacing rejects the record. Host proof
+requires matching response/session generations, permission, effective=true, null
+fallback, source_time mode and a fresh/source_time host-pacing receipt. Observer
+receipt age greater than two seconds invalidates host proof independently of the
+legacy telemetry freshness window. Missing/unreadable proof is `host_status_missing`
+and a mismatched generation/expired receipt is `host_status_stale`.
+
+Fixed-refresh client source-target delivery remains `source_time_fixed` when the
+local mapper is active even if host source-pacing proof is missing/stale; in that
+case the separate fallback fact records the host gap. Local safety fallbacks take
+precedence. Host status alone never promotes the client to source_time_fixed or
+source_time_vrr. Nominal Hz is separate and no adaptive-refresh request is sent.
+The canonical schema/generator are explicitly re-vendored byte-for-byte from the
+pin and outputs regenerated with the Nova driver, including shared Kotlin names;
+Android application source remains untouched.
