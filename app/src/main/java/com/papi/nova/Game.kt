@@ -371,6 +371,9 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 // #242 (W26 F5): a state change is reported at once, and an unchanged one again every five seconds
 // and at the end, so the frame window and counts the reducer adds are not frozen at the first report.
 private val clientPresentationCadence = com.papi.nova.runtime.PresentationReportCadence()
+// #242 (W34 D3): one presentation report on the wire at a time, and the stream's last one sent once,
+// after any report in flight, from a bounded thread that outlives this Activity's lifecycle scope.
+private val clientPresentationReports = com.papi.nova.runtime.PresentationReportSender(clientPresentationCadence)
 @Volatile private var lastPolarisDeviceCapabilities:JSONObject? = null
 @Volatile private var lastPolarisAppliedStreamSettings:JSONObject? = null
 @Volatile private var lastClientProfileProvenance:com.papi.nova.manager.ClientProfileProvenance =
@@ -397,7 +400,6 @@ private var mirrorDesktop:Boolean = false
 private var streamMode:String = ""
 private var encoderBackend:String = ""
 private var forcePrivateAfterSteamClose:Boolean = false
-private var clientPresentationReportInFlight:AtomicBoolean = AtomicBoolean(false)
 private var cursorVisibilitySyncLock:Any = Any()
 private var pendingHostCursorVisible:Boolean = false
 private var hasPendingCursorVisibilitySync:Boolean = false
@@ -5840,15 +5842,9 @@ novaCommandCenterChanges.clear()
 lastCommandCenterMedia = null
 runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
-// #242 (W26 F5): the stream's last frame window and counts, once, as it ends. Read before the
-// decoder stops; the renderer's counts outlive its codec.
-val endPresentationStatus = lastPolarisSessionStatus
-if (endPresentationStatus != null)
-{
-runtimeTasks.launchIo("NovaClientPresentationEnd") {
-reportClientPresentationIfNeeded(endPresentationStatus, atEnd = true)
-}
-}
+// #242 (W26 F5, W34 D3): the stream's last frame window and counts, once, as it ends. Captured here,
+// before the decoder stops; only the send waits, after any report in flight, on its own thread.
+endClientPresentationReport(lastPolarisSessionStatus)
 stopPolarisLiveSessionStatusRefresh()
 doctorTelemetryUploadGate.invalidate()
 frameSubmissionEpochBinding.retire()
@@ -7084,10 +7080,26 @@ internal fun presentationTruth(status:com.papi.nova.api.PolarisSessionStatus?, h
         report = decoderRenderer?.sourceTimeReport()
     )
 
+/** What reportClientSettings sends, captured at one moment (#242, W34 D3). */
+private class ClientSettingsSnapshot(
+val client:com.papi.nova.api.PolarisApiClient,
+val manualProfileOverride:Boolean,
+val deviceCapabilities:JSONObject?,
+val runtime:JSONObject?,
+val appliedStreamSettings:JSONObject?,
+val clientPresentation:JSONObject?
+)
+
 private fun reportPolarisClientSettingsSnapshot(clientPresentation:JSONObject?):Boolean {
-if ((novaApiClient == null || !novaHasClientSettings()))
+val snapshot = captureClientSettingsSnapshot(clientPresentation) ?: return false
+return sendClientSettingsSnapshot(snapshot)
+}
+
+private fun captureClientSettingsSnapshot(clientPresentation:JSONObject?):ClientSettingsSnapshot? {
+val client = novaApiClient
+if ((client == null || !novaHasClientSettings()))
 {
-return false
+return null
 }
 
 var targetRefreshRateHz:Float = 0f
@@ -7115,14 +7127,18 @@ presentationTruth(lastPolarisSessionStatus, true,
     if (lastClientPresentationRefreshRate > 0f) lastClientPresentationRefreshRate else desiredRefreshRate)
 )
 
-var manualProfileOverride:Boolean = isManualProfileOverride()
-var syncStatus:com.papi.nova.api.PolarisSessionStatus.SyncStatus? = novaApiClient!!.reportClientSettings(
+return ClientSettingsSnapshot(client, isManualProfileOverride(), lastPolarisDeviceCapabilities, runtime,
+lastPolarisAppliedStreamSettings, clientPresentation)
+}
+
+private fun sendClientSettingsSnapshot(snapshot:ClientSettingsSnapshot):Boolean {
+var syncStatus:com.papi.nova.api.PolarisSessionStatus.SyncStatus? = snapshot.client.reportClientSettings(
 com.papi.nova.manager.StreamSyncManager.SYNC_MODE_AUTO_SAFE,
-manualProfileOverride,
-lastPolarisDeviceCapabilities,
-runtime,
-lastPolarisAppliedStreamSettings,
-clientPresentation
+snapshot.manualProfileOverride,
+snapshot.deviceCapabilities,
+snapshot.runtime,
+snapshot.appliedStreamSettings,
+snapshot.clientPresentation
 )
 if (syncStatus != null)
 {
@@ -7183,12 +7199,49 @@ Toast.makeText(this, warning, Toast.LENGTH_LONG).show()
 }
 }
 
-// One overload per arity, so the one-argument status-poll call keeps its JVM signature.
-@JvmOverloads
-private fun reportClientPresentationIfNeeded(status:com.papi.nova.api.PolarisSessionStatus?, atEnd:Boolean = false) {
+/** One client presentation report as it stands now: its dedupe key and its client_presentation object. */
+private class ClientPresentationReport(val key:String, val presentation:JSONObject, val status:String, val appliedRefreshRate:Float)
+
+private fun reportClientPresentationIfNeeded(status:com.papi.nova.api.PolarisSessionStatus?) {
+val report = clientPresentationReport(status) ?: return
+clientPresentationReports.report(report.key, android.os.SystemClock.elapsedRealtime()) { why ->
+clientPresentationSent(report, why, reportPolarisClientSettingsSnapshot(report.presentation))
+}
+}
+
+/**
+ * #242 (W34 D3): the stream's last report. No ordinary report goes out after this call. Its whole
+ * payload, client_presentation and the runtime snapshot with the renderer's final window and counts,
+ * is captured here on the caller's thread, so stopConnection() has it before the decoder stops. Only
+ * the send is left to a bounded thread of its own, after any report in flight. Returns that thread,
+ * or null when there is nothing to send.
+ */
+private fun endClientPresentationReport(status:com.papi.nova.api.PolarisSessionStatus?):Thread? {
+clientPresentationReports.endRequested()
+val report = clientPresentationReport(status) ?: return null
+val snapshot = captureClientSettingsSnapshot(report.presentation) ?: return null
+return clientPresentationReports.endAsync(report.key, android.os.SystemClock.elapsedRealtime()) { why ->
+clientPresentationSent(report, why, sendClientSettingsSnapshot(snapshot))
+}
+}
+
+private fun clientPresentationSent(report:ClientPresentationReport, why:com.papi.nova.runtime.PresentationReportCadence.Why, success:Boolean):Boolean {
+if (success)
+{
+com.papi.nova.LimeLog.info(("Nova: Client presentation synced (" + why.name.lowercase() + ") → " +
+report.status + " @ " + report.appliedRefreshRate + " Hz"))
+}
+else
+{
+com.papi.nova.LimeLog.warning("Nova: Client presentation sync failed")
+}
+return success
+}
+
+private fun clientPresentationReport(status:com.papi.nova.api.PolarisSessionStatus?):ClientPresentationReport? {
 if (status == null || !status!!.isStreaming || novaApiClient == null || !novaHasClientSettings())
 {
-return
+return null
 }
 updateAppliedStreamSettingsFromStatus(status)
 
@@ -7269,15 +7322,6 @@ presentationStatus + "|" +
 framePacingState + "|" +
 status!!.tuning.adaptiveTargetBitrateKbps + "|" +
 status!!.encoder.bitrateKbps)
-val reportNowMs:Long = android.os.SystemClock.elapsedRealtime()
-val reportWhy = clientPresentationCadence.due(reportKey!!, reportNowMs, ending = atEnd)
-if ((reportWhy == null || !clientPresentationReportInFlight.compareAndSet(false, true)))
-{
-return
-}
-
-try
-{
 var presentation:JSONObject = JSONObject()
 try
 {
@@ -7296,24 +7340,7 @@ presentationFacts.renderFps?.let { presentation.put("render_fps", it) }
 presentationFacts.droppedFrameRatio?.let { presentation.put("dropped_frame_ratio", it) }
 }
 catch (ignored:Exception) {}
-
-var success:Boolean = reportPolarisClientSettingsSnapshot(presentation)
-if (success)
-{
-clientPresentationCadence.sent(reportKey!!, reportNowMs)
-com.papi.nova.LimeLog.info(("Nova: Client presentation synced (" + reportWhy.name.lowercase() + ") → " +
-presentationStatus + " @ " + appliedRefreshRate + " Hz"))
-}
-else
-{
-com.papi.nova.LimeLog.warning("Nova: Client presentation sync failed")
-}
-}
-
-finally
-{
-clientPresentationReportInFlight.set(false)
-}
+return ClientPresentationReport(reportKey!!, presentation, presentationStatus, appliedRefreshRate)
 }
 
 private fun isWholeRefreshMultiple(appliedRefreshRate:Float, targetRefreshRate:Double):Boolean {
