@@ -959,6 +959,9 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
         install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE.txt"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../licenses/Nonary-moonlight-qt-LICENSE.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../docs/third-party/source-time-pacing.md"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/source-time-pacing)
         install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/LICENSE.txt"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/moonlight-common-c)
         install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/enet/LICENSE"
