@@ -11,9 +11,10 @@ package com.papi.nova.binding.video.sourcetime
  *   time (the arrival fallback) with a named reason when it has none. It keeps the effective state
  *   the status reports.
  * - [onVsync] (vsync thread) measures the display's lead from the refreshes it offers and asks the
- *   scheduler what to release, one release in flight at a time (W26 F6): the next waits for the
- *   previous refresh's deadline or for [onRendered], whichever comes first. The render callback
- *   only ever ends that wait early; it never moves a target, a delay or a reserve.
+ *   scheduler what to release, with no more releases outstanding than the display's own pipeline
+ *   depth plus one (W26 F6, W34 D1). A release is outstanding until its refresh has passed or
+ *   [onRendered] reports it, whichever comes first. The render callback only ever closes a release
+ *   early; it never moves a target, a delay or a reserve.
  * - Both first check the fence (W26 F3): the mapper epoch and the renderer's surface and decoder
  *   generations. When it has moved, every queued frame aimed under the old one is handed back to
  *   drop, a source-paced state stops claiming so, the delay is learned again for a new surface, and

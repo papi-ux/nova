@@ -17,12 +17,19 @@ package com.papi.nova.binding.video.sourcetime
  *   one silently. A slot is never used twice.
  * - A frame already past its target is shown once at the earliest slot, its lateness counted, and
  *   nothing re-anchors on it. The next frame keeps its own slot.
- * - At most one release is in flight (W26 F6; design C.3 "plus one in-flight release"). A release
- *   is for a future refresh, and MediaCodec keeps the buffer until that refresh has been taken. So
- *   the next release waits until the previous one's slot deadline has passed (the compositor has
- *   latched it or let it go) or the codec reported it rendered, whichever comes first. Until then
- *   the frames keep waiting in the bounded queue, and a frame that falls behind meanwhile takes the
- *   late-frame rule when the gate opens.
+ * - Every release stays outstanding until there is evidence it is done (W26 F6, review W34 D1): its
+ *   refresh has passed, or the codec reported it (or a later frame) rendered, whichever comes
+ *   first. A release is for a future refresh and MediaCodec keeps the buffer until then; absent a
+ *   matched completion, the scheduled presentation time is the conservative local boundary. A
+ *   queueing deadline passing is not such evidence, and closes nothing.
+ * - No more releases are outstanding than the display's own pipeline holds plus one: at most
+ *   L + 1, where L ([pipelineDepth]) is the refreshes from now to the earliest reachable one,
+ *   1 when unknown and at most [MAX_PIPELINE_DEPTH]. Releasing every frame for the earliest
+ *   reachable refresh, as the legacy path effectively does, keeps L buffers in the display's
+ *   pipeline; the one more allows a release one refresh further out. So this costs no frame where
+ *   the legacy path keeps up, and a malformed or stalled timeline can never hold more than
+ *   [MAX_PIPELINE_DEPTH] + 1. A vsync over the bound releases nothing; the frames keep waiting in
+ *   the bounded queue, and one that falls behind meanwhile takes the late-frame rule.
  * - At most [capacity] frames wait (1 for the latency profile, 2 for balanced). A frame that would
  *   exceed that drops the oldest, as the legacy queue did. No synthetic repeat is ever made.
  * - Every frame carries the [Fence] it was aimed under: the mapper epoch and the surface and decoder
@@ -66,7 +73,7 @@ class SourceTimeScheduler(private val capacity: Int) {
         val maxLatenessNs: Long,
         /** Waiting frames dropped because the fence they were aimed under moved. */
         val staleDropped: Long = 0,
-        /** Vsyncs with frames waiting that released nothing because a release was in flight. */
+        /** Vsyncs with frames waiting that released nothing because L + 1 releases were outstanding. */
         val inFlightHeld: Long = 0,
     )
 
@@ -83,10 +90,11 @@ class SourceTimeScheduler(private val capacity: Int) {
     private var currentFence = NO_FENCE
     private var inFlightHeld = 0L
 
-    // The release in flight: its codec timestamp, the refresh it is for and that refresh's deadline.
-    private var inFlightPtsUs = NONE
-    private var inFlightSlotNs = NONE
-    private var inFlightDeadlineNs = NONE
+    // Every release not yet known to be done, oldest first: its codec timestamp and its refresh.
+    // Both only increase from one release to the next. The gate keeps it to MAX_PIPELINE_DEPTH + 1.
+    private val outstandingPtsUs = LongArray(MAX_PIPELINE_DEPTH + 1)
+    private val outstandingSlotNs = LongArray(MAX_PIPELINE_DEPTH + 1)
+    private var outstanding = 0
 
     // What the last release changed, so one that never reached the codec can be taken back.
     private var lastReleasePtsUs = NONE
@@ -133,38 +141,45 @@ class SourceTimeScheduler(private val capacity: Int) {
         }
         // Display order holds within one mapping; the old mapping's targets no longer bound it.
         lastAdmittedTargetNs = queue.lastOrNull()?.targetNs ?: Long.MIN_VALUE
-        // A release for another surface or a flushed codec no longer holds this one back. A new
-        // epoch on the same surface does: that buffer is still waiting for its refresh.
+        // Releases for another surface or a flushed codec no longer hold this one back. A new
+        // epoch on the same surface does: those buffers are still waiting for their refreshes.
         if (previous.surfaceGeneration != current.surfaceGeneration || previous.decoderGeneration != current.decoderGeneration) {
-            forgetInFlight()
+            forgetOutstanding()
         }
         return stale
     }
 
-    /** The codec reported a frame rendered: the release in flight (or a later one) is done. */
+    /** The codec reported a frame rendered: that release, and every earlier one, is done. */
     @Synchronized
     fun onRendered(ptsUs: Long) {
         // Frames render in release order and codec timestamps only increase.
-        if (inFlightPtsUs != NONE && ptsUs >= inFlightPtsUs) forgetInFlight()
+        var done = 0
+        while (done < outstanding && outstandingPtsUs[done] <= ptsUs) done++
+        closeOldest(done)
     }
 
-    /** The refresh the release in flight is for, or null when none is. */
+    /** The refresh the oldest outstanding release is for, or null when none is outstanding. */
     @get:Synchronized
     val inFlightSlot: Long?
-        get() = inFlightSlotNs.takeIf { it != NONE }
+        get() = if (outstanding > 0) outstandingSlotNs[0] else null
 
     /**
      * One vsync at [nowNs]. [slotsNs] are the refreshes still reachable, ascending, each with the
      * deadline in [deadlinesNs] by which a buffer for it must be queued; [vsyncPeriodNs] the display
      * period. Returns what to release (if anything) and what it supersedes.
+     *
+     * A deadline says when a buffer must be queued, not that a queued one is done (W34 D1), so no
+     * deadline closes an outstanding release; the renderer still supplies them with every slot.
      */
     @Synchronized
     fun onVsync(nowNs: Long, slotsNs: LongArray, deadlinesNs: LongArray, vsyncPeriodNs: Long): Decision {
         require(deadlinesNs.size == slotsNs.size) { "one deadline per slot" }
-        // The release in flight is due once its refresh's deadline has passed.
-        if (inFlightDeadlineNs != NONE && nowNs >= inFlightDeadlineNs) forgetInFlight()
+        // Releases whose refresh has passed are done. Slots only increase, so they are the oldest.
+        var passed = 0
+        while (passed < outstanding && nowNs >= outstandingSlotNs[passed] + PRESENTED_TOLERANCE_NS) passed++
+        closeOldest(passed)
         if (queue.isEmpty() || slotsNs.isEmpty() || vsyncPeriodNs <= 0) return NOTHING
-        if (inFlightSlotNs != NONE) {
+        if (outstanding >= pipelineDepth(nowNs, slotsNs[0], vsyncPeriodNs) + 1) {
             inFlightHeld++
             return NOTHING
         }
@@ -195,9 +210,9 @@ class SourceTimeScheduler(private val capacity: Int) {
         lastReleasePtsUs = shown.ptsUs
         slotBeforeLastRelease = lastReleasedSlotNs
         lastReleasedSlotNs = slot
-        inFlightPtsUs = shown.ptsUs
-        inFlightSlotNs = slot
-        inFlightDeadlineNs = deadlinesNs[slotsNs.indexOf(slot)]
+        outstandingPtsUs[outstanding] = shown.ptsUs
+        outstandingSlotNs[outstanding] = slot
+        outstanding++
         return Decision(shown, slot, due)
     }
 
@@ -215,13 +230,18 @@ class SourceTimeScheduler(private val capacity: Int) {
         released--
         if (lastReleaseLate) releasedLate--
         lastReleasedSlotNs = slotBeforeLastRelease
-        if (inFlightPtsUs == entry.ptsUs) forgetInFlight()
+        if (outstanding > 0 && outstandingPtsUs[outstanding - 1] == entry.ptsUs) outstanding--
     }
 
-    private fun forgetInFlight() {
-        inFlightPtsUs = NONE
-        inFlightSlotNs = NONE
-        inFlightDeadlineNs = NONE
+    private fun closeOldest(count: Int) {
+        if (count <= 0) return
+        System.arraycopy(outstandingPtsUs, count, outstandingPtsUs, 0, outstanding - count)
+        System.arraycopy(outstandingSlotNs, count, outstandingSlotNs, 0, outstanding - count)
+        outstanding -= count
+    }
+
+    private fun forgetOutstanding() {
+        outstanding = 0
     }
 
     /** Forget every waiting frame and hand them back (to drop, or to abandon after a flush). */
@@ -232,8 +252,8 @@ class SourceTimeScheduler(private val capacity: Int) {
         lastAdmittedTargetNs = Long.MIN_VALUE
         lastReleasedSlotNs = Long.MIN_VALUE
         lastReleasePtsUs = NONE
-        // A flushed or stopping codec returns every buffer, the one in flight included.
-        forgetInFlight()
+        // A flushed or stopping codec returns every buffer, those outstanding included.
+        forgetOutstanding()
         return waiting
     }
 
@@ -249,5 +269,35 @@ class SourceTimeScheduler(private val capacity: Int) {
 
         private val NOTHING = Decision(null, 0L, emptyList())
         private const val NONE = Long.MIN_VALUE
+
+        /**
+         * The deepest display pipeline the gate trusts (W34 D1): at most this + 1 releases are ever
+         * outstanding, whatever a malformed or stalled frame timeline offers. Four refreshes cover a
+         * 25 ms lead up to 144 Hz.
+         */
+        const val MAX_PIPELINE_DEPTH = 4
+
+        /**
+         * How far past its refresh a release is done when no render callback said so: none. The
+         * slot itself is the boundary (W34 D1). A positive tolerance would count the refresh just
+         * presented as outstanding on callbacks that run within it, which the L + 1 bound, measured
+         * from now, would then hold against an ordinary release one refresh out. The declared safety
+         * timeout for a missing callback, the slot plus two refreshes, is therefore never reached and
+         * needs no timer of its own.
+         */
+        const val PRESENTED_TOLERANCE_NS = 0L
+
+        /**
+         * The display's own pipeline depth L at [nowNs]: the refreshes from now to [earliestSlotNs],
+         * the earliest still reachable, rounded up. 1 when that is unknown (no period, or a slot not
+         * ahead of now), and at most [MAX_PIPELINE_DEPTH].
+         */
+        @JvmStatic
+        fun pipelineDepth(nowNs: Long, earliestSlotNs: Long, periodNs: Long): Int {
+            if (periodNs <= 0 || earliestSlotNs <= nowNs) return 1
+            val lead = earliestSlotNs - nowNs
+            if (lead > MAX_PIPELINE_DEPTH * periodNs) return MAX_PIPELINE_DEPTH
+            return ((lead + periodNs - 1) / periodNs).toInt().coerceIn(1, MAX_PIPELINE_DEPTH)
+        }
     }
 }

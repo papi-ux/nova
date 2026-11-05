@@ -124,9 +124,9 @@ class SourceTimeRendererSourceGuardTest {
     }
 
     @Test
-    fun oneReleaseIsInFlightAndOnlyTheRenderCallbackOrTheDeadlineEndsIt() {
-        // W26 F6: every reachable refresh comes with its deadline, on both vsync sources, and the
-        // render callback only tells the scheduler a release is done.
+    fun everyRefreshComesWithItsDeadlineAndTheRenderCallbackOnlyClosesARelease() {
+        // W26 F6 / W34 D1: every reachable refresh comes with its deadline, on both vsync sources,
+        // and the render callback only tells the scheduler a release (and every earlier one) is done.
         assertTrue(renderer.contains("val deadlines = LongArray(slots.size) { slots[it] - cachedPresentationDeadlineNs }"))
         val timeline = File("src/main/java/com/papi/nova/binding/video/SourceTimeFrameTimelineVsync.kt").readText()
         assertTrue(timeline.contains("val deadlines = reachable.map { it.deadlineNanos }.toLongArray()"))

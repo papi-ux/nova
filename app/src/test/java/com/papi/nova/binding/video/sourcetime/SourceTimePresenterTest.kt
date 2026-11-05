@@ -67,6 +67,8 @@ class SourceTimePresenterTest {
         capacity: Int = 2,
         sourceTimed: Boolean = true,
         decodeUs: Long = 3_000,
+        /** After every vsync: when it ran, the refreshes it offered and every refresh released for so far. */
+        observe: ((nowNs: Long, slotsNs: LongArray, released: Collection<Long>) -> Unit)? = null,
     ): Shown {
         val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, capacity, 11_111)
         val presenter = SourceTimePresenter(capacity, mapper)
@@ -95,6 +97,7 @@ class SourceTimePresenterTest {
             }
             val decision = presenter.onVsync(now, display.slotsAt(k), display.deadlinesAt(k), display.periodNs, 1, 1)
             decision.release?.let { shown[it.index] = decision.releaseAtNs }
+            observe?.invoke(now, display.slotsAt(k), shown.values)
             k++
         }
         return Shown(shown, presenter.counters(), presenter)
@@ -207,6 +210,61 @@ class SourceTimePresenterTest {
                 assertEquals("capacity $capacity, phase $phaseUs us: not shown $missing", 0, missing.size)
                 assertEquals(0L, shown.counters.overflow - present(frames.take(40), hz60, capacity = capacity).counters.overflow)
             }
+        }
+    }
+
+    /**
+     * Runs [frames] with no render callback at all, so only refreshes passing close a release, and
+     * returns what was shown with the most releases outstanding at any vsync beyond the display's
+     * own pipeline depth plus one. Outstanding is counted here from the refreshes the frames were
+     * released for, not from the scheduler's own accounting.
+     */
+    private fun presentCountingOutstanding(frames: List<Frame>, display: Display, capacity: Int): Pair<Shown, Int> {
+        var over = Int.MIN_VALUE
+        val shown = present(frames, display, capacity) { now, slots, released ->
+            val outstanding = released.count { it > now }
+            over = maxOf(over, outstanding - (pipelineDepth(now, slots[0], display.periodNs) + 1))
+        }
+        return shown to over
+    }
+
+    /** ROOT's L for W34 D1, worked out here rather than taken from the scheduler: the refreshes from
+     * now to the earliest reachable one, rounded up, 1 when not ahead, never more than four. */
+    private fun pipelineDepth(nowNs: Long, earliestNs: Long, periodNs: Long): Int =
+        if (earliestNs <= nowNs) 1 else minOf(4L, (earliestNs - nowNs + periodNs - 1) / periodNs).toInt()
+
+    @Test
+    fun withTheDisplaysOwnDeepLeadNoFrameIsLostAndNoMoreAreOutstandingThanItsPipelinePlusOne() {
+        // W34 D1, production-shaped: the 120 Hz display 25 ms deep and the 60 Hz one 33 ms deep, no
+        // render callbacks, at the rates they serve. Every frame after warm-up is shown, with one
+        // slot or two, and no more releases are outstanding than the display's pipeline plus one.
+        for ((display, intervalUs) in listOf(hz120 to 8_333L, hz120 to 11_111L, hz120 to 16_667L, hz60 to 16_667L)) {
+            for (capacity in listOf(1, 2)) {
+                val frames = stream(400, { intervalUs }, { 0 })
+                val (shown, over) = presentCountingOutstanding(frames, display, capacity)
+                val what = "${1_000_000_000L / display.periodNs} Hz, ${intervalUs} us frames, capacity $capacity"
+                val missing = (40 until 400).filter { it !in shown.slots }
+                assertEquals("$what: not shown $missing", emptyList<Int>(), missing)
+                assertTrue("$what: outstanding over the pipeline plus one by $over", over <= 0)
+            }
+        }
+    }
+
+    @Test
+    fun aTimelineDeeperThanTheCapNeverHasMoreThanTheCapPlusOneOutstanding() {
+        // W34 D1: a stalled or malformed frame timeline whose earliest refresh is ten refreshes out
+        // (83 ms at 120 Hz), no render callbacks. The gate trusts at most MAX_PIPELINE_DEPTH of it,
+        // so at most five releases are ever outstanding, at every arrival phase; at 60 FPS that
+        // costs no frame.
+        val deep = Display(8_333_333L, 83_333_333L)
+        assertEquals(4, pipelineDepth(deep.nowAt(0), deep.slotsAt(0)[0], deep.periodNs))
+        assertEquals("the scheduler trusts no deeper", 4, SourceTimeScheduler.pipelineDepth(deep.nowAt(0), deep.slotsAt(0)[0], deep.periodNs))
+        for (phaseUs in 0L until 16_667L step 2_083L) {
+            val frames = stream(400, { 16_667 }, { phaseUs })
+            val (shown, over) = presentCountingOutstanding(frames, deep, 2)
+            val missing = (40 until 400).filter { it !in shown.slots }
+            assertEquals("phase $phaseUs us: not shown $missing", emptyList<Int>(), missing)
+            assertTrue("phase $phaseUs us: outstanding over the capped pipeline plus one by $over", over <= 0)
         }
     }
 

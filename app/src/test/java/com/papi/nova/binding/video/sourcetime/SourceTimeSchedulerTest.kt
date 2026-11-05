@@ -113,53 +113,109 @@ class SourceTimeSchedulerTest {
     // The discriminating checks against the mapper and a display run the production path, presenter
     // and target delay included, in SourceTimePresenterTest.
 
-    // --- W26 F6: one release in flight. ---
+    // --- W26 F6 / W34 D1: releases outstanding until there is evidence they are done. ---
 
     @Test
-    fun aSecondFutureReleaseWaitsForTheFirstToBeDueAt120Hz() {
-        // The review's arithmetic. At 0 the display offers 8.33 and 16.67 ms; A (target 16.67) is
-        // released for 16.67. At 8.33 it offers 16.67 and 25: B (target 25) could go for 25 while A
-        // still waits for 16.67, two future releases outside the waiting queue. It must wait until
-        // A's refresh is past its deadline (each refresh is reachable until 7.33 ms before it here).
+    fun theReviewsDeepLeadCaseKeepsAInFlightAndReleasesBForItsOwnRefreshAt120Hz() {
+        // Review W34 D1's arithmetic, on the presenter tests' own 120 Hz display: period 8.333 ms,
+        // callbacks 0.3 ms after each vsync, the earliest reachable refresh 25 ms after it, each
+        // refresh to be queued 17.67 ms before it. A (target 25 ms) goes at 0.3 ms with deadline
+        // 7.33 ms. At the 8.633 ms callback that deadline has passed but A's refresh has not: A is
+        // still outstanding. B (target 33.33 ms) goes for its own earliest refresh, not ahead of A
+        // and not held: two outstanding is inside the display's own pipeline of three, plus one.
+        val period = vsync
+        val lead = 25_000_000L
+        fun now(k: Int) = k * period + 300_000L
+        fun offered(k: Int) = LongArray(3) { k * period + lead + it * period }
+        fun deadlines(slots: LongArray) = LongArray(slots.size) { slots[it] - 2 * period - 1_000_000L }
+        fun at(scheduler: SourceTimeScheduler, k: Int) = scheduler.onVsync(now(k), offered(k), deadlines(offered(k)), period)
         val scheduler = SourceTimeScheduler(2)
-        fun offered(atNs: Long) = longArrayOf(atNs + vsync, atNs + 2 * vsync)
-        fun deadlines(slots: LongArray) = LongArray(slots.size) { slots[it] - vsync + 1_000_000 }
-        scheduler.admit(1, 10, 0, 2 * vsync)
-        scheduler.admit(2, 20, 0, 3 * vsync)
+        scheduler.admit(1, 10, 0, lead)
+        scheduler.admit(2, 20, 0, lead + period)
 
-        val first = scheduler.onVsync(0, offered(0), deadlines(offered(0)), vsync)
-        assertEquals(1, first.release!!.index)
-        assertEquals(2 * vsync, first.releaseAtNs)
-        assertEquals(2 * vsync, scheduler.inFlightSlot)
+        val a = at(scheduler, 0)
+        assertEquals(1, a.release!!.index)
+        assertEquals(lead, a.releaseAtNs)
+        assertEquals(7_333_334L, deadlines(offered(0))[0])
+        assertEquals(3, SourceTimeScheduler.pipelineDepth(now(1), offered(1)[0], period))
 
-        val second = scheduler.onVsync(vsync, offered(vsync), deadlines(offered(vsync)), vsync)
-        assertNull("B waits while A is in flight", second.release)
-        assertEquals(1L, scheduler.counters().inFlightHeld)
-        assertEquals("and keeps waiting in the bounded queue", 1, scheduler.counters().queued)
+        val b = at(scheduler, 1)
+        assertEquals("A is still in flight at 8.633 ms: its deadline passed, its refresh has not", lead, scheduler.inFlightSlot)
+        assertEquals(2, b.release!!.index)
+        assertEquals("B on its own earliest refresh", lead + period, b.releaseAtNs)
+        assertEquals(0L, scheduler.counters().releasedLate)
+        assertEquals(0L, scheduler.counters().inFlightHeld)
 
-        val third = scheduler.onVsync(2 * vsync, offered(2 * vsync), deadlines(offered(2 * vsync)), vsync)
-        assertEquals(2, third.release!!.index)
-        assertEquals("on its own refresh, not late", 3 * vsync, third.releaseAtNs)
+        // A stays outstanding until its refresh has passed, then B is the oldest.
+        scheduler.admit(3, 30, 0, lead + 2 * period)
+        assertEquals(3, at(scheduler, 2).release!!.index)
+        assertEquals(lead, scheduler.inFlightSlot)
+        at(scheduler, 3)
+        assertEquals(lead + period, scheduler.inFlightSlot)
+    }
+
+    @Test
+    fun noMoreReleasesAreOutstandingThanTheDisplaysPipelinePlusOne() {
+        // A display three refreshes deep takes A, B and C, one per vsync. Its timeline then offers a
+        // refresh only half a vsync out (L = 1): with three outstanding, D waits, and goes for its own
+        // refresh once enough of them have passed.
+        val scheduler = SourceTimeScheduler(2)
+        fun offer(atNs: Long, fromNs: Long) = scheduler.onVsync(atNs, LongArray(4) { fromNs + it * vsync },
+            LongArray(4) { fromNs + it * vsync - vsync }, vsync)
+        scheduler.admit(1, 10, 0, 3 * vsync)
+        assertEquals(3 * vsync, offer(0, 3 * vsync).releaseAtNs)
+        scheduler.admit(2, 20, 0, 4 * vsync)
+        assertEquals(4 * vsync, offer(vsync, 4 * vsync).releaseAtNs)
+        scheduler.admit(3, 30, 0, 5 * vsync)
+        assertEquals(5 * vsync, offer(2 * vsync, 5 * vsync).releaseAtNs)
+        scheduler.admit(4, 40, 0, 6 * vsync)
+
+        assertEquals(1, SourceTimeScheduler.pipelineDepth(2 * vsync + half, 3 * vsync, vsync))
+        assertNull("three outstanding, a pipeline of one plus one", offer(2 * vsync + half, 3 * vsync).release)
+        assertNull("A's refresh passed, still two", offer(3 * vsync, 4 * vsync).release)
+        assertEquals(2L, scheduler.counters().inFlightHeld)
+        val d = offer(4 * vsync, 5 * vsync)
+        assertEquals(4, d.release!!.index)
+        assertEquals("on its own refresh, not late", 6 * vsync, d.releaseAtNs)
         assertEquals(0L, scheduler.counters().releasedLate)
     }
 
     @Test
-    fun aRenderCallbackEndsTheWaitEarlyButNeverMovesATarget() {
+    fun aRenderCallbackClosesAReleaseEarlyButNeverMovesATarget() {
+        // A display one refresh deep (L = 1) holds at most two. A render callback for the oldest, or
+        // a later frame, closes it before its refresh; an earlier frame's closes nothing.
         val scheduler = SourceTimeScheduler(2)
+        val slots = longArrayOf(vsync, 2 * vsync, 3 * vsync)
+        val farDeadlines = LongArray(3) { 1_000_000_000L }
         scheduler.admit(1, 10, 0, vsync)
         scheduler.admit(2, 20, 0, 2 * vsync)
-        // A refresh whose deadline is far off (a display that reports a long one).
-        val slots = longArrayOf(vsync, 2 * vsync)
-        val farDeadlines = longArrayOf(1_000_000_000L, 1_000_000_000L)
         assertEquals(1, scheduler.onVsync(0, slots, farDeadlines, vsync).release!!.index)
+        assertEquals(2, scheduler.onVsync(vsync / 4, slots, farDeadlines, vsync).release!!.index)
+        scheduler.admit(3, 30, 0, 3 * vsync)
         assertNull(scheduler.onVsync(vsync / 2, slots, farDeadlines, vsync).release)
-        // An older frame's callback says nothing about this one.
         scheduler.onRendered(5)
         assertNull(scheduler.onVsync(vsync / 2, slots, farDeadlines, vsync).release)
         scheduler.onRendered(10)
+        assertEquals(2 * vsync, scheduler.inFlightSlot)
         val next = scheduler.onVsync(vsync / 2, slots, farDeadlines, vsync)
-        assertEquals(2, next.release!!.index)
-        assertEquals(2 * vsync, next.releaseAtNs)
+        assertEquals(3, next.release!!.index)
+        assertEquals(3 * vsync, next.releaseAtNs)
+        // A later frame's callback closes every earlier release too.
+        scheduler.onRendered(30)
+        assertNull(scheduler.inFlightSlot)
+    }
+
+    @Test
+    fun thePipelineDepthIsTheLeadInRefreshesOneWhenUnknownAndCapped() {
+        assertEquals(3, SourceTimeScheduler.pipelineDepth(300_000L, 25_000_000L, vsync))
+        assertEquals(1, SourceTimeScheduler.pipelineDepth(0, vsync, vsync))
+        assertEquals(2, SourceTimeScheduler.pipelineDepth(0, vsync + 1, vsync))
+        assertEquals("a slot not ahead of now", 1, SourceTimeScheduler.pipelineDepth(vsync, vsync, vsync))
+        assertEquals("no period", 1, SourceTimeScheduler.pipelineDepth(0, 25_000_000L, 0))
+        assertEquals("a stalled or malformed timeline", SourceTimeScheduler.MAX_PIPELINE_DEPTH,
+            SourceTimeScheduler.pipelineDepth(0, 1_000_000_000L, vsync))
+        assertEquals(4, SourceTimeScheduler.MAX_PIPELINE_DEPTH)
+        assertEquals(0L, SourceTimeScheduler.PRESENTED_TOLERANCE_NS)
     }
 
     @Test
