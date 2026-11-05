@@ -349,6 +349,9 @@ private var grabbedInput:Boolean = true
 private var cursorVisible:Boolean = false
 private var currentMouseModeIndex:Int = 0
 private var streamingDisplayId:Int = Display.DEFAULT_DISPLAY
+// #242: what the streaming display says about adaptive refresh, read (never requested) when the
+// stream's display is prepared and whenever that display changes.
+@Volatile private var displayPresentationCapability:com.papi.nova.binding.video.sourcetime.DisplayPresentationCapability? = null
 private var companionControlDisplayId:Int = INVALID_DISPLAY_ID
 private var companionControlHasWindowFocus:Boolean = false
 private var companionControlsDismissedByUser = false
@@ -2338,6 +2341,9 @@ showCompanionControls()
 }
 override fun onDisplayChanged(displayId:Int) {
 decoderRenderer?.refreshDisplayParameters()
+if (displayId == streamingDisplayId) {
+    displayPresentationCapability = com.papi.nova.binding.video.DisplayPresentationProbe.read(displayManager.getDisplay(displayId))
+}
 }
 override fun onDisplayRemoved(displayId:Int) {
 handleDisplayRemoved(displayId)
@@ -3438,6 +3444,7 @@ return Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE
 }
 
 private fun prepareDisplayForRendering(currentDisplay:Display?):Float {
+displayPresentationCapability = com.papi.nova.binding.video.DisplayPresentationProbe.read(currentDisplay)
 var windowLayoutParams:WindowManager.LayoutParams? = getWindow().getAttributes()
 var displayRefreshRate:Float
 
@@ -7045,6 +7052,21 @@ reportPolarisClientSettingsSnapshot(clientPresentation)
 }
 }
 
+/**
+ * #242: host source-time presentation as every surface reports it (the shared reducer): the
+ * renderer's state, the streaming display's own adaptive-refresh answer and the host's record for
+ * this stream, trusted only when [hostCurrent] and for the status's own generation.
+ */
+internal fun presentationTruth(status:com.papi.nova.api.PolarisSessionStatus?, hostCurrent:Boolean, displayModeHz:Float?):com.papi.nova.binding.video.sourcetime.PresentationTruth =
+    com.papi.nova.binding.video.sourcetime.PresentationTruth.from(
+        decoderRenderer?.sourceTimePacingStatus(),
+        displayPresentationCapability,
+        status?.vrr ?: com.papi.nova.api.PolarisSessionVrr.Reading.Absent,
+        hostCurrent && status?.streamingActive == true,
+        status?.sessionGeneration ?: 0L,
+        displayModeHz
+    )
+
 private fun reportPolarisClientSettingsSnapshot(clientPresentation:JSONObject?):Boolean {
 if ((novaApiClient == null || !novaHasClientSettings()))
 {
@@ -7071,7 +7093,9 @@ lastClientPresentationDisplayMode,
 if (prefConfig != null) prefConfig!!.framePacing else 0,
 lastClientProfileProvenance,
 targetRefreshRateHz,
-refreshRatePolicy
+refreshRatePolicy,
+presentationTruth(lastPolarisSessionStatus, true,
+    if (lastClientPresentationRefreshRate > 0f) lastClientPresentationRefreshRate else desiredRefreshRate)
 )
 
 var manualProfileOverride:Boolean = isManualProfileOverride()
@@ -7181,6 +7205,8 @@ displayModeId = lastClientPresentationDisplayModeId
 displayMode = lastClientPresentationDisplayMode
 }
 var decoderName:String? = if (decoderRenderer != null) decoderRenderer!!.activeDecoderName else ""
+// #242: the shared st1 grammar, in the client_presentation field Polaris already accepts and copies.
+var framePacingState:String = presentationTruth(status, true, appliedRefreshRate).client.toFramePacingState()
 
 var presentationStatus:String = "synced"
 var reason:String = "Nova presentation state matches the stream policy"
@@ -7220,6 +7246,7 @@ displayModeId + "|" +
 displayMode + "|" +
 decoderName + "|" +
 presentationStatus + "|" +
+framePacingState + "|" +
 status!!.tuning.adaptiveTargetBitrateKbps + "|" +
 status!!.encoder.bitrateKbps)
 if ((reportKey!!.equals(lastReportedClientPresentationKey) || !clientPresentationReportInFlight.compareAndSet(false, true)))
@@ -7240,6 +7267,7 @@ if (decoderName != null && !decoderName!!.isEmpty()) presentation.put("decoder",
 if (reason != null && !reason.isEmpty()) presentation.put("reason", reason)
 if (targetRefreshRate > 0.0) presentation.put("target_refresh_rate_hz", targetRefreshRate)
 if (refreshPolicy != null && !refreshPolicy!!.isEmpty()) presentation.put("refresh_rate_policy", refreshPolicy)
+presentation.put("frame_pacing_state", framePacingState)
 }
 catch (ignored:Exception) {}
 
