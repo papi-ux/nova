@@ -1,6 +1,7 @@
 package com.papi.nova.binding.video
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -58,6 +59,74 @@ class MediaCodecDecoderRendererStageTimingSourceGuardTest {
             "Each stream says its fix-ups again, so a new setup forgets the ones already said.",
             source.contains("logSpsPatchOnce(\"Adding bitstream restrictions\")") &&
                 setup.contains("loggedSpsPatches.clear()")
+        )
+    }
+
+    private fun functionBody(signature: String): String {
+        val start = source.indexOf(signature)
+        assertTrue("missing $signature", start >= 0)
+        return source.substring(start).substringBefore("\n    }\n")
+    }
+
+    @Test
+    fun codecTimestampStaysEnqueueTimeSoT3KeepsItsMeaning() {
+        // Host source time (#242) travels beside the codec in SourceTimeSideMap. The codec
+        // timestamp is still the core's enqueue milliseconds times a thousand, bumped a
+        // microsecond on a collision, because T3, the decode statistics and the benchmark
+        // capture all read it that way.
+        assertTrue(source.contains("var timestampUs = enqueueTimeMs * 1000\n"))
+        assertTrue(
+            source.contains(
+                "        if (timestampUs <= lastTimestampUs) {\n" +
+                    "            timestampUs = lastTimestampUs + 1\n" +
+                    "        }\n" +
+                    "        lastTimestampUs = timestampUs\n",
+            ),
+        )
+        val queue = functionBody("    private fun queueNextInputBuffer(")
+        assertTrue(
+            queue.contains(
+                "videoDecoder!!.queueInputBuffer(\n" +
+                    "                nextInputBufferIndex,\n" +
+                    "                0,\n" +
+                    "                nextInputBuffer!!.position(),\n" +
+                    "                timestampUs,\n" +
+                    "                codecFlags,\n" +
+                    "            )",
+            ),
+        )
+        assertFalse("source time must never reach the codec", queue.contains("rtpTimestamp"))
+    }
+
+    @Test
+    fun onlyQueuedPictureDataIsMappedToSourceTime() {
+        // Codec-config buffers go in at timestamp 0 and must never be given a source record.
+        assertEquals(2, Regex("""queueNextInputBuffer\(0, MediaCodec\.BUFFER_FLAG_CODEC_CONFIG\)""").findAll(source).count())
+        assertEquals(1, Regex("""queueNextInputBuffer\(timestampUs, codecFlags, sourceRecord\)""").findAll(source).count())
+        val queue = functionBody("    private fun queueNextInputBuffer(")
+        val insert = queue.indexOf("sourceTimeSideMap.put(timestampUs, sourceRecord")
+        assertTrue("records go in only after the codec accepted the picture", insert > queue.indexOf("queueInputBuffer("))
+    }
+
+    @Test
+    fun decodeEndToEndAndBenchmarkAccountingAreUnchanged() {
+        val decode = functionBody("    private fun updateDecodeLatencyStats(presentationTimeUs: Long) {")
+        assertTrue(decode.contains("val enqNs = enqueueNsByPtsUs[presentationTimeUs]"))
+        assertTrue(decode.contains("val decMs = (System.nanoTime() - enqNs) / 1_000_000L"))
+        assertTrue(decode.contains("activeWindowVideoStats.decoderTimeMs += decMs"))
+        assertTrue(decode.contains("if (!USE_FRAME_RENDER_TIME) {\n                    activeWindowVideoStats.totalTimeMs += decMs"))
+        assertTrue(decode.contains("logSampledStageTiming(presentationTimeUs)"))
+        assertTrue(decode.contains("recordBenchmarkSample(presentationTimeUs)"))
+
+        assertTrue(functionBody("    private fun logSampledStageTiming(presentationTimeUs: Long) {").contains("val t3Ns = presentationTimeUs * 1000L"))
+        assertTrue(functionBody("    private fun recordBenchmarkSample(presentationTimeUs: Long) {").contains("val t3Ns = presentationTimeUs * 1000L"))
+        assertTrue(source.contains("activeWindowVideoStats.totalTimeMs += enqueueTimeMs - receiveTimeMs"))
+        assertTrue(source.contains("private const val USE_FRAME_RENDER_TIME = false"))
+        assertTrue(source.contains("private const val ENQUEUE_MAP_MAX_ENTRIES = 256"))
+        assertEquals(
+            "the arrival-age drop decisions of the non-Balanced modes keep their meaning",
+            2,
+            Regex("""val frameAgeNs = nowNs - presentationTimeUs \* 1000L""").findAll(source).count(),
         )
     }
 

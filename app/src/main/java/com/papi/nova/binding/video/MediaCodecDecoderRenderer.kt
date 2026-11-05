@@ -25,6 +25,7 @@ import com.papi.nova.R
 import com.papi.nova.binding.video.sourcetime.SourceTimePacingStatus
 import com.papi.nova.binding.video.sourcetime.SourceTimeReason
 import com.papi.nova.binding.video.sourcetime.SourceTimeRequest
+import com.papi.nova.binding.video.sourcetime.SourceTimeSideMap
 import com.papi.nova.nvstream.av.video.VideoDecoderRenderer
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -79,6 +80,26 @@ class MediaCodecDecoderRenderer(
                 size > ENQUEUE_MAP_MAX_ENTRIES
         },
     )
+
+    // Host source time per queued picture, keyed by the same enqueue-derived timestamp as
+    // enqueueNsByPtsUs and never by anything else: presentationTimeUs keeps its T3 meaning, and
+    // source time travels beside the codec (see SourceTimeSideMap). The generations stop a frame
+    // from one connection or one codec flush being paired with a record from another.
+    private val sourceTimeSideMap = SourceTimeSideMap()
+
+    @Volatile
+    private var sourceConnectionGeneration = 0
+
+    @Volatile
+    private var sourceDecoderGeneration = 0
+
+    private fun forgetSourceTimeRecords() {
+        sourceDecoderGeneration++
+        sourceTimeSideMap.clear()
+    }
+
+    private fun takeSourceRecord(presentationTimeUs: Long): SourceTimeSideMap.Record? =
+        sourceTimeSideMap.take(presentationTimeUs, sourceDecoderGeneration)
 
     @Volatile
     private var preferLowerDelaysTimeoutUs = 2000
@@ -290,6 +311,7 @@ class MediaCodecDecoderRenderer(
         minDecodeTime = Float.MAX_VALUE
         minDecodeTimeFullLog = ""
         enqueueNsByPtsUs.clear()
+        forgetSourceTimeRecords()
     }
 
     // Nordstern P0-4A (measurement-spec-v1.md 7.2). A single incrementing
@@ -1060,6 +1082,7 @@ class MediaCodecDecoderRenderer(
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
         frameSubmissionEpoch = readFrameSubmissionEpoch()
         frameSubmissionProducer = MoonBridge.captureFrameSubmissionProducer(this, frameSubmissionEpoch)
+        sourceConnectionGeneration++
         resetRollingPerfStatsForNewStream("stream setup")
         loggedSpsPatches.clear()
         targetFps = if (redrawRate > 0) redrawRate else 60
@@ -1089,6 +1112,7 @@ class MediaCodecDecoderRenderer(
                 nextInputBuffer = null
                 nextInputBufferIndex = -1
                 outputBufferQueue.clear()
+                forgetSourceTimeRecords()
 
                 if (codecRecoveryType.get() == CR_RECOVERY_TYPE_FLUSH) {
                     LimeLog.warning("Flushing decoder")
@@ -1360,6 +1384,7 @@ class MediaCodecDecoderRenderer(
                             }
                             last = idx
                             lastPtsUs = tmpInfo.presentationTimeUs
+                            takeSourceRecord(lastPtsUs)
                             idx = videoDecoder!!.dequeueOutputBuffer(tmpInfo, 0)
                         }
 
@@ -1400,6 +1425,7 @@ class MediaCodecDecoderRenderer(
 
                         var presentationTimeUs = info.presentationTimeUs
                         var lastIndex = outIndex
+                        takeSourceRecord(presentationTimeUs)
 
                         lastOutputNs = System.nanoTime()
                         numFramesOut++
@@ -1423,6 +1449,7 @@ class MediaCodecDecoderRenderer(
                                 numFramesOut++
                                 lastIndex = nextOut
                                 presentationTimeUs = info.presentationTimeUs
+                                takeSourceRecord(presentationTimeUs)
                             }
 
                             if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS ||
@@ -1613,6 +1640,8 @@ class MediaCodecDecoderRenderer(
             return
         }
 
+        forgetSourceTimeRecords()
+
         rendererThread?.interrupt()
 
         synchronized(codecRecoveryMonitor) {
@@ -1661,6 +1690,7 @@ class MediaCodecDecoderRenderer(
     }
 
     override fun cleanup() {
+        forgetSourceTimeRecords()
         videoDecoder!!.release()
     }
 
@@ -1682,7 +1712,13 @@ class MediaCodecDecoderRenderer(
         }
     }
 
-    private fun queueNextInputBuffer(timestampUs: Long, codecFlags: Int): Boolean {
+    // sourceRecord is given only for picture data. Codec-config buffers are queued at timestamp
+    // 0 and must never be mapped, so they pass none.
+    private fun queueNextInputBuffer(
+        timestampUs: Long,
+        codecFlags: Int,
+        sourceRecord: SourceTimeSideMap.Record? = null,
+    ): Boolean {
         val codecRecovered: Boolean
 
         try {
@@ -1697,6 +1733,10 @@ class MediaCodecDecoderRenderer(
             try {
                 enqueueNsByPtsUs.put(timestampUs, System.nanoTime())
             } catch (_: Throwable) {
+            }
+
+            if (sourceRecord != null) {
+                sourceTimeSideMap.put(timestampUs, sourceRecord, System.nanoTime())
             }
 
             nextInputBufferIndex = -1
@@ -1746,6 +1786,7 @@ class MediaCodecDecoderRenderer(
         if (stopping) {
             return MoonBridge.DR_OK
         }
+        val submitNs = System.nanoTime()
         val decodeData = decodeUnitData!!
         if (frameNumber < lastFrameNumber) {
             resetRollingPerfStatsForNewStream("frame sequence restart")
@@ -2042,7 +2083,17 @@ class MediaCodecDecoderRenderer(
 
         nextInputBuffer!!.put(decodeData, 0, decodeUnitLength)
 
-        if (!queueNextInputBuffer(timestampUs, codecFlags)) {
+        val sourceRecord = SourceTimeSideMap.Record(
+            frameNumber = frameNumber,
+            rtpTimestamp = rtpTimestamp,
+            receiveTimeMs = receiveTimeMs,
+            enqueueTimeMs = enqueueTimeMs,
+            submitNs = submitNs,
+            hostLatencyTenths = frameHostProcessingLatency.code,
+            connectionGeneration = sourceConnectionGeneration,
+            decoderGeneration = sourceDecoderGeneration,
+        )
+        if (!queueNextInputBuffer(timestampUs, codecFlags, sourceRecord)) {
             return MoonBridge.DR_NEED_IDR
         }
 
