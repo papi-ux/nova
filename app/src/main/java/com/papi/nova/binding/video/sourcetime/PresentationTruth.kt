@@ -93,9 +93,13 @@ data class PresentationTruth(
                     put("late_superseded", scheduler.superseded)
                     put("queue_overflow", scheduler.overflow)
                 }
+                report.scheduler?.let { scheduler ->
+                    put("stale_epoch_dropped", scheduler.staleDropped)
+                }
                 report.counters?.let { counters ->
                     put("source_time_missing", counters.sourceTimeMissing)
                     put("timing_metadata_missing", counters.timingMetadataMissing)
+                    put("stale_epoch", counters.staleEpoch)
                 }
             })
         }
@@ -199,6 +203,7 @@ data class PresentationTruth(
             SourceTimeReason.SURFACE_RECREATED -> "Display surface changed"
             SourceTimeReason.RENDERER_NOT_PARTICIPATING -> "This decoder cannot pace"
             SourceTimeReason.PACING_MODE_INCOMPATIBLE -> "Needs Balanced frame pacing"
+            SourceTimeReason.STALE_EPOCH -> "Re-syncing after a reset"
         }
     }
 }

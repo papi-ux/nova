@@ -337,7 +337,11 @@ class MediaCodecDecoderRenderer(
         )
     }
 
-    /** Reset the mapping at one of this renderer's own sites, and name the reset for the report. */
+    /**
+     * Reset the mapping at one of this renderer's own sites, and name the reset for the report. The
+     * effective state stops claiming source time at once; the presenter drops the frames queued under
+     * the old epoch at its next call (W26 F3).
+     */
     private fun resetSourceTimeMapping(reason: String) {
         val mapper = sourceTimeMapper ?: return
         // The mapper's own lock, so no point from the new epoch is observed before the reset is named.
@@ -345,6 +349,8 @@ class MediaCodecDecoderRenderer(
             mapper.reset()
             sourceTimeCounters.onReset(reason, mapper.epoch)
         }
+        // Outside the mapper's lock: the presenter takes its own lock first, then the mapper's.
+        sourceTimePresenter?.onMappingReset(SourceTimePresenter.reasonForReset(reason))
     }
 
     // Nordstern P0-4A (measurement-spec-v1.md 7.2). A single incrementing
@@ -795,7 +801,6 @@ class MediaCodecDecoderRenderer(
             cachedVsyncPeriodNs = periodNs
             cachedPresentationDeadlineNs = deadlineNs
             sourceSurfaceGeneration++
-            sourceTimePresenter?.onDisplayChange()
             resetSourceTimeMapping(SourceTimeCounters.RESET_DISPLAY_CHANGE)
         }
     }
@@ -953,7 +958,9 @@ class MediaCodecDecoderRenderer(
      */
     private fun admitForSourceTime(index: Int, presentationTimeUs: Long, record: SourceTimeSideMap.Record?): Boolean {
         val presenter = sourceTimePresenter ?: return false
-        val admission = presenter.admit(index, presentationTimeUs, System.nanoTime(), record)
+        val admission = presenter.admit(
+            index, presentationTimeUs, System.nanoTime(), record, sourceSurfaceGeneration, sourceDecoderGeneration,
+        )
         if (admission.outOfBounds) {
             resetSourceTimeMapping(SourceTimeCounters.RESET_TARGET_OUT_OF_BOUNDS)
         }
@@ -967,8 +974,12 @@ class MediaCodecDecoderRenderer(
     /** Vsync thread: release at most one frame for one of the reachable refreshes. */
     private fun presentSourceTimeFrame(nowNs: Long, slotsNs: LongArray, vsyncPeriodNs: Long) {
         val presenter = sourceTimePresenter ?: return
-        val decision = presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs)
-        for (entry in decision.superseded) {
+        val decision = presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration)
+        if (decision.fenceMoved) {
+            // Released frames still awaiting a render callback belong to the old epoch or surface.
+            presentFeedback.clear()
+        }
+        for (entry in decision.drop) {
             try {
                 dropFrame(entry.index, intentional = true)
             } catch (e: IllegalStateException) {
@@ -2328,6 +2339,7 @@ class MediaCodecDecoderRenderer(
             connectionGeneration = sourceConnectionGeneration,
             decoderGeneration = sourceDecoderGeneration,
             point = sourcePoint,
+            surfaceGeneration = sourceSurfaceGeneration,
         )
         if (!queueNextInputBuffer(timestampUs, codecFlags, sourceRecord)) {
             return MoonBridge.DR_NEED_IDR

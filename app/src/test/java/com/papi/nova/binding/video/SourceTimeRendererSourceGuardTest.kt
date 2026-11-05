@@ -85,11 +85,23 @@ class SourceTimeRendererSourceGuardTest {
         // W26 F2: the tested path is the shipped path. The renderer adds no offset of its own; the
         // presenter (with its learned delay) decides every target, and gets the time each vsync ran.
         assertEquals(0, Regex("""targetUs \* 1000""").findAll(renderer).count())
-        assertTrue(renderer.contains("presenter.admit(index, presentationTimeUs, System.nanoTime(), record)"))
-        assertTrue(renderer.contains("val decision = presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs)"))
+        assertTrue(renderer.contains("index, presentationTimeUs, System.nanoTime(), record, sourceSurfaceGeneration, sourceDecoderGeneration,"))
+        assertTrue(renderer.contains("presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration)"))
         assertTrue(renderer.contains("presentSourceTimeFrame(nowNs, slots.toLongArray(), periodNs)"))
         val timeline = File("src/main/java/com/papi/nova/binding/video/SourceTimeFrameTimelineVsync.kt").readText()
         assertTrue(timeline.contains("if (onSlots(now, slots, periodNs)) {"))
+    }
+
+    @Test
+    fun aResetOrANewSurfaceInvalidatesOldTimingAndFeedbackAtTheRenderer() {
+        // W26 F3: every record carries the surface it was mapped for, every reset site tells the
+        // presenter at once, and feedback pending under an old fence is cleared.
+        assertTrue(renderer.contains("surfaceGeneration = sourceSurfaceGeneration,\n        )"))
+        val reset = renderer.substringAfter("private fun resetSourceTimeMapping(reason: String) {").substringBefore("\n    }\n")
+        assertTrue(reset.contains("sourceTimePresenter?.onMappingReset(SourceTimePresenter.reasonForReset(reason))"))
+        assertTrue("outside the mapper's lock", reset.indexOf("onMappingReset") > reset.lastIndexOf("}"))
+        assertTrue(renderer.contains("if (decision.fenceMoved) {\n            // Released frames still awaiting a render callback belong to the old epoch or surface.\n            presentFeedback.clear()"))
+        assertTrue(renderer.contains("for (entry in decision.drop) {"))
     }
 
     @Test

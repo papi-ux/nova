@@ -20,7 +20,11 @@ package com.papi.nova.binding.video.sourcetime
  * Bounded: reset reasons come from a fixed vocabulary.
  */
 class SourceTimeCounters {
-    enum class Admission { SOURCE_TIMED, SOURCE_TIME_MISSING, TIMING_METADATA_MISSING }
+    /**
+     * How a decoded frame was aimed. STALE_EPOCH: by arrival, because its timing was made under a
+     * mapper epoch or surface generation that no longer exists (W26 F3).
+     */
+    enum class Admission { SOURCE_TIMED, SOURCE_TIME_MISSING, TIMING_METADATA_MISSING, STALE_EPOCH }
 
     data class Snapshot(
         /** Resets by reason, only those that happened, in stable (sorted) order. */
@@ -29,6 +33,7 @@ class SourceTimeCounters {
         val sourceTimed: Long,
         val sourceTimeMissing: Long,
         val timingMetadataMissing: Long,
+        val staleEpoch: Long = 0,
     )
 
     private val resets = java.util.TreeMap<String, Long>()
@@ -36,6 +41,7 @@ class SourceTimeCounters {
     private var sourceTimed = 0L
     private var sourceTimeMissing = 0L
     private var timingMetadataMissing = 0L
+    private var staleEpoch = 0L
     private var lastEpoch = 0L
     private var lastOffset = 0L
     private var lastWarm = false
@@ -73,6 +79,7 @@ class SourceTimeCounters {
             Admission.SOURCE_TIMED -> sourceTimed++
             Admission.SOURCE_TIME_MISSING -> sourceTimeMissing++
             Admission.TIMING_METADATA_MISSING -> timingMetadataMissing++
+            Admission.STALE_EPOCH -> staleEpoch++
         }
     }
 
@@ -84,6 +91,7 @@ class SourceTimeCounters {
         sourceTimed = 0
         sourceTimeMissing = 0
         timingMetadataMissing = 0
+        staleEpoch = 0
         lastEpoch = 0
         lastOffset = 0
         lastWarm = false
@@ -92,7 +100,7 @@ class SourceTimeCounters {
 
     @Synchronized
     fun snapshot(): Snapshot =
-        Snapshot(LinkedHashMap(resets), offsetSlewEvents, sourceTimed, sourceTimeMissing, timingMetadataMissing)
+        Snapshot(LinkedHashMap(resets), offsetSlewEvents, sourceTimed, sourceTimeMissing, timingMetadataMissing, staleEpoch)
 
     private fun bump(reason: String) {
         resets[reason] = (resets[reason] ?: 0L) + 1L

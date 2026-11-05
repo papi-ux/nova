@@ -239,6 +239,21 @@ class SourceTimeMapperTest {
     }
 
     @Test
+    fun readySaysWhetherAPointBelongsToTheCurrentEpoch() {
+        // W26 F3: admission needs to know whether a decoded frame's target is still this mapping's.
+        val mapper = SourceTimeMapper(SourceTimePolicy(warmupFrames = 1), 2, 16_666)
+        val current = mapper.observe(1, 90_000, 100_000)
+        assertTrue(mapper.ready(current, current.baseUs + 1_000))
+        assertTrue("current even when there is nothing to learn", mapper.ready(current, current.baseUs - 1))
+        mapper.reset()
+        assertFalse(mapper.ready(current, current.baseUs + 2_000))
+        val repeated = mapper.observe(2, 90_000, 116_666)
+        val duplicate = mapper.observe(3, 90_000, 133_333)
+        assertFalse("an unavailable point is never current", mapper.ready(duplicate, 140_000))
+        assertTrue(repeated.valid)
+    }
+
+    @Test
     fun repeatedAndOlderFramesNeverMoveTheBaseline() {
         val mapper = SourceTimeMapper(SourceTimePolicy(warmupFrames = 1), 2, 16_666)
         val first = mapper.observe(10, 90_000, 100_000)

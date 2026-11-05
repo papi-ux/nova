@@ -36,7 +36,7 @@ class SourceTimePresenterTest {
     private val hz120 = Display(8_333_333L, 25_000_000L)
     private val hz60 = Display(16_666_667L, 33_333_333L)
 
-    private fun record(i: Int, f: Frame, point: SourceTimeMapper.Point?) = SourceTimeSideMap.Record(
+    private fun record(i: Int, f: Frame, point: SourceTimeMapper.Point?, surface: Int = 1) = SourceTimeSideMap.Record(
         frameNumber = i + 1,
         rtpTimestamp = (900_000 + f.sourceUs * 90 / 1000) and 0xFFFF_FFFFL,
         receiveTimeMs = f.arrivalUs / 1000,
@@ -46,6 +46,7 @@ class SourceTimePresenterTest {
         connectionGeneration = 1,
         decoderGeneration = 1,
         point = point,
+        surfaceGeneration = surface,
     )
 
     /**
@@ -82,11 +83,11 @@ class SourceTimePresenterTest {
                 } else {
                     val f = frames[admitted]
                     val point = if (sourceTimed) points[admitted] else null
-                    presenter.admit(admitted, admitted.toLong(), decodeNs, record(admitted, f, point))
+                    presenter.admit(admitted, admitted.toLong(), decodeNs, record(admitted, f, point), 1, 1)
                     admitted++
                 }
             }
-            val decision = presenter.onVsync(now, display.slotsAt(k), display.periodNs)
+            val decision = presenter.onVsync(now, display.slotsAt(k), display.periodNs, 1, 1)
             decision.release?.let { shown[it.index] = decision.releaseAtNs }
             k++
         }
@@ -202,11 +203,112 @@ class SourceTimePresenterTest {
     fun aFrameWithoutUsableSourceTimeFallsBackToArrivalWithItsReason() {
         val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, 2, 16_666)
         val presenter = SourceTimePresenter(2, mapper)
-        val missing = presenter.admit(1, 1, 1_000_000, null)
+        val missing = presenter.admit(1, 1, 1_000_000, null, 1, 1)
         assertEquals(SourceTimeCounters.Admission.TIMING_METADATA_MISSING, missing.kind)
         assertFalse(missing.outOfBounds)
         val status = presenter.pacing(SourceTimeRequest.SOURCE_TIME)
         assertEquals(SourceTimeEffective.PENDING, status.effective)
         assertEquals(SourceTimeReason.TIMING_METADATA_MISSING, status.fallback)
+    }
+
+    // --- W26 F3: a mapping reset or a new surface invalidates timing made under the old one. ---
+
+    /** A warm presenter: a calm 60 FPS stream admitted and presented until source-paced. */
+    private class Warm(val mapper: SourceTimeMapper, val presenter: SourceTimePresenter, var t: Long, var frame: Int)
+
+    private fun warm(display: Display = hz60): Warm {
+        val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, 2, 16_667)
+        val presenter = SourceTimePresenter(2, mapper)
+        val w = Warm(mapper, presenter, 1_000_000_000L, 0)
+        repeat(30) { stepFrame(w, display) }
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, presenter.pacing(SourceTimeRequest.AUTO).effective)
+        return w
+    }
+
+    /** One frame enqueued, decoded 3 ms later and one vsync, all at 60 Hz. */
+    private fun stepFrame(w: Warm, display: Display, surface: Int = 1): SourceTimePresenter.Vsync {
+        val i = w.frame++
+        val f = Frame(i * 16_667L, w.t / 1000)
+        val point = w.mapper.observe(i + 1, record(i, f, null).rtpTimestamp, f.arrivalUs)
+        w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point, surface), surface, 1)
+        val k = (w.t + 4_000_000) / display.periodNs + 1
+        w.t += 16_667_000
+        return w.presenter.onVsync(display.nowAt(k), display.slotsAt(k), display.periodNs, surface, 1)
+    }
+
+    @Test
+    fun aMappingResetBetweenEnqueueAndDecodeNeverLetsTheOldTargetRestoreSourcePacing() {
+        // W26 F3's case: points A and B are made, the display changes or the app comes to the
+        // foreground (the renderer resets the mapping), and only then does A come out of the codec.
+        val w = warm()
+        val a = Frame(w.frame * 16_667L, w.t / 1000)
+        val pointA = w.mapper.observe(w.frame + 1, record(w.frame, a, null).rtpTimestamp, a.arrivalUs)
+        assertTrue(pointA.active)
+        w.mapper.reset()
+        w.presenter.onMappingReset(SourceTimePresenter.reasonForReset(SourceTimeCounters.RESET_FOREGROUND))
+        assertEquals("the reset alone stops the claim", SourceTimeEffective.PENDING,
+            w.presenter.pacing(SourceTimeRequest.AUTO).effective)
+        assertFalse("the mapper says the point is not current", w.mapper.ready(pointA, a.arrivalUs + 3_000))
+        val admission = w.presenter.admit(w.frame, w.frame.toLong(), w.t + 3_000_000, record(w.frame, a, pointA), 1, 1)
+        assertEquals(SourceTimeCounters.Admission.STALE_EPOCH, admission.kind)
+        val status = w.presenter.pacing(SourceTimeRequest.AUTO)
+        assertEquals(SourceTimeEffective.PENDING, status.effective)
+        assertEquals(SourceTimeReason.STALE_EPOCH, status.fallback)
+        assertEquals(3000L, w.mapper.reserveUs)
+    }
+
+    @Test
+    fun framesQueuedUnderAnOldEpochAreDroppedNotReleasedAndHoldNothingBack() {
+        val w = warm()
+        // Two frames queued with targets well ahead (a 150 ms jump the early bound still admits).
+        for (n in 0 until 2) {
+            val i = w.frame++
+            val f = Frame(i * 16_667L + 150_000, w.t / 1000)
+            val point = w.mapper.observe(i + 1, record(i, f, null).rtpTimestamp, f.arrivalUs)
+            assertTrue(w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point), 1, 1).dropped.isEmpty())
+        }
+        val queued = (w.frame - 2 until w.frame).toList()
+        // The mapper re-warms on its own (or the renderer resets it): a new epoch.
+        w.mapper.reset()
+        // A frame with no source time arrives next. Under the old clamp it would wait behind the old
+        // targets; now it is due at its decode time.
+        val decodedNs = w.t + 3_000_000
+        val fallback = w.presenter.admit(99, 99, decodedNs, null, 1, 1)
+        assertEquals("the old frames are handed back to drop", queued, fallback.dropped.map { it.index })
+        val k = decodedNs / hz60.periodNs + 1
+        val vsync = w.presenter.onVsync(hz60.nowAt(k), hz60.slotsAt(k), hz60.periodNs, 1, 1)
+        assertEquals(99, vsync.release!!.index)
+        assertTrue("pending feedback belongs to the old epoch", vsync.fenceMoved)
+        assertEquals(2L, w.presenter.counters().staleDropped)
+        assertFalse("and only once", w.presenter.onVsync(hz60.nowAt(k + 1), hz60.slotsAt(k + 1), hz60.periodNs, 1, 1).fenceMoved)
+    }
+
+    @Test
+    fun aNewSurfaceDropsWhatWasQueuedForTheOldOneAndRelearnsTheDelay() {
+        val w = warm()
+        // A frame decoded and queued for its refresh on surface 1.
+        val i = w.frame++
+        val f = Frame(i * 16_667L, w.t / 1000)
+        val point = w.mapper.observe(i + 1, record(i, f, null).rtpTimestamp, f.arrivalUs)
+        w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point), 1, 1)
+        w.t += 16_667_000
+        assertTrue(w.presenter.targetDelayUs != null)
+        // The display's timing changes: surface generation 2, without a mapper reset yet.
+        val k = (w.t + 4_000_000) / hz60.periodNs + 1
+        val vsync = w.presenter.onVsync(hz60.nowAt(k), hz60.slotsAt(k), hz60.periodNs, 2, 1)
+        assertEquals(listOf(i), vsync.drop.map { it.index })
+        assertTrue(vsync.fenceMoved)
+        assertEquals(null, w.presenter.targetDelayUs)
+        assertEquals(SourceTimeReason.SURFACE_RECREATED, w.presenter.pacing(SourceTimeRequest.AUTO).fallback)
+        // A frame mapped for the old surface but decoded after the change is aimed by arrival.
+        val j = w.frame++
+        val g = Frame(j * 16_667L, w.t / 1000)
+        val pointG = w.mapper.observe(j + 1, record(j, g, null).rtpTimestamp, g.arrivalUs)
+        val admission = w.presenter.admit(j, j.toLong(), w.t + 3_000_000, record(j, g, pointG, surface = 1), 2, 1)
+        assertEquals(SourceTimeCounters.Admission.STALE_EPOCH, admission.kind)
+        assertEquals(SourceTimeEffective.PENDING, w.presenter.pacing(SourceTimeRequest.AUTO).effective)
+        // Frames mapped for the new surface source-pace again.
+        repeat(5) { stepFrame(w, hz60, surface = 2) }
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, w.presenter.pacing(SourceTimeRequest.AUTO).effective)
     }
 }

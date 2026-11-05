@@ -41,9 +41,11 @@ class PresentationTruthReportTest {
             sourceTimed = 3_500,
             sourceTimeMissing = 40,
             timingMetadataMissing = 3,
+            staleEpoch = 6,
         ),
         scheduler = SourceTimeScheduler.Counters(
             queued = 1, released = 3_400, releasedLate = 25, superseded = 9, overflow = 4, arrivalFallback = 43, maxLatenessNs = 2_000_000,
+            staleDropped = 2,
         ),
         feedbackMode = SourceTimeReport.FEEDBACK_OBSERVE_PARTIAL,
         feedback = PresentFeedbackSink.Counters(released = 3_400, matched = 3_300, unmatched = 5, withinOneVsync = 3_250,
@@ -75,6 +77,10 @@ class PresentationTruthReportTest {
         assertEquals(4L, counts.getLong("queue_overflow"))
         assertEquals(40L, counts.getLong("source_time_missing"))
         assertEquals(3L, counts.getLong("timing_metadata_missing"))
+        // W26 F3: frames aimed by arrival because their timing was made under an old epoch or
+        // surface, and queued frames dropped when the fence moved.
+        assertEquals(6L, counts.getLong("stale_epoch"))
+        assertEquals(2L, counts.getLong("stale_epoch_dropped"))
         assertEquals("observe_partial", json.getString("feedback_mode"))
         assertEquals(0.971, json.getDouble("feedback_coverage"), 0.0)
         // The state is still the same reducer's.

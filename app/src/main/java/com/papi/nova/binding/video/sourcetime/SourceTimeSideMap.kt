@@ -38,7 +38,13 @@ class SourceTimeSideMap(
         val decoderGeneration: Int,
         /** Where the mapper placed this picture, when source time was asked for; else null. */
         val point: SourceTimeMapper.Point? = null,
-    )
+        /** The render target and display timing this picture was mapped for. */
+        val surfaceGeneration: Int = 0,
+    ) {
+        /** The mapper epoch [point] was placed in; null without a point. */
+        val mapperEpoch: Long?
+            get() = point?.epoch
+    }
 
     enum class PutResult { STORED, EXHAUSTED, DUPLICATE }
 

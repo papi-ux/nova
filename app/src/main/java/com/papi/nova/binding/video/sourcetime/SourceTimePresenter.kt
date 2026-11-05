@@ -12,6 +12,12 @@ package com.papi.nova.binding.video.sourcetime
  *   the status reports.
  * - [onVsync] (vsync thread) measures the display's lead from the refreshes it offers and asks the
  *   scheduler what to release.
+ * - Both first check the fence (W26 F3): the mapper epoch and the renderer's surface and decoder
+ *   generations. When it has moved, every queued frame aimed under the old one is handed back to
+ *   drop, a source-paced state stops claiming so, the delay is learned again for a new surface, and
+ *   the next vsync says the frame-rendered feedback still pending belongs to the old fence. A
+ *   decoded frame whose timing was made under an old epoch or surface is aimed by arrival with a
+ *   named reason (stale_epoch, surface_recreated) and never restores source_time_fixed.
  *
  * Every method is synchronized. Lock order is this object, then the scheduler's or the mapper's
  * lock, never the reverse: nothing here is called with the mapper's lock held.
@@ -21,7 +27,7 @@ class SourceTimePresenter(
     private val mapper: SourceTimeMapper,
 ) {
     data class Admission(
-        /** Frames this pushed out of the queue (oldest first), to drop unrendered. */
+        /** Frames this pushed out of the queue or left behind a moved fence, to drop unrendered. */
         val dropped: List<SourceTimeScheduler.Entry>,
         /** How the frame was aimed, for the report's counts. */
         val kind: SourceTimeCounters.Admission,
@@ -29,25 +35,64 @@ class SourceTimePresenter(
         val outOfBounds: Boolean,
     )
 
+    /** What one vsync asks of the renderer. */
+    data class Vsync(
+        val release: SourceTimeScheduler.Entry?,
+        /** The refresh [release] is for; the renderTimestampNs to give releaseOutputBuffer. */
+        val releaseAtNs: Long,
+        /** Older frames due at the same refresh, and frames left behind a moved fence: drop them. */
+        val drop: List<SourceTimeScheduler.Entry>,
+        /** The fence moved since the last vsync: pending frame-rendered feedback is the old one's. */
+        val fenceMoved: Boolean,
+    )
+
     private val scheduler = SourceTimeScheduler(capacity)
     private val delay = SourceTimeTargetDelay(capacity)
     private var state = SourceTimeEffective.PENDING
     private var reason = SourceTimeReason.NONE
+    private var fence = SourceTimeScheduler.NO_FENCE
+    private var fenceMovedSinceVsync = false
 
     /** The learned presentation delay in microseconds; null before any frame measured it. */
     val targetDelayUs: Long?
         get() = delay.reportUs
 
+    /**
+     * One decoded frame, with the record queued beside it (or null), under the renderer's current
+     * [surfaceGeneration] and [decoderGeneration].
+     */
     @Synchronized
-    fun admit(index: Int, ptsUs: Long, decodedNs: Long, record: SourceTimeSideMap.Record?): Admission {
+    fun admit(
+        index: Int,
+        ptsUs: Long,
+        decodedNs: Long,
+        record: SourceTimeSideMap.Record?,
+        surfaceGeneration: Int,
+        decoderGeneration: Int,
+    ): Admission {
+        val stale = refence(surfaceGeneration, decoderGeneration)
+        val current = fence
         val point = record?.point
         var targetNs: Long? = null
         var outOfBounds = false
+        var staleTiming = false
         when {
             point == null -> fallback(SourceTimeReason.TIMING_METADATA_MISSING)
+            record?.surfaceGeneration != current.surfaceGeneration -> {
+                staleTiming = true
+                fallback(SourceTimeReason.SURFACE_RECREATED)
+            }
+            point.epoch != current.epoch -> {
+                staleTiming = true
+                fallback(SourceTimeReason.STALE_EPOCH)
+            }
             !point.valid -> reasonFor(point.reason)?.let(::fallback)
+            // The mapper may have started a new epoch since the fence was read.
+            !mapper.ready(point, decodedNs / 1000) -> {
+                staleTiming = true
+                fallback(SourceTimeReason.STALE_EPOCH)
+            }
             else -> {
-                mapper.ready(point, decodedNs / 1000)
                 val mappedNs = point.targetUs * 1000
                 val inBounds = mappedNs - decodedNs <= EARLY_BOUND_NS
                 if (!point.active) {
@@ -68,10 +113,11 @@ class SourceTimePresenter(
         }
         val kind = when {
             point == null -> SourceTimeCounters.Admission.TIMING_METADATA_MISSING
+            staleTiming -> SourceTimeCounters.Admission.STALE_EPOCH
             targetNs != null -> SourceTimeCounters.Admission.SOURCE_TIMED
             else -> SourceTimeCounters.Admission.SOURCE_TIME_MISSING
         }
-        return Admission(scheduler.admit(index, ptsUs, decodedNs, targetNs), kind, outOfBounds)
+        return Admission(stale + scheduler.admit(index, ptsUs, decodedNs, targetNs, current), kind, outOfBounds)
     }
 
     /**
@@ -79,9 +125,29 @@ class SourceTimePresenter(
      * [vsyncPeriodNs] the display period. The earliest of them, against now, is the display's lead.
      */
     @Synchronized
-    fun onVsync(nowNs: Long, slotsNs: LongArray, vsyncPeriodNs: Long): SourceTimeScheduler.Decision {
+    fun onVsync(
+        nowNs: Long,
+        slotsNs: LongArray,
+        vsyncPeriodNs: Long,
+        surfaceGeneration: Int,
+        decoderGeneration: Int,
+    ): Vsync {
+        val stale = refence(surfaceGeneration, decoderGeneration)
         if (slotsNs.isNotEmpty()) delay.onVsync(nowNs, slotsNs[0], vsyncPeriodNs)
-        return scheduler.onVsync(slotsNs, vsyncPeriodNs)
+        val decision = scheduler.onVsync(slotsNs, vsyncPeriodNs)
+        val moved = fenceMovedSinceVsync
+        fenceMovedSinceVsync = false
+        return Vsync(decision.release, decision.releaseAtNs, stale + decision.superseded, moved)
+    }
+
+    /**
+     * The renderer reset the mapping at one of its own sites: whatever was source-paced is not any
+     * more, for [why]. The queued frames go at the next call, when the fence is seen to move.
+     */
+    @Synchronized
+    fun onMappingReset(why: SourceTimeReason) {
+        state = SourceTimeEffective.PENDING
+        reason = why
     }
 
     /** The renderer's state for [request], with the buffer limit named when a bound was reached. */
@@ -100,12 +166,6 @@ class SourceTimePresenter(
         )
     }
 
-    /** The display's timing changed: its lead has to be measured again. */
-    @Synchronized
-    fun onDisplayChange() {
-        delay.reset()
-    }
-
     /** Forget every waiting frame and hand them back (to drop, or to abandon at stop). */
     @Synchronized
     fun clear(): List<SourceTimeScheduler.Entry> = scheduler.clear()
@@ -118,9 +178,36 @@ class SourceTimePresenter(
         reason = why
     }
 
+    /** Move to the current fence; returns the waiting frames aimed under an older one. */
+    private fun refence(surfaceGeneration: Int, decoderGeneration: Int): List<SourceTimeScheduler.Entry> {
+        val current = SourceTimeScheduler.Fence(mapper.epoch, surfaceGeneration, decoderGeneration)
+        val previous = fence
+        if (current == previous) return emptyList()
+        fence = current
+        if (previous != SourceTimeScheduler.NO_FENCE) {
+            fenceMovedSinceVsync = true
+            val surfaceMoved = previous.surfaceGeneration != current.surfaceGeneration
+            // A new surface or display timing has a lead of its own to measure.
+            if (surfaceMoved) delay.reset()
+            if (state == SourceTimeEffective.SOURCE_TIME_FIXED) {
+                fallback(if (surfaceMoved) SourceTimeReason.SURFACE_RECREATED else SourceTimeReason.STALE_EPOCH)
+            }
+        }
+        return scheduler.fence(current)
+    }
+
     companion object {
         /** A mapped target further ahead of its decode than this is a broken mapping (design C.3). */
         const val EARLY_BOUND_NS = 200_000_000L
+
+        /** The state's reason after the renderer reset the mapping at the named site. */
+        @JvmStatic
+        fun reasonForReset(reset: String): SourceTimeReason = when (reset) {
+            SourceTimeCounters.RESET_DISPLAY_CHANGE -> SourceTimeReason.SURFACE_RECREATED
+            SourceTimeCounters.RESET_TARGET_OUT_OF_BOUNDS -> SourceTimeReason.CLOCK_MAPPING_UNSTABLE
+            // Stream setup, a frame restart, codec recovery or foreground: warming up again.
+            else -> SourceTimeReason.NONE
+        }
 
         /** The shared reason for a mapper point's own reason; null for a one-frame condition. */
         @JvmStatic

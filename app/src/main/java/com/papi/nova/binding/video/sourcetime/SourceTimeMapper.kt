@@ -126,6 +126,8 @@ class SourceTimeMapper(
     private var observations = 0L
     private var have = false
 
+    /** Read under this mapper's lock: observe() can start a new epoch on another thread. */
+    @get:Synchronized
     var epoch = 0L
         private set
 
@@ -306,13 +308,15 @@ class SourceTimeMapper(
         return Point(epoch, frame, rtp, sourceUs, baseUs, targetUs, true, active, reason)
     }
 
-    /** Learn the reserve from one decoded frame. Points from an earlier epoch are ignored. */
+    /**
+     * Learn the reserve from one decoded frame. Returns whether [point] belongs to the current epoch:
+     * a point from an earlier epoch teaches nothing, and its target is no longer this mapping's.
+     */
     @Synchronized
-    fun ready(point: Point, decodedUs: Long) {
-        if (!point.valid || point.epoch != epoch || decodedUs < point.baseUs || decodedUs < lastReady ||
-            decodedUs > MAX_US
-        ) {
-            return
+    fun ready(point: Point, decodedUs: Long): Boolean {
+        val current = point.valid && point.epoch == epoch
+        if (!current || decodedUs < point.baseUs || decodedUs < lastReady || decodedUs > MAX_US) {
+            return current
         }
         val elapsed = if (lastReady != 0L) decodedUs - lastReady else 0L
         lastReady = decodedUs
@@ -320,7 +324,7 @@ class SourceTimeMapper(
         if (lateness > policy.hitchExclusionUs) {
             pressure = true
             cleanSince = -1
-            return
+            return true
         }
         pushReady(decodedUs, lateness)
         for (i in 0 until readySize) {
@@ -346,6 +350,7 @@ class SourceTimeMapper(
             }
         }
         reserve = reserve.coerceIn(0L, cap)
+        return true
     }
 
     private fun invalid(frame: Int, rtp: Long, reason: String) =

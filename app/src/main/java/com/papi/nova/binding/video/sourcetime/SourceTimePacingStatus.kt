@@ -27,7 +27,9 @@ enum class SourceTimeEffective(val wire: String) {
  * One machine reason per state, from the shared Nova source-time contract (W4 section 5) plus the
  * reasons ROOT accepted for Android. PACING_MODE_INCOMPATIBLE is an Android-side addition still to
  * be agreed for the shared list: source time asked for with a frame-pacing mode that has no
- * presentation queue to schedule.
+ * presentation queue to schedule. STALE_EPOCH (W26 F3) is the Deck delivery fence's name for a
+ * frame whose timing was made under a mapper epoch that no longer exists (contract "Delivery epoch
+ * fence"); Android also uses it as a state reason, listed in addendum 2 for the contract owner.
  */
 enum class SourceTimeReason(val wire: String) {
     NONE("none"),
@@ -49,6 +51,7 @@ enum class SourceTimeReason(val wire: String) {
     SURFACE_RECREATED("surface_recreated"),
     RENDERER_NOT_PARTICIPATING("renderer_not_participating"),
     PACING_MODE_INCOMPATIBLE("pacing_mode_incompatible"),
+    STALE_EPOCH("stale_epoch"),
 }
 
 /**
