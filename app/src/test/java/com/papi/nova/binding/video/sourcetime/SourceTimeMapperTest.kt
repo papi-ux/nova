@@ -19,23 +19,38 @@ class SourceTimeMapperTest {
     /** What Android actually has: the core's enqueue time, whole milliseconds. */
     private fun enqueueAnchorUs(arrivalUs: Long) = arrivalUs / 1000 * 1000
 
-    private fun targets(frames: List<Frame>, arrivalOnly: Boolean, warmup: Long = 1): List<Long> {
+    /** One frame's target, with the epoch and warmth of the point it came from. */
+    private class Aim(val targetUs: Long, val epoch: Long, val active: Boolean)
+
+    private fun targets(frames: List<Frame>, arrivalOnly: Boolean, warmup: Long = 1): List<Aim> {
         val mapper = SourceTimeMapper(SourceTimePolicy(warmupFrames = warmup), 2, 16_666)
         return frames.mapIndexed { i, f ->
             val anchor = enqueueAnchorUs(f.arrivalUs)
             val point = mapper.observe(i + 1, rtpOf(900_000, f.sourceUs), anchor)
             assertTrue(point.valid)
-            if (arrivalOnly) anchor + mapper.reserveUs else point.targetUs
+            Aim(if (arrivalOnly) anchor + mapper.reserveUs else point.targetUs, point.epoch, point.active)
         }
     }
 
-    /** The oracle: after warm-up, target spacing equals source spacing within one slew step. */
-    private fun followsSource(frames: List<Frame>, targets: List<Long>, fromIndex: Int = 1): Boolean =
-        (fromIndex until frames.size).all { i ->
+    /** Consecutive frames the oracle can compare: both warm, in one epoch. */
+    private fun comparable(aims: List<Aim>): List<Int> =
+        (1 until aims.size).filter { aims[it].active && aims[it - 1].active && aims[it].epoch == aims[it - 1].epoch }
+
+    /**
+     * The oracle: target spacing equals source spacing within one slew step, for every comparable
+     * pair. Under the shared re-warm rule a frame that starts a new epoch, or is still warming,
+     * is not comparable; the oracle still has to see nearly every frame, so it cannot pass by
+     * comparing nothing.
+     */
+    private fun followsSource(frames: List<Frame>, aims: List<Aim>): Boolean {
+        val pairs = comparable(aims)
+        assertTrue("the oracle saw ${pairs.size} of ${frames.size - 1} pairs", pairs.size >= (frames.size - 1) * 9 / 10)
+        return pairs.all { i ->
             val wanted = frames[i].sourceUs - frames[i - 1].sourceUs
-            val got = targets[i] - targets[i - 1]
+            val got = aims[i].targetUs - aims[i - 1].targetUs
             kotlin.math.abs(got - wanted) <= 101
         }
+    }
 
     private fun scenario(sourceIntervalsUs: List<Long>, arrivalJitterUs: List<Long>, count: Int): List<Frame> {
         var source = 0L
@@ -79,8 +94,11 @@ class SourceTimeMapperTest {
         assertTrue(followsSource(calm, calmTargets))
         assertTrue(followsSource(rough, roughTargets))
         // Whatever the delivery, the spacing differs only by the bounded offset slew.
-        for (i in 1 until calm.size) {
-            val difference = (calmTargets[i] - calmTargets[i - 1]) - (roughTargets[i] - roughTargets[i - 1])
+        val both = comparable(calmTargets).toSet().intersect(comparable(roughTargets).toSet())
+        assertTrue(both.size >= (calm.size - 1) * 9 / 10)
+        for (i in both) {
+            val difference = (calmTargets[i].targetUs - calmTargets[i - 1].targetUs) -
+                (roughTargets[i].targetUs - roughTargets[i - 1].targetUs)
             assertTrue("frame $i differs by $difference us", kotlin.math.abs(difference) <= 101)
         }
         assertFalse(followsSource(rough, targets(rough, arrivalOnly = true)))
@@ -102,21 +120,61 @@ class SourceTimeMapperTest {
     @Test
     fun hostClockDriftInsideTheSlewBudgetIsFollowedWithoutAJump() {
         // The host clock runs 500 ppm fast: anchor minus source falls by half a millisecond a
-        // second, inside the one-millisecond-per-second budget.
+        // second, inside the one-millisecond-per-second budget. Exact (microsecond) anchors and
+        // frames of whole 90 kHz ticks (1500 = 16.667 ms), so the only correction is the drift
+        // itself, about 8 us a frame against a budget of about 16: the shared rule never re-warms.
         val mapper = SourceTimeMapper(SourceTimePolicy(warmupFrames = 1), 2, 16_666)
         var last = 0L
+        var lastSource = 0L
         for (i in 0 until 60 * 60) {
-            val sourceUs = i * 16_667L
-            val anchor = enqueueAnchorUs(1_000_000 + sourceUs - sourceUs / 2000 + 20_000)
-            val point = mapper.observe(i + 1, rtpOf(900_000, sourceUs), anchor)
-            assertTrue(point.active)
+            val ticks = i * 1500L
+            val sourceUs = ticks * 1000 / 90
+            val anchor = 1_000_000 + sourceUs - sourceUs / 2000 + 20_000
+            val point = mapper.observe(i + 1, (900_000 + ticks) and 0xFFFF_FFFFL, anchor)
+            assertTrue("frame $i", point.active)
             assertEquals("no reset in a drifting but continuous stream", 1L, point.epoch)
             if (i > 0) {
                 val step = point.targetUs - last
-                assertTrue("step $step at $i", step in 16_667L - 101..16_667L + 101)
+                assertTrue("step $step at $i", kotlin.math.abs(step - (sourceUs - lastSource)) <= 101)
             }
             last = point.targetUs
+            lastSource = sourceUs
         }
+    }
+
+    @Test
+    fun onMillisecondAnchorsACorrectionBeyondOneUpdateRewarmsAndNothingElseMoves() {
+        // Android's anchor is the core's enqueue time in whole milliseconds (ROOT D2). With the
+        // host clock 50 ppm off, the floored lower envelope sometimes steps further than one
+        // update can fund; the shared offsetRewarmRule then starts a new epoch from that frame,
+        // pending with clock_mapping_unstable, rather than clipping. This pins that behaviour:
+        // every re-warm is named and starts an epoch, and inside an epoch targets keep following
+        // the source exactly.
+        val mapper = SourceTimeMapper(SourceTimePolicy(), 2, 16_666)
+        var rewarms = 0
+        var epochs = mutableSetOf<Long>()
+        var previous: SourceTimeMapper.Point? = null
+        var previousSource = 0L
+        for (i in 0 until 60 * 60) {
+            val sourceUs = i * 16_667L
+            val point = mapper.observe(i + 1, rtpOf(900_000, sourceUs), enqueueAnchorUs(1_000_000 + sourceUs - sourceUs * 50 / 1_000_000 + 20_000))
+            assertTrue(point.valid)
+            epochs += point.epoch
+            if (previous != null && point.epoch != previous.epoch) {
+                rewarms++
+                assertEquals(SourceTimeMapper.REASON_CLOCK_MAPPING_UNSTABLE, point.reason)
+                assertFalse(point.active)
+                assertEquals(0L, point.sourceUs)
+            }
+            if (previous != null && previous.active && point.active && point.epoch == previous.epoch) {
+                val step = point.targetUs - previous.targetUs
+                assertTrue("step $step at $i", kotlin.math.abs(step - (sourceUs - previousSource)) <= 101)
+            }
+            previous = point
+            previousSource = sourceUs
+        }
+        assertEquals(rewarms + 1, epochs.size)
+        assertTrue("the measured case re-warms (see the phase 2 report)", rewarms > 0)
     }
 
     @Test

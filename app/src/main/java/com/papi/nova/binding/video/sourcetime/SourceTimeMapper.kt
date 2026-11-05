@@ -25,8 +25,10 @@ package com.papi.nova.binding.video.sourcetime
  * ingress is diagnostic only). Source time is the RTP timestamp unwrapped in frame order. The
  * offset to local time is the lowest (anchor - source) of the last three seconds, so jitter and
  * queueing only ever make samples later; once warm, the offset follows that minimum by at most a
- * millisecond per second and a tenth of a millisecond per frame. A target is the mapped source
- * time plus the current reserve, and targets never go backwards within an epoch.
+ * millisecond per second and a tenth of a millisecond per frame; a correction larger than one
+ * update can fund starts a new epoch from that frame, pending with clock_mapping_unstable, and
+ * warms up again rather than being clipped. A target is the mapped source time plus the current
+ * reserve, and targets never go backwards within an epoch.
  *
  * ready() learns the reserve from decoded-ready lateness: the 98th percentile of the last three
  * seconds plus half a millisecond, rising half a millisecond per frame at most, falling only after
@@ -209,7 +211,17 @@ class SourceTimeMapper(
             val numerator = (anchorUs - lastAnchor) * policy.offsetSlewUsPerSecond + slewRemainder
             val step = minOf(policy.offsetMaxStepUs, numerator / 1_000_000)
             slewRemainder = numerator % 1_000_000
-            offset += (minimum - offset).coerceIn(-step, step)
+            val correction = minimum - offset
+            if (correction < -step || correction > step) {
+                // A correction this update cannot fund is not drift the mapping can keep
+                // following: start a fresh epoch from this very observation, so queued targets and
+                // readiness samples from the old mapping cannot qualify the new one, and warm up
+                // again (the shared contract's offsetRewarmRule).
+                resetLocked()
+                return observe(frame, rtpTimestamp, anchorUs)
+                    .copy(active = false, reason = REASON_CLOCK_MAPPING_UNSTABLE)
+            }
+            offset += correction
         }
 
         val baseUs = sourceUs + offset

@@ -33,6 +33,7 @@ class SourceTimeReplayFixtureTest {
         val reserve: Long?,
         val reserveLessThan: Long?,
         val reason: String?,
+        val epoch: Long?,
     )
 
     private data class Case(
@@ -106,6 +107,7 @@ class SourceTimeReplayFixtureTest {
                         expected.longOrNull("reserveUs"),
                         expected.longOrNull("reserveLessThan"),
                         if (expected.isNull("reason")) null else expected.getString("reason"),
+                        expected.longOrNull("epoch"),
                     )
                 },
             )
@@ -131,11 +133,13 @@ class SourceTimeReplayFixtureTest {
                     (step.reserve == null || mapper.reserveUs == step.reserve) &&
                     (step.reserveLessThan == null || mapper.reserveUs < step.reserveLessThan) &&
                     (step.reason == null || point.reason == step.reason) &&
+                    (step.epoch == null || point.epoch == step.epoch) &&
                     mapper.reserveUs >= 0 && mapper.reserveUs <= mapper.reserveCapUs() &&
                     mapper.historySize <= 1024
                 if (!ok) {
                     failures += "${case.name} frame=${step.frame} target=${point.targetUs} expected=${step.target} " +
-                        "source=${point.sourceUs} state=${point.state} reason=${point.reason} reserve=${mapper.reserveUs}"
+                        "source=${point.sourceUs} state=${point.state} reason=${point.reason} reserve=${mapper.reserveUs} " +
+                        "epoch=${point.epoch}"
                 }
             }
         }
@@ -146,12 +150,15 @@ class SourceTimeReplayFixtureTest {
     fun theAndroidMapperPassesEverySharedReplayCase() {
         val cases = cases(fixture(REPLAY))
         assertTrue("the shared fixture has no cases", cases.isNotEmpty())
+        println("shared replay: cases=${cases.size} steps=${cases.sumOf { it.steps.size }}")
         assertEquals(emptyList<String>(), replay(cases, arrivalOnly = false))
     }
 
     @Test
     fun anArrivalTimeOnlyMapperFailsTheSameOracle() {
         val failures = replay(cases(fixture(REPLAY)), arrivalOnly = true)
+        println("arrival-only control: ${failures.size} oracle failures")
+        failures.forEach { println("  $it") }
         assertTrue("aiming frames by arrival must fail the shared source-time oracle", failures.isNotEmpty())
     }
 
