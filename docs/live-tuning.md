@@ -3,6 +3,10 @@
 Live Tuning is the host's adaptive bitrate preference. It does not require an AI
 provider or a subscription. Doctor explanations remain a separate feature.
 
+Polaris 1.5.0 turns Live Tuning on by default. A host that upgrades gets it on
+once, including a host that deliberately saved Off before 1.5.0. Turn it off
+again afterwards and it stays off.
+
 The switch in Quick Controls and Audio/Video settings saves immediately. Nova's
 Command Center uses the same preference. Its HUD shows tuning separately from
 stream health. A saved On preference can be waiting for a stream, measuring,
@@ -11,8 +15,9 @@ Disconnected or invalid status is Unknown; it is not permission to change settin
 
 The displayed applied bitrate comes from the encoder acknowledgement, not the
 requested target. Turning tuning off holds the last confirmed bitrate. Choosing
-an explicit fixed live bitrate also turns tuning off and supersedes a pending
-Doctor bitrate action. Auto, Quality, High FPS, and Stability launch presets still
+an explicit fixed live bitrate also turns tuning off for the rest of that stream
+and supersedes a pending Doctor bitrate action; the host's saved preference stays
+as it was. Auto, Quality, High FPS, and Stability launch presets still
 apply at the next explicit launch.
 
 The Performance and Debug HUD show a brief line when Live Tuning eases the
