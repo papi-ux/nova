@@ -33,6 +33,11 @@ enum class SourceTimeEffective(val wire: String) {
  * SOURCE_TIMESTAMP_MISSING also ends a source-paced claim that has gone a second of frames or a
  * second of time without a valid mapped target (W26 F4), as the shared contract's one-second
  * freshness expiry does on the Deck.
+ *
+ * HOLD_CEILING_EXCEEDED and STALE_FRAME are shared names the Deck's delivery emits (#241 contract
+ * "Delivery hold ceiling" and "Late source chronology"). Android knows them so the shared list has a
+ * token for every reason, and emits neither: it has no hold ceiling (addendum 2), and a stale frame
+ * identity stays a one-frame condition here.
  */
 enum class SourceTimeReason(val wire: String) {
     NONE("none"),
@@ -55,6 +60,8 @@ enum class SourceTimeReason(val wire: String) {
     RENDERER_NOT_PARTICIPATING("renderer_not_participating"),
     PACING_MODE_INCOMPATIBLE("pacing_mode_incompatible"),
     STALE_EPOCH("stale_epoch"),
+    HOLD_CEILING_EXCEEDED("hold_ceiling_exceeded"),
+    STALE_FRAME("stale_frame"),
 }
 
 /**

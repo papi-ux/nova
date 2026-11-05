@@ -205,6 +205,8 @@ data class PresentationTruth(
             SourceTimeReason.RENDERER_NOT_PARTICIPATING -> "This decoder cannot pace"
             SourceTimeReason.PACING_MODE_INCOMPATIBLE -> "Needs Balanced frame pacing"
             SourceTimeReason.STALE_EPOCH -> "Re-syncing after a reset"
+            SourceTimeReason.HOLD_CEILING_EXCEEDED -> "Frame held too long"
+            SourceTimeReason.STALE_FRAME -> "Frame arrived out of order"
         }
     }
 }
