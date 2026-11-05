@@ -157,3 +157,14 @@ arming. Thus an admitted sub-one-second forward jump followed by loss of all lat
 observations cannot hold that decoded lease for hundreds of milliseconds. This
 bounds intentional target waiting; GUI stalls, rendering and compositor waits
 remain outside the bound. Constants are provisional and require physical receipts.
+
+## Delivery epoch fence (W25 F2)
+
+Every decoded descriptor carries the mapper epoch in `clock.epoch`, including
+inactive warmup/metadata-missing points. Publication of a newer epoch atomically
+releases the queued old leases, invalidates the queued deadline epoch and clears
+the delivered source watermark; older epochs are dropped as `stale_epoch`. A
+timer callback always reevaluates the current queue and epoch before arming or
+delivery. Decoder PTS remains unique across mapper/surface resets; the PTS store
+retains its chronology and current-epoch lower bound so missing/expired old output
+cannot be relabeled with a current epoch. Only a decoder teardown resets PTS.

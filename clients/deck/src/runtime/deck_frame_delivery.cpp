@@ -27,6 +27,8 @@ struct DeckFrameDelivery::State {
     bool closed = false, queued = false, wakeQueued = false;
     bool configured = false, started = false;
     std::uint64_t dropped = 0, presentationGeneration = 0;
+    std::uint64_t mapperEpoch = 0;
+    std::optional<std::uint64_t> deadlineEpoch;
     bool sourceEnabled = false;
     std::string_view fallback = "not_requested";
     std::int64_t lastSourceDeliveryNs = -1;
@@ -87,6 +89,19 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
     return [state = state_](const Frame& frame) {
         const std::lock_guard lock(state->mutex);
         if (state->closed || !state->receiver) return false;
+        if (state->sourceEnabled) {
+            const auto epoch = frame.timing.clock.epoch;
+            if (epoch < state->mapperEpoch || frame.timing.clock.reason == "stale_epoch") {
+                ++state->dropped; state->fallback = "stale_epoch"; return true;
+            }
+            if (epoch > state->mapperEpoch) {
+                // This runs even for a pending warmup descriptor. The GUI may
+                // still own an old timer; its callback only rechecks this queue.
+                state->dropped += state->frames.size(); state->frames.clear();
+                state->mapperEpoch = epoch; state->deadlineEpoch.reset();
+                state->lastSourceDeliveryNs = -1;
+            }
+        }
         const auto admittedNs = nowNs();
         const auto decodedNs = frame.timing.decodedMonoNs > 0 ? frame.timing.decodedMonoNs : admittedNs;
         if (state->sourceEnabled && frame.timing.usable() &&
@@ -137,7 +152,8 @@ void DeckFrameDelivery::deliver() {
         const auto now = nowNs();
         timer_.stop(); sourceDeadline_->cancel();
         const auto sourceFrame = [this](const Frame& f) {
-            return state_->sourceEnabled && f.timing.usable() && f.timing.presentationGeneration == state_->presentationGeneration;
+            return state_->sourceEnabled && f.timing.usable() &&
+                f.timing.clock.epoch == state_->mapperEpoch && f.timing.presentationGeneration == state_->presentationGeneration;
         };
         if (sourceFrame(state_->frames.front())) {
             if (sourceHoldExceedsCeiling(state_->frames.front().timing.clock.targetUs,
@@ -155,6 +171,7 @@ void DeckFrameDelivery::deliver() {
             }
             const auto target = state_->frames.front().timing.clock.targetUs * 1000;
             if (target > now) {
+                state_->deadlineEpoch = state_->mapperEpoch;
                 if (sourceDeadline_->arm(target)) return;
                 // Timer provider failure never delivers early or starts a busy retry.
                 state_->frames.clear(); state_->queued = false; ++state_->dropped; return;
@@ -172,6 +189,7 @@ void DeckFrameDelivery::deliver() {
         state_->queued = !state_->frames.empty();
         if (state_->queued) {
             if (sourceFrame(state_->frames.front())) {
+                state_->deadlineEpoch = state_->mapperEpoch;
                 if (!sourceDeadline_->arm(std::max(now + 1, state_->frames.front().timing.clock.targetUs * 1000))) {
                     state_->frames.clear(); state_->queued = false; ++state_->dropped;
                 }

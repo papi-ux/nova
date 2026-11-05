@@ -20,12 +20,14 @@ public:
     std::optional<std::int64_t> packetPts(const runtime::DeckSourceClockPoint& point) {
         const auto maximum = std::numeric_limits<std::int64_t>::max();
         if (!point.valid || point.sourceUs < 0 || point.sourceUs > maximum / 1000 || lastPts_ >= maximum - 1) return {};
-        if (mapperEpoch_ != point.epoch) {
+        const bool newEpoch = mapperEpoch_ != point.epoch;
+        if (newEpoch) {
             mapperEpoch_ = point.epoch;
             offset_ = lastPts_ < 0 ? 0 : lastPts_ + 1 - point.sourceUs;
         }
         if (offset_ > 0 && point.sourceUs > maximum - offset_) return {};
         lastPts_ = point.sourceUs + offset_;
+        if (newEpoch) minimumPts_ = lastPts_;
         return lastPts_;
     }
     bool put(std::int64_t pts, const DeckSourceFrameTiming& timing) {
@@ -48,13 +50,14 @@ public:
         }
     }
     // Surface/mapper reset: retain PTS chronology while old decoder output exists.
-    void clear() { entries_.clear(); }
-    void resetDecoder() { clear(); mapperEpoch_ = 0; offset_ = 0; lastPts_ = -1; }
+    void clear() { entries_.clear(); minimumPts_ = lastPts_ + 1; }
+    bool stalePts(std::int64_t pts) const { return pts < minimumPts_; }
+    void resetDecoder() { clear(); mapperEpoch_ = 0; offset_ = 0; lastPts_ = -1; minimumPts_ = 0; }
     std::size_t size() const { return entries_.size(); }
 private:
     struct Entry { DeckSourceFrameTiming timing; bool ambiguous; };
     std::map<std::int64_t, Entry> entries_;
     std::uint64_t mapperEpoch_ = 0;
-    std::int64_t offset_ = 0, lastPts_ = -1;
+    std::int64_t offset_ = 0, lastPts_ = -1, minimumPts_ = 0;
 };
 }

@@ -1808,12 +1808,17 @@ DeckSourceFrameTiming DeckVaapiFfmpegRenderer::decodedTiming(const AVFrame& fram
     const auto now = sourceTimingNowNs();
     DeckSourceFrameTiming unavailable;
     unavailable.clock.reason = "timing_metadata_missing";
+    unavailable.clock.epoch = sourceClock_.epoch();
     unavailable.decodedMonoNs = now;
     unavailable.decoderGeneration = decoderGeneration_; unavailable.presentationGeneration = presentationGeneration_;
     if (frame.pts == AV_NOPTS_VALUE) return unavailable;
+    if (timingStore_.stalePts(frame.pts)) { unavailable.clock.reason = "stale_epoch"; return unavailable; }
     auto timing = timingStore_.take(frame.pts, now);
-    if (!timing || timing->decoderGeneration != decoderGeneration_ ||
-        timing->presentationGeneration != presentationGeneration_ || timing->clock.epoch != sourceClock_.epoch()) return unavailable;
+    if (!timing) return unavailable;
+    if (timing->decoderGeneration != decoderGeneration_ ||
+        timing->presentationGeneration != presentationGeneration_ || timing->clock.epoch != sourceClock_.epoch()) {
+        unavailable.clock.reason = "stale_epoch"; return unavailable;
+    }
     sourceClock_.ready(timing->clock, now / 1000);
     return *timing;
 }

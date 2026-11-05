@@ -81,6 +81,7 @@ int main(int argc, char** argv) {
         const auto start=monotonicNs()/1000;
         const auto timed=[&](int id,std::int64_t target,std::uint64_t generation=7) {
             DeckFrameDelivery::Frame f; f.width=id; f.timing.presentationGeneration=generation;
+            f.timing.clock.epoch=1; f.timing.clock.frame=id; f.timing.clock.sourceUs=id*1000;
             f.timing.clock.valid=f.timing.clock.active=true; f.timing.clock.targetUs=target; return f;
         };
         require(send(timed(1,start+5500)) && send(timed(2,start+10750)), "source publish rejected");
@@ -102,8 +103,20 @@ int main(int argc, char** argv) {
         QCoreApplication::processEvents(); require(frames.size()==3, "late arrival replayed after stall recovery");
         require(send(timed(6,monotonicNs()/1000+50000,7)), "old generation was not safely consumed");
         QCoreApplication::processEvents(); require(source.stats().queued==0, "recreated surface accepted old timing");
+        // Queue old-epoch active work, then a new-epoch warmup point while
+        // the GUI is stalled. Publication fences old leases before dispatch.
+        auto epochOwner=std::make_shared<int>(1); std::weak_ptr<int> epochLease=epochOwner;
+        auto old=timed(70,monotonicNs()/1000+10000,8);
+        old.frameLease=std::shared_ptr<nova::deck::stream::DeckQrhiVaapiFrameLease>(epochOwner,nullptr);
+        require(send(old), "old epoch fixture failed"); old.frameLease.reset(); epochOwner.reset();
+        auto warm=timed(71,0,8); warm.timing.clock.epoch=2; warm.timing.clock.active=false;
+        require(send(warm) && epochLease.expired(), "warmup epoch failed to release old lease");
+        QThread::msleep(25); QCoreApplication::processEvents();
+        require(frames.back()!=70, "old epoch delivered after GUI stall");
+        require(send(old), "stale descriptor was not consumed"); QCoreApplication::processEvents();
+        require(source.stats().queued==0 && source.stats().fallback=="stale_epoch", "old epoch was rearmed");
         auto owner=std::make_shared<int>(1); std::weak_ptr<int> lease=owner;
-        auto held=timed(7,monotonicNs()/1000+50000,8);
+        auto held=timed(7,monotonicNs()/1000+10000,8); held.timing.clock.epoch=2;
         held.frameLease=std::shared_ptr<nova::deck::stream::DeckQrhiVaapiFrameLease>(owner,nullptr);
         require(send(held), "future lease rejected"); held.frameLease.reset(); owner.reset();
         source.close(); require(lease.expired() && !send({}), "source close retained a lease or accepted late work");
