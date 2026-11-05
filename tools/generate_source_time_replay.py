@@ -13,9 +13,13 @@ def generate(source, destination):
     if (data['policy'] != contract['policy'] or data['policyVersion'] != contract['policyVersion'] or
             data['offsetInstabilityRevision'] != contract['offsetInstabilityRevision']):
         raise ValueError('contract/fixture policy drift')
+    reference_seed = data['offsetDivergenceReferenceSeed']
+    if reference_seed != contract['offsetDivergenceReferenceSeed'] or reference_seed != 'first_steady_estimate_after_warmup':
+        raise ValueError('unsupported or divergent offset reference seed')
     out = ['// Shared replay SHA256: ' + hashlib.sha256(raw).hexdigest(),
            '// Source-time contract SHA256: ' + hashlib.sha256(contract_raw).hexdigest(),
            '// Policy version: ' + str(data['policyVersion']) + '; instability revision: ' + str(data['offsetInstabilityRevision']),
+           '// Offset divergence reference seed: ' + reference_seed,
            '// Base policy: ' + json.dumps(data['policy'], sort_keys=True),
            'static std::vector<ReplayCase> replayCases() { std::vector<ReplayCase> out;']
     out.insert(1, 'static bool replayPolicyDefaultsMatch() { DeckSourceClockPolicy p; return ' + ' && '.join(f'p.{k} == {v}' for k,v in data['policy'].items()) + '; }')

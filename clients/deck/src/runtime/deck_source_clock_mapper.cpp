@@ -86,11 +86,14 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
     prune(offsets_, anchor, policy_.offsetWindowUs, policy_.offsetSamples);
     auto minimum = offsets_.front().value;
     for (auto sample : offsets_) minimum = std::min(minimum, sample.value);
-    envelopes_.push_back({anchor, minimum});
-    prune(envelopes_, anchor, policy_.offsetWindowUs, policy_.offsetSamples);
     ++observations_;
     if (observations_ <= static_cast<std::size_t>(policy_.warmupFrames)) offset_ = std::min(offset_, minimum);
     else {
+        // Startup may replace an initially late offset while fitting warmup.
+        // Only steady estimates seed the divergence reference; that expected
+        // startup convergence must not become a later instability vote.
+        envelopes_.push_back({anchor, minimum});
+        prune(envelopes_, anchor, policy_.offsetWindowUs, policy_.offsetSamples);
         // Elapsed-time credit prevents per-frame rate from changing the slew budget.
         const auto numerator = (anchor - lastAnchor_) * policy_.offsetSlewUsPerSecond + slewRemainder_;
         const auto step = std::min(policy_.offsetMaxStepUs, numerator / 1'000'000);

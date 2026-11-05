@@ -2101,6 +2101,355 @@
           }
         }
       ]
+    },
+    {
+      "name": "late_startup_over_5ms",
+      "description": "First four enqueue estimates are 12 ms late, then converge during the eight-frame warmup; steady divergence reference starts at frame 9, so there are zero re-warms through the old false-reset point at frame 16 and afterwards. Anchors remain monotonic and millisecond-quantized.",
+      "policyOverrides": {},
+      "capacity": 2,
+      "admittedPeriodUs": 20000,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 112000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 115000,
+            "sourceUs": 0,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 91800,
+            "anchorUs": 132000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 135000,
+            "sourceUs": 20000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 93600,
+            "anchorUs": 152000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 155000,
+            "sourceUs": 40000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 95400,
+            "anchorUs": 172000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 175000,
+            "sourceUs": 60000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 97200,
+            "anchorUs": 180000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 183000,
+            "sourceUs": 80000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 6,
+            "rtpTimestamp": 99000,
+            "anchorUs": 200000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 203000,
+            "sourceUs": 100000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 7,
+            "rtpTimestamp": 100800,
+            "anchorUs": 220000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 223000,
+            "sourceUs": 120000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 8,
+            "rtpTimestamp": 102600,
+            "anchorUs": 240000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 243000,
+            "sourceUs": 140000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 9,
+            "rtpTimestamp": 104400,
+            "anchorUs": 260000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 263000,
+            "sourceUs": 160000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 10,
+            "rtpTimestamp": 106200,
+            "anchorUs": 280000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 283000,
+            "sourceUs": 180000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 11,
+            "rtpTimestamp": 108000,
+            "anchorUs": 300000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 303000,
+            "sourceUs": 200000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 12,
+            "rtpTimestamp": 109800,
+            "anchorUs": 320000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 323000,
+            "sourceUs": 220000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 13,
+            "rtpTimestamp": 111600,
+            "anchorUs": 340000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 343000,
+            "sourceUs": 240000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 14,
+            "rtpTimestamp": 113400,
+            "anchorUs": 360000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 363000,
+            "sourceUs": 260000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 15,
+            "rtpTimestamp": 115200,
+            "anchorUs": 380000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 383000,
+            "sourceUs": 280000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 16,
+            "rtpTimestamp": 117000,
+            "anchorUs": 400000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 403000,
+            "sourceUs": 300000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 17,
+            "rtpTimestamp": 118800,
+            "anchorUs": 420000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 423000,
+            "sourceUs": 320000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 18,
+            "rtpTimestamp": 120600,
+            "anchorUs": 440000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 443000,
+            "sourceUs": 340000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 19,
+            "rtpTimestamp": 122400,
+            "anchorUs": 460000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 463000,
+            "sourceUs": 360000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 20,
+            "rtpTimestamp": 124200,
+            "anchorUs": 480000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 483000,
+            "sourceUs": 380000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        }
+      ]
     }
   ],
   "expectedFields": "state/targetUs/sourceUs/reserveUs/reason are checked when present; optional epoch verifies that re-warm invalidates previous metadata.",
@@ -2114,5 +2463,6 @@
     "error": "abs(mapped baseUs - sourceUs(global series) - truth); measured from errorCheckAfterFrame, plus settledAfterFrame when nonzero. This oracle stays meaningful after mapper sourceUs re-anchors. Re-anchoring can change integer source conversion phase by 1 us; step cases explicitly allow that 1 us.",
     "rewarms": "count every mapper epoch change after construction; require clock_mapping_unstable on each change and exact expectedFirstRewarmFrame (0 if none)",
     "defaults": "ReplaySeries fields/defaults in deck_source_clock_mapper_test.cpp; all cases below explicitly specify every generation field and error/re-warm bound; platform implementations consume this JSON, never C++ output as their oracle"
-  }
+  },
+  "offsetDivergenceReferenceSeed": "first_steady_estimate_after_warmup"
 }
