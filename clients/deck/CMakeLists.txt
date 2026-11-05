@@ -122,6 +122,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_play_settings.cpp
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
+    src/runtime/deck_source_clock_mapper.cpp
     src/runtime/deck_frame_qualification_trace.cpp
     src/runtime/deck_steam_control.cpp
     src/runtime/deck_host_power.cpp
@@ -273,6 +274,23 @@ if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
         target_compile_definitions(nova_deck_pyrowave_presenter_test PRIVATE NOVA_DECK_TEST_VULKAN_PRESENTATION=1)
     endif()
 endif()
+if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(source_replay_header "${CMAKE_CURRENT_BINARY_DIR}/source_time_replay.h")
+    add_custom_command(OUTPUT "${source_replay_header}"
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/generate_source_time_replay.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/presentation/tests/source-time-replay-v1.json" "${source_replay_header}"
+        DEPENDS ../../tools/generate_source_time_replay.py ../../shared/presentation/tests/source-time-replay-v1.json)
+    add_executable(nova_deck_source_clock_mapper_test tests/deck_source_clock_mapper_test.cpp
+        src/runtime/deck_source_clock_mapper.cpp "${source_replay_header}")
+    target_include_directories(nova_deck_source_clock_mapper_test PRIVATE src)
+    target_compile_definitions(nova_deck_source_clock_mapper_test PRIVATE NOVA_SOURCE_REPLAY_HEADER="${source_replay_header}")
+    add_test(NAME nova_deck_source_clock_mapper_test COMMAND nova_deck_source_clock_mapper_test)
+    add_test(NAME nova_deck_source_clock_arrival_negative_test COMMAND nova_deck_source_clock_mapper_test --arrival-only)
+    set_tests_properties(nova_deck_source_clock_mapper_test nova_deck_source_clock_arrival_negative_test PROPERTIES TIMEOUT 20)
+    set_tests_properties(nova_deck_source_clock_arrival_negative_test PROPERTIES WILL_FAIL TRUE)
+endif()
+
 if(BUILD_TESTING)
     include(cmake/NovaTestAssertions.cmake)
     add_executable(nova_deck_test_assertions_test tests/deck_test_assertions_test.cpp)

@@ -1,0 +1,56 @@
+{
+  "schema": "nova-source-time-v1",
+  "amendments": [
+    "ROOT D1: raw RTP only, no core presentationTimeUs",
+    "ROOT D2: anchor earliest sample unaffected by decoder/backend waits; use core enqueue where callback can block",
+    "ROOT D3: renderer_not_participating fallback",
+    "ROOT D4: off default until device receipts; auto and source_time qualify or fall back"
+  ],
+  "requested": {
+    "off": "legacy fixed-period pacing (phase 1 default)",
+    "auto": "qualified source-time pacing, fallback reason recorded",
+    "source_time": "explicit opt-in, fallback reason prominent"
+  },
+  "rtpTimestamp": {
+    "type": "uint32",
+    "clockHz": 90000,
+    "byteOrder": "host",
+    "wrap": "modulo 2^32",
+    "source": "raw RTP after byte-order conversion, before division; never synthetic"
+  },
+  "anchorUs": "client monotonic reassembly enqueue where callback can block; callback ingress diagnostic only; ms quantization explicit",
+  "policyVersion": 1,
+  "constantsProvisional": true,
+  "policy": {
+    "offsetWindowUs": 3000000,
+    "offsetSamples": 1024,
+    "warmupFrames": 8,
+    "offsetSlewUsPerSecond": 1000,
+    "offsetMaxStepUs": 100,
+    "reserveStartUs": 3000,
+    "reserveMaximumUs": 12000,
+    "readinessWindowUs": 3000000,
+    "readinessSamples": 1024,
+    "readinessPercentile": 98,
+    "readinessMarginUs": 500,
+    "reserveAttackUs": 500,
+    "cleanHoldUs": 2000000,
+    "reserveReleaseUsPerSecond": 250,
+    "discontinuityUs": 1000000,
+    "hitchExclusionUs": 25000
+  },
+  "bounds": {
+    "decodedFramesLatency": 1,
+    "decodedFramesBalanced": 2,
+    "timingMetadataRecords": 64
+  },
+  "fallbackReasons": [
+    "renderer_not_participating",
+    "source_timestamp_missing",
+    "source_discontinuity",
+    "timing_metadata_missing",
+    "clock_mapping_unstable",
+    "buffer_limit",
+    "decoder_pressure"
+  ]
+}

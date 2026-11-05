@@ -1,0 +1,817 @@
+{
+  "schema": "nova-source-time-replay-v1",
+  "policyVersion": 1,
+  "units": "all clock values microseconds; RTP 90 kHz modulo 2^32",
+  "anchorRule": "client monotonic reassembly enqueue where callback can block; callback ingress diagnostic only; ms quantization explicit",
+  "stateDefinitions": {
+    "pending": "valid raw timing, warmup incomplete",
+    "source_time": "valid mapping after warmup",
+    "unavailable": "no usable timing point; legacy fallback required"
+  },
+  "oracle": "targets preserve source intervals independent of arrival jitter; --arrival-only must fail this same oracle",
+  "policy": {
+    "offsetWindowUs": 3000000,
+    "offsetSamples": 1024,
+    "warmupFrames": 8,
+    "offsetSlewUsPerSecond": 1000,
+    "offsetMaxStepUs": 100,
+    "reserveStartUs": 3000,
+    "reserveMaximumUs": 12000,
+    "readinessWindowUs": 3000000,
+    "readinessSamples": 1024,
+    "readinessPercentile": 98,
+    "readinessMarginUs": 500,
+    "reserveAttackUs": 500,
+    "cleanHoldUs": 2000000,
+    "reserveReleaseUsPerSecond": 250,
+    "discontinuityUs": 1000000,
+    "hitchExclusionUs": 25000
+  },
+  "cases": [
+    {
+      "name": "warmup",
+      "policyOverrides": {},
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 103000,
+            "sourceUs": 0,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 90900,
+            "anchorUs": 110000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 113000,
+            "sourceUs": 10000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 91800,
+            "anchorUs": 120000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 123000,
+            "sourceUs": 20000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 92700,
+            "anchorUs": 130000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 133000,
+            "sourceUs": 30000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 93600,
+            "anchorUs": 140000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 143000,
+            "sourceUs": 40000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 6,
+            "rtpTimestamp": 94500,
+            "anchorUs": 150000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 153000,
+            "sourceUs": 50000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 7,
+            "rtpTimestamp": 95400,
+            "anchorUs": 160000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 163000,
+            "sourceUs": 60000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 8,
+            "rtpTimestamp": 96300,
+            "anchorUs": 170000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 173000,
+            "sourceUs": 70000,
+            "reserveUs": null,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "irregular_source_independent_arrival_jitter",
+      "policyOverrides": {
+        "warmupFrames": 1,
+        "reserveStartUs": 8000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 108000,
+            "sourceUs": 0,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 90810,
+            "anchorUs": 112000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 117000,
+            "sourceUs": 9000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 92340,
+            "anchorUs": 127000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 134000,
+            "sourceUs": 26000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 93330,
+            "anchorUs": 142000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 145000,
+            "sourceUs": 37000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 95400,
+            "anchorUs": 165000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 168000,
+            "sourceUs": 60000,
+            "reserveUs": null,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "slew_budget",
+      "policyOverrides": {
+        "warmupFrames": 1,
+        "offsetWindowUs": 10000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 91800,
+            "anchorUs": 120100,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 123020,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 93600,
+            "anchorUs": 140200,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 143040,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "reserve_attack_and_clamp",
+      "policyOverrides": {
+        "warmupFrames": 1,
+        "reserveMaximumUs": 4000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": 105000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": null,
+            "reserveUs": 3500,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 90900,
+            "anchorUs": 110000,
+            "decodedUs": 116000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 113500,
+            "sourceUs": null,
+            "reserveUs": 4000,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 91800,
+            "anchorUs": 120000,
+            "decodedUs": 140000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 124000,
+            "sourceUs": null,
+            "reserveUs": 4000,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "capacity_cap",
+      "policyOverrides": {
+        "warmupFrames": 1
+      },
+      "capacity": 1,
+      "admittedPeriodUs": 1000,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 101000,
+            "sourceUs": null,
+            "reserveUs": 1000,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "source_discontinuity_and_resume",
+      "policyOverrides": {
+        "warmupFrames": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 180001,
+            "anchorUs": 2100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 2103000,
+            "sourceUs": 0,
+            "reserveUs": null,
+            "reason": "source_discontinuity"
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 360000,
+            "anchorUs": 3000000,
+            "decodedUs": null,
+            "resetBefore": true
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 3003000,
+            "sourceUs": 0,
+            "reserveUs": null,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "zero_at_wrap",
+      "policyOverrides": {
+        "warmupFrames": 1,
+        "reserveStartUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 4294967206,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 101000,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 0,
+            "anchorUs": 101000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 102000,
+            "sourceUs": 1000,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 90,
+            "anchorUs": 102000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": 2000,
+            "reserveUs": null,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "missing_zero_and_duplicates",
+      "policyOverrides": {
+        "warmupFrames": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 0,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "unavailable",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": "source_timestamp_missing"
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 900,
+            "anchorUs": 110000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 113000,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 900,
+            "anchorUs": 111000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "unavailable",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": "duplicate_timestamp"
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 1800,
+            "anchorUs": 112000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "unavailable",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": "stale_frame"
+          }
+        }
+      ]
+    },
+    {
+      "name": "local_clock_reversal",
+      "policyOverrides": {
+        "warmupFrames": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 90900,
+            "anchorUs": 90000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 93000,
+            "sourceUs": 0,
+            "reserveUs": null,
+            "reason": "clock_mapping_unstable"
+          }
+        }
+      ]
+    },
+    {
+      "name": "hitch_is_not_link_jitter",
+      "policyOverrides": {
+        "warmupFrames": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": 150000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": null,
+            "reserveUs": 3000,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "reserve_clean_release",
+      "policyOverrides": {
+        "warmupFrames": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": 105000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103000,
+            "sourceUs": null,
+            "reserveUs": 3500,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 171000,
+            "anchorUs": 1000000,
+            "decodedUs": 1000000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 252000,
+            "anchorUs": 1900000,
+            "decodedUs": 1900000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 333000,
+            "anchorUs": 2800000,
+            "decodedUs": 2800000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 414000,
+            "anchorUs": 3700000,
+            "decodedUs": 3700000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 6,
+            "rtpTimestamp": 495000,
+            "anchorUs": 4600000,
+            "decodedUs": 4600000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 7,
+            "rtpTimestamp": 576000,
+            "anchorUs": 5500000,
+            "decodedUs": 5500000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 8,
+            "rtpTimestamp": 657000,
+            "anchorUs": 6400000,
+            "decodedUs": 6400000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null
+          }
+        },
+        {
+          "input": {
+            "frame": 9,
+            "rtpTimestamp": 738000,
+            "anchorUs": 7300000,
+            "decodedUs": 7300000,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": null,
+            "sourceUs": null,
+            "reserveUs": null,
+            "reason": null,
+            "reserveLessThan": 5000
+          }
+        }
+      ]
+    }
+  ]
+}
