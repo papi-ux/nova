@@ -443,6 +443,7 @@ public:
     DeckRendererLifecycle lifecycle() const;
     void setSourceTimingCapacity(unsigned capacity);
     void setSourceTimingGenerationReader(std::function<std::uint64_t()> reader);
+    void setSourceSubmissionFence(std::shared_ptr<runtime::DeckSourceSubmissionFence> fence);
     void setSourceTimingEpochPublisher(std::function<void(std::uint64_t)> publisher);
     DeckQrhiVaapiPresentationHandoff& presentationHandoff();
     const DeckQrhiVaapiPresentationHandoff& presentationHandoff() const;
@@ -460,6 +461,7 @@ private:
     std::uint64_t decoderGeneration_ = 0, presentationGeneration_ = 0;
     std::function<std::uint64_t()> timingGenerationReader_;
     std::function<void(std::uint64_t)> timingEpochPublisher_;
+    std::shared_ptr<runtime::DeckSourceSubmissionFence> sourceSubmissionFence_;
     runtime::DeckSourceClockMapper sourceClock_;
     DeckFrameTimingStore timingStore_;
     AVBufferRef* hardwareDevice_ = nullptr;

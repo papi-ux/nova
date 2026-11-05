@@ -10,6 +10,12 @@ struct DeckSourceFrameTiming {
     std::uint64_t decoderGeneration = 0, presentationGeneration = 0;
     std::uint64_t receiveTimeMs = 0, enqueueTimeMs = 0;
     std::int64_t callbackMonoNs = 0, anchorMonoNs = 0, decodedMonoNs = 0;
+    std::shared_ptr<runtime::DeckSourceSubmissionFence> submissionFence;
+    runtime::DeckSourceSubmissionFence::Lease submissionTicket;
+    template<class Submit> bool withCurrentSubmission(Submit&& submit) const {
+        if (submissionFence) return submissionFence->whileCurrent(submissionTicket, std::forward<Submit>(submit));
+        std::forward<Submit>(submit)(); return true; // OFF retains its legacy path
+    }
     bool usable() const { return clock.valid && clock.active && clock.targetUs >= 0 &&
         clock.targetUs <= std::numeric_limits<std::int64_t>::max() / 1000; }
 };

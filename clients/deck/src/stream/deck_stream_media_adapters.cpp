@@ -1706,8 +1706,10 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.decoderBackend = DeckDecoderBackend::Unavailable;
     lifecycle_.transferPath = DeckFrameTransferPath::DmaBuf;
     resetDecoder();
-    if (redrawRate > 0 && redrawRate <= 240)
+    if (redrawRate > 0 && redrawRate <= 240) {
         sourceClock_ = runtime::DeckSourceClockMapper({}, sourceTimingCapacity_, 1'000'000 / redrawRate);
+        sourceClock_.setSubmissionFence(sourceSubmissionFence_);
+    }
     if (width <= 0 || height <= 0 || width > 8192 || height > 8192 || redrawRate <= 0 || redrawRate > 240) {
         lifecycle_.lastRuntimeError = "Invalid video dimensions or refresh rate";
         return DR_NEED_IDR;
@@ -1803,6 +1805,10 @@ void DeckVaapiFfmpegRenderer::setSourceTimingCapacity(unsigned capacity) {
 void DeckVaapiFfmpegRenderer::setSourceTimingGenerationReader(std::function<std::uint64_t()> reader) {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     if (!ready_) timingGenerationReader_ = std::move(reader);
+}
+void DeckVaapiFfmpegRenderer::setSourceSubmissionFence(std::shared_ptr<runtime::DeckSourceSubmissionFence> fence) {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
+    if (!ready_) { sourceSubmissionFence_ = std::move(fence); sourceClock_.setSubmissionFence(sourceSubmissionFence_); }
 }
 void DeckVaapiFfmpegRenderer::setSourceTimingEpochPublisher(std::function<void(std::uint64_t)> publisher) {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);

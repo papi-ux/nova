@@ -217,9 +217,11 @@ bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame, DeckSourceFrameTim
         emit presentationChanged();
         return false;
     }
-    d->frame = std::move(owned);
-    d->timing = timing;
-    ++d->frameSerial;
+    if (!timing.withCurrentSubmission([&] {
+        d->frame = std::move(owned);
+        d->timing = timing;
+        ++d->frameSerial;
+    })) return false;
     d->state.error.clear();
     requestUpdate();
     return true;
@@ -362,6 +364,10 @@ void DeckVulkanVideoWindow::render() {
         QMetaObject::invokeMethod(this, [this, job, state, retry] {
             if (job.epoch != d->epoch) return;
             d->busy = false;
+            if (job.timing.submissionFence && job.timing.submissionFence->wasRejected(job.timing.submissionTicket)
+                    && job.serial == d->frameSerial) {
+                d->frame.reset(); d->timing = {}; // retire the unsent stale mailbox on its GUI owner
+            }
             if (job.revision == d->revision && isExposed()) {
                 d->state = state;
                 if (state.pendingSourceFrames) d->retire.start();
@@ -422,58 +428,63 @@ bool DeckVulkanVideoWindow::Impl::render(DeckVulkanVideoWindow* window, const Jo
         overlay = this->overlay->overlay();
     }
     if (*job.cancelled) return false;
-    pl_swapchain_frame surface{};
-    if (!pl_swapchain_start_frame(gpu.swapchain, &surface)) {
-        gpu.state.error = QStringLiteral("The presentation surface is temporarily unavailable.");
-
-        return false;
-    }
-    // start/submit are a lock pair, including refusal/render failure paths.
-    gpu.state.pixelSize = QSize(surface.fbo->params.w, surface.fbo->params.h);
-    const auto actual = deckSurfaceColorOutput(surface);
-    const bool wrongOutput = !actual ||
-        (job.output == DeckWindowOutput::Sdr && *actual != DeckColorOutput::Srgb) ||
-        (job.output == DeckWindowOutput::RequireHdr10 && *actual != DeckColorOutput::Hdr10Pq);
-    bool rendered = false;
-    if (refuse || wrongOutput) {
-        gpu.state.error = QStringLiteral("The requested output format is unavailable on this surface.");
-    } else if (job.frame) {
-        rendered = gpu.renderer->renderToSurface(*job.frame, surface, overlay ? &*overlay : nullptr, job.scale);
-        gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
-    } else if (overlay) {
-        rendered = gpu.renderer->renderOverlayToSurface(surface, *overlay);
-        gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
-    }
-    if (!rendered) {
-        pl_frame target{};
-        pl_frame_from_swapchain(&target, &surface);
-        const float black[]{0, 0, 0};
-        pl_frame_clear(gpu.vk->gpu, &target, black);
-    }
-    gpu.state.pendingSourceFrames = gpu.renderer->pendingFrames();
-    // Qt's platform hooks perform Wayland frame-callback / X11 resize-sync
-    // bookkeeping even though libplacebo owns vkQueuePresentKHR.
-    instance.presentAboutToBeQueued(window);
-    const bool submitted = pl_swapchain_submit_frame(gpu.swapchain);
-    instance.presentQueued(window);
-    if (submitted) {
-        ++gpu.state.submittedFrames;
-        const bool videoRendered = rendered && bool(job.frame);
-        if (videoRendered && !*job.cancelled && gpu.composedSerial != job.serial) {
-            gpu.composedSerial = job.serial;
-            composed->fetch_add(1);
-            if (job.frame->format == AV_PIX_FMT_NV12 && !job.frame->hw_frames_ctx) {
-                cpuUploadCompositions->fetch_add(1);
-                ++gpu.state.cpuUploadCompositions;
-            }
+    // Acquire after GUI overlay synchronization, before start_frame's lock pair.
+    // Hold the same mapper/generation authority through submit AND swap_buffers;
+    // invalidation cannot slip between the final check and either Vulkan call.
+    job.timing.withCurrentSubmission([&] {
+        pl_swapchain_frame surface{};
+        if (!pl_swapchain_start_frame(gpu.swapchain, &surface)) {
+            gpu.state.error = QStringLiteral("The presentation surface is temporarily unavailable.");
+            return;
         }
-        gpu.state.hdrActive = videoRendered && actual == DeckColorOutput::Hdr10Pq;
-        gpu.state.toneMapped = videoRendered && hdrSource && actual == DeckColorOutput::Srgb;
-        pl_swapchain_swap_buffers(gpu.swapchain);
-    } else {
-        gpu.state.error = QStringLiteral("The Vulkan presentation surface was lost.");
-        release();
-    }
+        // start/submit are a lock pair, including refusal/render failure paths.
+        gpu.state.pixelSize = QSize(surface.fbo->params.w, surface.fbo->params.h);
+        const auto actual = deckSurfaceColorOutput(surface);
+        const bool wrongOutput = !actual ||
+            (job.output == DeckWindowOutput::Sdr && *actual != DeckColorOutput::Srgb) ||
+            (job.output == DeckWindowOutput::RequireHdr10 && *actual != DeckColorOutput::Hdr10Pq);
+        bool rendered = false;
+        if (refuse || wrongOutput) {
+            gpu.state.error = QStringLiteral("The requested output format is unavailable on this surface.");
+        } else if (job.frame) {
+            rendered = gpu.renderer->renderToSurface(*job.frame, surface, overlay ? &*overlay : nullptr, job.scale);
+            gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
+        } else if (overlay) {
+            rendered = gpu.renderer->renderOverlayToSurface(surface, *overlay);
+            gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
+        }
+        if (!rendered) {
+            pl_frame target{};
+            pl_frame_from_swapchain(&target, &surface);
+            const float black[]{0, 0, 0};
+            pl_frame_clear(gpu.vk->gpu, &target, black);
+        }
+        gpu.state.pendingSourceFrames = gpu.renderer->pendingFrames();
+        // Qt's platform hooks perform Wayland frame-callback / X11 resize-sync
+        // bookkeeping even though libplacebo owns vkQueuePresentKHR.
+        instance.presentAboutToBeQueued(window);
+        const bool submitted = pl_swapchain_submit_frame(gpu.swapchain);
+        instance.presentQueued(window);
+        if (submitted) {
+            if (job.timing.submissionTicket) job.timing.submissionTicket->submitted = true; // same fence hold
+            ++gpu.state.submittedFrames;
+            const bool videoRendered = rendered && bool(job.frame);
+            if (videoRendered && !*job.cancelled && gpu.composedSerial != job.serial) {
+                gpu.composedSerial = job.serial;
+                composed->fetch_add(1);
+                if (job.frame->format == AV_PIX_FMT_NV12 && !job.frame->hw_frames_ctx) {
+                    cpuUploadCompositions->fetch_add(1);
+                    ++gpu.state.cpuUploadCompositions;
+                }
+            }
+            gpu.state.hdrActive = videoRendered && actual == DeckColorOutput::Hdr10Pq;
+            gpu.state.toneMapped = videoRendered && hdrSource && actual == DeckColorOutput::Srgb;
+            pl_swapchain_swap_buffers(gpu.swapchain);
+        } else {
+            gpu.state.error = QStringLiteral("The Vulkan presentation surface was lost.");
+            release();
+        }
+    });
     return false;
 }
 

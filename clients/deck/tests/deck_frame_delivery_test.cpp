@@ -1,5 +1,6 @@
 #include "runtime/deck_frame_delivery.h"
 #include "runtime/deck_source_delivery_policy.h"
+#include "runtime/deck_hud_metrics.h"
 #include <QCoreApplication>
 #include <QThread>
 #include <QElapsedTimer>
@@ -9,10 +10,20 @@
 #include <future>
 #include <iostream>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace nova::deck::runtime;
-namespace { void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } } }
+namespace {
+void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
+// Allows the same native interleaving to run against pre-fix source: there the
+// selected descriptor has no final authority and the attempted submit runs.
+template<class Timing, class Submit> bool attemptSubmission(const Timing& timing, Submit&& submit) {
+    if constexpr (requires { timing.withCurrentSubmission(std::forward<Submit>(submit)); })
+        return timing.withCurrentSubmission(std::forward<Submit>(submit));
+    else { std::forward<Submit>(submit)(); return true; }
+}
+}
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
@@ -74,6 +85,62 @@ int main(int argc, char** argv) {
         require(frames.size() == 4, "closed timer dispatched a stale frame");
     }
 #ifdef __linux__
+    {
+        std::vector<int> delivered;
+        DeckFrameDelivery delivery([&](const auto& f) { delivered.push_back(f.width); });
+        require(delivery.setSourceTimingEnabled(true) && delivery.configurator()(DeckFramePacing::Balanced,120), "mixed timing setup failed");
+        delivery.resetTiming(7);
+        const auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        DeckFrameDelivery::Frame a; a.width=1; a.timing.presentationGeneration=7;
+        a.timing.clock={.epoch=1, .frame=1, .sourceUs=1000, .targetUs=now/1000+5000, .valid=true, .active=true};
+        auto b=a; b.width=2; b.timing.clock.frame=2; b.timing.clock.active=b.timing.clock.valid=false;
+        b.timing.clock.reason="timing_metadata_missing";
+        require(delivery.publisher()(a) && delivery.publisher()(b), "mixed timing publication failed");
+        require(delivery.stats().effective=="pending", "untimed B did not invalidate immediately");
+        QElapsedTimer wait; wait.start();
+        while(delivered.empty() && wait.elapsed()<1500) { QCoreApplication::processEvents(); QThread::usleep(100); }
+        require(!delivered.empty() && delivered.front()==1 && delivery.stats().effective=="pending" &&
+            delivery.stats().fallback=="timing_metadata_missing", "older queued A erased B fallback");
+        while(delivered.size()<2 && wait.elapsed()<1500) { QCoreApplication::processEvents(); QThread::usleep(100); }
+        require(delivered==std::vector<int>({1,2}), "fallback B did not deliver");
+        const auto status=delivery.stats();
+        DeckHudMetrics metrics; DeckHudSample sample; sample.sourceTimeRequested="auto";
+        sample.sourceTimeEffective=QString::fromUtf8(status.effective.data(),int(status.effective.size()));
+        sample.sourceTimeFallback=QString::fromUtf8(status.fallback.data(),int(status.fallback.size()));
+        const auto hud=metrics.sample(sample);
+        require(hud.value("sourceTimeEffective")=="pending" && hud.value("sourceTimeFallback")=="timing_metadata_missing", "HUD lost B's current fallback");
+        auto c=a; c.width=3; c.timing.clock.frame=3; c.timing.clock.sourceUs=3000;
+        c.timing.clock.targetUs=std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        require(delivery.publisher()(c), "recovery C rejected"); QCoreApplication::processEvents();
+        require(delivered.back()==3 && delivery.stats().effective=="source_time_fixed" && delivery.stats().fallback=="none", "newer source C did not recover");
+    }
+    {
+        DeckFrameDelivery* owner = nullptr;
+        int submitted = 0;
+        DeckFrameDelivery::Frame mailbox;
+        bool resetAfterSelection = true;
+        DeckFrameDelivery delivery([&](const auto& frame) {
+            if (resetAfterSelection) owner->epochPublisher()(2);
+            if (attemptSubmission(frame.timing, [&] { mailbox = frame; ++submitted; }))
+                require(!resetAfterSelection, "selected old epoch reached mailbox");
+        });
+        owner = &delivery;
+        require(delivery.setSourceTimingEnabled(true) && delivery.configurator()(DeckFramePacing::Balanced, 120), "fence setup failed");
+        delivery.resetTiming(7);
+        DeckFrameDelivery::Frame frame;
+        frame.timing.clock = {.epoch=1, .frame=1, .sourceUs=1, .targetUs=0, .valid=true, .active=true};
+        frame.timing.presentationGeneration=7;
+        require(delivery.publisher()(frame), "fence frame rejected"); QCoreApplication::processEvents();
+        require(submitted==0 && delivery.stats().dropped==1 && delivery.stats().fallback=="stale_epoch", "selection race was not a counted stale drop");
+        resetAfterSelection=false; frame.timing.clock.epoch=2;
+        require(delivery.publisher()(frame), "new epoch rejected"); QCoreApplication::processEvents();
+        require(submitted==1, "current mailbox missing");
+        delivery.resetTiming(8);
+        require(!attemptSubmission(mailbox.timing, [&] { ++submitted; }) && submitted==1, "retained render job crossed presentation reset");
+        require(delivery.stats().dropped==2 && delivery.stats().fallback=="stale_epoch", "render-job stale drop missing from stats");
+    }
     {
         const auto monotonicNs = [] { return std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count(); };

@@ -237,3 +237,52 @@ The decoder owner also publishes mapper epochs directly to delivery on resets
 and observations, before waiting for output. This releases queued old leases even
 if the new epoch produces no decoded frame. Descriptor and deadline checks remain
 in place to reject stale asynchronous output and callbacks.
+
+## Deck final submission fence (W47 D2)
+
+Enabled descriptors carry a shared mapper/presentation fence and a once-counted
+submission ticket from delivery selection through the GUI mailbox and render job.
+Mapper observe/reset mutations publish their epoch while holding this authority;
+output-generation invalidation uses it before publishing the new generation.
+Mailbox admission and the actual Vulkan start/submit/present lock pair revalidate
+under that same hold. A mismatch drops unsent work as `stale_epoch`; an old job
+cannot cross invalidation, even between the final check and submit/present.
+Already-submitted GPU ownership still retires normally. No fence is attached on
+OFF. Lock order is decoder lifecycle, delivery, fence; the final fenced callback
+never enters delivery/decoder or waits for GUI synchronization. The hold includes
+GPU submission work and can delay mapper invalidation; no duration guarantee is
+claimed. Host-buildable atomicity tests are distinct from native Vulkan execution.
+
+## Deck effectiveness ordering (W47 T1)
+
+Each enabled decoded admission receives a monotonic local ticket identity, kept
+by its queued frame, mailbox and completion. This orders even untimed output for
+which a source frame ID/PTS is missing; it adds no wire field. Invalid admission
+immediately records pending/unavailable with that identity and its existing named
+fallback. Both source-target and fallback completions commit only at or after the
+latest state identity. Thus valid A followed by untimed B stays pending while A
+completes and after fallback B delivers. Only an eligible newer source-target
+delivery restores `source_time_fixed/none`. Old fallback completions likewise
+cannot regress a newer success. Mapper/presentation invalidation and stale-submit
+counts remain independent fences; host fallback semantics are unchanged.
+
+## Deck End trace-tail limit (W47 / review T2)
+
+Decision: retain the existing per-sample trace contract; a terminal End flush is
+not implemented in this follow-up. The worker can publish `shared->hud` after the
+last GUI poll, then End sets cancellation before the next poll. That sample is
+not appended, and delivery/source transitions since the last sampled row can
+also be absent. Every successfully appended row is already flushed synchronously;
+End does not discard those completed rows. There is no terminal row, End receipt,
+retry, or guarantee that the last row describes the last delivered frame.
+
+The writer's existing limits bound bytes (16 MiB per file, at most 16 retained
+files), not QFile write/flush duration. A final fresh renderer/source snapshot
+would also require synchronization with worker/GPU ownership, including the final
+submission fence. Adding that work to GUI End has no cheap, established time bound
+or controller-level terminal freshness test on this host. This choice preserves
+stop/cancellation and keeps End independent of extra storage/GPU waits; it does
+not make missing tail counts zero or complete. ROOT must decide whether a future
+bounded pending terminal snapshot is required, with explicit sample age/terminal
+meaning and an End-before-next-poll controller test, before using traces as
+terminal source-time/count evidence. No new trace or wire vocabulary is added.

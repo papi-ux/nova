@@ -277,12 +277,26 @@ if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
 endif()
 if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME nova_deck_source_time_fence_source_guard_test
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/test_source_time_deck_fences.py")
+    set_tests_properties(nova_deck_source_time_fence_source_guard_test PROPERTIES TIMEOUT 10)
     set(source_replay_header "${CMAKE_CURRENT_BINARY_DIR}/source_time_replay.h")
     add_custom_command(OUTPUT "${source_replay_header}"
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/generate_source_time_replay.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/presentation/tests/source-time-replay-v1.json" "${source_replay_header}"
         DEPENDS ../../tools/generate_source_time_replay.py ../../shared/presentation/tests/source-time-replay-v1.json
             ../../shared/presentation/source-time-contract-v1.json)
+    add_executable(nova_deck_source_delivery_status_test tests/deck_source_delivery_status_test.cpp)
+    target_include_directories(nova_deck_source_delivery_status_test PRIVATE src)
+    add_test(NAME nova_deck_source_delivery_status_test COMMAND nova_deck_source_delivery_status_test)
+    set_tests_properties(nova_deck_source_delivery_status_test PROPERTIES TIMEOUT 10)
+    find_package(Threads REQUIRED)
+    add_executable(nova_deck_source_submission_fence_test tests/deck_source_submission_fence_test.cpp
+        src/runtime/deck_source_clock_mapper.cpp)
+    target_include_directories(nova_deck_source_submission_fence_test PRIVATE src)
+    target_link_libraries(nova_deck_source_submission_fence_test PRIVATE Threads::Threads)
+    add_test(NAME nova_deck_source_submission_fence_test COMMAND nova_deck_source_submission_fence_test)
+    set_tests_properties(nova_deck_source_submission_fence_test PROPERTIES TIMEOUT 10)
     add_executable(nova_deck_source_clock_mapper_test tests/deck_source_clock_mapper_test.cpp
         src/runtime/deck_source_clock_mapper.cpp "${source_replay_header}")
     target_include_directories(nova_deck_source_clock_mapper_test PRIVATE src)

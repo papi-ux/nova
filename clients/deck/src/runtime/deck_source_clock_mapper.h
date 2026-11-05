@@ -1,4 +1,5 @@
 #pragma once
+#include "runtime/deck_source_submission_fence.h"
 #include <cstdint>
 #include <deque>
 #include <string_view>
@@ -32,12 +33,16 @@ public:
     DeckSourceClockPoint observe(std::uint32_t frame, std::uint32_t rtp, std::int64_t anchorUs);
     void ready(const DeckSourceClockPoint& point, std::int64_t decodedUs);
     void reset();
+    void setSubmissionFence(std::shared_ptr<DeckSourceSubmissionFence> fence);
     std::int64_t reserveUs() const { return reserve_; }
     std::int64_t reserveCapUs() const;
     std::size_t historySize() const { return offsets_.size(); }
     std::uint64_t epoch() const { return epoch_; }
     bool pressure() const { return pressure_; }
 private:
+    void resetUnlocked();
+    DeckSourceClockPoint observeUnlocked(std::uint32_t frame, std::uint32_t rtp, std::int64_t anchorUs);
+    std::shared_ptr<DeckSourceSubmissionFence> submissionFence_;
     struct Sample { std::int64_t at, value; };
     DeckSourceClockPolicy policy_;
     unsigned capacity_;
