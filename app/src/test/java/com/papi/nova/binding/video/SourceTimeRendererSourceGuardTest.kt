@@ -81,6 +81,18 @@ class SourceTimeRendererSourceGuardTest {
     }
 
     @Test
+    fun theRendererAimsNothingItselfAndHandsEveryFrameAndVsyncToThePresenter() {
+        // W26 F2: the tested path is the shipped path. The renderer adds no offset of its own; the
+        // presenter (with its learned delay) decides every target, and gets the time each vsync ran.
+        assertEquals(0, Regex("""targetUs \* 1000""").findAll(renderer).count())
+        assertTrue(renderer.contains("presenter.admit(index, presentationTimeUs, System.nanoTime(), record)"))
+        assertTrue(renderer.contains("val decision = presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs)"))
+        assertTrue(renderer.contains("presentSourceTimeFrame(nowNs, slots.toLongArray(), periodNs)"))
+        val timeline = File("src/main/java/com/papi/nova/binding/video/SourceTimeFrameTimelineVsync.kt").readText()
+        assertTrue(timeline.contains("if (onSlots(now, slots, periodNs)) {"))
+    }
+
+    @Test
     fun theApi33VsyncSourceIsOnlyReachedBehindAVersionCheck() {
         for (use in Regex("""SourceTimeFrameTimelineVsync""").findAll(renderer)) {
             val before = renderer.substring(maxOf(0, use.range.first - 240), use.range.first)

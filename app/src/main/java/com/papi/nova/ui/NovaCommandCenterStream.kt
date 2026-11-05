@@ -202,6 +202,9 @@ internal fun commandCenterPresentation(context: Context, truth: PresentationTrut
             (truth.displayModeHz?.let { "$it Hz" } ?: context.getString(R.string.nova_cc_value_unavailable)),
         context.getString(R.string.nova_cc_source_paced) to
             (if (off) context.getString(R.string.nova_cc_off) else yes(truth.sourcePaced)),
+        context.getString(R.string.nova_cc_target_delay) to
+            (truth.targetDelayMs?.let { context.getString(R.string.nova_cc_target_delay_value, it) }
+                ?: context.getString(R.string.nova_cc_value_unavailable)),
         context.getString(R.string.nova_cc_vrr_requested) to yes(truth.vrrRequested),
         context.getString(R.string.nova_cc_vrr_active) to yes(truth.vrrActive),
         context.getString(R.string.nova_cc_pacing_fallback) to

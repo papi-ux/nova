@@ -32,6 +32,18 @@ class NovaHudSourceTimeChipsTest {
     }
 
     @Test
+    fun theLearnedPresentationDelayIsShownOnlyBesideSourcePacing() {
+        val report = com.papi.nova.binding.video.sourcetime.SourceTimeReport("mediacodec", targetDelayUs = 32_456)
+        fun withDelay(client: SourceTimePacingStatus) = PresentationTruth.from(client,
+            DisplayPresentationCapability.from(DisplayFacts(33, null, 120f)), PolarisSessionVrr.Reading.Absent, true, 41, 120f,
+            report = report)
+        val fixed = SourceTimePacingStatus(SourceTimeRequest.SOURCE_TIME, SourceTimeEffective.SOURCE_TIME_FIXED, SourceTimeReason.NONE)
+        assertEquals(listOf("Display mode 120 Hz", "Source-paced", "Delay 32 ms"), labels(withDelay(fixed)))
+        val pending = SourceTimePacingStatus(SourceTimeRequest.AUTO, SourceTimeEffective.PENDING, SourceTimeReason.NONE)
+        assertFalse(labels(withDelay(pending)).any { it.startsWith("Delay") })
+    }
+
+    @Test
     fun aHighFixedRefreshNeverMakesAVrrChip() {
         // The negative control: a 120-165 Hz panel, the host fresh and source-pacing, and still
         // no adaptive refresh evidence from this device: no VRR chip of either kind.

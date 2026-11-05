@@ -39,6 +39,10 @@ object NovaHudQualityChips {
         if (truth == null) return emptyList()
         return listOfNotNull(
             NovaHudQualityChip("Source-paced", "Frames shown on the host's timing").takeIf { truth.sourcePaced },
+            truth.targetDelayMs?.takeIf { truth.sourcePaced }?.let {
+                val ms = it.roundToInt()
+                NovaHudQualityChip("Delay $ms ms", "Frames shown $ms milliseconds after their mapped host time")
+            },
             NovaHudQualityChip("VRR requested", "Variable refresh requested").takeIf { truth.vrrRequested },
             NovaHudQualityChip("VRR active", "Variable refresh active").takeIf { truth.vrrActive },
             truth.fallback?.takeIf { truth.prominent && !truth.sourcePaced }?.let {

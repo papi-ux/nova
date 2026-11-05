@@ -23,6 +23,8 @@ import kotlin.math.roundToInt
  *   player asked explicitly (shown), not automatically (recorded only).
  * - [renderFps] and [droppedFrameRatio]: the renderer's last frame window, for client_presentation
  *   (design E.1), only when measured and only inside the ranges Polaris accepts.
+ * - [targetDelayMs]: the presentation delay the renderer learned and adds to every mapped target so
+ *   it reaches a refresh the display can still take (addendum 2), when measured.
  * - [report]: the renderer's generations and counts, for client_runtime (design E.2).
  */
 data class PresentationTruth(
@@ -42,6 +44,8 @@ data class PresentationTruth(
     val renderFps: Double? = null,
     /** Intentional drops over expected frames of the last window, 0-1; null without frames. */
     val droppedFrameRatio: Double? = null,
+    /** The learned presentation delay in milliseconds; null when not measured. */
+    val targetDelayMs: Double? = null,
 ) {
     /** What the host said about its record for this stream, as far as this device can trust it. */
     enum class HostRecord(val wire: String) {
@@ -65,6 +69,7 @@ data class PresentationTruth(
         put("vrr_active", vrrActive)
         put("display_arr", displayArr.wire)
         displayModeHz?.let { put("display_mode_hz", it) }
+        targetDelayMs?.let { put("target_delay_ms", round(it, 10.0)) }
         report?.let { putReport(it) }
     }
 
@@ -163,6 +168,7 @@ data class PresentationTruth(
                     ?.let { round(it, 100.0) },
                 droppedFrameRatio = report?.window?.takeIf { it.totalFrames > 0 && it.intentionalDrops >= 0 }
                     ?.let { round((it.intentionalDrops.toDouble() / it.totalFrames).coerceIn(0.0, 1.0), 10_000.0) },
+                targetDelayMs = report?.targetDelayUs?.takeIf { it >= 0 }?.let { it / 1000.0 },
             )
         }
 

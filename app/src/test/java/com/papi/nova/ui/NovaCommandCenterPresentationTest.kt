@@ -39,6 +39,11 @@ class NovaCommandCenterPresentationTest {
         assertEquals("No", rows["Variable refresh requested"])
         assertEquals("No", rows["Variable refresh active"])
         assertEquals("Fixed-refresh display", rows["Why not"])
+        assertEquals("Unavailable", rows["Presentation delay"])
+        val measured = PresentationTruth.from(SourceTimePacingStatus(SourceTimeRequest.SOURCE_TIME,
+            SourceTimeEffective.SOURCE_TIME_FIXED, SourceTimeReason.NONE), null, PolarisSessionVrr.Reading.Absent, true, 41, 120f,
+            report = com.papi.nova.binding.video.sourcetime.SourceTimeReport("mediacodec", targetDelayUs = 32_450))
+        assertEquals("32.5 ms", commandCenterPresentation(context, measured).toMap()["Presentation delay"])
     }
 
     @Test
@@ -57,7 +62,7 @@ class NovaCommandCenterPresentationTest {
     fun withoutCurrentVideoThereAreNoPresentationFacts() {
         val t = truth(SourceTimePacingStatus(SourceTimeRequest.SOURCE_TIME, SourceTimeEffective.SOURCE_TIME_FIXED, SourceTimeReason.NONE))
         val current = commandCenterStream(context, status(), NovaLiveBitratePresentation(), sample(), 1000, true, 50000, emptyList(), t)
-        assertEquals(5, current.presentation.size)
+        assertEquals(6, current.presentation.size)
         val stale = commandCenterStream(context, status(), NovaLiveBitratePresentation(), sample(at = 1000), 60_000, true, 50000, emptyList(), t)
         assertTrue(stale.presentation.isEmpty())
         val none = commandCenterStream(context, status(), NovaLiveBitratePresentation(), null, 1000, true, 50000, emptyList(), t)

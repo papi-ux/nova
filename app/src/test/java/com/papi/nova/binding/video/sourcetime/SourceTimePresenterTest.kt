@@ -1,0 +1,212 @@
+package com.papi.nova.binding.video.sourcetime
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * The production path between dequeue and release: the shared mapper with its default policy, the
+ * presenter the renderer delegates to (target delay included) and its scheduler, against a display
+ * shaped like Choreographer's frame timelines. Nothing here adds an offset of its own: a target is
+ * whatever the presenter makes of the mapper's point, and the only display facts are the ones the
+ * renderer gets (when the callback ran, which refreshes are still reachable, the period).
+ *
+ * The display's earliest reachable refresh is 25 ms after its vsync (W26 F2's condition), so a
+ * frame decoded 3 ms after it was enqueued is already far behind that refresh by its mapped target.
+ */
+class SourceTimePresenterTest {
+    /** A fixed-refresh display seen through frame timelines: a callback every period, [latencyNs]
+     * after the vsync, offering [timelines] refreshes from [leadNs] after that vsync. */
+    private class Display(val periodNs: Long, val leadNs: Long, val latencyNs: Long = 300_000L, val timelines: Int = 3) {
+        fun nowAt(k: Long) = k * periodNs + latencyNs
+        fun slotsAt(k: Long) = LongArray(timelines) { k * periodNs + leadNs + it * periodNs }
+    }
+
+    private class Frame(val sourceUs: Long, val arrivalUs: Long)
+
+    private class Shown(
+        /** Frame index to the refresh it was released for. */
+        val slots: Map<Int, Long>,
+        val counters: SourceTimeScheduler.Counters,
+        val presenter: SourceTimePresenter,
+    )
+
+    private val hz120 = Display(8_333_333L, 25_000_000L)
+    private val hz60 = Display(16_666_667L, 33_333_333L)
+
+    private fun record(i: Int, f: Frame, point: SourceTimeMapper.Point?) = SourceTimeSideMap.Record(
+        frameNumber = i + 1,
+        rtpTimestamp = (900_000 + f.sourceUs * 90 / 1000) and 0xFFFF_FFFFL,
+        receiveTimeMs = f.arrivalUs / 1000,
+        enqueueTimeMs = f.arrivalUs / 1000,
+        submitNs = f.arrivalUs * 1000,
+        hostLatencyTenths = 0,
+        connectionGeneration = 1,
+        decoderGeneration = 1,
+        point = point,
+    )
+
+    /**
+     * Runs the stream in time order: each frame is observed when it is enqueued (the renderer's
+     * submit thread), admitted when it is decoded [decodeUs] later (its renderer thread), and every
+     * vsync asks for a release (its vsync thread). [sourceTimed] false is the arrival-only control:
+     * the same presenter, given no timing record, aims every frame at its decode time.
+     */
+    private fun present(
+        frames: List<Frame>,
+        display: Display,
+        capacity: Int = 2,
+        sourceTimed: Boolean = true,
+        decodeUs: Long = 3_000,
+    ): Shown {
+        val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, capacity, 11_111)
+        val presenter = SourceTimePresenter(capacity, mapper)
+        val points = arrayOfNulls<SourceTimeMapper.Point>(frames.size)
+        val shown = HashMap<Int, Long>()
+        var observed = 0
+        var admitted = 0
+        var k = 0L
+        val endNs = (frames.last().arrivalUs + 200_000) * 1000
+        while (display.nowAt(k) < endNs) {
+            val now = display.nowAt(k)
+            while (true) {
+                val enqueueNs = if (observed < frames.size) frames[observed].arrivalUs * 1000 else Long.MAX_VALUE
+                val decodeNs = if (admitted < observed) (frames[admitted].arrivalUs + decodeUs) * 1000 else Long.MAX_VALUE
+                if (minOf(enqueueNs, decodeNs) > now) break
+                if (enqueueNs <= decodeNs) {
+                    val f = frames[observed]
+                    points[observed] = mapper.observe(observed + 1, record(observed, f, null).rtpTimestamp, f.arrivalUs)
+                    observed++
+                } else {
+                    val f = frames[admitted]
+                    val point = if (sourceTimed) points[admitted] else null
+                    presenter.admit(admitted, admitted.toLong(), decodeNs, record(admitted, f, point))
+                    admitted++
+                }
+            }
+            val decision = presenter.onVsync(now, display.slotsAt(k), display.periodNs)
+            decision.release?.let { shown[it.index] = decision.releaseAtNs }
+            k++
+        }
+        return Shown(shown, presenter.counters(), presenter)
+    }
+
+    private fun stream(count: Int, sourceIntervalUs: (Int) -> Long, arrivalJitterUs: (Int) -> Long): List<Frame> {
+        var source = 0L
+        return (0 until count).map { i ->
+            if (i > 0) source += sourceIntervalUs(i)
+            Frame(source, 1_000_000 + source + 15_000 + arrivalJitterUs(i))
+        }
+    }
+
+    private fun intervals(shown: Shown, from: Int): List<Long> {
+        val indices = shown.slots.keys.filter { it >= from }.sorted()
+        return indices.zipWithNext { a, b -> (shown.slots[b]!! - shown.slots[a]!!) }
+    }
+
+    /**
+     * How far the shown refreshes stray from the source times quantized to the display, after
+     * warm-up: every shown refresh minus its frame's source time lies in one band. A band narrower
+     * than a refresh is a fixed-phase quantization of the source cadence (design G.2: "presented
+     * intervals match the quantized source intervals"); a frame shown one refresh off its source
+     * place widens it to a refresh or more. Only meaningful when no two source frames fall inside
+     * one refresh: those cannot both have their nearest refresh, whatever paces them.
+     */
+    private fun sourceBandNs(shown: Shown, frames: List<Frame>, from: Int): Long {
+        val residues = shown.slots.filterKeys { it >= from }.map { (i, slot) -> slot - frames[i].sourceUs * 1000 }
+        return residues.max() - residues.min()
+    }
+
+    private fun jitter(count: Int, maxUs: Long): List<Long> {
+        var seed = 7L
+        return (0 until count).map {
+            seed = (seed * 1103515245 + 12345) and 0x7FFF_FFFF
+            // Every eighth frame on time, so both deliveries see the same lowest offset.
+            if (it % 8 == 0) 0L else seed % maxUs
+        }
+    }
+
+    @Test
+    fun withTheDisplaysLeadAheadOfEveryMappedTargetFramesStillLandOnTheirSourcePlaces() {
+        // 60 FPS rendered unevenly (12 ms, 12 ms, 26 ms, ...) but delivered evenly every 16.7 ms:
+        // up to 9.3 ms between source and arrival, more than a 120 Hz refresh and inside the
+        // reserve's 12 ms. Every source interval is longer than a refresh, so each frame has a
+        // refresh of its own.
+        val even = stream(360, { 16_667 }, { 0 })
+        val frames = stream(360, { if (it % 3 == 0) 26_000 else 12_000 }, { 0 }).mapIndexed { i, f -> Frame(f.sourceUs, even[i].arrivalUs) }
+        val shown = present(frames, hz120)
+        val band = sourceBandNs(shown, frames, 40)
+        assertTrue("shown on the source grid (band ${band / 1000} us)", band < hz120.periodNs)
+        val arrival = present(frames, hz120, sourceTimed = false)
+        assertTrue("arrival order is not the source grid", sourceBandNs(arrival, frames, 40) >= hz120.periodNs)
+        // The delay that makes that possible is measured and reported, inside its bounds.
+        val delayUs = shown.presenter.targetDelayUs!!
+        assertTrue("delay $delayUs us", delayUs in 25_000L..SourceTimeTargetDelay.MAXIMUM_US)
+    }
+
+    @Test
+    fun differentSourceCadencesArrivingAlikeAreShownDifferentlyAndTheArrivalControlCannot() {
+        // Two hosts deliver identically every 11.111 ms; one rendered evenly, one unevenly.
+        val evenFrames = stream(360, { 11_111 }, { 0 })
+        val uneven = stream(360, { if (it % 2 == 1) 5_000 else 17_222 }, { 0 })
+            .mapIndexed { i, f -> Frame(f.sourceUs, evenFrames[i].arrivalUs) }
+        assertNotEquals(intervals(present(evenFrames, hz120), 40), intervals(present(uneven, hz120), 40))
+        assertEquals(
+            intervals(present(evenFrames, hz120, sourceTimed = false), 40),
+            intervals(present(uneven, hz120, sourceTimed = false), 40),
+        )
+    }
+
+    @Test
+    fun theSameSourceCadenceIsShownOnItsGridWhateverItsDelivery() {
+        // 90 FPS on 120 Hz, delivered calmly or with up to 4 ms of jitter.
+        val j = jitter(360, 4_000)
+        val calm = stream(360, { 11_111 }, { 0 })
+        val rough = stream(360, { 11_111 }, { j[it] })
+        assertTrue(sourceBandNs(present(calm, hz120), calm, 40) < hz120.periodNs)
+        assertTrue(sourceBandNs(present(rough, hz120), rough, 40) < hz120.periodNs)
+        assertTrue("jitter leaks into arrival pacing",
+            sourceBandNs(present(rough, hz120, sourceTimed = false), rough, 40) >= hz120.periodNs)
+    }
+
+    @Test
+    fun theDelayCostsNoFramesWithRoomForOneOrTwo() {
+        // 60 FPS on 60 Hz with jitter: every frame after warm-up is shown, none pushed out or late,
+        // with the latency profile's single slot as much as with the balanced profile's two.
+        val j = jitter(600, 3_000)
+        val frames = stream(600, { 16_667 }, { j[it] })
+        for (capacity in listOf(1, 2)) {
+            val shown = present(frames, hz60, capacity = capacity)
+            val missing = (40 until 600).filter { it !in shown.slots }
+            assertEquals("capacity $capacity: frames not shown $missing", emptyList<Int>(), missing)
+            assertEquals("capacity $capacity: one refresh per frame", shown.slots.size, shown.slots.values.toSet().size)
+            assertTrue(sourceBandNs(shown, frames, 40) < hz60.periodNs)
+        }
+    }
+
+    @Test
+    fun aBurstAfterAStallIsNotCaughtUpInOneRefresh() {
+        // Ten frames held for 60 ms arrive within a millisecond; at most one frame per refresh, the
+        // stale ones superseded rather than flashed.
+        val frames = stream(120, { 11_111 }, { 0 }).mapIndexed { i, f ->
+            if (i in 50..59) Frame(f.sourceUs, 1_000_000 + 15_000 + 59 * 11_111L + (i - 50) * 100L) else f
+        }
+        val shown = present(frames, hz120)
+        assertEquals("one frame per refresh", shown.slots.size, shown.slots.values.toSet().size)
+        assertTrue("some of the burst was superseded", (50..58).any { it !in shown.slots })
+    }
+
+    @Test
+    fun aFrameWithoutUsableSourceTimeFallsBackToArrivalWithItsReason() {
+        val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, 2, 16_666)
+        val presenter = SourceTimePresenter(2, mapper)
+        val missing = presenter.admit(1, 1, 1_000_000, null)
+        assertEquals(SourceTimeCounters.Admission.TIMING_METADATA_MISSING, missing.kind)
+        assertFalse(missing.outOfBounds)
+        val status = presenter.pacing(SourceTimeRequest.SOURCE_TIME)
+        assertEquals(SourceTimeEffective.PENDING, status.effective)
+        assertEquals(SourceTimeReason.TIMING_METADATA_MISSING, status.fallback)
+    }
+}

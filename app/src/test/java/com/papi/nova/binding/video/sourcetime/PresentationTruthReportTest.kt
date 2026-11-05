@@ -34,6 +34,7 @@ class PresentationTruthReportTest {
         decoderGeneration = 7,
         surfaceGeneration = 2,
         reserveUs = 4_500,
+        targetDelayUs = 32_456,
         counters = SourceTimeCounters.Snapshot(
             resets = mapOf(SourceTimeCounters.RESET_CODEC_RECOVERY to 1L, SourceTimeMapper.REASON_CLOCK_MAPPING_UNSTABLE to 2L),
             offsetSlewEvents = 12,
@@ -59,6 +60,9 @@ class PresentationTruthReportTest {
         assertEquals(7, json.getInt("decoder_gen"))
         assertEquals(2, json.getInt("surface_gen"))
         assertEquals(4_500L, json.getLong("reserve_us"))
+        // W26 F2: the learned presentation delay is its own fact, in milliseconds.
+        assertEquals(32.5, json.getDouble("target_delay_ms"), 0.0)
+        assertEquals(32.456, truth(mediaCodec).targetDelayMs!!, 1e-9)
         assertEquals(12L, json.getLong("offset_slew_events"))
         val resets = json.getJSONObject("resets")
         assertEquals(1L, resets.getLong("codec_recovery"))
@@ -83,8 +87,8 @@ class PresentationTruthReportTest {
         val pyrowave = truth(SourceTimeReport(SourceTimeReport.RENDERER_PYROWAVE)).toRuntimeJson()
         assertEquals("pyrowave", pyrowave.getString("renderer"))
         assertEquals("off", pyrowave.getString("feedback_mode"))
-        for (key in listOf("connection_gen", "decoder_gen", "surface_gen", "reserve_us", "offset_slew_events", "resets",
-            "counts", "feedback_coverage")) {
+        for (key in listOf("connection_gen", "decoder_gen", "surface_gen", "reserve_us", "target_delay_ms",
+            "offset_slew_events", "resets", "counts", "feedback_coverage")) {
             assertFalse(key, pyrowave.has(key))
         }
         val noFeedbackYet = truth(mediaCodec.copy(feedback = PresentFeedbackSink.Counters(0, 0, 0, 0, 0, 0))).toRuntimeJson()

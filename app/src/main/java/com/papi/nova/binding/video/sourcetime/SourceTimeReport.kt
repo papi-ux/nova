@@ -132,7 +132,7 @@ data class FrameWindow(
 
 /**
  * What a renderer reports about presenting the stream, by value, for the shared reducer
- * (PresentationTruth): its identity, generations, reserve, source-time counts, the scheduler's
+ * (PresentationTruth): its identity, generations, reserve, presentation delay, source-time counts, the scheduler's
  * and the feedback sink's own counters, and its last frame window. Null fields are not known for
  * this renderer or this stream and are left out of every report, never written as zero.
  */
@@ -143,6 +143,8 @@ data class SourceTimeReport(
     val decoderGeneration: Int? = null,
     val surfaceGeneration: Int? = null,
     val reserveUs: Long? = null,
+    /** The learned presentation delay added to each mapped target; null before it is measured. */
+    val targetDelayUs: Long? = null,
     /** Null when source time is not active for this stream. */
     val counters: SourceTimeCounters.Snapshot? = null,
     val scheduler: SourceTimeScheduler.Counters? = null,

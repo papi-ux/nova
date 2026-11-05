@@ -9,11 +9,12 @@ import androidx.annotation.RequiresApi
  * presentation times, which is exactly what the scheduler aims at. Older devices use the frame
  * callback and the display's period instead; this class is never loaded on them.
  *
- * Runs on the renderer's Choreographer thread. [onSlots] returns false to stop.
+ * Runs on the renderer's Choreographer thread. [onSlots] gets the time it ran, the reachable
+ * refreshes and the period, and returns false to stop.
  */
 @RequiresApi(33)
 internal class SourceTimeFrameTimelineVsync(
-    private val onSlots: (LongArray, Long) -> Boolean,
+    private val onSlots: (Long, LongArray, Long) -> Boolean,
 ) : Choreographer.VsyncCallback {
     override fun onVsync(data: Choreographer.FrameData) {
         val now = System.nanoTime()
@@ -28,7 +29,7 @@ internal class SourceTimeFrameTimelineVsync(
         } else {
             0L
         }
-        if (onSlots(slots, periodNs)) {
+        if (onSlots(now, slots, periodNs)) {
             Choreographer.getInstance().postVsyncCallback(this)
         }
     }

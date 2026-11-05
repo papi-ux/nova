@@ -2215,6 +2215,8 @@
     <string name="nova_cc_presentation">Presentation</string>
     <string name="nova_cc_display_mode">Display mode</string>
     <string name="nova_cc_source_paced">Paced by host frame times</string>
+    <string name="nova_cc_target_delay">Presentation delay</string>
+    <string name="nova_cc_target_delay_value">%1$.1f ms</string>
     <string name="nova_cc_vrr_requested">Variable refresh requested</string>
     <string name="nova_cc_vrr_active">Variable refresh active</string>
     <string name="nova_cc_pacing_fallback">Why not</string>
