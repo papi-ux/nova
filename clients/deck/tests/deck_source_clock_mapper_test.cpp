@@ -1,5 +1,6 @@
 #include "runtime/deck_source_clock_mapper.h"
 #include <cstdlib>
+#include "stream/deck_source_frame_timing.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -36,6 +37,26 @@ int main(int argc, char** argv) {
     std::uint32_t raw = 0xfffffff0U;
     for (unsigned i=1;i<=6000;++i) { auto p=longRun.observe(i,raw,100000+std::int64_t(i)*10000); if (!p.valid || longRun.historySize()>1024) ++failures; raw+=900; }
     auto old=longRun.observe(6001,raw,60110000); longRun.reset(); longRun.ready(old,old.targetUs); if (longRun.reserveUs()!=3000) ++failures;
+    {
+        using namespace nova::deck::stream;
+        DeckFrameTimingStore store;
+        DeckSourceFrameTiming a, b;
+        a.clock.valid = b.clock.valid = true; a.clock.active = b.clock.active = true;
+        a.clock.epoch = b.clock.epoch = 1; a.clock.sourceUs = 1000; b.clock.sourceUs = 2000;
+        a.clock.rtp = 90001; b.clock.rtp = 90091; a.callbackMonoNs = b.callbackMonoNs = 1'000'000;
+        auto ap = store.packetPts(a.clock), bp = store.packetPts(b.clock);
+        if (!ap || !bp || *bp - *ap != 1000 || !store.put(*ap,a) || !store.put(*bp,b)) ++failures;
+        auto outputA = store.take(*ap, 2'000'000); // drained during submission of B
+        if (!outputA || outputA->clock.rtp != 90001 || store.size()!=1) ++failures;
+        store.clear(); a.clock.epoch=2; a.clock.sourceUs=0;
+        auto newPts=store.packetPts(a.clock);
+        if (!newPts || *newPts<=*bp || store.take(*bp,2'000'000)) ++failures;
+        if (!store.put(*newPts,a) || store.put(*newPts,b) || store.take(*newPts,2'000'000)) ++failures;
+        for (int i=0;i<64;++i) if(!store.put(i,a)) ++failures;
+        if(store.put(65,b) || store.size()!=64) ++failures;
+        store.expire(2'000'000'000); if(store.size()!=0) ++failures;
+        store.resetDecoder(); auto reset=store.packetPts(a.clock); if(!reset || *reset!=0) ++failures;
+    }
     std::cout << "cases=" << replayCases().size() << " steps=" << steps << " failures=" << failures << " arrivalOnly=" << arrivalOnly << '\n';
     return failures ? 1 : 0;
 }

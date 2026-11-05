@@ -76,6 +76,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::optional<DeckWorkingBaselineRequest> baselineRequest;
     std::function<bool()> refreshDiagnostics;
     std::function<bool()> applyDoctorFix, undoDoctorFix, checkDoctorResult;
+    std::atomic<std::uint64_t> sourceTimingGeneration{1};
     DeckFrameDelivery::Publisher deliverFrame;
     DeckFrameDelivery::Configure configureFrames;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
@@ -219,6 +220,12 @@ DeckNativeSessionController::~DeckNativeSessionController() {
 
 void DeckNativeSessionController::setSurface(DeckQtQuickRhiVaapiItem* surface) {
     setPresentationSink(surface, surface, surface ? surface->composedFrames() : nullptr);
+}
+
+void DeckNativeSessionController::resetPresentationTiming() {
+    if (!shared_ || !frameDelivery_) return;
+    const auto generation = ++shared_->sourceTimingGeneration;
+    frameDelivery_->resetTiming(generation);
 }
 
 bool DeckNativeSessionController::setPresentationSink(QObject* lifetime, DeckQtQuickRhiPresentationSink* sink,
@@ -455,6 +462,7 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
             presentationSink_->presentVaapiSurface(frame);
         }
     });
+    frameDelivery_->resetTiming(shared_->sourceTimingGeneration.load());
     shared_->deliverFrame = frameDelivery_->publisher();
     shared_->configureFrames = frameDelivery_->configurator();
     shared_->publish("preparing", resume ? "Checking your existing game…" : "Preparing the selected game…");
@@ -883,6 +891,10 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     Shared::Driver cancellableDriver(*shared, driver);
     DeckGuardedStreamSessionPreviewProducer producer(cancellableDriver, *shared);
     producer.decodedFrameProducer().presentationHandoff().setSink(shared);
+    producer.decodedFrameProducer().setSourceTimingCapacity(shared->framePacing == DeckFramePacing::Balanced ? 2 : 1);
+    producer.decodedFrameProducer().setSourceTimingGenerationReader([weak = std::weak_ptr<Shared>(shared)] {
+        const auto current = weak.lock(); return current ? current->sourceTimingGeneration.load() : 0;
+    });
     DeckGuardedPreviewLifecycleGate gate(producer);
     std::optional<DeckNativeLaunchTarget> target;
     DeckSessionBuildResult built;

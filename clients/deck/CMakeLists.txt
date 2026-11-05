@@ -123,6 +123,7 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
     src/runtime/deck_source_clock_mapper.cpp
+    src/runtime/deck_presentation_deadline.cpp
     src/runtime/deck_frame_qualification_trace.cpp
     src/runtime/deck_steam_control.cpp
     src/runtime/deck_host_power.cpp

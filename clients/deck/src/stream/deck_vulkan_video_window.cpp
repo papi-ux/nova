@@ -53,6 +53,7 @@ struct DeckVulkanVideoWindow::Impl {
     QObject* worker = new QObject;
     std::unique_ptr<DeckVulkanQuickOverlay> overlay;
     std::shared_ptr<AVFrame> frame;
+    DeckSourceFrameTiming timing;
     std::shared_ptr<std::atomic<std::uint64_t>> composed = std::make_shared<std::atomic<std::uint64_t>>(0);
     std::shared_ptr<std::atomic<std::uint64_t>> cpuUploadCompositions = std::make_shared<std::atomic<std::uint64_t>>(0);
     std::shared_ptr<std::atomic<bool>> cancelled = std::make_shared<std::atomic<bool>>(false);
@@ -82,6 +83,7 @@ struct DeckVulkanVideoWindow::Impl {
         DeckWindowOutput output;
         DeckVideoScaleMode scale;
         std::shared_ptr<std::atomic<bool>> cancelled;
+        DeckSourceFrameTiming timing;
     };
     struct Sync {
         std::mutex mutex;
@@ -195,10 +197,10 @@ bool DeckVulkanVideoWindow::presentVaapiSurface(const DeckQrhiVaapiPresentationD
         clearFrame();
         return false;
     }
-    return submitFrame(*lease->frame());
+    return submitFrame(*lease->frame(), descriptor.timing);
 }
 
-bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame) {
+bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame, DeckSourceFrameTiming timing) {
     Q_ASSERT(QThread::currentThread() == thread());
     const auto color = DeckVideoColorInfo::fromFrame(frame);
     if (frame.width <= 0 || frame.height <= 0 || frame.width > 8192 || frame.height > 8192
@@ -216,6 +218,7 @@ bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame) {
         return false;
     }
     d->frame = std::move(owned);
+    d->timing = timing;
     ++d->frameSerial;
     d->state.error.clear();
     requestUpdate();
@@ -225,6 +228,7 @@ bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame) {
 void DeckVulkanVideoWindow::clearFrame() {
     Q_ASSERT(QThread::currentThread() == thread());
     d->frame.reset();
+    d->timing = {};
     ++d->revision;
     d->state.hdrActive = d->state.toneMapped = false;
     d->state.error.clear();
@@ -292,6 +296,7 @@ void DeckVulkanVideoWindow::Impl::release() {
 }
 
 void DeckVulkanVideoWindow::release() {
+    emit sourceTimingReset();
     *d->cancelled = true;
     ++d->epoch;
     d->retry.stop(); d->retire.stop();
@@ -315,6 +320,7 @@ void DeckVulkanVideoWindow::retireSurface() {
     d->retry.stop(); d->retire.stop();
     d->state.ready = d->state.hdr10Surface = d->state.hdrActive = d->state.toneMapped = false;
     d->frame.reset();
+    d->timing = {};
     QMetaObject::invokeMethod(d->worker, [this, epoch] {
         d->release();
         QMetaObject::invokeMethod(this, [this, epoch] {
@@ -348,7 +354,7 @@ void DeckVulkanVideoWindow::render() {
     }
     const auto ratio = devicePixelRatio();
     Impl::Job job{surface, QSize(qRound(width() * ratio), qRound(height() * ratio)), ratio,
-        d->frame, d->frameSerial, d->revision, d->epoch, d->output, d->scale, d->cancelled};
+        d->frame, d->frameSerial, d->revision, d->epoch, d->output, d->scale, d->cancelled, d->timing};
     d->busy = true; d->dirty = false;
     QMetaObject::invokeMethod(d->worker, [this, job] {
         const bool retry = d->render(this, job);

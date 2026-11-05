@@ -1706,6 +1706,8 @@ int DeckVaapiFfmpegRenderer::setup(
     lifecycle_.decoderBackend = DeckDecoderBackend::Unavailable;
     lifecycle_.transferPath = DeckFrameTransferPath::DmaBuf;
     resetDecoder();
+    if (redrawRate > 0 && redrawRate <= 240)
+        sourceClock_ = runtime::DeckSourceClockMapper({}, sourceTimingCapacity_, 1'000'000 / redrawRate);
     if (width <= 0 || height <= 0 || width > 8192 || height > 8192 || redrawRate <= 0 || redrawRate > 240) {
         lifecycle_.lastRuntimeError = "Invalid video dimensions or refresh rate";
         return DR_NEED_IDR;
@@ -1768,6 +1770,7 @@ int DeckVaapiFfmpegRenderer::setup(
         codecContext_ = avcodec_alloc_context3(codec);
         if (!codecContext_) { lifecycle_.lastRuntimeError = "Could not allocate the VAAPI decoder"; resetDecoder(); return DR_NEED_IDR; }
         codecContext_->width = width; codecContext_->height = height;
+        codecContext_->pkt_timebase = AVRational{1, 1000000};
         codecContext_->get_format = vaapiHardwareFormatCallback;
         codecContext_->hw_device_ctx = av_buffer_ref(hardwareDevice_);
         if (!codecContext_->hw_device_ctx || avcodec_open2(codecContext_, codec, nullptr) < 0) {
@@ -1788,14 +1791,43 @@ int DeckVaapiFfmpegRenderer::setup(
     return DR_OK;
 }
 
+namespace {
+std::int64_t sourceTimingNowNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+}
+void DeckVaapiFfmpegRenderer::setSourceTimingCapacity(unsigned capacity) {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
+    if (!ready_ && (capacity == 1 || capacity == 2)) sourceTimingCapacity_ = capacity;
+}
+void DeckVaapiFfmpegRenderer::setSourceTimingGenerationReader(std::function<std::uint64_t()> reader) {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
+    if (!ready_) timingGenerationReader_ = std::move(reader);
+}
+DeckSourceFrameTiming DeckVaapiFfmpegRenderer::decodedTiming(const AVFrame& frame) {
+    const auto now = sourceTimingNowNs();
+    DeckSourceFrameTiming unavailable;
+    unavailable.clock.reason = "timing_metadata_missing";
+    unavailable.decodedMonoNs = now;
+    unavailable.decoderGeneration = decoderGeneration_; unavailable.presentationGeneration = presentationGeneration_;
+    if (frame.pts == AV_NOPTS_VALUE) return unavailable;
+    auto timing = timingStore_.take(frame.pts, now);
+    if (!timing || timing->decoderGeneration != decoderGeneration_ ||
+        timing->presentationGeneration != presentationGeneration_ || timing->clock.epoch != sourceClock_.epoch()) return unavailable;
+    sourceClock_.ready(timing->clock, now / 1000);
+    return *timing;
+}
+
 void DeckVaapiFfmpegRenderer::start() {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.startCalls;
+    sourceClock_.reset(); timingStore_.clear();
 }
 
 void DeckVaapiFfmpegRenderer::stop() {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.stopCalls;
+    sourceClock_.reset(); timingStore_.clear();
 }
 
 void DeckVaapiFfmpegRenderer::cleanup() {
@@ -1824,7 +1856,7 @@ int DeckVaapiFfmpegRenderer::drainV4l2Frames() {
             .width = decodedFrame_->width, .height = decodedFrame_->height, .redrawRate = lifecycle_.redrawRate,
             .surfaceId = lease->surfaceId(), .hardwareBacked = true, .frameLease = std::move(lease),
             .source = "ffmpeg-v4l2-linear-nv12", .decoderBackend = DeckDecoderBackend::V4l2,
-            .transferPath = DeckFrameTransferPath::CpuUpload};
+            .transferPath = DeckFrameTransferPath::CpuUpload, .timing = decodedTiming(*decodedFrame_)};
         if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest()) {
             ++lifecycle_.presentedHardwareFrames;
             ++lifecycle_.cpuUploadSubmissions;
@@ -1835,6 +1867,10 @@ int DeckVaapiFfmpegRenderer::drainV4l2Frames() {
 }
 
 int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
+    // VAAPI send/receive, V4L2 input pressure, GPU PyroWave and this mutex can
+    // block the core callback. ROOT D2: anchor to reassembly enqueue, not entry.
+    const auto callbackNs = sourceTimingNowNs();
+    const auto coreNowMs = LiGetMillis();
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.submitCalls;
     lifecycle_.lastFrameWasHardwareBacked = false;
@@ -1842,6 +1878,24 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         lifecycle_.acceptedNullDecodeUnit = false;
         return DR_NEED_IDR;
     }
+
+    const auto generation = timingGenerationReader_ ? timingGenerationReader_() : 0;
+    if (generation != presentationGeneration_) {
+        presentationGeneration_ = generation; sourceClock_.reset(); timingStore_.clear();
+    }
+    DeckSourceFrameTiming timing;
+    timing.clock.reason = "timing_metadata_missing";
+    timing.decoderGeneration = decoderGeneration_; timing.presentationGeneration = presentationGeneration_;
+    timing.receiveTimeMs = decodeUnit->receiveTimeMs; timing.enqueueTimeMs = decodeUnit->enqueueTimeMs;
+    timing.callbackMonoNs = callbackNs;
+    // LiGetMillis and enqueueTimeMs share a core epoch. Bridge their difference
+    // to this local steady sample; the anchor retains 1 ms quantization.
+    if (coreNowMs >= decodeUnit->enqueueTimeMs && coreNowMs - decodeUnit->enqueueTimeMs <= 1000) {
+        timing.anchorMonoNs = callbackNs - std::int64_t(coreNowMs - decodeUnit->enqueueTimeMs) * 1'000'000;
+        timing.clock = sourceClock_.observe(static_cast<std::uint32_t>(decodeUnit->frameNumber),
+            decodeUnit->rtpTimestamp, timing.anchorMonoNs / 1000);
+    }
+    timingStore_.expire(callbackNs);
 
     struct SubmissionObservation {
         DeckRendererLifecycle& lifecycle;
@@ -1887,11 +1941,16 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         if (!lease) { lifecycle_.lastRuntimeError = "Cannot retain PyroWave GPU frame"; return DR_NEED_IDR; }
         ++lifecycle_.decodedHardwareFrames;
         lifecycle_.lastFrameWasHardwareBacked = true;
+        timing.decodedMonoNs = sourceTimingNowNs();
+        sourceClock_.ready(timing.clock, timing.decodedMonoNs / 1000);
+        // ROOT D3: carry provenance, but this renderer is not yet qualified to pace.
+        timing.clock.active = false;
+        timing.clock.reason = "renderer_not_participating";
         const DeckQrhiVaapiPresentationDescriptor descriptor{
             .width = image.width, .height = image.height, .redrawRate = lifecycle_.redrawRate,
             .surfaceId = lease->surfaceId(), .hardwareBacked = true,
             .frameLease = std::move(lease), .source = "pyrowave-vulkan-dmabuf-sdr",
-            .decoderBackend = DeckDecoderBackend::Pyrowave};
+            .decoderBackend = DeckDecoderBackend::Pyrowave, .timing = timing};
         if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest())
             ++lifecycle_.presentedHardwareFrames;
         observation.accepted = true;
@@ -1912,6 +1971,12 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         return DR_NEED_IDR;
     }
     std::copy(bytes.begin(), bytes.end(), packet->data);
+    // Keep PTS unique across a mapper re-anchor while the asynchronous decoder
+    // still owns old inputs. Within an epoch it preserves exact source deltas.
+    const auto packetPts = timingStore_.packetPts(timing.clock);
+    packet->pts = packetPts.value_or(AV_NOPTS_VALUE);
+    packet->dts = AV_NOPTS_VALUE;
+    if (timing.clock.valid) timingStore_.put(packet->pts, timing);
 
     if (decoderBackend_ == DeckDecoderBackend::V4l2) {
         const int drained = drainV4l2Frames();
@@ -1967,6 +2032,7 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
                 .frameLease = frameLease,
                 .source = "ffmpeg-vaapi-" + std::string(spec->name),
                 .decoderBackend = decoderBackend_, .transferPath = lifecycle_.transferPath,
+                .timing = decodedTiming(*decodedFrame_),
             };
             if (previewFramePump_.enqueueDecodedFrame(descriptor) && previewFramePump_.flushNewest()) {
                 ++lifecycle_.presentedHardwareFrames;
@@ -2006,6 +2072,8 @@ const DeckQrhiVaapiPresentationHandoff& DeckVaapiFfmpegRenderer::presentationHan
 
 void DeckVaapiFfmpegRenderer::resetDecoder() {
     ready_ = false;
+    ++decoderGeneration_; sourceClock_.reset(); timingStore_.resetDecoder();
+    presentationGeneration_ = timingGenerationReader_ ? timingGenerationReader_() : 0;
     decoderBackend_ = DeckDecoderBackend::Unavailable;
     previewFramePump_.clearPending();
 #ifdef NOVA_DECK_BUILD_PYROWAVE

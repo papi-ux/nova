@@ -1,4 +1,5 @@
 #pragma once
+#include "stream/deck_source_frame_timing.h"
 #include "stream/deck_media_counters.h"
 #include "stream/deck_video_scale.h"
 
@@ -10,6 +11,7 @@
 #include "stream/deck_stream_core.h"
 
 #include <array>
+#include <functional>
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -285,6 +287,7 @@ struct DeckQrhiVaapiPresentationDescriptor {
     std::string source;
     DeckDecoderBackend decoderBackend = DeckDecoderBackend::Vaapi;
     DeckFrameTransferPath transferPath = DeckFrameTransferPath::DmaBuf;
+    DeckSourceFrameTiming timing;
 };
 
 class DeckQtQuickRhiPresentationSink {
@@ -438,17 +441,25 @@ public:
     /// decoder thread while a caller reads from its own, so this copies under
     /// the lock instead of handing out a reference.
     DeckRendererLifecycle lifecycle() const;
+    void setSourceTimingCapacity(unsigned capacity);
+    void setSourceTimingGenerationReader(std::function<std::uint64_t()> reader);
     DeckQrhiVaapiPresentationHandoff& presentationHandoff();
     const DeckQrhiVaapiPresentationHandoff& presentationHandoff() const;
 
 private:
     void resetDecoder();
     int drainV4l2Frames();
+    DeckSourceFrameTiming decodedTiming(const AVFrame& frame);
 
     mutable std::mutex lifecycleMutex_;
     DeckRendererLifecycle lifecycle_{};
     DeckVideoFrameCounters mediaCounters_;
     bool ready_ = false;
+    unsigned sourceTimingCapacity_ = 1;
+    std::uint64_t decoderGeneration_ = 0, presentationGeneration_ = 0;
+    std::function<std::uint64_t()> timingGenerationReader_;
+    runtime::DeckSourceClockMapper sourceClock_;
+    DeckFrameTimingStore timingStore_;
     AVBufferRef* hardwareDevice_ = nullptr;
     AVCodecContext* codecContext_ = nullptr;
     DeckDecoderBackend decoderBackend_ = DeckDecoderBackend::Unavailable;

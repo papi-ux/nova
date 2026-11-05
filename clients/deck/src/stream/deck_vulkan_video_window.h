@@ -33,7 +33,7 @@ class DeckVulkanVideoWindow final : public QWindow, public DeckQtQuickRhiPresent
 public:
     explicit DeckVulkanVideoWindow(bool allowSoftware = false, QWindow* parent = nullptr);
     ~DeckVulkanVideoWindow() override;
-    bool submitFrame(const AVFrame& frame);
+    bool submitFrame(const AVFrame& frame, DeckSourceFrameTiming timing = {});
     bool presentVaapiSurface(const DeckQrhiVaapiPresentationDescriptor& descriptor) override;
     std::shared_ptr<const std::atomic<std::uint64_t>> composedFrames() const;
     std::shared_ptr<const std::atomic<std::uint64_t>> cpuUploadCompositions() const;
@@ -50,6 +50,7 @@ public:
 signals:
     void presentationChanged();
     void closeRequested();
+    void sourceTimingReset();
 protected:
     bool event(QEvent* event) override;
     void exposeEvent(QExposeEvent*) override;

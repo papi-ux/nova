@@ -4,6 +4,7 @@
 #include "runtime/deck_frame_pacing.h"
 #include <QObject>
 #include <QTimer>
+#include "runtime/deck_presentation_deadline.h"
 #include <functional>
 #include <memory>
 #include <cstdint>
@@ -32,12 +33,16 @@ public:
     Configure configurator() const;
     DeckFrameDeliveryStats stats() const;
     void close();
+    // Phase 1 defaults off (ROOT D4); phase 2 connects a qualified request.
+    bool setSourceTimingEnabled(bool enabled);
+    void resetTiming(std::uint64_t presentationGeneration);
 private:
     struct State;
     void deliver();
     std::shared_ptr<State> state_;
     Consumer consumer_;
     QTimer timer_;
+    std::unique_ptr<DeckPresentationDeadline> sourceDeadline_;
 };
 
 } // namespace nova::deck::runtime

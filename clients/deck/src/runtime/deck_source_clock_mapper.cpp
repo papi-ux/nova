@@ -82,6 +82,7 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
     point.baseUs = point.sourceUs + offset_;
     if (point.baseUs < 0 || point.baseUs > maxUs - reserve_) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
     point.targetUs = std::max(point.baseUs + reserve_, lastTarget_ + 1);
+    if (point.targetUs > maxUs) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
     point.valid = true; point.active = observations_ >= static_cast<std::size_t>(policy_.warmupFrames);
     point.reason = point.active ? "none" : phase;
     // Preserve a discontinuity reason for its first re-anchored frame, even with warmup=1 in a fixture.
@@ -105,7 +106,8 @@ void DeckSourceClockMapper::ready(const DeckSourceClockPoint& point, std::int64_
     else {
         if (cleanSince_ < 0) cleanSince_ = decoded;
         if (decoded - cleanSince_ >= policy_.cleanHoldUs) {
-            const auto credit = elapsed * policy_.reserveReleaseUsPerSecond + releaseRemainder_;
+            const auto releaseElapsed = std::min(elapsed, decoded - cleanSince_ - policy_.cleanHoldUs);
+            const auto credit = releaseElapsed * policy_.reserveReleaseUsPerSecond + releaseRemainder_;
             reserve_ -= std::min(reserve_ - bounded, credit / 1'000'000); releaseRemainder_ = credit % 1'000'000;
         }
     }

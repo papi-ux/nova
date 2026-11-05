@@ -3,6 +3,7 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <future>
 #include <iostream>
@@ -67,6 +68,40 @@ int main(int argc, char** argv) {
         QThread::msleep(40); QCoreApplication::processEvents();
         require(frames.size() == 4, "closed timer dispatched a stale frame");
     }
+#ifdef __linux__
+    {
+        const auto monotonicNs = [] { return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count(); };
+        std::vector<int> frames; std::vector<std::int64_t> actual;
+        DeckFrameDelivery source([&](const auto& frame) { frames.push_back(frame.width); actual.push_back(monotonicNs()); });
+        require(source.setSourceTimingEnabled(true) && source.configurator()(DeckFramePacing::Balanced,120), "source timing could not configure its finite deadline");
+        source.resetTiming(7);
+        auto send=source.publisher();
+        const auto start=monotonicNs()/1000;
+        const auto timed=[&](int id,std::int64_t target,std::uint64_t generation=7) {
+            DeckFrameDelivery::Frame f; f.width=id; f.timing.presentationGeneration=generation;
+            f.timing.clock.valid=f.timing.clock.active=true; f.timing.clock.targetUs=target; return f;
+        };
+        require(send(timed(1,start+20500)) && send(timed(2,start+40750)), "source publish rejected");
+        QCoreApplication::processEvents(); require(frames.empty(), "future source frame delivered early");
+        QElapsedTimer deadline; deadline.start();
+        while(frames.size()<2 && deadline.elapsed()<1500) { QCoreApplication::processEvents(); QThread::usleep(100); }
+        require(frames==std::vector<int>({1,2}), "source frames were lost or reordered");
+        require(actual[0]>=(start+20500)*1000 && actual[1]>=(start+40750)*1000, "sub-ms source target rounded early");
+        source.resetTiming(8);
+        require(send(timed(3,monotonicNs()/1000-30000,8)) && send(timed(4,monotonicNs()/1000-20000,8)), "overdue publish failed");
+        QCoreApplication::processEvents(); require(frames.size()==3 && frames.back()==4, "stalled source backlog caused a catch-up burst");
+        require(send(timed(5,monotonicNs()/1000-10000,8)), "superseded publish failed");
+        QCoreApplication::processEvents(); require(frames.size()==3, "late arrival replayed after stall recovery");
+        require(send(timed(6,monotonicNs()/1000+50000,7)), "old generation was not safely consumed");
+        QCoreApplication::processEvents(); require(source.stats().queued==0, "recreated surface accepted old timing");
+        auto owner=std::make_shared<int>(1); std::weak_ptr<int> lease=owner;
+        auto held=timed(7,monotonicNs()/1000+50000,8);
+        held.frameLease=std::shared_ptr<nova::deck::stream::DeckQrhiVaapiFrameLease>(owner,nullptr);
+        require(send(held), "future lease rejected"); held.frameLease.reset(); owner.reset();
+        source.close(); require(lease.expired() && !send({}), "source close retained a lease or accepted late work");
+    }
+#endif
     std::vector<int> delivered;
     auto receiver = std::make_unique<DeckFrameDelivery>([&](const auto& frame) {
         require(QThread::currentThread() == app.thread(), "producer invoked the GUI consumer directly");

@@ -126,6 +126,7 @@ AVCodecContext* openDeckV4l2Decoder(int format, int width, int height,
     context->height = context->coded_height = height;
     context->pix_fmt = AV_PIX_FMT_NV12;
     context->thread_count = 1;
+    context->pkt_timebase = AVRational{1, 1000000};
     // Setting these before opening is mandatory: an unpatched system FFmpeg
     // must never silently scan a different device or block the session thread.
     if (!context->priv_data || av_opt_set(context->priv_data, "nova_device", device.c_str(), 0) < 0 ||
