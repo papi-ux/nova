@@ -22,12 +22,15 @@ import android.view.WindowManager
 import com.papi.nova.BuildConfig
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.binding.video.sourcetime.FrameWindow
 import com.papi.nova.binding.video.sourcetime.PresentFeedbackSink
+import com.papi.nova.binding.video.sourcetime.SourceTimeCounters
 import com.papi.nova.binding.video.sourcetime.SourceTimeEffective
 import com.papi.nova.binding.video.sourcetime.SourceTimeMapper
 import com.papi.nova.binding.video.sourcetime.SourceTimePacingStatus
 import com.papi.nova.binding.video.sourcetime.SourceTimePolicy
 import com.papi.nova.binding.video.sourcetime.SourceTimeReason
+import com.papi.nova.binding.video.sourcetime.SourceTimeReport
 import com.papi.nova.binding.video.sourcetime.SourceTimeRequest
 import com.papi.nova.binding.video.sourcetime.SourceTimeScheduler
 import com.papi.nova.binding.video.sourcetime.SourceTimeSideMap
@@ -97,6 +100,17 @@ class MediaCodecDecoderRenderer(
 
     @Volatile
     private var sourceDecoderGeneration = 0
+
+    // Bumped when the render target or the display's timing changes (design C.4), for the report.
+    @Volatile
+    private var sourceSurfaceGeneration = 0
+
+    // Per-stream source-time counts for the host report (design E.2); never read by pacing.
+    private val sourceTimeCounters = SourceTimeCounters()
+
+    // The last statistics window the HUD sample was made from (design E.1), or null before one.
+    @Volatile
+    private var lastFrameWindow: FrameWindow? = null
 
     private fun forgetSourceTimeRecords() {
         sourceDecoderGeneration++
@@ -316,8 +330,21 @@ class MediaCodecDecoderRenderer(
         minDecodeTime = Float.MAX_VALUE
         minDecodeTimeFullLog = ""
         enqueueNsByPtsUs.clear()
+        lastFrameWindow = null
         forgetSourceTimeRecords()
-        sourceTimeMapper?.reset()
+        resetSourceTimeMapping(
+            if (reason == "frame sequence restart") SourceTimeCounters.RESET_FRAME_RESTART else SourceTimeCounters.RESET_STREAM_SETUP,
+        )
+    }
+
+    /** Reset the mapping at one of this renderer's own sites, and name the reset for the report. */
+    private fun resetSourceTimeMapping(reason: String) {
+        val mapper = sourceTimeMapper ?: return
+        // The mapper's own lock, so no point from the new epoch is observed before the reset is named.
+        synchronized(mapper) {
+            mapper.reset()
+            sourceTimeCounters.onReset(reason, mapper.epoch)
+        }
     }
 
     // Nordstern P0-4A (measurement-spec-v1.md 7.2). A single incrementing
@@ -685,6 +712,7 @@ class MediaCodecDecoderRenderer(
     }
 
     override fun setRenderTarget(renderTarget: Surface?) {
+        if (renderTarget !== this.renderTarget) sourceSurfaceGeneration++
         this.renderTarget = renderTarget
     }
 
@@ -744,7 +772,7 @@ class MediaCodecDecoderRenderer(
     override fun notifyVideoForeground() {
         foreground = true
         refreshDisplayParameters()
-        sourceTimeMapper?.reset()
+        resetSourceTimeMapping(SourceTimeCounters.RESET_FOREGROUND)
     }
 
     override fun setPerfTextWanted(wanted: Boolean) {
@@ -766,7 +794,8 @@ class MediaCodecDecoderRenderer(
         if (periodNs != cachedVsyncPeriodNs || deadlineNs != cachedPresentationDeadlineNs) {
             cachedVsyncPeriodNs = periodNs
             cachedPresentationDeadlineNs = deadlineNs
-            sourceTimeMapper?.reset()
+            sourceSurfaceGeneration++
+            resetSourceTimeMapping(SourceTimeCounters.RESET_DISPLAY_CHANGE)
         }
     }
 
@@ -890,6 +919,24 @@ class MediaCodecDecoderRenderer(
         )
     }
 
+    override fun sourceTimeReport(): SourceTimeReport {
+        val active = sourceTimeActive
+        val observing = !USE_FRAME_RENDER_TIME && active && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+        return SourceTimeReport(
+            renderer = SourceTimeReport.RENDERER_MEDIACODEC,
+            connectionGeneration = sourceConnectionGeneration,
+            decoderGeneration = sourceDecoderGeneration,
+            surfaceGeneration = sourceSurfaceGeneration,
+            reserveUs = if (active) sourceTimeMapper?.reserveUs else null,
+            counters = if (active) sourceTimeCounters.snapshot() else null,
+            scheduler = if (active) sourceTimeScheduler?.counters() else null,
+            feedbackMode = SourceTimeReport.feedbackMode(observing, Build.VERSION.SDK_INT),
+            // The one read of the feedback sink: for this report, never for a pacing decision.
+            feedback = if (observing) presentFeedback.counters() else null,
+            window = lastFrameWindow,
+        )
+    }
+
     /** Setup: decide for this stream, and start every source-time state fresh. */
     private fun configureSourceTime(redrawRate: Int) {
         val request = sourceTimeRequest
@@ -898,6 +945,7 @@ class MediaCodecDecoderRenderer(
         sourceTimeLastState = SourceTimeEffective.PENDING
         sourceTimeLastReason = SourceTimeReason.NONE
         presentFeedback.clear()
+        sourceTimeCounters.clear()
         if (!sourceTimeActive) {
             sourceTimeMapper = null
             sourceTimeScheduler = null
@@ -949,7 +997,7 @@ class MediaCodecDecoderRenderer(
                     sourceTimeLastReason = sourceTimeReasonFor(point.reason) ?: SourceTimeReason.NONE
                 } else if (point.targetUs * 1000 - decodedNs > SOURCE_TIME_EARLY_BOUND_NS) {
                     // A target this far ahead is a broken mapping, not a frame to hold.
-                    mapper?.reset()
+                    resetSourceTimeMapping(SourceTimeCounters.RESET_TARGET_OUT_OF_BOUNDS)
                     noteSourceTimeFallback(SourceTimeReason.CLOCK_MAPPING_UNSTABLE)
                 } else {
                     targetNs = point.targetUs * 1000
@@ -958,6 +1006,13 @@ class MediaCodecDecoderRenderer(
                 }
             }
         }
+        sourceTimeCounters.onAdmitted(
+            when {
+                point == null -> SourceTimeCounters.Admission.TIMING_METADATA_MISSING
+                targetNs != null -> SourceTimeCounters.Admission.SOURCE_TIMED
+                else -> SourceTimeCounters.Admission.SOURCE_TIME_MISSING
+            },
+        )
         val pushedOut = scheduler.admit(index, presentationTimeUs, decodedNs, targetNs)
         for (entry in pushedOut) {
             dropFrame(entry.index, intentional = true)
@@ -1308,7 +1363,7 @@ class MediaCodecDecoderRenderer(
                 outputBufferQueue.clear()
                 forgetSourceTimeRecords()
                 sourceTimeScheduler?.clear()
-                sourceTimeMapper?.reset()
+                resetSourceTimeMapping(SourceTimeCounters.RESET_CODEC_RECOVERY)
 
                 if (codecRecoveryType.get() == CR_RECOVERY_TYPE_FLUSH) {
                     LimeLog.warning("Flushing decoder")
@@ -2096,6 +2151,7 @@ class MediaCodecDecoderRenderer(
                 frameSubmissionProducer = frameSubmissionProducer,
             )
             perfListener.onPerfSample(perfSample)
+            lastFrameWindow = FrameWindow(fps.renderedFps.toDouble(), lastTwo.intentionalFrameDrops, lastTwo.totalFrames)
 
             globalVideoStats.add(activeWindowVideoStats)
             lastWindowVideoStats.copy(activeWindowVideoStats)
@@ -2313,7 +2369,7 @@ class MediaCodecDecoderRenderer(
         // ROOT D2: the anchor is the core's enqueue time, taken before this thread can block
         // behind MediaCodec input; submitNs (callback ingress) stays a diagnostic.
         val sourcePoint = if (sourceTimeActive) {
-            sourceTimeMapper?.observe(frameNumber, rtpTimestamp, enqueueTimeMs * 1000)
+            sourceTimeMapper?.observe(frameNumber, rtpTimestamp, enqueueTimeMs * 1000)?.also(sourceTimeCounters::onPoint)
         } else {
             null
         }

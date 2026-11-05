@@ -7069,7 +7069,8 @@ internal fun presentationTruth(status:com.papi.nova.api.PolarisSessionStatus?, h
         status?.vrr ?: com.papi.nova.api.PolarisSessionVrr.Reading.Absent,
         hostCurrent && status?.streamingActive == true,
         status?.sessionGeneration ?: 0L,
-        displayModeHz
+        displayModeHz,
+        report = decoderRenderer?.sourceTimeReport()
     )
 
 private fun reportPolarisClientSettingsSnapshot(clientPresentation:JSONObject?):Boolean {
@@ -7211,7 +7212,8 @@ displayMode = lastClientPresentationDisplayMode
 }
 var decoderName:String? = if (decoderRenderer != null) decoderRenderer!!.activeDecoderName else ""
 // #242: the shared st1 grammar, in the client_presentation field Polaris already accepts and copies.
-var framePacingState:String = presentationTruth(status, true, appliedRefreshRate).client.toFramePacingState()
+val presentationFacts = presentationTruth(status, true, appliedRefreshRate)
+var framePacingState:String = presentationFacts.client.toFramePacingState()
 
 var presentationStatus:String = "synced"
 var reason:String = "Nova presentation state matches the stream policy"
@@ -7273,6 +7275,10 @@ if (reason != null && !reason.isEmpty()) presentation.put("reason", reason)
 if (targetRefreshRate > 0.0) presentation.put("target_refresh_rate_hz", targetRefreshRate)
 if (refreshPolicy != null && !refreshPolicy!!.isEmpty()) presentation.put("refresh_rate_policy", refreshPolicy)
 presentation.put("frame_pacing_state", framePacingState)
+// #242 (design E.1): the renderer's last frame window, from the same reducer, inside Polaris's
+// ranges. Not in the dedupe key: a count moving is no reason to report.
+presentationFacts.renderFps?.let { presentation.put("render_fps", it) }
+presentationFacts.droppedFrameRatio?.let { presentation.put("dropped_frame_ratio", it) }
 }
 catch (ignored:Exception) {}
 

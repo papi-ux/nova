@@ -52,8 +52,32 @@ class SourceTimeRendererSourceGuardTest {
     fun frameRenderedFeedbackIsObservedOnlyAndTheLegacyStatisticIsSeparate() {
         assertTrue(renderer.contains("if (!USE_FRAME_RENDER_TIME && sourceTimeActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {"))
         assertTrue(renderer.contains("presentFeedback.rendered(presentationTimeUs, renderTimeNanos)"))
-        val feedbackReads = Regex("""presentFeedback\.counters\(\)""").findAll(renderer).count()
-        assertEquals("no pacing decision reads the feedback in phase 1", 0, feedbackReads)
+        // One read, for the host report; no pacing decision reads the feedback.
+        val feedbackReads = Regex("""presentFeedback\.counters\(\)""").findAll(renderer).toList()
+        assertEquals(1, feedbackReads.size)
+        val report = renderer.substringAfter("override fun sourceTimeReport(): SourceTimeReport {").substringBefore("\n    }\n")
+        assertTrue("the only read is the report's", report.contains("feedback = if (observing) presentFeedback.counters() else null"))
+    }
+
+    @Test
+    fun everyResetIsNamedAndTheCountsAreReadBesideTheSharedMapper() {
+        // Design E.2. The mapper stays the shared contract's port: the counts come from its points
+        // and from the renderer's own named reset sites, never from inside it.
+        assertEquals("no unnamed reset", 0, Regex("""[mM]apper\?\.reset\(\)""").findAll(renderer).count())
+        for (reason in listOf("RESET_FOREGROUND", "RESET_DISPLAY_CHANGE", "RESET_CODEC_RECOVERY", "RESET_TARGET_OUT_OF_BOUNDS",
+            "RESET_FRAME_RESTART")) {
+            assertTrue(reason, renderer.contains("SourceTimeCounters.$reason"))
+        }
+        assertTrue(renderer.contains("sourceTimeMapper?.observe(frameNumber, rtpTimestamp, enqueueTimeMs * 1000)?.also(sourceTimeCounters::onPoint)"))
+        assertTrue(renderer.contains("sourceTimeCounters.onAdmitted("))
+        assertTrue(renderer.contains("presentFeedback.clear()\n        sourceTimeCounters.clear()"))
+        // The frame window is the one the HUD sample was just made from, and a new stream forgets it.
+        val rollover = renderer.indexOf("perfListener.onPerfSample(perfSample)")
+        assertTrue(renderer.indexOf("lastFrameWindow = FrameWindow(fps.renderedFps.toDouble(), lastTwo.intentionalFrameDrops, lastTwo.totalFrames)") > rollover)
+        assertTrue(renderer.substringAfter("private fun resetRollingPerfStatsForNewStream(").substringBefore("\n    }\n")
+            .contains("lastFrameWindow = null"))
+        val sourceTimeFiles = File("src/main/java/com/papi/nova/binding/video/sourcetime/SourceTimeMapper.kt").readText()
+        assertTrue("the mapper knows nothing of the counts", !sourceTimeFiles.contains("SourceTimeCounters"))
     }
 
     @Test

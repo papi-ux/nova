@@ -21,6 +21,9 @@ import kotlin.math.roundToInt
  *   surface. Anything missing, stale or contradictory makes it false.
  * - [fallback]: the one reason to explain, when source time was asked for; [prominent] when the
  *   player asked explicitly (shown), not automatically (recorded only).
+ * - [renderFps] and [droppedFrameRatio]: the renderer's last frame window, for client_presentation
+ *   (design E.1), only when measured and only inside the ranges Polaris accepts.
+ * - [report]: the renderer's generations and counts, for client_runtime (design E.2).
  */
 data class PresentationTruth(
     /** The renderer's state, with the display's own reason in place of an unknown one. */
@@ -34,6 +37,11 @@ data class PresentationTruth(
     val vrrActive: Boolean,
     val fallback: SourceTimeReason?,
     val prominent: Boolean,
+    val report: SourceTimeReport? = null,
+    /** Rendered frames per second of the last window, 0-1000; null when not measured. */
+    val renderFps: Double? = null,
+    /** Intentional drops over expected frames of the last window, 0-1; null without frames. */
+    val droppedFrameRatio: Double? = null,
 ) {
     /** What the host said about its record for this stream, as far as this device can trust it. */
     enum class HostRecord(val wire: String) {
@@ -57,6 +65,37 @@ data class PresentationTruth(
         put("vrr_active", vrrActive)
         put("display_arr", displayArr.wire)
         displayModeHz?.let { put("display_mode_hz", it) }
+        report?.let { putReport(it) }
+    }
+
+    // Design E.2: the renderer's identity, generations, reserve and counts. Bounded: fixed keys and
+    // a fixed reset vocabulary, no traces, tokens or identities.
+    private fun JSONObject.putReport(report: SourceTimeReport) {
+        put("renderer", report.renderer)
+        report.connectionGeneration?.let { put("connection_gen", it) }
+        report.decoderGeneration?.let { put("decoder_gen", it) }
+        report.surfaceGeneration?.let { put("surface_gen", it) }
+        report.reserveUs?.let { put("reserve_us", it) }
+        report.counters?.let { counters ->
+            put("offset_slew_events", counters.offsetSlewEvents)
+            put("resets", JSONObject().apply { counters.resets.forEach { (reason, n) -> put(reason, n) } })
+        }
+        if (report.counters != null || report.scheduler != null) {
+            put("counts", JSONObject().apply {
+                report.scheduler?.let { scheduler ->
+                    put("on_slot", scheduler.released - scheduler.releasedLate)
+                    put("late_presented", scheduler.releasedLate)
+                    put("late_superseded", scheduler.superseded)
+                    put("queue_overflow", scheduler.overflow)
+                }
+                report.counters?.let { counters ->
+                    put("source_time_missing", counters.sourceTimeMissing)
+                    put("timing_metadata_missing", counters.timingMetadataMissing)
+                }
+            })
+        }
+        put("feedback_mode", report.feedbackMode)
+        report.feedback?.coverage?.takeIf { it.isFinite() }?.let { put("feedback_coverage", round(it, 1000.0)) }
     }
 
     companion object {
@@ -74,6 +113,7 @@ data class PresentationTruth(
             sessionGeneration: Long,
             displayModeHz: Float?,
             presentedFrameEvidence: Boolean = false,
+            report: SourceTimeReport? = null,
         ): PresentationTruth {
             val raw = renderer ?: SourceTimePacingStatus.legacy(SourceTimeRequest.OFF, SourceTimeReason.NOT_REQUESTED)
             val client = if (raw.effective == SourceTimeEffective.SOURCE_TIME_FIXED &&
@@ -117,8 +157,19 @@ data class PresentationTruth(
                 vrrActive = vrrActive,
                 fallback = fallback,
                 prominent = client.requested == SourceTimeRequest.SOURCE_TIME,
+                report = report,
+                renderFps = report?.window?.renderedFps
+                    ?.takeIf { it.isFinite() && it >= 0.0 && it <= MAX_RENDER_FPS }
+                    ?.let { round(it, 100.0) },
+                droppedFrameRatio = report?.window?.takeIf { it.totalFrames > 0 && it.intentionalDrops >= 0 }
+                    ?.let { round((it.intentionalDrops.toDouble() / it.totalFrames).coerceIn(0.0, 1.0), 10_000.0) },
             )
         }
+
+        /** Polaris refuses the whole client_presentation report beyond this (nvhttp.cpp). */
+        const val MAX_RENDER_FPS = 1000.0
+
+        private fun round(value: Double, scale: Double): Double = Math.round(value * scale) / scale
 
         /** The reason in plain words, for the HUD and the Command Center. */
         @JvmStatic

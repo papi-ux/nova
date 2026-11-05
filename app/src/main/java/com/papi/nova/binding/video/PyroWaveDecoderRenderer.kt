@@ -587,6 +587,12 @@ class PyroWaveDecoderRenderer(
     override fun sourceTimePacingStatus(): SourceTimePacingStatus =
         SourceTimePacingStatus.notParticipating(sourceTimeRequest)
 
+    // Not participating: its name only. Nothing it does not measure is reported as zero.
+    override fun sourceTimeReport(): com.papi.nova.binding.video.sourcetime.SourceTimeReport =
+        com.papi.nova.binding.video.sourcetime.SourceTimeReport(
+            com.papi.nova.binding.video.sourcetime.SourceTimeReport.RENDERER_PYROWAVE,
+        )
+
     override fun armBenchmarkCapture(
         runId: String,
         expectedDurationNs: Long,

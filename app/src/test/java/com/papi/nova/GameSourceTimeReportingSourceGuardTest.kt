@@ -29,9 +29,24 @@ class GameSourceTimeReportingSourceGuardTest {
 
     @Test
     fun aChangeOfPacingStateIsReportedAndItComesFromTheSharedReducer() {
-        assertTrue(report.contains("presentationTruth(status, true, appliedRefreshRate).client.toFramePacingState()"))
+        assertTrue(report.contains("val presentationFacts = presentationTruth(status, true, appliedRefreshRate)\n" +
+            "var framePacingState:String = presentationFacts.client.toFramePacingState()"))
         val key = report.substringAfter("var reportKey").substringBefore("if ((reportKey")
         assertTrue("a state change must change the dedupe key", key.contains("framePacingState"))
+    }
+
+    @Test
+    fun theFrameWindowComesFromTheSameReducerAndNeverChurnsTheReport() {
+        // Design E.1: render_fps and dropped_frame_ratio, as the reducer bounded them, only when measured.
+        assertTrue(report.contains("presentationFacts.renderFps?.let { presentation.put(\"render_fps\", it) }"))
+        assertTrue(report.contains("presentationFacts.droppedFrameRatio?.let { presentation.put(\"dropped_frame_ratio\", it) }"))
+        val key = report.substringAfter("var reportKey").substringBefore("if ((reportKey")
+        for (count in listOf("renderFps", "droppedFrameRatio", "presentationFacts")) {
+            assertTrue("$count must not be in the dedupe key", !key.contains(count))
+        }
+        // The reducer every surface uses is handed the renderer's report (design E.2).
+        val reducer = game.substringAfter("internal fun presentationTruth(").substringBefore("\nprivate fun ")
+        assertTrue(reducer.contains("report = decoderRenderer?.sourceTimeReport()"))
     }
 
     @Test
