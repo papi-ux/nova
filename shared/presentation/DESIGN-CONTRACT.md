@@ -198,3 +198,16 @@ choices require Balanced and support fixed-refresh source pacing. Start snapshot
 the preference before `setSourceTimingEnabled`; reconnect retains that snapshot.
 The settings row uses existing focus/choice navigation and no motion behavior.
 No `clientVrrRequested` is added, and no presentation receipt is available.
+
+## Deck phase-2 facts and trace
+
+Requested is the saved stream snapshot. Effective is one of `legacy`, `pending`,
+`source_time_fixed`, `source_time_vrr`, `unavailable`; Deck emits fixed only after
+a current source-target delivery, never VRR without presentation receipts. The
+latest invalid point changes effectiveness immediately, and one second without
+new observations expires a source-paced state to pending/source_timestamp_missing.
+Named fallback is a separate field; host status and nominal display Hz cannot
+create a source-paced state. NovaHUD shows all three for an enabled request (also
+OFF in Debug), independently of the nominal display-mode chip. The existing
+opt-in qualification trace includes one bounded allowlisted `source_time` object
+per sample with these three facts and the versioned delivery limits.

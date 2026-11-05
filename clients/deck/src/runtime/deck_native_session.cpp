@@ -848,11 +848,19 @@ void DeckNativeSessionController::poll() {
             hudSample->composed = hudSample->compositionAvailable ? presentationFrames_->load() : 0;
             hudSample->cpuUploadCompositions = presentationOwner_ && presentationCpuUploads_ ? presentationCpuUploads_->load() : 0;
             hudSample->cpuUploadsAvailable = presentationOwner_ && bool(presentationCpuUploads_);
+            hudSample->sourceTimeRequested = shared_->sourceTimePacing;
+            hudSample->sourceTimeEffective = "legacy";
+            hudSample->sourceTimeFallback = shared_->sourceTimePacing == "off" ? "not_requested" :
+                shared_->framePacing != DeckFramePacing::Balanced ? "pacing_mode_incompatible" : "renderer_not_participating";
             hudSample->deliveryAvailable = bool(frameDelivery_);
             if (frameDelivery_) {
                 const auto delivery = frameDelivery_->stats();
                 hudSample->deliveryDrops = delivery.dropped;
                 hudSample->deliveryQueueDepth = delivery.queued;
+                if (shared_->sourceTimePacing != "off" && shared_->framePacing == DeckFramePacing::Balanced) {
+                    hudSample->sourceTimeEffective = shared_->sourceTimingEnabled ? QString::fromUtf8(delivery.effective.data(), int(delivery.effective.size())) : "unavailable";
+                    hudSample->sourceTimeFallback = QString::fromUtf8(delivery.fallback.data(), int(delivery.fallback.size()));
+                }
             }
             nextHud = hudMetrics_.sample(*hudSample);
             newMomentSample = true;
