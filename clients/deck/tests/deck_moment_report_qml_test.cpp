@@ -2,6 +2,7 @@
 #include "stream/deck_stream_media_adapters.h"
 #include "deck_preview_fixture.h"
 #include <QDir>
+#include <QLocale>
 #include <QGuiApplication>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -14,13 +15,19 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <time.h>
 namespace {
 void require(bool ok,const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
+// Newer CLDR data puts a narrow no-break space before AM/PM; read it as a space.
+QString shown(QString text) { return text.replace(QChar(0x202F),u' ').replace(QChar(0x00A0),u' '); }
 }
 int main(int argc,char** argv) {
+    // New York rules without tzdata, so the marked time has a known local reading (#418).
+    qputenv("TZ","EST5EDT,M3.2.0,M11.1.0"); tzset();
     QTemporaryDir directory; require(directory.isValid(),"isolated settings missing");
     qputenv("XDG_CONFIG_HOME",directory.path().toUtf8());
     QGuiApplication app(argc,argv);
+    QLocale::setDefault(QLocale(QLocale::English,QLocale::UnitedStates));
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("MomentReport");
     qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream",0,1,"DeckVaapiPreviewSurface");
     PreviewSession session; PreviewPlayers players(session);
@@ -93,6 +100,10 @@ ApplicationWindow {
     require(!opened() && !session.momentPending && item("native-moment-mark-error")->property("text").toString().contains("Nothing was marked"), "oversize mark opened/claimed a report");
     session.momentMarkResult="marked";
     openMoment(); capture("moment-current-1280.png");
+    // The fixture marked 2026-10-10T15:00:00.123Z: read here in local time, not as the UTC stamp (#418).
+    const auto marked=shown(item("moment-report-marked-time")->property("text").toString());
+    require(marked.startsWith("Marked Oct 10, ") && marked.endsWith(" 11:00 AM EDT.") && !marked.contains("UTC") && !marked.contains("2026-10-10T"),
+        qPrintable("marked time is not local: "+marked));
     require(item("moment-report-storage-copy")->property("text").toString().contains("nothing is sent automatically") &&
         item("moment-report-window")->property("text").toString().contains("3 samples") &&
         item("moment-report-window")->property("text").toString().contains("4.2 s") &&

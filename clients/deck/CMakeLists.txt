@@ -870,6 +870,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         set_source_files_properties(qml/NovaTheme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
         set_source_files_properties(qml/NovaHudPreferences.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
         set_source_files_properties(qml/NovaStreamPreferences.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+        set_source_files_properties(qml/NovaLocalTime.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
         qt_add_qml_module(nova-deck
             URI Nova.Deck
             VERSION 0.1
@@ -877,6 +878,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/NovaTheme.qml
                 qml/NovaHudPreferences.qml
                 qml/NovaStreamPreferences.qml
+                qml/NovaLocalTime.qml
                 qml/DeckButtonGlyph.qml
                 qml/DeckMenuShortcut.qml
                 qml/NovaHud.qml
@@ -1250,6 +1252,13 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_compile_definitions(nova_deck_moment_report_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_moment_report_qml_test COMMAND nova_deck_moment_report_qml_test)
             set_tests_properties(nova_deck_moment_report_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+            add_executable(nova_deck_local_time_qml_test tests/deck_local_time_qml_test.cpp)
+            target_link_libraries(nova_deck_local_time_qml_test PRIVATE Qt6::Gui Qt6::Qml Qt6::Quick)
+            target_compile_definitions(nova_deck_local_time_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_local_time_qml_test COMMAND nova_deck_local_time_qml_test)
+            set_tests_properties(nova_deck_local_time_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+            add_test(NAME nova_deck_local_time_utc_qml_test COMMAND nova_deck_local_time_qml_test --utc)
+            set_tests_properties(nova_deck_local_time_utc_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
             add_executable(nova_deck_stream_recap_qml_test tests/deck_stream_recap_qml_test.cpp tests/deck_preview_fixture.h)
             target_link_libraries(nova_deck_stream_recap_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_stream_recap_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")

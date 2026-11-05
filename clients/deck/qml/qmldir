@@ -1,6 +1,7 @@
 singleton NovaTheme 1.0 NovaTheme.qml
 singleton NovaHudPreferences 1.0 NovaHudPreferences.qml
 singleton NovaStreamPreferences 1.0 NovaStreamPreferences.qml
+singleton NovaLocalTime 1.0 NovaLocalTime.qml
 
 ArtworkStudio 1.0 ArtworkStudio.qml
 SpaceArtwork 1.0 SpaceArtwork.qml
