@@ -265,3 +265,24 @@ completes and after fallback B delivers. Only an eligible newer source-target
 delivery restores `source_time_fixed/none`. Old fallback completions likewise
 cannot regress a newer success. Mapper/presentation invalidation and stale-submit
 counts remain independent fences; host fallback semantics are unchanged.
+
+## Deck End trace-tail limit (W47 / review T2)
+
+Decision: retain the existing per-sample trace contract; a terminal End flush is
+not implemented in this follow-up. The worker can publish `shared->hud` after the
+last GUI poll, then End sets cancellation before the next poll. That sample is
+not appended, and delivery/source transitions since the last sampled row can
+also be absent. Every successfully appended row is already flushed synchronously;
+End does not discard those completed rows. There is no terminal row, End receipt,
+retry, or guarantee that the last row describes the last delivered frame.
+
+The writer's existing limits bound bytes (16 MiB per file, at most 16 retained
+files), not QFile write/flush duration. A final fresh renderer/source snapshot
+would also require synchronization with worker/GPU ownership, including the final
+submission fence. Adding that work to GUI End has no cheap, established time bound
+or controller-level terminal freshness test on this host. This choice preserves
+stop/cancellation and keeps End independent of extra storage/GPU waits; it does
+not make missing tail counts zero or complete. ROOT must decide whether a future
+bounded pending terminal snapshot is required, with explicit sample age/terminal
+meaning and an End-before-next-poll controller test, before using traces as
+terminal source-time/count evidence. No new trace or wire vocabulary is added.
