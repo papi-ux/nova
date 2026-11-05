@@ -2255,15 +2255,18 @@ void testAudioPreferences() {
         DeckNativeSessionController controller(true, host.resolver(), driver);
         controller.setInputFocus(true);
         require(settings.setStickDeadzonePercent(-10), "deadzone recovery fixture failed");
+        require(settings.setSourceTimePacing("source_time"), "source timing snapshot fixture failed");
         require(settings.setFramePacingMode("balanced"), "pacing snapshot fixture failed");
         require(controller.startConfigured("host", "game", DeckPlayConfiguration{}.toMap()), "audio fixture cannot start");
         // Change defaults before the worker reads its target. The accepted
         // launch and all recovery paths retain their original immutable choice.
         require(settings.resetAudioSettings(), "audio fixture cannot reset defaults");
         require(settings.resetStickDeadzonePercent(), "deadzone recovery reset failed");
+        require(settings.resetSourceTimePacing(), "source timing snapshot reset failed");
         require(settings.resetFramePacingMode(), "pacing snapshot reset failed");
         until([&] { return phase(controller) == "active"; });
         require(controller.state()["stickDeadzonePercent"] == -10, "recovery changed deadzone snapshot");
+        require(controller.state()["sourceTimePacingRequested"] == "source_time", "accepted stream reread source timing defaults");
         require(controller.state()["framePacingMode"] == "balanced", "accepted stream reread pacing defaults");
         const int expected = channels == 8 ? AUDIO_CONFIGURATION_71_SURROUND
             : channels == 6 ? AUDIO_CONFIGURATION_51_SURROUND : AUDIO_CONFIGURATION_STEREO;
@@ -2274,6 +2277,7 @@ void testAudioPreferences() {
         driver.terminate();
         until([&] { return driver.starts == 2 && phase(controller) == "active"; });
         require(controller.state()["stickDeadzonePercent"] == -10, "recovery changed deadzone snapshot");
+        require(controller.state()["sourceTimePacingRequested"] == "source_time", "accepted stream reread source timing defaults");
         require(controller.state()["framePacingMode"] == "balanced", "recovery changed pacing snapshot");
         require(driver.receivedConfiguration.audioConfiguration == expected && host.resumeRequest.find(surround) != std::string::npos
             && host.resumeRequest.find("localAudioPlayMode=1") != std::string::npos, "automatic reconnect reread changed audio defaults");
@@ -2283,6 +2287,7 @@ void testAudioPreferences() {
         require(controller.resumeDisconnected("host", "game"), "audio wake resume failed");
         until([&] { return phase(controller) == "active"; });
         require(controller.state()["stickDeadzonePercent"] == -10, "recovery changed deadzone snapshot");
+        require(controller.state()["sourceTimePacingRequested"] == "source_time", "accepted stream reread source timing defaults");
         require(controller.state()["framePacingMode"] == "balanced", "recovery changed pacing snapshot");
         require(driver.receivedConfiguration.audioConfiguration == expected && host.resumeRequest.find(surround) != std::string::npos
             && host.resumeRequest.find("localAudioPlayMode=1") != std::string::npos, "sleep recovery changed audio snapshot");
@@ -2293,6 +2298,7 @@ void testAudioPreferences() {
         require(controller.start("host", "game"), "new audio stream failed");
         until([&] { return phase(controller) == "active"; });
         require(controller.state()["stickDeadzonePercent"] == 5, "new stream ignored deadzone default");
+        require(controller.state()["sourceTimePacingRequested"] == "off", "new stream ignored source timing OFF default");
         require(controller.state()["framePacingMode"] == "latency", "new stream ignored pacing default");
         require(driver.receivedConfiguration.audioConfiguration == AUDIO_CONFIGURATION_STEREO &&
             host.launchRequest.find("localAudioPlayMode=0") != std::string::npos, "new stream ignored changed audio defaults");

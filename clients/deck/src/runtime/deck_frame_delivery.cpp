@@ -113,7 +113,7 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
     return [state = state_](const Frame& frame) {
         const std::lock_guard lock(state->mutex);
         if (state->closed || !state->receiver) return false;
-        if (state->sourceEnabled && frame.timing.presentationGeneration < state->presentationGeneration) {
+        if (state->sourceEnabled && frame.timing.presentationGeneration != state->presentationGeneration) {
             ++state->dropped; state->fallback = "stale_epoch"; state->effective = "pending"; return true;
         }
         if (state->sourceEnabled) {

@@ -1905,7 +1905,7 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
     const auto generation = timingGenerationReader_ ? timingGenerationReader_() : 0;
     if (generation != presentationGeneration_) {
         presentationGeneration_ = generation; sourceClock_.reset(); timingStore_.clear();
-    if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
+        if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
     }
     DeckSourceFrameTiming timing;
     timing.clock.reason = "timing_metadata_missing";
