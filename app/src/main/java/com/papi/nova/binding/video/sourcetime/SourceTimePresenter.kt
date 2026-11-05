@@ -11,7 +11,9 @@ package com.papi.nova.binding.video.sourcetime
  *   time (the arrival fallback) with a named reason when it has none. It keeps the effective state
  *   the status reports.
  * - [onVsync] (vsync thread) measures the display's lead from the refreshes it offers and asks the
- *   scheduler what to release.
+ *   scheduler what to release, one release in flight at a time (W26 F6): the next waits for the
+ *   previous refresh's deadline or for [onRendered], whichever comes first. The render callback
+ *   only ever ends that wait early; it never moves a target, a delay or a reserve.
  * - Both first check the fence (W26 F3): the mapper epoch and the renderer's surface and decoder
  *   generations. When it has moved, every queued frame aimed under the old one is handed back to
  *   drop, a source-paced state stops claiming so, the delay is learned again for a new surface, and
@@ -143,23 +145,31 @@ class SourceTimePresenter(
     }
 
     /**
-     * One vsync at [nowNs]: [slotsNs] are the refreshes still reachable, ascending, and
-     * [vsyncPeriodNs] the display period. The earliest of them, against now, is the display's lead.
+     * One vsync at [nowNs]: [slotsNs] are the refreshes still reachable, ascending, [deadlinesNs]
+     * their queueing deadlines and [vsyncPeriodNs] the display period. The earliest of them, against
+     * now, is the display's lead.
      */
     @Synchronized
     fun onVsync(
         nowNs: Long,
         slotsNs: LongArray,
+        deadlinesNs: LongArray,
         vsyncPeriodNs: Long,
         surfaceGeneration: Int,
         decoderGeneration: Int,
     ): Vsync {
         val stale = refence(surfaceGeneration, decoderGeneration)
         if (slotsNs.isNotEmpty()) delay.onVsync(nowNs, slotsNs[0], vsyncPeriodNs)
-        val decision = scheduler.onVsync(slotsNs, vsyncPeriodNs)
+        val decision = scheduler.onVsync(nowNs, slotsNs, deadlinesNs, vsyncPeriodNs)
         val moved = fenceMovedSinceVsync
         fenceMovedSinceVsync = false
         return Vsync(decision.release, decision.releaseAtNs, stale + decision.superseded, moved)
+    }
+
+    /** The codec reported the frame queued with [ptsUs] rendered. */
+    @Synchronized
+    fun onRendered(ptsUs: Long) {
+        scheduler.onRendered(ptsUs)
     }
 
     /**

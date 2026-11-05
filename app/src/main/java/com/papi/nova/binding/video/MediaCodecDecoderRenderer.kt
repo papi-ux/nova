@@ -972,9 +972,11 @@ class MediaCodecDecoderRenderer(
     }
 
     /** Vsync thread: release at most one frame for one of the reachable refreshes. */
-    private fun presentSourceTimeFrame(nowNs: Long, slotsNs: LongArray, vsyncPeriodNs: Long) {
+    private fun presentSourceTimeFrame(nowNs: Long, slotsNs: LongArray, deadlinesNs: LongArray, vsyncPeriodNs: Long) {
         val presenter = sourceTimePresenter ?: return
-        val decision = presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration)
+        val decision = presenter.onVsync(
+            nowNs, slotsNs, deadlinesNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration,
+        )
         if (decision.fenceMoved) {
             // Released frames still awaiting a render callback belong to the old epoch or surface.
             presentFeedback.clear()
@@ -1004,11 +1006,11 @@ class MediaCodecDecoderRenderer(
     }
 
     /** API 33+ vsync with frame timelines; returns false to stop being called. */
-    private fun onSourceTimeVsync(nowNs: Long, slotsNs: LongArray, vsyncPeriodNs: Long): Boolean {
+    private fun onSourceTimeVsync(nowNs: Long, slotsNs: LongArray, deadlinesNs: LongArray, vsyncPeriodNs: Long): Boolean {
         if (stopping) {
             return false
         }
-        presentSourceTimeFrame(nowNs, slotsNs, if (vsyncPeriodNs > 0) vsyncPeriodNs else cachedVsyncPeriodNs)
+        presentSourceTimeFrame(nowNs, slotsNs, deadlinesNs, if (vsyncPeriodNs > 0) vsyncPeriodNs else cachedVsyncPeriodNs)
         doCodecRecoveryIfRequired(CR_FLAG_CHOREOGRAPHER)
         return true
     }
@@ -1243,11 +1245,15 @@ class MediaCodecDecoderRenderer(
         }
 
         if (!USE_FRAME_RENDER_TIME && sourceTimeActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // Observe only: how the render callbacks line up with the refreshes the scheduler
-            // asked for. No pacing decision reads it until a device receipt says it can be trusted.
+            // Observe: how the render callbacks line up with the refreshes the scheduler asked for.
+            // No timing decision reads it until a device receipt says it can be trusted; the only
+            // use is to tell the scheduler a release is no longer in flight.
             videoDecoder!!.setOnFrameRenderedListener(
                 { _, presentationTimeUs, renderTimeNanos ->
                     presentFeedback.rendered(presentationTimeUs, renderTimeNanos)
+                    // W26 F6: a rendered frame is no longer in flight. This can only open the
+                    // one-release gate early; it never moves a target, a delay or a reserve.
+                    sourceTimePresenter?.onRendered(presentationTimeUs)
                 },
                 null,
             )
@@ -1505,8 +1511,10 @@ class MediaCodecDecoderRenderer(
             val hardwareVsyncNs = frameTimeNanos - cachedAppVsyncOffsetNanos
             val nowNs = System.nanoTime()
             val earliestNs = nowNs + cachedPresentationDeadlineNs
-            val slots = LongArray(3) { hardwareVsyncNs + (it + 1) * periodNs }.filter { it >= earliestNs }
-            presentSourceTimeFrame(nowNs, slots.toLongArray(), periodNs)
+            val slots = LongArray(3) { hardwareVsyncNs + (it + 1) * periodNs }.filter { it >= earliestNs }.toLongArray()
+            // A refresh stays reachable until its presentation deadline before it.
+            val deadlines = LongArray(slots.size) { slots[it] - cachedPresentationDeadlineNs }
+            presentSourceTimeFrame(nowNs, slots, deadlines, periodNs)
             doCodecRecoveryIfRequired(CR_FLAG_CHOREOGRAPHER)
             Choreographer.getInstance().postFrameCallback(this)
             return

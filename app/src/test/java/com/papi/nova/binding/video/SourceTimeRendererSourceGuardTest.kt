@@ -86,10 +86,10 @@ class SourceTimeRendererSourceGuardTest {
         // presenter (with its learned delay) decides every target, and gets the time each vsync ran.
         assertEquals(0, Regex("""targetUs \* 1000""").findAll(renderer).count())
         assertTrue(renderer.contains("index, presentationTimeUs, System.nanoTime(), record, sourceSurfaceGeneration, sourceDecoderGeneration,"))
-        assertTrue(renderer.contains("presenter.onVsync(nowNs, slotsNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration)"))
-        assertTrue(renderer.contains("presentSourceTimeFrame(nowNs, slots.toLongArray(), periodNs)"))
+        assertTrue(renderer.contains("nowNs, slotsNs, deadlinesNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration,"))
+        assertTrue(renderer.contains("presentSourceTimeFrame(nowNs, slots, deadlines, periodNs)"))
         val timeline = File("src/main/java/com/papi/nova/binding/video/SourceTimeFrameTimelineVsync.kt").readText()
-        assertTrue(timeline.contains("if (onSlots(now, slots, periodNs)) {"))
+        assertTrue(timeline.contains("if (onSlots(now, slots, deadlines, periodNs)) {"))
     }
 
     @Test
@@ -110,6 +110,18 @@ class SourceTimeRendererSourceGuardTest {
         // stale-frame count is one second at the stream's negotiated rate.
         assertTrue(renderer.contains("return sourceTimePresenter?.pacing(request, System.nanoTime())"))
         assertTrue(renderer.contains("sourceTimePresenter = SourceTimePresenter(capacity, mapper, if (redrawRate > 0) redrawRate else 60)"))
+    }
+
+    @Test
+    fun oneReleaseIsInFlightAndOnlyTheRenderCallbackOrTheDeadlineEndsIt() {
+        // W26 F6: every reachable refresh comes with its deadline, on both vsync sources, and the
+        // render callback only tells the scheduler a release is done.
+        assertTrue(renderer.contains("val deadlines = LongArray(slots.size) { slots[it] - cachedPresentationDeadlineNs }"))
+        val timeline = File("src/main/java/com/papi/nova/binding/video/SourceTimeFrameTimelineVsync.kt").readText()
+        assertTrue(timeline.contains("val deadlines = reachable.map { it.deadlineNanos }.toLongArray()"))
+        assertTrue(renderer.contains("presentFeedback.rendered(presentationTimeUs, renderTimeNanos)\n" +
+            "                    // W26 F6: a rendered frame is no longer in flight."))
+        assertEquals(1, Regex("""sourceTimePresenter\?\.onRendered\(presentationTimeUs\)""").findAll(renderer).count())
     }
 
     @Test

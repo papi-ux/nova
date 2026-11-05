@@ -22,6 +22,9 @@ class SourceTimePresenterTest {
     private class Display(val periodNs: Long, val leadNs: Long, val latencyNs: Long = 300_000L, val timelines: Int = 3) {
         fun nowAt(k: Long) = k * periodNs + latencyNs
         fun slotsAt(k: Long) = LongArray(timelines) { k * periodNs + leadNs + it * periodNs }
+
+        /** Each timeline must be queued a millisecond before the vsync that starts its frame. */
+        fun deadlinesAt(k: Long) = LongArray(timelines) { (k + 1 + it) * periodNs - 1_000_000L }
     }
 
     private class Frame(val sourceUs: Long, val arrivalUs: Long)
@@ -87,7 +90,7 @@ class SourceTimePresenterTest {
                     admitted++
                 }
             }
-            val decision = presenter.onVsync(now, display.slotsAt(k), display.periodNs, 1, 1)
+            val decision = presenter.onVsync(now, display.slotsAt(k), display.deadlinesAt(k), display.periodNs, 1, 1)
             decision.release?.let { shown[it.index] = decision.releaseAtNs }
             k++
         }
@@ -233,7 +236,7 @@ class SourceTimePresenterTest {
         w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point, surface), surface, 1)
         val k = (w.t + 4_000_000) / display.periodNs + 1
         w.t += 16_667_000
-        return w.presenter.onVsync(display.nowAt(k), display.slotsAt(k), display.periodNs, surface, 1)
+        return w.presenter.onVsync(display.nowAt(k), display.slotsAt(k), display.deadlinesAt(k), display.periodNs, surface, 1)
     }
 
     @Test
@@ -276,11 +279,11 @@ class SourceTimePresenterTest {
         val fallback = w.presenter.admit(99, 99, decodedNs, null, 1, 1)
         assertEquals("the old frames are handed back to drop", queued, fallback.dropped.map { it.index })
         val k = decodedNs / hz60.periodNs + 1
-        val vsync = w.presenter.onVsync(hz60.nowAt(k), hz60.slotsAt(k), hz60.periodNs, 1, 1)
+        val vsync = w.presenter.onVsync(hz60.nowAt(k), hz60.slotsAt(k), hz60.deadlinesAt(k), hz60.periodNs, 1, 1)
         assertEquals(99, vsync.release!!.index)
         assertTrue("pending feedback belongs to the old epoch", vsync.fenceMoved)
         assertEquals(2L, w.presenter.counters().staleDropped)
-        assertFalse("and only once", w.presenter.onVsync(hz60.nowAt(k + 1), hz60.slotsAt(k + 1), hz60.periodNs, 1, 1).fenceMoved)
+        assertFalse("and only once", w.presenter.onVsync(hz60.nowAt(k + 1), hz60.slotsAt(k + 1), hz60.deadlinesAt(k + 1), hz60.periodNs, 1, 1).fenceMoved)
     }
 
     @Test
@@ -295,7 +298,7 @@ class SourceTimePresenterTest {
         assertTrue(w.presenter.targetDelayUs != null)
         // The display's timing changes: surface generation 2, without a mapper reset yet.
         val k = (w.t + 4_000_000) / hz60.periodNs + 1
-        val vsync = w.presenter.onVsync(hz60.nowAt(k), hz60.slotsAt(k), hz60.periodNs, 2, 1)
+        val vsync = w.presenter.onVsync(hz60.nowAt(k), hz60.slotsAt(k), hz60.deadlinesAt(k), hz60.periodNs, 2, 1)
         assertEquals(listOf(i), vsync.drop.map { it.index })
         assertTrue(vsync.fenceMoved)
         assertEquals(null, w.presenter.targetDelayUs)
@@ -324,7 +327,7 @@ class SourceTimePresenterTest {
         w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point), 1, 1)
         val k = (w.t + 4_000_000) / display.periodNs + 1
         w.t += 16_667_000
-        w.presenter.onVsync(display.nowAt(k), display.slotsAt(k), display.periodNs, 1, 1)
+        w.presenter.onVsync(display.nowAt(k), display.slotsAt(k), display.deadlinesAt(k), display.periodNs, 1, 1)
     }
 
     private var repeatedSourceUs = -1L

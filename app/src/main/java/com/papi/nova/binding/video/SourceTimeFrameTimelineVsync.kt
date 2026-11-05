@@ -10,26 +10,26 @@ import androidx.annotation.RequiresApi
  * callback and the display's period instead; this class is never loaded on them.
  *
  * Runs on the renderer's Choreographer thread. [onSlots] gets the time it ran, the reachable
- * refreshes and the period, and returns false to stop.
+ * refreshes, each one's deadline and the period, and returns false to stop.
  */
 @RequiresApi(33)
 internal class SourceTimeFrameTimelineVsync(
-    private val onSlots: (Long, LongArray, Long) -> Boolean,
+    private val onSlots: (Long, LongArray, LongArray, Long) -> Boolean,
 ) : Choreographer.VsyncCallback {
     override fun onVsync(data: Choreographer.FrameData) {
         val now = System.nanoTime()
         val timelines = data.frameTimelines
-        val slots = timelines
+        val reachable = timelines
             .filter { it.deadlineNanos > now }
-            .map { it.expectedPresentationTimeNanos }
-            .sorted()
-            .toLongArray()
+            .sortedBy { it.expectedPresentationTimeNanos }
+        val slots = reachable.map { it.expectedPresentationTimeNanos }.toLongArray()
+        val deadlines = reachable.map { it.deadlineNanos }.toLongArray()
         val periodNs = if (timelines.size >= 2) {
             timelines[1].expectedPresentationTimeNanos - timelines[0].expectedPresentationTimeNanos
         } else {
             0L
         }
-        if (onSlots(now, slots, periodNs)) {
+        if (onSlots(now, slots, deadlines, periodNs)) {
             Choreographer.getInstance().postVsyncCallback(this)
         }
     }

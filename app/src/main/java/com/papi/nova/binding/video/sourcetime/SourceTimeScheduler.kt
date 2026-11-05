@@ -17,6 +17,12 @@ package com.papi.nova.binding.video.sourcetime
  *   one silently. A slot is never used twice.
  * - A frame already past its target is shown once at the earliest slot, its lateness counted, and
  *   nothing re-anchors on it. The next frame keeps its own slot.
+ * - At most one release is in flight (W26 F6; design C.3 "plus one in-flight release"). A release
+ *   is for a future refresh, and MediaCodec keeps the buffer until that refresh has been taken. So
+ *   the next release waits until the previous one's slot deadline has passed (the compositor has
+ *   latched it or let it go) or the codec reported it rendered, whichever comes first. Until then
+ *   the frames keep waiting in the bounded queue, and a frame that falls behind meanwhile takes the
+ *   late-frame rule when the gate opens.
  * - At most [capacity] frames wait (1 for the latency profile, 2 for balanced). A frame that would
  *   exceed that drops the oldest, as the legacy queue did. No synthetic repeat is ever made.
  * - Every frame carries the [Fence] it was aimed under: the mapper epoch and the surface and decoder
@@ -60,6 +66,8 @@ class SourceTimeScheduler(private val capacity: Int) {
         val maxLatenessNs: Long,
         /** Waiting frames dropped because the fence they were aimed under moved. */
         val staleDropped: Long = 0,
+        /** Vsyncs with frames waiting that released nothing because a release was in flight. */
+        val inFlightHeld: Long = 0,
     )
 
     private val queue = ArrayDeque<Entry>(capacity + 1)
@@ -73,6 +81,12 @@ class SourceTimeScheduler(private val capacity: Int) {
     private var maxLatenessNs = 0L
     private var staleDropped = 0L
     private var currentFence = NO_FENCE
+    private var inFlightHeld = 0L
+
+    // The release in flight: its codec timestamp, the refresh it is for and that refresh's deadline.
+    private var inFlightPtsUs = NONE
+    private var inFlightSlotNs = NONE
+    private var inFlightDeadlineNs = NONE
 
     init {
         require(capacity >= 1) { "capacity must be at least one frame" }
@@ -105,6 +119,7 @@ class SourceTimeScheduler(private val capacity: Int) {
     @Synchronized
     fun fence(current: Fence): List<Entry> {
         if (current == currentFence) return emptyList()
+        val previous = currentFence
         currentFence = current
         val stale = queue.filter { it.fence != current }
         if (stale.isNotEmpty()) {
@@ -113,16 +128,41 @@ class SourceTimeScheduler(private val capacity: Int) {
         }
         // Display order holds within one mapping; the old mapping's targets no longer bound it.
         lastAdmittedTargetNs = queue.lastOrNull()?.targetNs ?: Long.MIN_VALUE
+        // A release for another surface or a flushed codec no longer holds this one back. A new
+        // epoch on the same surface does: that buffer is still waiting for its refresh.
+        if (previous.surfaceGeneration != current.surfaceGeneration || previous.decoderGeneration != current.decoderGeneration) {
+            forgetInFlight()
+        }
         return stale
     }
 
+    /** The codec reported a frame rendered: the release in flight (or a later one) is done. */
+    @Synchronized
+    fun onRendered(ptsUs: Long) {
+        // Frames render in release order and codec timestamps only increase.
+        if (inFlightPtsUs != NONE && ptsUs >= inFlightPtsUs) forgetInFlight()
+    }
+
+    /** The refresh the release in flight is for, or null when none is. */
+    @get:Synchronized
+    val inFlightSlot: Long?
+        get() = inFlightSlotNs.takeIf { it != NONE }
+
     /**
-     * One vsync. [slotsNs] are the refreshes still reachable from now, ascending; [vsyncPeriodNs]
-     * the display period. Returns what to release (if anything) and what it supersedes.
+     * One vsync at [nowNs]. [slotsNs] are the refreshes still reachable, ascending, each with the
+     * deadline in [deadlinesNs] by which a buffer for it must be queued; [vsyncPeriodNs] the display
+     * period. Returns what to release (if anything) and what it supersedes.
      */
     @Synchronized
-    fun onVsync(slotsNs: LongArray, vsyncPeriodNs: Long): Decision {
+    fun onVsync(nowNs: Long, slotsNs: LongArray, deadlinesNs: LongArray, vsyncPeriodNs: Long): Decision {
+        require(deadlinesNs.size == slotsNs.size) { "one deadline per slot" }
+        // The release in flight is due once its refresh's deadline has passed.
+        if (inFlightDeadlineNs != NONE && nowNs >= inFlightDeadlineNs) forgetInFlight()
         if (queue.isEmpty() || slotsNs.isEmpty() || vsyncPeriodNs <= 0) return NOTHING
+        if (inFlightSlotNs != NONE) {
+            inFlightHeld++
+            return NOTHING
+        }
         val half = vsyncPeriodNs / 2
         val usable = slotsNs.filter { lastReleasedSlotNs == Long.MIN_VALUE || it > lastReleasedSlotNs + half }
         if (usable.isEmpty()) return NOTHING
@@ -147,7 +187,16 @@ class SourceTimeScheduler(private val capacity: Int) {
             if (lateness > maxLatenessNs) maxLatenessNs = lateness
         }
         lastReleasedSlotNs = slot
+        inFlightPtsUs = shown.ptsUs
+        inFlightSlotNs = slot
+        inFlightDeadlineNs = deadlinesNs[slotsNs.indexOf(slot)]
         return Decision(shown, slot, due)
+    }
+
+    private fun forgetInFlight() {
+        inFlightPtsUs = NONE
+        inFlightSlotNs = NONE
+        inFlightDeadlineNs = NONE
     }
 
     /** Forget every waiting frame and hand them back (to drop, or to abandon after a flush). */
@@ -157,12 +206,15 @@ class SourceTimeScheduler(private val capacity: Int) {
         queue.clear()
         lastAdmittedTargetNs = Long.MIN_VALUE
         lastReleasedSlotNs = Long.MIN_VALUE
+        // A flushed or stopping codec returns every buffer, the one in flight included.
+        forgetInFlight()
         return waiting
     }
 
     @Synchronized
     fun counters(): Counters =
-        Counters(queue.size, released, releasedLate, supersededCount, overflowCount, arrivalFallback, maxLatenessNs, staleDropped)
+        Counters(queue.size, released, releasedLate, supersededCount, overflowCount, arrivalFallback, maxLatenessNs, staleDropped,
+            inFlightHeld)
 
     companion object {
         /** Before any fence is set. */
@@ -170,5 +222,6 @@ class SourceTimeScheduler(private val capacity: Int) {
         val NO_FENCE = Fence(Long.MIN_VALUE, Int.MIN_VALUE, Int.MIN_VALUE)
 
         private val NOTHING = Decision(null, 0L, emptyList())
+        private const val NONE = Long.MIN_VALUE
     }
 }

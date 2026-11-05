@@ -95,6 +95,7 @@ data class PresentationTruth(
                 }
                 report.scheduler?.let { scheduler ->
                     put("stale_epoch_dropped", scheduler.staleDropped)
+                    put("in_flight_held", scheduler.inFlightHeld)
                 }
                 report.counters?.let { counters ->
                     put("source_time_missing", counters.sourceTimeMissing)
