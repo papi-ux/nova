@@ -118,7 +118,7 @@ class MediaCodecDecoderRenderer(
     }
 
     private fun takeSourceRecord(presentationTimeUs: Long): SourceTimeSideMap.Record? =
-        sourceTimeSideMap.take(presentationTimeUs, sourceDecoderGeneration)
+        sourceTimeSideMap.take(presentationTimeUs, sourceDecoderGeneration, System.nanoTime())
 
     @Volatile
     private var preferLowerDelaysTimeoutUs = 2000
@@ -1967,6 +1967,12 @@ class MediaCodecDecoderRenderer(
     ): Boolean {
         val codecRecovered: Boolean
 
+        // The record goes in before the codec can hand the picture back: a fast decoder may output
+        // it before queueInputBuffer returns. It is withdrawn if the codec refuses the buffer, so a
+        // record still exists only for queued picture data.
+        val recorded = sourceRecord != null &&
+            sourceTimeSideMap.put(timestampUs, sourceRecord, System.nanoTime()) == SourceTimeSideMap.PutResult.STORED
+
         try {
             videoDecoder!!.queueInputBuffer(
                 nextInputBufferIndex,
@@ -1981,13 +1987,10 @@ class MediaCodecDecoderRenderer(
             } catch (_: Throwable) {
             }
 
-            if (sourceRecord != null) {
-                sourceTimeSideMap.put(timestampUs, sourceRecord, System.nanoTime())
-            }
-
             nextInputBufferIndex = -1
             nextInputBuffer = null
         } catch (e: IllegalStateException) {
+            if (recorded) sourceTimeSideMap.withdraw(timestampUs)
             if (handleDecoderException(e)) {
                 nextInputBuffer!!.clear()
             } else {

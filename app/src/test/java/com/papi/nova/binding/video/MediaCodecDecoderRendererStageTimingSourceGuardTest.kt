@@ -104,8 +104,12 @@ class MediaCodecDecoderRendererStageTimingSourceGuardTest {
         assertEquals(2, Regex("""queueNextInputBuffer\(0, MediaCodec\.BUFFER_FLAG_CODEC_CONFIG\)""").findAll(source).count())
         assertEquals(1, Regex("""queueNextInputBuffer\(timestampUs, codecFlags, sourceRecord\)""").findAll(source).count())
         val queue = functionBody("    private fun queueNextInputBuffer(")
+        // W26: written before queueInputBuffer so a fast decoder's output finds it, and withdrawn
+        // when the codec refuses the buffer, so only queued picture data keeps a record.
         val insert = queue.indexOf("sourceTimeSideMap.put(timestampUs, sourceRecord")
-        assertTrue("records go in only after the codec accepted the picture", insert > queue.indexOf("queueInputBuffer("))
+        assertTrue("the record is in place before the codec can return the picture", insert in 0 until queue.indexOf("queueInputBuffer("))
+        assertTrue(queue.contains("} catch (e: IllegalStateException) {\n            if (recorded) sourceTimeSideMap.withdraw(timestampUs)"))
+        assertTrue(source.contains("sourceTimeSideMap.take(presentationTimeUs, sourceDecoderGeneration, System.nanoTime())"))
     }
 
     @Test

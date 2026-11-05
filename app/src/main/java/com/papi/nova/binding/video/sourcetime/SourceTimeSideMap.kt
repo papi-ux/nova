@@ -13,8 +13,13 @@ package com.papi.nova.binding.video.sourcetime
  * Keys are unique within one decoder generation because the queued timestamp only increases, so a
  * lookup cannot pair a frame with another frame's time. A miss is counted, never guessed around:
  * a codec may rewrite the timestamp, an entry may have expired, or the map may have been full.
- * Entries older than a second expire; when every one of the 64 slots is still young, the new frame
- * is refused rather than an older one evicted, and that frame simply has no source time.
+ * Entries older than a second expire, when a new one is put and when one is taken (a record no
+ * later put has aged out is still never handed out). When every one of the 64 slots is still
+ * young, the new frame is refused rather than an older one evicted, and that frame simply has no
+ * source time.
+ *
+ * The renderer puts a record just before queueInputBuffer, so even a decoder that returns the
+ * picture before that call does finds it, and [withdraw]s it if the codec refuses the buffer.
  *
  * put() runs on the decode-unit submission thread and take() on the renderer thread, so every
  * method is synchronized. Both are a few map operations on at most 64 entries.
@@ -57,6 +62,7 @@ class SourceTimeSideMap(
         val expired: Long,
         val exhausted: Long,
         val duplicates: Long,
+        val withdrawn: Long = 0,
     )
 
     private val entries = LinkedHashMap<Long, Record>(capacity * 2)
@@ -67,6 +73,7 @@ class SourceTimeSideMap(
     private var expired = 0L
     private var exhausted = 0L
     private var duplicates = 0L
+    private var withdrawn = 0L
 
     @Synchronized
     fun put(ptsUs: Long, record: Record, nowNs: Long): PutResult {
@@ -85,12 +92,13 @@ class SourceTimeSideMap(
     }
 
     /**
-     * The record queued with exactly [ptsUs], removed. Null when there is none, or when it belongs
-     * to an earlier decoder generation: a flushed codec never returns those frames, so a match
-     * across a flush would be a coincidence of timestamps rather than the same picture.
+     * The record queued with exactly [ptsUs], removed. Null when there is none, when it belongs to
+     * an earlier decoder generation (a flushed codec never returns those frames, so a match across a
+     * flush would be a coincidence of timestamps rather than the same picture), or when it is older
+     * than the maximum age at [nowNs].
      */
     @Synchronized
-    fun take(ptsUs: Long, decoderGeneration: Int): Record? {
+    fun take(ptsUs: Long, decoderGeneration: Int, nowNs: Long): Record? {
         val record = entries.remove(ptsUs)
         if (record == null) {
             misses++
@@ -100,8 +108,18 @@ class SourceTimeSideMap(
             staleGeneration++
             return null
         }
+        if (nowNs - record.submitNs > maxAgeNs) {
+            expired++
+            return null
+        }
         taken++
         return record
+    }
+
+    /** The codec refused the buffer queued with [ptsUs]: its record goes, and no frame will miss it. */
+    @Synchronized
+    fun withdraw(ptsUs: Long) {
+        if (entries.remove(ptsUs) != null) withdrawn++
     }
 
     @Synchronized
@@ -111,7 +129,7 @@ class SourceTimeSideMap(
 
     @Synchronized
     fun counters(): Counters =
-        Counters(entries.size, stored, taken, misses, staleGeneration, expired, exhausted, duplicates)
+        Counters(entries.size, stored, taken, misses, staleGeneration, expired, exhausted, duplicates, withdrawn)
 
     // Insertion order is submission order and submitNs only increases with it, so the first young
     // entry ends the scan.
