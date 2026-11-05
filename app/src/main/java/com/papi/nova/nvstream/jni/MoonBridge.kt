@@ -225,6 +225,7 @@ class MoonBridge {
             frameHostProcessingLatency: Char,
             receiveTimeMs: Long,
             enqueueTimeMs: Long,
+            rtpTimestamp: Long,
         ): Int {
             return videoRenderer?.submitDecodeUnit(
                 decodeUnitData,
@@ -235,6 +236,7 @@ class MoonBridge {
                 frameHostProcessingLatency,
                 receiveTimeMs,
                 enqueueTimeMs,
+                rtpTimestamp,
             ) ?: DR_OK
         }
 

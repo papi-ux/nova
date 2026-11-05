@@ -27,6 +27,8 @@ data class PolarisSessionStatus(
     val liveTuningPresent: Boolean = false,
     /** Explicit unavailability in the versioned Spaces status contract; presentation only. */
     val liveTuningUnavailable: Boolean = false,
+    /** The host's own VRR record for this device's stream; absent from older hosts (unknown). */
+    val vrr: PolarisSessionVrr.Reading = PolarisSessionVrr.Reading.Absent,
     val adaptiveBitrateEnabled: Boolean = false,
     val adaptiveTargetBitrateKbps: Int = 0,
     val aiAutoQualityEnabled: Boolean = false,

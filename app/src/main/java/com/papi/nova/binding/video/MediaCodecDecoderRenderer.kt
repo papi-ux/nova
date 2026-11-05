@@ -22,6 +22,18 @@ import android.view.WindowManager
 import com.papi.nova.BuildConfig
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.binding.video.sourcetime.FrameWindow
+import com.papi.nova.binding.video.sourcetime.PresentFeedbackSink
+import com.papi.nova.binding.video.sourcetime.SourceTimeCounters
+import com.papi.nova.binding.video.sourcetime.SourceTimeEffective
+import com.papi.nova.binding.video.sourcetime.SourceTimeMapper
+import com.papi.nova.binding.video.sourcetime.SourceTimePacingStatus
+import com.papi.nova.binding.video.sourcetime.SourceTimePolicy
+import com.papi.nova.binding.video.sourcetime.SourceTimePresenter
+import com.papi.nova.binding.video.sourcetime.SourceTimeReason
+import com.papi.nova.binding.video.sourcetime.SourceTimeReport
+import com.papi.nova.binding.video.sourcetime.SourceTimeRequest
+import com.papi.nova.binding.video.sourcetime.SourceTimeSideMap
 import com.papi.nova.nvstream.av.video.VideoDecoderRenderer
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -76,6 +88,37 @@ class MediaCodecDecoderRenderer(
                 size > ENQUEUE_MAP_MAX_ENTRIES
         },
     )
+
+    // Host source time per queued picture, keyed by the same enqueue-derived timestamp as
+    // enqueueNsByPtsUs and never by anything else: presentationTimeUs keeps its T3 meaning, and
+    // source time travels beside the codec (see SourceTimeSideMap). The generations stop a frame
+    // from one connection or one codec flush being paired with a record from another.
+    private val sourceTimeSideMap = SourceTimeSideMap()
+
+    @Volatile
+    private var sourceConnectionGeneration = 0
+
+    @Volatile
+    private var sourceDecoderGeneration = 0
+
+    // Bumped when the render target or the display's timing changes (design C.4), for the report.
+    @Volatile
+    private var sourceSurfaceGeneration = 0
+
+    // Per-stream source-time counts for the host report (design E.2); never read by pacing.
+    private val sourceTimeCounters = SourceTimeCounters()
+
+    // The last statistics window the HUD sample was made from (design E.1), or null before one.
+    @Volatile
+    private var lastFrameWindow: FrameWindow? = null
+
+    private fun forgetSourceTimeRecords() {
+        sourceDecoderGeneration++
+        sourceTimeSideMap.clear()
+    }
+
+    private fun takeSourceRecord(presentationTimeUs: Long): SourceTimeSideMap.Record? =
+        sourceTimeSideMap.take(presentationTimeUs, sourceDecoderGeneration, System.nanoTime())
 
     @Volatile
     private var preferLowerDelaysTimeoutUs = 2000
@@ -287,6 +330,27 @@ class MediaCodecDecoderRenderer(
         minDecodeTime = Float.MAX_VALUE
         minDecodeTimeFullLog = ""
         enqueueNsByPtsUs.clear()
+        lastFrameWindow = null
+        forgetSourceTimeRecords()
+        resetSourceTimeMapping(
+            if (reason == "frame sequence restart") SourceTimeCounters.RESET_FRAME_RESTART else SourceTimeCounters.RESET_STREAM_SETUP,
+        )
+    }
+
+    /**
+     * Reset the mapping at one of this renderer's own sites, and name the reset for the report. The
+     * effective state stops claiming source time at once; the presenter drops the frames queued under
+     * the old epoch at its next call (W26 F3).
+     */
+    private fun resetSourceTimeMapping(reason: String) {
+        val mapper = sourceTimeMapper ?: return
+        // The mapper's own lock, so no point from the new epoch is observed before the reset is named.
+        synchronized(mapper) {
+            mapper.reset()
+            sourceTimeCounters.onReset(reason, mapper.epoch)
+        }
+        // Outside the mapper's lock: the presenter takes its own lock first, then the mapper's.
+        sourceTimePresenter?.onMappingReset(SourceTimePresenter.reasonForReset(reason))
     }
 
     // Nordstern P0-4A (measurement-spec-v1.md 7.2). A single incrementing
@@ -654,6 +718,7 @@ class MediaCodecDecoderRenderer(
     }
 
     override fun setRenderTarget(renderTarget: Surface?) {
+        if (renderTarget !== this.renderTarget) sourceSurfaceGeneration++
         this.renderTarget = renderTarget
     }
 
@@ -713,6 +778,7 @@ class MediaCodecDecoderRenderer(
     override fun notifyVideoForeground() {
         foreground = true
         refreshDisplayParameters()
+        resetSourceTimeMapping(SourceTimeCounters.RESET_FOREGROUND)
     }
 
     override fun setPerfTextWanted(wanted: Boolean) {
@@ -723,6 +789,20 @@ class MediaCodecDecoderRenderer(
         cachedAppVsyncOffsetNanos = runCatching {
             activity.windowManager.defaultDisplay.appVsyncOffsetNanos
         }.getOrDefault(0L)
+
+        // Source time: the vsync model the scheduler falls back on before API 33, and a re-anchor
+        // when the display's timing actually changed (the shared contract's display-change reset).
+        val hz = runCatching { activity.windowManager.defaultDisplay.refreshRate }.getOrDefault(0f)
+        val periodNs = if (hz > 1f) (1_000_000_000.0 / hz).toLong() else 16_666_667L
+        val deadlineNs = runCatching {
+            activity.windowManager.defaultDisplay.presentationDeadlineNanos
+        }.getOrDefault(0L)
+        if (periodNs != cachedVsyncPeriodNs || deadlineNs != cachedPresentationDeadlineNs) {
+            cachedVsyncPeriodNs = periodNs
+            cachedPresentationDeadlineNs = deadlineNs
+            sourceSurfaceGeneration++
+            resetSourceTimeMapping(SourceTimeCounters.RESET_DISPLAY_CHANGE)
+        }
     }
 
     private fun buildPerfText(
@@ -774,6 +854,178 @@ class MediaCodecDecoderRenderer(
         }
         sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs))
         return sb.toString()
+    }
+
+    @Volatile
+    private var sourceTimeRequest = SourceTimeRequest.OFF
+
+    override fun setSourceTimePacingRequest(request: SourceTimeRequest) {
+        sourceTimeRequest = request
+    }
+
+    // Host source-time presentation (#242). Decided at setup for the whole stream: only the
+    // Balanced path has a presentation queue and a vsync thread to schedule, and only a stream the
+    // player asked for uses it. Every other path, and this one when not asked, is the legacy code
+    // unchanged.
+    @Volatile
+    private var sourceTimeActive = false
+
+    @Volatile
+    private var sourceTimeConfigured = false
+
+    @Volatile
+    private var sourceTimeMapper: SourceTimeMapper? = null
+
+    // Admission, the learned presentation delay and the vsync decision, as one pure object (it owns
+    // the scheduler); this renderer only does to the codec what it is told.
+    @Volatile
+    private var sourceTimePresenter: SourceTimePresenter? = null
+
+    // Observe-only frame-rendered feedback; nothing schedules from it (see PresentFeedbackSink).
+    private val presentFeedback = PresentFeedbackSink()
+
+    // Choreographer.VsyncCallback on API 33+, kept untyped so older devices never load the class.
+    private var sourceTimeVsync: Any? = null
+
+    @Volatile
+    private var cachedVsyncPeriodNs: Long = 16_666_667L
+
+    @Volatile
+    private var cachedPresentationDeadlineNs: Long = 0L
+
+    override fun sourceTimePacingStatus(): SourceTimePacingStatus {
+        val request = sourceTimeRequest
+        if (request == SourceTimeRequest.OFF) {
+            return SourceTimePacingStatus.legacy(request, SourceTimeReason.NOT_REQUESTED)
+        }
+        if (!sourceTimeConfigured) {
+            return SourceTimePacingStatus(request, SourceTimeEffective.PENDING, SourceTimeReason.NONE)
+        }
+        if (!sourceTimeActive) {
+            return SourceTimePacingStatus.legacy(request, SourceTimeReason.PACING_MODE_INCOMPATIBLE)
+        }
+        return sourceTimePresenter?.pacing(request, System.nanoTime())
+            ?: SourceTimePacingStatus(request, SourceTimeEffective.PENDING, SourceTimeReason.NONE)
+    }
+
+    override fun sourceTimeReport(): SourceTimeReport {
+        val active = sourceTimeActive
+        val observing = !USE_FRAME_RENDER_TIME && active && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+        return SourceTimeReport(
+            renderer = SourceTimeReport.RENDERER_MEDIACODEC,
+            connectionGeneration = sourceConnectionGeneration,
+            decoderGeneration = sourceDecoderGeneration,
+            surfaceGeneration = sourceSurfaceGeneration,
+            reserveUs = if (active) sourceTimeMapper?.reserveUs else null,
+            targetDelayUs = if (active) sourceTimePresenter?.targetDelayUs else null,
+            counters = if (active) sourceTimeCounters.snapshot() else null,
+            scheduler = if (active) sourceTimePresenter?.counters() else null,
+            feedbackMode = SourceTimeReport.feedbackMode(observing, Build.VERSION.SDK_INT),
+            // The one read of the feedback sink: for this report, never for a pacing decision.
+            feedback = if (observing) presentFeedback.counters() else null,
+            window = lastFrameWindow,
+        )
+    }
+
+    /** Setup: decide for this stream, and start every source-time state fresh. */
+    private fun configureSourceTime(redrawRate: Int) {
+        val request = sourceTimeRequest
+        val balanced = prefs.framePacing == PreferenceConfiguration.FRAME_PACING_BALANCED
+        sourceTimeActive = request != SourceTimeRequest.OFF && balanced
+        presentFeedback.clear()
+        sourceTimeCounters.clear()
+        if (!sourceTimeActive) {
+            sourceTimeMapper = null
+            sourceTimePresenter = null
+        } else {
+            val capacity = if (preferLowerDelays) 1 else 2
+            val periodUs = (1_000_000L / max(1, if (redrawRate > 0) redrawRate else 60)).coerceIn(1L, 1_000_000L)
+            val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, capacity, periodUs)
+            sourceTimeMapper = mapper
+            sourceTimePresenter = SourceTimePresenter(capacity, mapper, if (redrawRate > 0) redrawRate else 60)
+        }
+        sourceTimeConfigured = true
+        LimeLog.info(
+            "Nova: source-time pacing request=" + request.wire + " active=" + sourceTimeActive +
+                " policy=" + SourceTimePolicy.VERSION,
+        )
+    }
+
+    /**
+     * Renderer thread, Balanced path with source time active: queue one decoded frame where the
+     * presenter aims it. Returns true when that pushed an older frame out, which the legacy path also
+     * counts as a drop.
+     */
+    private fun admitForSourceTime(index: Int, presentationTimeUs: Long, record: SourceTimeSideMap.Record?): Boolean {
+        val presenter = sourceTimePresenter ?: return false
+        val admission = presenter.admit(
+            index, presentationTimeUs, System.nanoTime(), record, sourceSurfaceGeneration, sourceDecoderGeneration,
+        )
+        if (admission.outOfBounds) {
+            resetSourceTimeMapping(SourceTimeCounters.RESET_TARGET_OUT_OF_BOUNDS)
+        }
+        sourceTimeCounters.onAdmitted(admission.kind)
+        for (entry in admission.dropped) {
+            dropFrame(entry.index, intentional = true)
+        }
+        return admission.dropped.isNotEmpty()
+    }
+
+    /** Vsync thread: release at most one frame for one of the reachable refreshes. */
+    private fun presentSourceTimeFrame(nowNs: Long, slotsNs: LongArray, deadlinesNs: LongArray, vsyncPeriodNs: Long) {
+        val presenter = sourceTimePresenter ?: return
+        val decision = presenter.onVsync(
+            nowNs, slotsNs, deadlinesNs, vsyncPeriodNs, sourceSurfaceGeneration, sourceDecoderGeneration,
+        )
+        if (decision.fenceMoved) {
+            // Released frames still awaiting a render callback belong to the old epoch or surface.
+            presentFeedback.clear()
+        }
+        for (entry in decision.drop) {
+            try {
+                dropFrame(entry.index, intentional = true)
+            } catch (e: IllegalStateException) {
+                e.printStackTrace()
+                handleDecoderException(e)
+            }
+        }
+        val shown = decision.release ?: return
+        val submitted = try {
+            // Only under the epoch it was aimed at: a reset after the decision drops it instead (W34 D2).
+            presenter.submit(shown, sourceSurfaceGeneration, sourceDecoderGeneration) {
+                videoDecoder!!.releaseOutputBuffer(shown.index, decision.releaseAtNs)
+            }
+        } catch (_: IllegalStateException) {
+            try {
+                dropFrame(shown.index)
+            } catch (e: IllegalStateException) {
+                e.printStackTrace()
+                handleDecoderException(e)
+            }
+            return
+        }
+        if (!submitted) {
+            try {
+                dropFrame(shown.index, intentional = true)
+            } catch (e: IllegalStateException) {
+                e.printStackTrace()
+                handleDecoderException(e)
+            }
+            return
+        }
+        lastRenderedFrameTimeNanos = decision.releaseAtNs
+        activeWindowVideoStats.totalFramesRendered++
+        presentFeedback.released(shown.ptsUs, decision.releaseAtNs, vsyncPeriodNs)
+    }
+
+    /** API 33+ vsync with frame timelines; returns false to stop being called. */
+    private fun onSourceTimeVsync(nowNs: Long, slotsNs: LongArray, deadlinesNs: LongArray, vsyncPeriodNs: Long): Boolean {
+        if (stopping) {
+            return false
+        }
+        presentSourceTimeFrame(nowNs, slotsNs, deadlinesNs, if (vsyncPeriodNs > 0) vsyncPeriodNs else cachedVsyncPeriodNs)
+        doCodecRecoveryIfRequired(CR_FLAG_CHOREOGRAPHER)
+        return true
     }
 
     override fun notifyVideoBackground() {
@@ -1005,6 +1257,21 @@ class MediaCodecDecoderRenderer(
             tryNumber++
         }
 
+        if (!USE_FRAME_RENDER_TIME && sourceTimeActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            // Observe: how the render callbacks line up with the refreshes the scheduler asked for.
+            // No timing decision reads it until a device receipt says it can be trusted; the only
+            // use is to tell the scheduler a release is no longer in flight.
+            videoDecoder!!.setOnFrameRenderedListener(
+                { _, presentationTimeUs, renderTimeNanos ->
+                    presentFeedback.rendered(presentationTimeUs, renderTimeNanos)
+                    // W26 F6: a rendered frame is no longer in flight. This can only open the
+                    // one-release gate early; it never moves a target, a delay or a reserve.
+                    sourceTimePresenter?.onRendered(presentationTimeUs)
+                },
+                null,
+            )
+        }
+
         if (USE_FRAME_RENDER_TIME && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             videoDecoder!!.setOnFrameRenderedListener(
                 { _, presentationTimeUs, renderTimeNanos ->
@@ -1037,6 +1304,7 @@ class MediaCodecDecoderRenderer(
     override fun setup(format: Int, width: Int, height: Int, redrawRate: Int): Int {
         frameSubmissionEpoch = readFrameSubmissionEpoch()
         frameSubmissionProducer = MoonBridge.captureFrameSubmissionProducer(this, frameSubmissionEpoch)
+        sourceConnectionGeneration++
         resetRollingPerfStatsForNewStream("stream setup")
         loggedSpsPatches.clear()
         targetFps = if (redrawRate > 0) redrawRate else 60
@@ -1046,6 +1314,7 @@ class MediaCodecDecoderRenderer(
         refreshRate = redrawRate
         refreshDisplayParameters()
         LimeLog.info("Nova: frame pacing mode=" + prefs.framePacing + " preferLowerDelays=" + preferLowerDelays)
+        configureSourceTime(redrawRate)
 
         return initializeDecoder(false)
     }
@@ -1066,6 +1335,9 @@ class MediaCodecDecoderRenderer(
                 nextInputBuffer = null
                 nextInputBufferIndex = -1
                 outputBufferQueue.clear()
+                forgetSourceTimeRecords()
+                sourceTimePresenter?.clear()
+                resetSourceTimeMapping(SourceTimeCounters.RESET_CODEC_RECOVERY)
 
                 if (codecRecoveryType.get() == CR_RECOVERY_TYPE_FLUSH) {
                     LimeLog.warning("Flushing decoder")
@@ -1245,6 +1517,22 @@ class MediaCodecDecoderRenderer(
             return
         }
 
+        if (sourceTimeActive) {
+            // Before API 33 there are no frame timelines: the next three hardware vsyncs that can
+            // still take a buffer are the reachable refreshes.
+            val periodNs = cachedVsyncPeriodNs
+            val hardwareVsyncNs = frameTimeNanos - cachedAppVsyncOffsetNanos
+            val nowNs = System.nanoTime()
+            val earliestNs = nowNs + cachedPresentationDeadlineNs
+            val slots = LongArray(3) { hardwareVsyncNs + (it + 1) * periodNs }.filter { it >= earliestNs }.toLongArray()
+            // A refresh stays reachable until its presentation deadline before it.
+            val deadlines = LongArray(slots.size) { slots[it] - cachedPresentationDeadlineNs }
+            presentSourceTimeFrame(nowNs, slots, deadlines, periodNs)
+            doCodecRecoveryIfRequired(CR_FLAG_CHOREOGRAPHER)
+            Choreographer.getInstance().postFrameCallback(this)
+            return
+        }
+
         frameTime -= cachedAppVsyncOffsetNanos
 
         val actualFrameTimeDeltaNs = frameTime - lastRenderedFrameTimeNanos
@@ -1282,7 +1570,13 @@ class MediaCodecDecoderRenderer(
 
         choreographerHandler = Handler(choreographerHandlerThread!!.looper)
         choreographerHandler!!.post {
-            Choreographer.getInstance().postFrameCallback(this@MediaCodecDecoderRenderer)
+            if (sourceTimeActive && Build.VERSION.SDK_INT >= 33) {
+                val vsync = SourceTimeFrameTimelineVsync(::onSourceTimeVsync)
+                sourceTimeVsync = vsync
+                vsync.start()
+            } else {
+                Choreographer.getInstance().postFrameCallback(this@MediaCodecDecoderRenderer)
+            }
         }
     }
 
@@ -1337,6 +1631,7 @@ class MediaCodecDecoderRenderer(
                             }
                             last = idx
                             lastPtsUs = tmpInfo.presentationTimeUs
+                            takeSourceRecord(lastPtsUs)
                             idx = videoDecoder!!.dequeueOutputBuffer(tmpInfo, 0)
                         }
 
@@ -1377,6 +1672,7 @@ class MediaCodecDecoderRenderer(
 
                         var presentationTimeUs = info.presentationTimeUs
                         var lastIndex = outIndex
+                        val sourceRecord = takeSourceRecord(presentationTimeUs)
 
                         lastOutputNs = System.nanoTime()
                         numFramesOut++
@@ -1400,6 +1696,7 @@ class MediaCodecDecoderRenderer(
                                 numFramesOut++
                                 lastIndex = nextOut
                                 presentationTimeUs = info.presentationTimeUs
+                                takeSourceRecord(presentationTimeUs)
                             }
 
                             if (prefs.framePacing == PreferenceConfiguration.FRAME_PACING_MAX_SMOOTHNESS ||
@@ -1465,6 +1762,10 @@ class MediaCodecDecoderRenderer(
                             }
 
                             activeWindowVideoStats.totalFramesRendered++
+                        } else if (sourceTimeActive) {
+                            // Balanced with host source time: held for its target, released by
+                            // the vsync thread. Decode statistics below are unchanged.
+                            frameDropped = admitForSourceTime(lastIndex, presentationTimeUs, sourceRecord)
                         } else {
                             if (outputBufferQueue.size == OUTPUT_BUFFER_QUEUE_LIMIT) {
                                 try {
@@ -1590,6 +1891,12 @@ class MediaCodecDecoderRenderer(
             return
         }
 
+        forgetSourceTimeRecords()
+        // Queued indices are abandoned, not released: the codec is about to stop and release
+        // reclaims them, and calling into it from here would race its teardown.
+        sourceTimePresenter?.clear()
+        presentFeedback.clear()
+
         rendererThread?.interrupt()
 
         synchronized(codecRecoveryMonitor) {
@@ -1602,6 +1909,10 @@ class MediaCodecDecoderRenderer(
         if (handler != null && handlerThread != null && handlerThread.isAlive) {
             val posted = handler.post {
                 Choreographer.getInstance().removeFrameCallback(this@MediaCodecDecoderRenderer)
+                if (Build.VERSION.SDK_INT >= 33) {
+                    (sourceTimeVsync as? SourceTimeFrameTimelineVsync)?.stop()
+                }
+                sourceTimeVsync = null
                 handlerThread.quit()
             }
             if (!posted) {
@@ -1638,6 +1949,7 @@ class MediaCodecDecoderRenderer(
     }
 
     override fun cleanup() {
+        forgetSourceTimeRecords()
         videoDecoder!!.release()
     }
 
@@ -1659,8 +1971,20 @@ class MediaCodecDecoderRenderer(
         }
     }
 
-    private fun queueNextInputBuffer(timestampUs: Long, codecFlags: Int): Boolean {
+    // sourceRecord is given only for picture data. Codec-config buffers are queued at timestamp
+    // 0 and must never be mapped, so they pass none.
+    private fun queueNextInputBuffer(
+        timestampUs: Long,
+        codecFlags: Int,
+        sourceRecord: SourceTimeSideMap.Record? = null,
+    ): Boolean {
         val codecRecovered: Boolean
+
+        // The record goes in before the codec can hand the picture back: a fast decoder may output
+        // it before queueInputBuffer returns. It is withdrawn if the codec refuses the buffer, so a
+        // record still exists only for queued picture data.
+        val recorded = sourceRecord != null &&
+            sourceTimeSideMap.put(timestampUs, sourceRecord, System.nanoTime()) == SourceTimeSideMap.PutResult.STORED
 
         try {
             videoDecoder!!.queueInputBuffer(
@@ -1679,6 +2003,7 @@ class MediaCodecDecoderRenderer(
             nextInputBufferIndex = -1
             nextInputBuffer = null
         } catch (e: IllegalStateException) {
+            if (recorded) sourceTimeSideMap.withdraw(timestampUs)
             if (handleDecoderException(e)) {
                 nextInputBuffer!!.clear()
             } else {
@@ -1718,10 +2043,12 @@ class MediaCodecDecoderRenderer(
         frameHostProcessingLatency: Char,
         receiveTimeMs: Long,
         enqueueTimeMs: Long,
+        rtpTimestamp: Long,
     ): Int {
         if (stopping) {
             return MoonBridge.DR_OK
         }
+        val submitNs = System.nanoTime()
         val decodeData = decodeUnitData!!
         if (frameNumber < lastFrameNumber) {
             resetRollingPerfStatsForNewStream("frame sequence restart")
@@ -1804,6 +2131,7 @@ class MediaCodecDecoderRenderer(
                 frameSubmissionProducer = frameSubmissionProducer,
             )
             perfListener.onPerfSample(perfSample)
+            lastFrameWindow = FrameWindow(fps.renderedFps.toDouble(), lastTwo.intentionalFrameDrops, lastTwo.totalFrames)
 
             globalVideoStats.add(activeWindowVideoStats)
             lastWindowVideoStats.copy(activeWindowVideoStats)
@@ -2018,7 +2346,26 @@ class MediaCodecDecoderRenderer(
 
         nextInputBuffer!!.put(decodeData, 0, decodeUnitLength)
 
-        if (!queueNextInputBuffer(timestampUs, codecFlags)) {
+        // ROOT D2: the anchor is the core's enqueue time, taken before this thread can block
+        // behind MediaCodec input; submitNs (callback ingress) stays a diagnostic.
+        val sourcePoint = if (sourceTimeActive) {
+            sourceTimeMapper?.observe(frameNumber, rtpTimestamp, enqueueTimeMs * 1000)?.also(sourceTimeCounters::onPoint)
+        } else {
+            null
+        }
+        val sourceRecord = SourceTimeSideMap.Record(
+            frameNumber = frameNumber,
+            rtpTimestamp = rtpTimestamp,
+            receiveTimeMs = receiveTimeMs,
+            enqueueTimeMs = enqueueTimeMs,
+            submitNs = submitNs,
+            hostLatencyTenths = frameHostProcessingLatency.code,
+            connectionGeneration = sourceConnectionGeneration,
+            decoderGeneration = sourceDecoderGeneration,
+            point = sourcePoint,
+            surfaceGeneration = sourceSurfaceGeneration,
+        )
+        if (!queueNextInputBuffer(timestampUs, codecFlags, sourceRecord)) {
             return MoonBridge.DR_NEED_IDR
         }
 
@@ -2299,6 +2646,7 @@ class MediaCodecDecoderRenderer(
         private const val OUTPUT_BUFFER_QUEUE_LIMIT = 2
 
         private const val ENQUEUE_MAP_MAX_ENTRIES = 256
+
         private const val T3_T4_LOG_SAMPLE_INTERVAL = 120
     }
 }

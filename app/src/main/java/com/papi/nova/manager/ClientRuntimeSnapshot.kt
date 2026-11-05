@@ -102,7 +102,9 @@ data class ClientRuntimeSnapshot(
     val appliedRefreshRateHz: Double = 0.0,
     val displayMode: String = "",
     val refreshRatePolicy: String = "",
-    val profile: ClientProfileProvenance = ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT)
+    val profile: ClientProfileProvenance = ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT),
+    /** Host source-time presentation (#242), from the shared reducer; null when not known yet. */
+    val sourceTimePacing: com.papi.nova.binding.video.sourcetime.PresentationTruth? = null
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("device_model", deviceModel)
@@ -113,6 +115,7 @@ data class ClientRuntimeSnapshot(
         if (displayMode.isNotBlank()) put("display_mode", displayMode)
         if (refreshRatePolicy.isNotBlank()) put("refresh_rate_policy", refreshRatePolicy)
         put("profile", profile.toJson())
+        sourceTimePacing?.let { put("source_time_pacing", it.toRuntimeJson()) }
     }
 
     companion object {
@@ -125,7 +128,8 @@ data class ClientRuntimeSnapshot(
             appliedRefreshRateHz: Double = 0.0,
             displayMode: String = "",
             refreshRatePolicy: String = "",
-            profile: ClientProfileProvenance = ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT)
+            profile: ClientProfileProvenance = ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT),
+            sourceTimePacing: com.papi.nova.binding.video.sourcetime.PresentationTruth? = null
         ): ClientRuntimeSnapshot = ClientRuntimeSnapshot(
             deviceModel = deviceModel,
             androidSdk = androidSdk,
@@ -134,7 +138,8 @@ data class ClientRuntimeSnapshot(
             appliedRefreshRateHz = appliedRefreshRateHz,
             displayMode = displayMode,
             refreshRatePolicy = refreshRatePolicy,
-            profile = profile
+            profile = profile,
+            sourceTimePacing = sourceTimePacing
         )
     }
 }

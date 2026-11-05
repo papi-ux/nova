@@ -1,6 +1,9 @@
 package com.papi.nova.binding.video
 
 import android.view.Surface
+import com.papi.nova.binding.video.sourcetime.SourceTimePacingStatus
+import com.papi.nova.binding.video.sourcetime.SourceTimeReport
+import com.papi.nova.binding.video.sourcetime.SourceTimeRequest
 import com.papi.nova.nvstream.av.video.VideoDecoderRenderer
 
 /**
@@ -88,6 +91,16 @@ abstract class NovaVideoRenderer : VideoDecoderRenderer() {
     abstract fun notifyVideoForeground()
 
     abstract fun notifyVideoBackground()
+
+    // Host source time (#242). The request comes from the player's preference; the status is what
+    // this renderer actually does with it, by value, so Game reports it without reaching inside.
+
+    abstract fun setSourceTimePacingRequest(request: SourceTimeRequest)
+
+    abstract fun sourceTimePacingStatus(): SourceTimePacingStatus
+
+    /** Its generations, counts and last frame window, by value, for the host report (E.1, E.2). */
+    abstract fun sourceTimeReport(): SourceTimeReport
 
     // The Nordstern benchmark path. No-ops outside a benchmark build.
 

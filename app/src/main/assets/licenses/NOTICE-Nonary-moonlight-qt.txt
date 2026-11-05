@@ -1,0 +1,27 @@
+Nonary's moonlight-qt (VRR timing)
+
+Nova's Android source-time mapper,
+app/src/main/java/com/papi/nova/binding/video/sourcetime/SourceTimeMapper.kt, and the shared Linux
+mapper it mirrors (clients/deck/src/runtime/deck_source_clock_mapper.cpp), draw their design on
+subroutines of Nonary's VRR fork of Moonlight PC:
+https://github.com/Nonary/moonlight-qt/blob/1ad5848bd2190ab9dd9eea00d4730740d530ec29/app/streaming/video/ffmpeg-renderers/pacer/vrr/vrrtimingcontroller.cpp
+Upstream revision: 1ad5848bd2190ab9dd9eea00d4730740d530ec29
+File sha256: a103376fdb63feff7ae94f9f7b959db829cf0d07c31e4c7db12222ae0b34e548
+
+Drawn on: the wrap-aware RTP cadence step of VrrTimingController::observeCadence(), the bounded,
+time-credited lower-envelope offset of VrrTimingController::observePlayoutOffset(), and the tick
+conversion of VrrTimingController::rtpTicksToUs().
+
+Nova's version is a much smaller state machine: only source mapping and a bounded playout reserve
+(no presenter, latch or cadence smoothing), anchored on the streaming core's enqueue time on
+Android, with the reset rules, reasons and replay fixtures of the shared Nova source-time
+contract.
+
+The design of the source-time request, and of carrying host frame timing to the client, is also
+credited to Nonary's moonlight-qt and Vibeshine work:
+https://github.com/Nonary/moonlight-qt
+https://github.com/Nonary/Vibeshine
+
+moonlight-qt is licensed under the GNU General Public License, version 3, the same licence as Nova.
+Upstream LICENSE (GPL-3.0), sha256 589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2:
+https://github.com/Nonary/moonlight-qt/blob/1ad5848bd2190ab9dd9eea00d4730740d530ec29/LICENSE

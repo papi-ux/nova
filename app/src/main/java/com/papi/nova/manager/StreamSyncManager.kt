@@ -417,6 +417,8 @@ class StreamSyncManager private constructor() {
                     val mode = display.mode
                     put(json, "display_mode", "${mode.physicalWidth}x${mode.physicalHeight}x${mode.refreshRate}")
                 }
+                // Whether this display can do adaptive refresh, read and never requested (#242).
+                put(json, "display_presentation", com.papi.nova.binding.video.DisplayPresentationProbe.read(display).toJson())
             }
 
             put(json, "supports_h264", supportedVideoFormats and MoonBridge.VIDEO_FORMAT_H264 != 0)
@@ -455,7 +457,8 @@ class StreamSyncManager private constructor() {
             framePacing: Int,
             profile: ClientProfileProvenance? = null,
             targetRefreshRateHz: Float = 0f,
-            refreshRatePolicy: String = ""
+            refreshRatePolicy: String = "",
+            sourceTimePacing: com.papi.nova.binding.video.sourcetime.PresentationTruth? = null
         ): JSONObject {
             val decoderName = renderer?.activeDecoderName ?: ""
             val json = ClientRuntimeSnapshot.fromAppliedStream(
@@ -466,7 +469,8 @@ class StreamSyncManager private constructor() {
                 appliedRefreshRateHz = appliedRefreshRateHz.toDouble(),
                 displayMode = displayMode ?: "",
                 refreshRatePolicy = refreshRatePolicy,
-                profile = profile ?: ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT)
+                profile = profile ?: ClientProfileProvenance(ClientProfileSource.LOCAL_DEFAULT),
+                sourceTimePacing = sourceTimePacing
             ).toJson()
             put(json, "sync_mode", SYNC_MODE_AUTO_SAFE)
             put(json, "metered_network", isMeteredNetwork(context))
