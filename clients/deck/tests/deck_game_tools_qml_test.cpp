@@ -180,6 +180,25 @@ int main(int argc,char** argv) {
 #endif
     check(settings.saveChoice("host","game",{{"encoderBackend","vaapi"}}),"final encoder reset failed");
     QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
+    // Polaris #586: the host's Steam launch sentence, as sent, under the Steam row. At 960x600 with
+    // 130% text, moving Down from that row to Reset brings the notice into view; a blank sentence
+    // shows nothing. Scrolling here is immediate, so reduced motion has nothing to skip.
+    auto* steamRow=item("play-setup-steam"); auto* steamNotice=item("play-setup-steam-notice");
+    check(steamRow->isVisible() && steamNotice->isVisible()
+        && steamNotice->property("text")=="Steam may ask you to choose a launch option on your PC.","host Steam launch notice hidden or reworded");
+    const auto inView=[&](QQuickItem* target) {
+        QQuickItem* viewport=target->parentItem(); while(viewport && !viewport->inherits("QQuickFlickable")) viewport=viewport->parentItem();
+        check(viewport,"Steam notice is outside a scroll view");
+        const auto top=target->mapToItem(viewport,QPointF(0,0)).y();
+        return top>=0 && top+target->height()<=viewport->height();
+    };
+    steamRow->forceActiveFocus(); settle(); check(window->activeFocusItem()==steamRow,"Steam row unreachable");
+    QTest::keyClick(window,Qt::Key_Down); settle();
+    check(window->activeFocusItem()==item("play-setup-reset") && inView(steamNotice),"Down from the Steam row left its notice out of view");
+    capture("play-setup-steam-notice-960-large");
+    host.steamReason=" \n\t "; QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
+    check(steamRow->isVisible() && !steamNotice->isVisible(),"a blank host Steam sentence left an empty notice");
+    host.steamReason="Steam may ask you to choose a launch option on your PC."; QMetaObject::invokeMethod(setup,"prepare"); wait([&]{return !tools.busy();});
     QMetaObject::invokeMethod(root.get(),"art");wait([&]{return !tools.busy();});
     auto* search=item("artwork-search");search->forceActiveFocus();QTest::keyClick(window,Qt::Key_Return);wait([&]{return !tools.busy();});
     QTest::keyClick(window,Qt::Key_Down);settle();check(window->activeFocusItem()==item("artwork-result-0"),"search to candidate focus lost");

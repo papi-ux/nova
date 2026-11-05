@@ -148,11 +148,13 @@ void testParsesGamesPageFromHostShape() {
     assert(portal.launchModeReason == "Host default is headless.");
     assert(portal.steamLaunchAvailable);
     assert(portal.steamLaunchRecommendedMode == "direct");
+    assert(portal.steamLaunchModeReason == "Steam Input fallback.");
     const auto& bare = page->games[1];
     assert(bare.appId == 9 && "Polaris emits app_id as a string");
     assert(bare.installed);
     assert(bare.launchRecommendedMode.empty());
     assert(!bare.steamLaunchAvailable);
+    assert(bare.steamLaunchModeReason.empty());
     assert(!parseGamesPage(R"({"total": 1})").has_value());
     const auto invalidDates = parseGamesPage(R"({"games":[
         {"id":"huge","name":"Huge","last_launched":1e100},{"id":"negative","name":"Negative","last_launched":-1},
@@ -275,6 +277,7 @@ void testParsesBodiesPolarisActuallyServed() {
     assert(bigPicture.launchAllowedModes.size() == 6);
     assert(!bigPicture.launchModeReason.empty());
     assert(!bigPicture.steamLaunchAvailable && bigPicture.steamLaunchAllowedModes.empty());
+    assert(bigPicture.steamLaunchModeReason.empty());
     assert(bigPicture.genres.empty());
 
     const auto& indy = page->games[1];
@@ -286,7 +289,29 @@ void testParsesBodiesPolarisActuallyServed() {
     assert(indy.launchRecommendedMode == "headless_stream");
     assert(indy.steamLaunchAvailable && indy.steamLaunchMode == "direct" && indy.steamLaunchRecommendedMode == "direct");
     assert(indy.steamLaunchAllowedModes.size() == 2);
+    assert(indy.steamLaunchModeReason == "Direct launch avoids opening Steam Big Picture.");
     assert(indy.genres.size() == 2 && indy.genres[0] == "Action");
+}
+
+// Polaris #586: the host can say that Steam may stop at its launch option dialog. The
+// reader keeps the host's sentence as sent; the game tools state trims it for Play
+// Setup and hides a blank one (deck_game_tools_test, deck_game_tools_qml_test).
+void testSteamLaunchNoticeIsTheHostsSentence() {
+    const auto page = parseGamesPage(R"({"games":[
+        {"id":"hades","name":"Hades","steam_launch":{"available":true,"mode":"direct","recommended_mode":"direct",
+         "allowed_modes":["direct","big-picture"],
+         "mode_reason":"Steam may ask which version of this game to start, because it has 3 launch options."}},
+        {"id":"blank","name":"Blank","steam_launch":{"available":true,"mode":"direct","allowed_modes":["direct","big-picture"],
+         "mode_reason":"  \n\t "}},
+        {"id":"typed","name":"Typed","steam_launch":{"available":true,"mode":"direct","allowed_modes":["direct","big-picture"],
+         "mode_reason":7}},
+        {"id":"absent","name":"Absent","steam_launch":{"available":true,"mode":"direct","allowed_modes":["direct","big-picture"]}}
+    ],"total":4})");
+    assert(page.has_value() && page->games.size() == 4);
+    assert(page->games[0].steamLaunchModeReason == "Steam may ask which version of this game to start, because it has 3 launch options.");
+    assert(page->games[1].steamLaunchModeReason == "  \n\t " && "the reader keeps the host's text; Play Setup hides a blank one");
+    assert(page->games[2].steamLaunchModeReason.empty() && "a non-string reason is not turned into text");
+    assert(page->games[3].steamLaunchModeReason.empty());
 }
 
 void testParsesSessionStatus() {
@@ -517,6 +542,7 @@ int main(int argc, char* argv[]) {
     testGameTimeMetadata();
     testArtworkManifestBoundaries();
     testParsesBodiesPolarisActuallyServed();
+    testSteamLaunchNoticeIsTheHostsSentence();
     testParsesSessionStatus();
     testParsesServerInfoHttpsPort();
     testSplitsPathAndQueryForQUrl();
