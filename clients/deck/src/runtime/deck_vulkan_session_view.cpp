@@ -7,6 +7,9 @@ DeckVulkanSessionView::DeckVulkanSessionView(DeckNativeSessionController& sessio
         DeckDisplayCapabilities& display, DeckPlaySettings& settings, DeckDesktopInputBridge& desktopInput, DeckWindowController& windowController, bool allowSoftware, QObject* parent)
     : QObject(parent), session_(session), display_(display), desktopInput_(desktopInput), windowController_(windowController), window_(allowSoftware) {
     window_.setTitle(QStringLiteral("Nova"));
+    connect(&window_, &stream::DeckVulkanVideoWindow::sourceTimingReset, &session_, &DeckNativeSessionController::resetPresentationTiming);
+    connect(&display_, &DeckDisplayCapabilities::stateChanged, &session_, &DeckNativeSessionController::resetPresentationTiming);
+    connect(&window_, &QWindow::screenChanged, &session_, &DeckNativeSessionController::resetPresentationTiming);
     window_.enableQuickOverlay();
     const auto updateScale = [this, &settings] {
         window_.setVideoScaleMode(stream::deckVideoScaleMode(settings.videoScaleMode()).value_or(stream::DeckVideoScaleMode::Fit));

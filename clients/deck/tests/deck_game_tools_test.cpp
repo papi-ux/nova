@@ -116,6 +116,15 @@ int main(int argc, char** argv) {
     check(tools.prepare("host","game",config),"prepare failed"); wait([&]{return !tools.busy();});
     check(tools.state()["available"].toBool() && !tools.state()["plan"].toMap().isEmpty(),"review missing");
     check(tools.state()["steam"].toMap()["notice"] == "Steam may ask you to choose a launch option on your PC.", "host Steam launch notice was discarded");
+    // The host's own sentence, tidied for one line; a blank one is no notice at all (Polaris #586).
+    host.steamReason = "  Steam may ask which version\n of this game to start.  ";
+    check(tools.prepare("host","game",config),"prepare failed"); wait([&]{return !tools.busy();});
+    check(tools.state()["steam"].toMap()["notice"] == "Steam may ask which version of this game to start.", "host Steam launch notice was not tidied");
+    host.steamReason = " \n\t ";
+    check(tools.prepare("host","game",config),"prepare failed"); wait([&]{return !tools.busy();});
+    check(tools.state()["steam"].toMap()["notice"] == "", "a blank host Steam launch notice was kept");
+    host.steamReason = "Steam may ask you to choose a launch option on your PC.";
+    check(tools.prepare("host","game",config),"prepare failed"); wait([&]{return !tools.busy();});
     check(tools.search("Moonlit Harbor"),"search failed"); wait([&]{return !tools.busy();});
     check(tools.selectCandidate(0),"match failed"); wait([&]{return !tools.busy();});
     check(tools.selectArtwork(0) && host.writes == 0,"preview wrote to host");

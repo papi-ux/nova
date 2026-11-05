@@ -51,6 +51,7 @@ std::optional<DeckHostTelemetry> parseHostTelemetry(std::string_view json) {
     if (error.error != QJsonParseError::NoError || !doc.isObject()) return {};
     const auto o = doc.object(), controls = o.value("controls").toObject();
     DeckHostTelemetry t;
+    t.vrr = readSessionVrr(o.value("vrr"));
     t.active = o.value("streaming_active").toBool(false);
     t.owned = o.value("owned_by_client").toBool(false);
     t.ending = o.value("shutdown_requested").toBool(false) || controls.value("shutdown_in_progress").toBool(false);

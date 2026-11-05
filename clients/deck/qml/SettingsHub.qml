@@ -32,6 +32,7 @@ Popup {
         {key: "window", category: "stream", title: "Window Mode", words: "fullscreen full screen window desktop display monitor", scope: "This device · Applies immediately", detail: "Switch between a desktop window and fullscreen. Ctrl + Alt + Shift + F also switches modes. During play, resume from Command Center after switching."},
         {key: "scale", category: "stream", title: "Video Scaling", words: "fit fill stretch crop bars aspect ratio display screen", scope: "This device · All streams · Applies immediately", detail: "Choose how the picture fits your screen.", reset: "fit"},
         {key: "pacing", category: "stream", title: "Video Frame Pacing", words: "latency balanced smooth timing stutter frames", scope: "This device · Next new stream · Reconnect keeps the current choice", detail: "Prefer lowest latency shows the newest frame as soon as possible. Balanced spaces decoded frames at the stream rate with a small buffer, which adds delay. Display timing still depends on your system. Warp, FPS-limit and smoothest-video modes are not available in the Linux client yet.", reset: "latency"},
+        {key: "source_time_pacing", category: "stream", title: "Host Frame Timing", words: "source time pacing balanced fixed refresh host cadence", scope: "This device · Takes effect next stream · Reconnect keeps the current choice", detail: "Use host frame timing with Balanced pacing, including on fixed refresh displays. Auto uses it when available. Source time explicitly requests it and shows the fallback when unavailable. This does not enable adaptive refresh.", reset: "off"},
         {key: "channels", category: "audio", title: "Audio Channels", words: "stereo surround speakers headphones 5.1 7.1", scope: "This device · Next new stream", detail: "Surround needs a compatible output. Your system controls audio routing.", reset: 2},
         {key: "hostAudio", category: "audio", title: "Play Audio on PC", words: "host sound speakers", scope: "This device · Next new stream", detail: "Also play through the PC's audio output while streaming.", reset: false},
         {key: "face", category: "controls", title: "Face Buttons", words: "controller layout labels positions swap ab xy", scope: "This device · Games without an override · Next new stream", detail: "Match positions swaps A/B and X/Y. A game's own layout takes priority.", reset: "labels"},
@@ -77,6 +78,7 @@ Popup {
         case "updates": return updateController && updateController.state.restartRequired ? "Ready to Finish" : updateController && updateController.state.available ? "Update Available" : "Review Updates"
         case "window": return windowController && windowController.fullscreen ? "fullscreen" : "windowed"
         case "scale": return settingsProvider.videoScaleMode
+        case "source_time_pacing": return settingsProvider.sourceTimePacing
         case "pacing": return settingsProvider.framePacingMode
         case "stream": {
             const s = settingsProvider.streamDefaults
@@ -107,6 +109,7 @@ Popup {
         switch (key) {
         case "window": return [{id: "windowed", title: "Windowed"}, {id: "fullscreen", title: "Fullscreen"}]
         case "scale": return scaleSheet.modes
+        case "source_time_pacing": return [{id: "off", title: "Off"}, {id: "auto", title: "Auto"}, {id: "source_time", title: "Source time"}]
         case "pacing": return [{id: "latency", title: "Prefer lowest latency"}, {id: "balanced", title: "Balanced"}]
         case "channels": return [{id: 2, title: "Stereo"}, {id: 6, title: "5.1 surround"}, {id: 8, title: "7.1 surround"}]
         case "face": return [{id: "labels", title: "Match labels"}, {id: "positions", title: "Match positions"}]
@@ -135,6 +138,7 @@ Popup {
         switch (key) {
         case "window": if (windowController) windowController.setFullscreen(next === "fullscreen"); else ok = false; break
         case "scale": ok = settingsProvider.setVideoScaleMode(next); break
+        case "source_time_pacing": ok = settingsProvider.setSourceTimePacing(next); break
         case "pacing": ok = next === "latency" ? settingsProvider.resetFramePacingMode() : settingsProvider.setFramePacingMode(next); break
         case "channels": ok = settingsProvider.saveAudioSettings({channels: next, playHostAudio: settingsProvider.audioSettings.playHostAudio}); break
         case "hostAudio": ok = settingsProvider.saveAudioSettings({channels: settingsProvider.audioSettings.channels, playHostAudio: next}); break

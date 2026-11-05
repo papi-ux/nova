@@ -74,7 +74,7 @@ Item {
                 color: NovaTheme.secondary
                 text: "Frozen locally when you marked it. Save writes that moment on this device; nothing is sent automatically. No logs, identities, host record or Doctor verdict are included. Picture, audio and controls aren't checked."
             }
-            Copy { objectName: "moment-report-marked-time"; text: "Marked " + (report.summary.markedAtUtc || "") + " (UTC)." }
+            Copy { objectName: "moment-report-marked-time"; text: "Marked " + NovaLocalTime.withZone(report.summary.markedAtUtc) + "." }
             Copy {
                 objectName: "moment-report-state"
                 text: report.summary.state === "current" ? "Current readings were frozen at the mark."

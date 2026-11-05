@@ -40,6 +40,8 @@ struct Host {
     std::atomic<bool> valid{true}, allowed{true}, lost{false}, hold{false}, entered{false}, expired{false};
     std::atomic<int> writes{0}, planRequests{0};
     QString steam = "direct";
+    // The host's Steam launch sentence (Polaris #586). Change it only while the tools are idle.
+    std::string steamReason = "Steam may ask you to choose a launch option on your PC.";
     QVariantMap advice;
     std::atomic<int> adviceRequests{0};
     nova::deck::runtime::DeckGameToolsResolver resolver() {
@@ -66,7 +68,7 @@ struct Host {
                 [this](const auto&) {
                     nova::deck::polaris::DeckPolarisGame game;
                     game.id = "game"; game.name = "Moonlit Harbor"; game.appId = 42;
-                    game.steamLaunchModeReason = "Steam may ask you to choose a launch option on your PC.";
+                    game.steamLaunchModeReason = steamReason;
                     game.steamLaunchAvailable = true; game.steamLaunchMode = steam.toStdString(); game.steamLaunchAllowedModes = {"direct","big-picture"};
                     return ok(allowed ? std::vector{game} : std::vector<nova::deck::polaris::DeckPolarisGame>{});
                 }, [this] { return valid.load(); }};

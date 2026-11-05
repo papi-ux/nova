@@ -14,6 +14,7 @@ struct DeckHudSample {
     std::uint64_t hostLatencyTenths = 0, hostLatencySamples = 0;
     int width = 0, height = 0, targetFps = 0;
     QString codec, decoderBackend, frameTransferPath;
+    QString sourceTimeRequested = "off", sourceTimeEffective = "legacy", sourceTimeFallback = "not_requested";
     bool cpuUploadsAvailable = false;
     std::uint64_t deliveryDrops = 0;
     std::size_t deliveryQueueDepth = 0;

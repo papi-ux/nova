@@ -5,7 +5,7 @@
 namespace nova::deck::runtime {
 QVariantMap DeckHudMetrics::empty() {
     auto result = DeckHudHostReducer::unavailable();
-    const QVariantMap local{{"fps", "--"}, {"incoming", "--"}, {"decoded", "--"}, {"target", ""},
+    const QVariantMap local{{"sourceTimeRequested", "off"}, {"sourceTimeEffective", "legacy"}, {"sourceTimeFallback", "not_requested"}, {"fps", "--"}, {"incoming", "--"}, {"decoded", "--"}, {"target", ""},
         {"host", "--"}, {"rtt", "--"}, {"jitter", "--"}, {"bitrate", "--"},
         {"resolution", "--"}, {"codec", "--"}, {"history", QVariantList{}},
         {"videoWork", "--"}, {"refused", "--"}, {"submitted", "--"},
@@ -18,6 +18,9 @@ QVariantMap DeckHudMetrics::empty() {
 }
 QVariantMap DeckHudMetrics::sample(const DeckHudSample& s) {
     auto out = empty();
+    out["sourceTimeRequested"] = s.sourceTimeRequested;
+    out["sourceTimeEffective"] = s.sourceTimeEffective;
+    out["sourceTimeFallback"] = s.sourceTimeFallback;
     out["codec"] = s.codec.isEmpty() ? "--" : s.codec;
     out["decoderBackend"] = s.decoderBackend.isEmpty() ? "--" : s.decoderBackend;
     out["frameTransferPath"] = s.frameTransferPath.isEmpty() ? "--" : s.frameTransferPath;

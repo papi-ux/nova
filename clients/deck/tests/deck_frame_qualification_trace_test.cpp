@@ -12,6 +12,7 @@ int main(int argc, char** argv) {
     const QVariantMap hud{{"fresh", true}, {"requestedFps", "90"}, {"incoming", "90.0"},
         {"decoded", "89.0"}, {"submitted", "88.0"}, {"cpuUploadCompositions", "87.0"},
         {"decoderBackend", "V4L2"}, {"frameTransferPath", "CPU upload"},
+        {"sourceTimeRequested", "auto"}, {"sourceTimeEffective", "source_time_fixed"}, {"sourceTimeFallback", "host_status_missing"},
         {"deliveryDrops", "3"}, {"deliveryQueueDepth", "1"}, {"hostName", "private-token"}};
     DeckFrameQualificationTrace trace(path);
     assert(trace.append(hud, 1000));
@@ -21,6 +22,9 @@ int main(int argc, char** argv) {
     QFile file(path); assert(file.open(QIODevice::ReadOnly));
     const auto first = file.readLine(); assert(!first.contains("private-token"));
     const auto row = QJsonDocument::fromJson(first).object();
+    const auto timing=row["source_time"].toObject();
+    assert(timing["requested"]=="auto" && timing["effective"]=="source_time_fixed" && timing["fallback"]=="host_status_missing");
+    assert(timing["hold_ceiling_us"]==17000 && timing.size()==8);
     assert(row["sample_time_ms"] == 1000 && row["client_readings"].toObject()["submitted_fps"] == 88);
     assert(QJsonDocument::fromJson(file.readLine()).object()["client_readings"].toObject()["decoded_fps"].isNull());
     assert(file.atEnd());

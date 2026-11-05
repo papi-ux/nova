@@ -1,5 +1,6 @@
 #pragma once
 #include <QString>
+#include "polaris/deck_session_vrr.h"
 #include <QJsonObject>
 #include <QVariantMap>
 #include <optional>
@@ -16,6 +17,7 @@ struct DeckLiveTuningTelemetry {
     int qualityLimit = 0, requested = 0, applied = 0;
 };
 struct DeckHostTelemetry {
+    DeckSessionVrrReading vrr;
     bool active = false, owned = false, ending = false, authorityValid = false, hostTuningAllowed = false;
     QString role, gameUuid, sessionToken, appSession;
     int gameId = 0;

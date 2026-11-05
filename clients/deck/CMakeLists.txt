@@ -122,6 +122,8 @@ add_library(nova_deck_core STATIC
     src/runtime/deck_play_settings.cpp
     src/runtime/deck_display_capabilities.cpp
     src/runtime/deck_frame_delivery.cpp
+    src/runtime/deck_source_clock_mapper.cpp
+    src/runtime/deck_presentation_deadline.cpp
     src/runtime/deck_frame_qualification_trace.cpp
     src/runtime/deck_steam_control.cpp
     src/runtime/deck_host_power.cpp
@@ -273,6 +275,24 @@ if(NOVA_DECK_BUILD_HDR_VALIDATION OR NOVA_DECK_BUILD_VULKAN_STREAM)
         target_compile_definitions(nova_deck_pyrowave_presenter_test PRIVATE NOVA_DECK_TEST_VULKAN_PRESENTATION=1)
     endif()
 endif()
+if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(source_replay_header "${CMAKE_CURRENT_BINARY_DIR}/source_time_replay.h")
+    add_custom_command(OUTPUT "${source_replay_header}"
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/generate_source_time_replay.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/presentation/tests/source-time-replay-v1.json" "${source_replay_header}"
+        DEPENDS ../../tools/generate_source_time_replay.py ../../shared/presentation/tests/source-time-replay-v1.json
+            ../../shared/presentation/source-time-contract-v1.json)
+    add_executable(nova_deck_source_clock_mapper_test tests/deck_source_clock_mapper_test.cpp
+        src/runtime/deck_source_clock_mapper.cpp "${source_replay_header}")
+    target_include_directories(nova_deck_source_clock_mapper_test PRIVATE src)
+    target_compile_definitions(nova_deck_source_clock_mapper_test PRIVATE NOVA_SOURCE_REPLAY_HEADER="${source_replay_header}")
+    add_test(NAME nova_deck_source_clock_mapper_test COMMAND nova_deck_source_clock_mapper_test)
+    add_test(NAME nova_deck_source_clock_arrival_negative_test COMMAND nova_deck_source_clock_mapper_test --arrival-only)
+    set_tests_properties(nova_deck_source_clock_mapper_test nova_deck_source_clock_arrival_negative_test PROPERTIES TIMEOUT 20)
+    set_tests_properties(nova_deck_source_clock_arrival_negative_test PROPERTIES WILL_FAIL TRUE)
+endif()
+
 if(BUILD_TESTING)
     include(cmake/NovaTestAssertions.cmake)
     add_executable(nova_deck_test_assertions_test tests/deck_test_assertions_test.cpp)
@@ -870,6 +890,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         set_source_files_properties(qml/NovaTheme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
         set_source_files_properties(qml/NovaHudPreferences.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
         set_source_files_properties(qml/NovaStreamPreferences.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+        set_source_files_properties(qml/NovaLocalTime.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
         qt_add_qml_module(nova-deck
             URI Nova.Deck
             VERSION 0.1
@@ -877,6 +898,7 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/NovaTheme.qml
                 qml/NovaHudPreferences.qml
                 qml/NovaStreamPreferences.qml
+                qml/NovaLocalTime.qml
                 qml/DeckButtonGlyph.qml
                 qml/DeckMenuShortcut.qml
                 qml/NovaHud.qml
@@ -939,6 +961,9 @@ if(NOVA_DECK_BUILD_QT_SHELL)
         install(TARGETS nova-deck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
         install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE.txt"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../licenses/Nonary-moonlight-qt-LICENSE.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../docs/third-party/source-time-pacing.md"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/source-time-pacing)
         install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/LICENSE.txt"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/com.papi_ux.Nova/moonlight-common-c)
         install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../app/src/main/jni/moonlight-core/moonlight-common-c/enet/LICENSE"
@@ -1250,6 +1275,13 @@ if(NOVA_DECK_BUILD_QT_SHELL)
             target_compile_definitions(nova_deck_moment_report_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
             add_test(NAME nova_deck_moment_report_qml_test COMMAND nova_deck_moment_report_qml_test)
             set_tests_properties(nova_deck_moment_report_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software" TIMEOUT 30)
+            add_executable(nova_deck_local_time_qml_test tests/deck_local_time_qml_test.cpp)
+            target_link_libraries(nova_deck_local_time_qml_test PRIVATE Qt6::Gui Qt6::Qml Qt6::Quick)
+            target_compile_definitions(nova_deck_local_time_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+            add_test(NAME nova_deck_local_time_qml_test COMMAND nova_deck_local_time_qml_test)
+            set_tests_properties(nova_deck_local_time_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+            add_test(NAME nova_deck_local_time_utc_qml_test COMMAND nova_deck_local_time_qml_test --utc)
+            set_tests_properties(nova_deck_local_time_utc_qml_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
             add_executable(nova_deck_stream_recap_qml_test tests/deck_stream_recap_qml_test.cpp tests/deck_preview_fixture.h)
             target_link_libraries(nova_deck_stream_recap_qml_test PRIVATE nova_deck_core Qt6::QuickControls2 Qt6::Test)
             target_compile_definitions(nova_deck_stream_recap_qml_test PRIVATE NOVA_DECK_QML_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/qml")

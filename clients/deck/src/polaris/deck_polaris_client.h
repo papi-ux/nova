@@ -145,6 +145,7 @@ struct DeckPolarisGamesPage {
 };
 
 struct DeckPolarisSessionStatus {
+    DeckSessionVrrReading vrr;
     std::string state;
     bool streamingActive = false;
     std::string game;
