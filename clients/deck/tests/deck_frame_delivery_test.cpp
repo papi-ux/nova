@@ -9,10 +9,20 @@
 #include <future>
 #include <iostream>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace nova::deck::runtime;
-namespace { void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } } }
+namespace {
+void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
+// Allows the same native interleaving to run against pre-fix source: there the
+// selected descriptor has no final authority and the attempted submit runs.
+template<class Timing, class Submit> bool attemptSubmission(const Timing& timing, Submit&& submit) {
+    if constexpr (requires { timing.withCurrentSubmission(std::forward<Submit>(submit)); })
+        return timing.withCurrentSubmission(std::forward<Submit>(submit));
+    else { std::forward<Submit>(submit)(); return true; }
+}
+}
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
@@ -74,6 +84,31 @@ int main(int argc, char** argv) {
         require(frames.size() == 4, "closed timer dispatched a stale frame");
     }
 #ifdef __linux__
+    {
+        DeckFrameDelivery* owner = nullptr;
+        int submitted = 0;
+        DeckFrameDelivery::Frame mailbox;
+        bool resetAfterSelection = true;
+        DeckFrameDelivery delivery([&](const auto& frame) {
+            if (resetAfterSelection) owner->epochPublisher()(2);
+            if (attemptSubmission(frame.timing, [&] { mailbox = frame; ++submitted; }))
+                require(!resetAfterSelection, "selected old epoch reached mailbox");
+        });
+        owner = &delivery;
+        require(delivery.setSourceTimingEnabled(true) && delivery.configurator()(DeckFramePacing::Balanced, 120), "fence setup failed");
+        delivery.resetTiming(7);
+        DeckFrameDelivery::Frame frame;
+        frame.timing.clock = {.epoch=1, .frame=1, .sourceUs=1, .targetUs=0, .valid=true, .active=true};
+        frame.timing.presentationGeneration=7;
+        require(delivery.publisher()(frame), "fence frame rejected"); QCoreApplication::processEvents();
+        require(submitted==0 && delivery.stats().dropped==1 && delivery.stats().fallback=="stale_epoch", "selection race was not a counted stale drop");
+        resetAfterSelection=false; frame.timing.clock.epoch=2;
+        require(delivery.publisher()(frame), "new epoch rejected"); QCoreApplication::processEvents();
+        require(submitted==1, "current mailbox missing");
+        delivery.resetTiming(8);
+        require(!attemptSubmission(mailbox.timing, [&] { ++submitted; }) && submitted==1, "retained render job crossed presentation reset");
+        require(delivery.stats().dropped==2 && delivery.stats().fallback=="stale_epoch", "render-job stale drop missing from stats");
+    }
     {
         const auto monotonicNs = [] { return std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count(); };

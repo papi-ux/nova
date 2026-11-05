@@ -237,3 +237,18 @@ The decoder owner also publishes mapper epochs directly to delivery on resets
 and observations, before waiting for output. This releases queued old leases even
 if the new epoch produces no decoded frame. Descriptor and deadline checks remain
 in place to reject stale asynchronous output and callbacks.
+
+## Deck final submission fence (W47 D2)
+
+Enabled descriptors carry a shared mapper/presentation fence and a once-counted
+submission ticket from delivery selection through the GUI mailbox and render job.
+Mapper observe/reset mutations publish their epoch while holding this authority;
+output-generation invalidation uses it before publishing the new generation.
+Mailbox admission and the actual Vulkan start/submit/present lock pair revalidate
+under that same hold. A mismatch drops unsent work as `stale_epoch`; an old job
+cannot cross invalidation, even between the final check and submit/present.
+Already-submitted GPU ownership still retires normally. No fence is attached on
+OFF. Lock order is decoder lifecycle, delivery, fence; the final fenced callback
+never enters delivery/decoder or waits for GUI synchronization. The hold includes
+GPU submission work and can delay mapper invalidation; no duration guarantee is
+claimed. Host-buildable atomicity tests are distinct from native Vulkan execution.

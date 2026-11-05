@@ -35,6 +35,7 @@ public:
     Publisher publisher() const;
     // Decoder-owner notification, before waiting for new-epoch output.
     EpochPublisher epochPublisher() const;
+    std::shared_ptr<DeckSourceSubmissionFence> submissionFence() const;
     // Worker-safe, once before the first decoded frame, with the admitted FPS.
     Configure configurator() const;
     DeckFrameDeliveryStats stats() const;

@@ -44,7 +44,17 @@ DeckSourceClockMapper::DeckSourceClockMapper(DeckSourceClockPolicy policy, unsig
         throw std::invalid_argument("invalid bounded source-clock policy");
     reset();
 }
+void DeckSourceClockMapper::setSubmissionFence(std::shared_ptr<DeckSourceSubmissionFence> fence) {
+    submissionFence_ = std::move(fence);
+    if (submissionFence_) submissionFence_->updateEpoch([this](auto current) {
+        epoch_ = std::max(epoch_, current); return epoch_;
+    });
+}
 void DeckSourceClockMapper::reset() {
+    if (submissionFence_) submissionFence_->updateEpoch([this](auto) { resetUnlocked(); return epoch_; });
+    else resetUnlocked();
+}
+void DeckSourceClockMapper::resetUnlocked() {
     ++epoch_; have_ = false; ticks_ = observations_ = 0; offset_ = lastAnchor_ = lastTarget_ = 0;
     lastReady_ = slewRemainder_ = releaseRemainder_ = 0; cleanSince_ = -1; pressure_ = false;
     backlogSince_ = -1; divergenceFrames_ = stepFrames_ = 0;
@@ -56,15 +66,21 @@ std::int64_t DeckSourceClockMapper::reserveCapUs() const {
     return std::min(policy_.reserveMaximumUs, static_cast<std::int64_t>(capacity_) * period_);
 }
 DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::uint32_t rtp, std::int64_t anchor) {
+    if (!submissionFence_) return observeUnlocked(frame, rtp, anchor);
+    DeckSourceClockPoint point;
+    submissionFence_->updateEpoch([&](auto) { point = observeUnlocked(frame, rtp, anchor); return epoch_; });
+    return point;
+}
+DeckSourceClockPoint DeckSourceClockMapper::observeUnlocked(std::uint32_t frame, std::uint32_t rtp, std::int64_t anchor) {
     DeckSourceClockPoint point; point.frame = frame; point.rtp = rtp; point.epoch = epoch_;
-    if (anchor < 0 || anchor > maxUs - policy_.reserveMaximumUs) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
+    if (anchor < 0 || anchor > maxUs - policy_.reserveMaximumUs) { resetUnlocked(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
     std::string_view phase = "warmup";
     if (have_) {
         const std::uint32_t df = frame - frame_, dt = rtp - rtp_;
         if (df == 0 || df >= 0x80000000U) { point.reason = "stale_frame"; return point; }
         if (anchor < lastAnchor_ || dt >= 0x80000000U || std::uint64_t(dt) * 1000 / 90 > std::uint64_t(policy_.discontinuityUs)) {
             phase = anchor < lastAnchor_ ? "clock_mapping_unstable" : "source_discontinuity";
-            reset(); point.epoch = epoch_;
+            resetUnlocked(); point.epoch = epoch_;
         } else if (dt == 0) {
             frame_ = frame; point.reason = "duplicate_timestamp"; return point;
         } else {
@@ -80,7 +96,7 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
         if (rtp == 0) { point.reason = "source_timestamp_missing"; return point; }
         have_ = true; ticks_ = 0; offset_ = anchor; lastAnchor_ = anchor;
     }
-    if (ticks_ > std::uint64_t(maxUs) * 90 / 1000) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
+    if (ticks_ > std::uint64_t(maxUs) * 90 / 1000) { resetUnlocked(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
     point.sourceUs = static_cast<std::int64_t>(ticks_ * 1000 / 90);
     offsets_.push_back({anchor, anchor - point.sourceUs});
     prune(offsets_, anchor, policy_.offsetWindowUs, policy_.offsetSamples);
@@ -122,8 +138,8 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
             (backlogSince_ >= 0 && anchor - backlogSince_ > policy_.offsetBacklogHoldUs)) {
             // Cancel the old epoch and readiness history. Exactly this forward
             // sample seeds the new warmup, including with warmupFrames == 1.
-            reset();
-            auto rewarming = observe(frame, rtp, anchor);
+            resetUnlocked();
+            auto rewarming = observeUnlocked(frame, rtp, anchor);
             rewarming.active = false;
             rewarming.reason = "clock_mapping_unstable";
             return rewarming;
@@ -131,9 +147,9 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
         offset_ += applied;
     }
     point.baseUs = point.sourceUs + offset_;
-    if (point.baseUs < 0 || point.baseUs > maxUs - reserve_) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
+    if (point.baseUs < 0 || point.baseUs > maxUs - reserve_) { resetUnlocked(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
     point.targetUs = std::max(point.baseUs + reserve_, lastTarget_ + 1);
-    if (point.targetUs > maxUs) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
+    if (point.targetUs > maxUs) { resetUnlocked(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }
     point.valid = true; point.active = observations_ >= static_cast<std::size_t>(policy_.warmupFrames);
     point.reason = point.active ? "none" : phase;
     // Preserve a discontinuity reason for its first re-anchored frame, even with warmup=1 in a fixture.

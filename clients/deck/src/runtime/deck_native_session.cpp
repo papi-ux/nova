@@ -82,6 +82,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     DeckFrameDelivery::Publisher deliverFrame;
     DeckFrameDelivery::Configure configureFrames;
     DeckFrameDelivery::EpochPublisher publishMapperEpoch;
+    std::shared_ptr<DeckSourceSubmissionFence> sourceSubmissionFence;
     QString sourceTimePacing = "off";
     bool sourceTimingEnabled = false;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
@@ -230,8 +231,9 @@ void DeckNativeSessionController::setSurface(DeckQtQuickRhiVaapiItem* surface) {
 
 void DeckNativeSessionController::resetPresentationTiming() {
     if (!shared_ || !frameDelivery_) return;
-    const auto generation = ++shared_->sourceTimingGeneration;
-    frameDelivery_->resetTiming(generation);
+    const auto generation = shared_->sourceTimingGeneration.load() + 1;
+    frameDelivery_->resetTiming(generation); // invalidates submission before publishing the new generation
+    shared_->sourceTimingGeneration = generation;
 }
 
 bool DeckNativeSessionController::setPresentationSink(QObject* lifetime, DeckQtQuickRhiPresentationSink* sink,
@@ -475,6 +477,7 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     shared_->deliverFrame = frameDelivery_->publisher();
     shared_->configureFrames = frameDelivery_->configurator();
     shared_->publishMapperEpoch = frameDelivery_->epochPublisher();
+    if (shared_->sourceTimingEnabled) shared_->sourceSubmissionFence = frameDelivery_->submissionFence();
     shared_->publish("preparing", resume ? "Checking your existing game…" : "Preparing the selected game…");
     state_ = shared_->state;
     if (presentationOwner_ && presentationSink_) presentationSink_->presentVaapiSurface({});
@@ -933,8 +936,10 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     producer.decodedFrameProducer().setSourceTimingGenerationReader([weak = std::weak_ptr<Shared>(shared)] {
         const auto current = weak.lock(); return current ? current->sourceTimingGeneration.load() : 0;
     });
-    if (shared->sourceTimingEnabled)
+    if (shared->sourceTimingEnabled) {
+        producer.decodedFrameProducer().setSourceSubmissionFence(shared->sourceSubmissionFence);
         producer.decodedFrameProducer().setSourceTimingEpochPublisher(shared->publishMapperEpoch);
+    }
     DeckGuardedPreviewLifecycleGate gate(producer);
     std::optional<DeckNativeLaunchTarget> target;
     DeckSessionBuildResult built;

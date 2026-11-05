@@ -21,6 +21,8 @@ std::int64_t nowNs() {
 
 struct DeckFrameDelivery::State {
     std::mutex mutex;
+    std::shared_ptr<DeckSourceSubmissionFence> fence = std::make_shared<DeckSourceSubmissionFence>();
+    std::uint64_t deliveredSequence = 0;
     std::deque<Frame> frames;
     DeckFrameCadence cadence;
     DeckFrameDelivery* receiver = nullptr;
@@ -34,6 +36,7 @@ struct DeckFrameDelivery::State {
     std::int64_t sourceUpdatedNs = 0;
     std::optional<DeckSourceClockPoint> lastSourceDelivery;
     void advanceEpoch(std::uint64_t epoch) {
+        fence->advanceEpoch(epoch);
         dropped += frames.size(); frames.clear(); mapperEpoch = epoch;
         deadlineEpoch.reset(); lastSourceDelivery.reset();
         effective = "pending"; fallback = "clock_mapping_unstable";
@@ -53,6 +56,7 @@ DeckFrameDelivery::~DeckFrameDelivery() {
     sourceDeadline_->cancel();
     const std::lock_guard lock(state_->mutex);
     state_->closed = true;
+    state_->fence->close();
     state_->frames.clear();
     state_->receiver = nullptr;
 }
@@ -61,6 +65,7 @@ void DeckFrameDelivery::close() {
     timer_.stop(); sourceDeadline_->cancel();
     const std::lock_guard lock(state_->mutex);
     state_->closed = true;
+    state_->fence->close();
     state_->frames.clear();
 }
 
@@ -80,6 +85,7 @@ void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
     state_->dropped += state_->frames.size();
     state_->frames.clear(); state_->queued = false; state_->wakeQueued = false;
     state_->deadlineEpoch.reset(); state_->lastSourceDelivery.reset();
+    state_->fence->reset(generation);
     state_->presentationGeneration = generation;
     state_->effective = "pending"; state_->fallback = "clock_mapping_unstable";
 }
@@ -87,8 +93,11 @@ void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
 DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
     const std::lock_guard lock(state_->mutex);
     const bool stale = state_->sourceEnabled && nowNs() - state_->sourceUpdatedNs > 1'000'000'000;
-    return {state_->dropped, state_->frames.size(), stale ? "source_timestamp_missing" : state_->fallback,
-        stale ? "pending" : state_->effective, state_->mapperEpoch};
+    const auto fence = state_->fence->stats();
+    const bool rejected = state_->sourceEnabled && (fence.epoch != state_->mapperEpoch ||
+        (fence.rejectedSequence && fence.rejectedSequence >= state_->deliveredSequence));
+    return {state_->dropped + fence.dropped, state_->frames.size(), rejected ? "stale_epoch" : stale ? "source_timestamp_missing" : state_->fallback,
+        rejected || stale ? "pending" : state_->effective, state_->mapperEpoch};
 }
 
 DeckFrameDelivery::Configure DeckFrameDelivery::configurator() const {
@@ -100,6 +109,8 @@ DeckFrameDelivery::Configure DeckFrameDelivery::configurator() const {
         return true;
     };
 }
+
+std::shared_ptr<DeckSourceSubmissionFence> DeckFrameDelivery::submissionFence() const { return state_->fence; }
 
 DeckFrameDelivery::EpochPublisher DeckFrameDelivery::epochPublisher() const {
     return [state = state_](std::uint64_t epoch) {
@@ -151,6 +162,11 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
         if (state->frames.empty()) state->cadence.arm(nowNs());
         state->frames.push_back(frame);
         state->frames.back().timing.decodedMonoNs = decodedNs;
+        if (state->sourceEnabled) {
+            auto& timing = state->frames.back().timing;
+            timing.submissionFence = state->fence;
+            timing.submissionTicket = state->fence->ticket(timing.clock.epoch, timing.presentationGeneration);
+        }
         while (state->frames.size() > state->cadence.capacity()) {
             state->frames.pop_front(); ++state->dropped;
         }
@@ -217,6 +233,7 @@ void DeckFrameDelivery::deliver() {
             }
             frame = std::move(state_->frames.front()); state_->frames.pop_front();
             state_->lastSourceDelivery = frame->timing.clock;
+            state_->deliveredSequence = frame->timing.submissionTicket->sequence;
             state_->effective = "source_time_fixed"; state_->fallback = "none";
         } else {
             const auto delay = state_->cadence.delay(now);
@@ -237,7 +254,7 @@ void DeckFrameDelivery::deliver() {
             } else timer_.start(int((state_->cadence.delay(now) + 999'999) / 1'000'000));
         }
     }
-    if (frame) consumer_(*frame);
+    if (frame && frame->timing.withCurrentSubmission([] {})) consumer_(*frame);
 }
 
 } // namespace nova::deck::runtime
