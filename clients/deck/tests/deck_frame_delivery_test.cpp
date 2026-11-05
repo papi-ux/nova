@@ -1,5 +1,6 @@
 #include "runtime/deck_frame_delivery.h"
 #include "runtime/deck_source_delivery_policy.h"
+#include "runtime/deck_hud_metrics.h"
 #include <QCoreApplication>
 #include <QThread>
 #include <QElapsedTimer>
@@ -84,6 +85,37 @@ int main(int argc, char** argv) {
         require(frames.size() == 4, "closed timer dispatched a stale frame");
     }
 #ifdef __linux__
+    {
+        std::vector<int> delivered;
+        DeckFrameDelivery delivery([&](const auto& f) { delivered.push_back(f.width); });
+        require(delivery.setSourceTimingEnabled(true) && delivery.configurator()(DeckFramePacing::Balanced,120), "mixed timing setup failed");
+        delivery.resetTiming(7);
+        const auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        DeckFrameDelivery::Frame a; a.width=1; a.timing.presentationGeneration=7;
+        a.timing.clock={.epoch=1, .frame=1, .sourceUs=1000, .targetUs=now/1000+5000, .valid=true, .active=true};
+        auto b=a; b.width=2; b.timing.clock.frame=2; b.timing.clock.active=b.timing.clock.valid=false;
+        b.timing.clock.reason="timing_metadata_missing";
+        require(delivery.publisher()(a) && delivery.publisher()(b), "mixed timing publication failed");
+        require(delivery.stats().effective=="pending", "untimed B did not invalidate immediately");
+        QElapsedTimer wait; wait.start();
+        while(delivered.empty() && wait.elapsed()<1500) { QCoreApplication::processEvents(); QThread::usleep(100); }
+        require(!delivered.empty() && delivered.front()==1 && delivery.stats().effective=="pending" &&
+            delivery.stats().fallback=="timing_metadata_missing", "older queued A erased B fallback");
+        while(delivered.size()<2 && wait.elapsed()<1500) { QCoreApplication::processEvents(); QThread::usleep(100); }
+        require(delivered==std::vector<int>({1,2}), "fallback B did not deliver");
+        const auto status=delivery.stats();
+        DeckHudMetrics metrics; DeckHudSample sample; sample.sourceTimeRequested="auto";
+        sample.sourceTimeEffective=QString::fromUtf8(status.effective.data(),int(status.effective.size()));
+        sample.sourceTimeFallback=QString::fromUtf8(status.fallback.data(),int(status.fallback.size()));
+        const auto hud=metrics.sample(sample);
+        require(hud.value("sourceTimeEffective")=="pending" && hud.value("sourceTimeFallback")=="timing_metadata_missing", "HUD lost B's current fallback");
+        auto c=a; c.width=3; c.timing.clock.frame=3; c.timing.clock.sourceUs=3000;
+        c.timing.clock.targetUs=std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        require(delivery.publisher()(c), "recovery C rejected"); QCoreApplication::processEvents();
+        require(delivered.back()==3 && delivery.stats().effective=="source_time_fixed" && delivery.stats().fallback=="none", "newer source C did not recover");
+    }
     {
         DeckFrameDelivery* owner = nullptr;
         int submitted = 0;

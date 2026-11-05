@@ -286,6 +286,10 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/presentation/tests/source-time-replay-v1.json" "${source_replay_header}"
         DEPENDS ../../tools/generate_source_time_replay.py ../../shared/presentation/tests/source-time-replay-v1.json
             ../../shared/presentation/source-time-contract-v1.json)
+    add_executable(nova_deck_source_delivery_status_test tests/deck_source_delivery_status_test.cpp)
+    target_include_directories(nova_deck_source_delivery_status_test PRIVATE src)
+    add_test(NAME nova_deck_source_delivery_status_test COMMAND nova_deck_source_delivery_status_test)
+    set_tests_properties(nova_deck_source_delivery_status_test PROPERTIES TIMEOUT 10)
     find_package(Threads REQUIRED)
     add_executable(nova_deck_source_submission_fence_test tests/deck_source_submission_fence_test.cpp
         src/runtime/deck_source_clock_mapper.cpp)

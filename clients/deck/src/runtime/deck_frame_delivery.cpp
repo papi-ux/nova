@@ -1,5 +1,6 @@
 #include "runtime/deck_frame_delivery.h"
 #include "runtime/deck_source_delivery_policy.h"
+#include "runtime/deck_source_delivery_status.h"
 #include <mutex>
 #include <optional>
 #include <deque>
@@ -22,7 +23,7 @@ std::int64_t nowNs() {
 struct DeckFrameDelivery::State {
     std::mutex mutex;
     std::shared_ptr<DeckSourceSubmissionFence> fence = std::make_shared<DeckSourceSubmissionFence>();
-    std::uint64_t deliveredSequence = 0;
+    std::uint64_t observationSequence = 0;
     std::deque<Frame> frames;
     DeckFrameCadence cadence;
     DeckFrameDelivery* receiver = nullptr;
@@ -32,14 +33,14 @@ struct DeckFrameDelivery::State {
     std::uint64_t mapperEpoch = 0;
     std::optional<std::uint64_t> deadlineEpoch;
     bool sourceEnabled = false;
-    std::string_view fallback = "not_requested", effective = "legacy";
+    DeckSourceDeliveryStatus sourceStatus;
     std::int64_t sourceUpdatedNs = 0;
     std::optional<DeckSourceClockPoint> lastSourceDelivery;
     void advanceEpoch(std::uint64_t epoch) {
         fence->advanceEpoch(epoch);
         dropped += frames.size(); frames.clear(); mapperEpoch = epoch;
         deadlineEpoch.reset(); lastSourceDelivery.reset();
-        effective = "pending"; fallback = "clock_mapping_unstable";
+        sourceStatus.invalidate(observationSequence, "clock_mapping_unstable");
     }
 };
 
@@ -73,8 +74,7 @@ bool DeckFrameDelivery::setSourceTimingEnabled(bool enabled) {
     const std::lock_guard lock(state_->mutex);
     if (state_->closed || state_->started || (enabled && !sourceDeadline_->available())) return false;
     state_->sourceEnabled = enabled;
-    state_->effective = enabled ? "pending" : "legacy";
-    state_->fallback = enabled ? "clock_mapping_unstable" : "not_requested";
+    state_->sourceStatus.configure(enabled);
     state_->sourceUpdatedNs = nowNs(); return true;
 }
 void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
@@ -87,7 +87,7 @@ void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
     state_->deadlineEpoch.reset(); state_->lastSourceDelivery.reset();
     state_->fence->reset(generation);
     state_->presentationGeneration = generation;
-    state_->effective = "pending"; state_->fallback = "clock_mapping_unstable";
+    state_->sourceStatus.invalidate(state_->observationSequence, "clock_mapping_unstable");
 }
 
 DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
@@ -95,9 +95,9 @@ DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
     const bool stale = state_->sourceEnabled && nowNs() - state_->sourceUpdatedNs > 1'000'000'000;
     const auto fence = state_->fence->stats();
     const bool rejected = state_->sourceEnabled && (fence.epoch != state_->mapperEpoch ||
-        (fence.rejectedSequence && fence.rejectedSequence >= state_->deliveredSequence));
-    return {state_->dropped + fence.dropped, state_->frames.size(), rejected ? "stale_epoch" : stale ? "source_timestamp_missing" : state_->fallback,
-        rejected || stale ? "pending" : state_->effective, state_->mapperEpoch};
+        (fence.rejectedSequence && fence.rejectedSequence >= state_->sourceStatus.sequence()));
+    return {state_->dropped + fence.dropped, state_->frames.size(), rejected ? "stale_epoch" : stale ? "source_timestamp_missing" : state_->sourceStatus.fallback(),
+        rejected || stale ? "pending" : state_->sourceStatus.effective(), state_->mapperEpoch};
 }
 
 DeckFrameDelivery::Configure DeckFrameDelivery::configurator() const {
@@ -124,14 +124,19 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
     return [state = state_](const Frame& frame) {
         const std::lock_guard lock(state->mutex);
         if (state->closed || !state->receiver) return false;
+        DeckSourceSubmissionFence::Lease ticket;
+        if (state->sourceEnabled) {
+            ticket = state->fence->ticket(frame.timing.clock.epoch, frame.timing.presentationGeneration);
+            state->observationSequence = ticket->sequence;
+        }
         if (state->sourceEnabled && frame.timing.presentationGeneration != state->presentationGeneration) {
-            ++state->dropped; state->fallback = "stale_epoch"; state->effective = "pending"; return true;
+            ++state->dropped; state->sourceStatus.invalidate(ticket->sequence, "stale_epoch"); return true;
         }
         if (state->sourceEnabled) {
             state->sourceUpdatedNs = nowNs();
             const auto epoch = frame.timing.clock.epoch;
             if (epoch < state->mapperEpoch || frame.timing.clock.reason == "stale_epoch") {
-                ++state->dropped; state->fallback = "stale_epoch"; state->effective = "pending"; return true;
+                ++state->dropped; state->sourceStatus.invalidate(ticket->sequence, "stale_epoch"); return true;
             }
             if (epoch > state->mapperEpoch) {
                 // This runs even for a pending warmup descriptor. The GUI may
@@ -140,20 +145,19 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
             }
         }
         if (state->sourceEnabled && !frame.timing.usable()) {
-            state->fallback = sourceDeliveryFallback(frame.timing.clock.reason);
-            state->effective = state->fallback == "renderer_not_participating" ? "unavailable" : "pending";
+            state->sourceStatus.invalidate(ticket->sequence, sourceDeliveryFallback(frame.timing.clock.reason));
         }
         const auto admittedNs = nowNs();
         const auto decodedNs = frame.timing.decodedMonoNs > 0 ? frame.timing.decodedMonoNs : admittedNs;
         if (state->sourceEnabled && frame.timing.usable() &&
             sourceHoldExceedsCeiling(frame.timing.clock.targetUs, decodedNs)) {
-            ++state->dropped; state->fallback = "hold_ceiling_exceeded"; state->effective = "pending"; return true;
+            ++state->dropped; state->sourceStatus.invalidate(ticket->sequence, "hold_ceiling_exceeded"); return true;
         }
         if (state->sourceEnabled && frame.timing.usable() && state->lastSourceDelivery) {
             const auto& previous = *state->lastSourceDelivery;
             const auto delta = std::uint32_t(frame.timing.clock.frame - previous.frame);
             if (frame.timing.clock.sourceUs <= previous.sourceUs || !delta || delta >= 0x80000000u) {
-                ++state->dropped; state->fallback = "stale_frame"; state->effective = "pending"; return true;
+                ++state->dropped; state->sourceStatus.invalidate(ticket->sequence, "stale_frame"); return true;
             }
         }
         state->started = true;
@@ -165,7 +169,7 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
         if (state->sourceEnabled) {
             auto& timing = state->frames.back().timing;
             timing.submissionFence = state->fence;
-            timing.submissionTicket = state->fence->ticket(timing.clock.epoch, timing.presentationGeneration);
+            timing.submissionTicket = std::move(ticket);
         }
         while (state->frames.size() > state->cadence.capacity()) {
             state->frames.pop_front(); ++state->dropped;
@@ -212,8 +216,8 @@ void DeckFrameDelivery::deliver() {
         if (sourceFrame(state_->frames.front())) {
             if (sourceHoldExceedsCeiling(state_->frames.front().timing.clock.targetUs,
                     state_->frames.front().timing.decodedMonoNs)) {
+                state_->sourceStatus.invalidate(state_->frames.front().timing.submissionTicket->sequence, "hold_ceiling_exceeded");
                 state_->frames.pop_front(); ++state_->dropped;
-                state_->fallback = "hold_ceiling_exceeded"; state_->effective = "pending";
                 state_->queued = !state_->frames.empty();
                 if (state_->queued) timer_.start(0);
                 return;
@@ -229,12 +233,11 @@ void DeckFrameDelivery::deliver() {
                 if (sourceDeadline_->arm(target)) return;
                 // Timer provider failure never delivers early or starts a busy retry.
                 state_->dropped += state_->frames.size(); state_->frames.clear(); state_->queued = false;
-                state_->effective = "unavailable"; state_->fallback = "renderer_not_participating"; return;
+                state_->sourceStatus.invalidate(state_->observationSequence, "renderer_not_participating"); return;
             }
             frame = std::move(state_->frames.front()); state_->frames.pop_front();
             state_->lastSourceDelivery = frame->timing.clock;
-            state_->deliveredSequence = frame->timing.submissionTicket->sequence;
-            state_->effective = "source_time_fixed"; state_->fallback = "none";
+            state_->sourceStatus.complete(frame->timing.submissionTicket->sequence, true, "none");
         } else {
             const auto delay = state_->cadence.delay(now);
             if (delay > 0) { timer_.start(int((delay + 999'999) / 1'000'000)); return; }
@@ -242,6 +245,9 @@ void DeckFrameDelivery::deliver() {
                 while (state_->frames.size() > 1) { state_->frames.pop_front(); ++state_->dropped; }
             frame = std::move(state_->frames.front()); state_->frames.pop_front();
             state_->cadence.advance(now);
+            if (state_->sourceEnabled)
+                state_->sourceStatus.complete(frame->timing.submissionTicket->sequence, false,
+                    sourceDeliveryFallback(frame->timing.clock.reason));
         }
         state_->queued = !state_->frames.empty();
         if (state_->queued) {
@@ -249,7 +255,7 @@ void DeckFrameDelivery::deliver() {
                 state_->deadlineEpoch = state_->mapperEpoch;
                 if (!sourceDeadline_->arm(std::max(now + 1, state_->frames.front().timing.clock.targetUs * 1000))) {
                     state_->dropped += state_->frames.size(); state_->frames.clear(); state_->queued = false;
-                state_->effective = "unavailable"; state_->fallback = "renderer_not_participating";
+                    state_->sourceStatus.invalidate(state_->observationSequence, "renderer_not_participating");
                 }
             } else timer_.start(int((state_->cadence.delay(now) + 999'999) / 1'000'000));
         }

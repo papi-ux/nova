@@ -252,3 +252,16 @@ OFF. Lock order is decoder lifecycle, delivery, fence; the final fenced callback
 never enters delivery/decoder or waits for GUI synchronization. The hold includes
 GPU submission work and can delay mapper invalidation; no duration guarantee is
 claimed. Host-buildable atomicity tests are distinct from native Vulkan execution.
+
+## Deck effectiveness ordering (W47 T1)
+
+Each enabled decoded admission receives a monotonic local ticket identity, kept
+by its queued frame, mailbox and completion. This orders even untimed output for
+which a source frame ID/PTS is missing; it adds no wire field. Invalid admission
+immediately records pending/unavailable with that identity and its existing named
+fallback. Both source-target and fallback completions commit only at or after the
+latest state identity. Thus valid A followed by untimed B stays pending while A
+completes and after fallback B delivers. Only an eligible newer source-target
+delivery restores `source_time_fixed/none`. Old fallback completions likewise
+cannot regress a newer success. Mapper/presentation invalidation and stale-submit
+counts remain independent fences; host fallback semantics are unchanged.

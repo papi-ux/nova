@@ -4,6 +4,12 @@ from pathlib import Path
 import unittest
 ROOT = Path(os.environ.get("NOVA_SOURCE_TIME_SOURCE_ROOT", Path(__file__).resolve().parents[1]))
 class DeckSourceTimeFenceSourceTest(unittest.TestCase):
+    def test_effective_completion_uses_admitted_identity_for_both_paths(self):
+        delivery = (ROOT / "clients/deck/src/runtime/deck_frame_delivery.cpp").read_text()
+        self.assertIn("state->sourceStatus.invalidate(ticket->sequence", delivery)
+        self.assertIn("state_->sourceStatus.complete(frame->timing.submissionTicket->sequence, true", delivery)
+        self.assertIn("state_->sourceStatus.complete(frame->timing.submissionTicket->sequence, false", delivery)
+        self.assertNotIn('state_->effective = "source_time_fixed"', delivery)
     def test_epoch_fence_reaches_mapper_mailbox_and_vulkan_submit_present(self):
         window = (ROOT / "clients/deck/src/stream/deck_vulkan_video_window.cpp").read_text()
         mailbox = window[window.index("bool DeckVulkanVideoWindow::submitFrame"):window.index("void DeckVulkanVideoWindow::clearFrame")]
