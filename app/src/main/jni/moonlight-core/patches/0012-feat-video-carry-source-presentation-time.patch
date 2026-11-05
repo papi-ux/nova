@@ -1,0 +1,118 @@
+From 73be802a43c1205261c1024895ce18542cec89f7 Mon Sep 17 00:00:00 2001
+From: Nova <nova@papi-ux.com>
+Date: Wed, 4 Nov 2026 21:19:36 -0500
+Subject: [PATCH] feat(video): retain raw source RTP timestamps through
+ reassembly
+
+Nova #241/#242 contract D1: retain only raw host-order 90 kHz modulo-32 timestamps. Clients unwrap and convert; do not add presentationTimeUs, whose upstream name includes a synthetic fallback. Preserve receive/enqueue milliseconds and legacy presentationTimeMs. Inspired by upstream e356b2cfde604c35904793aaf485a6ede7102cae (Andy Grundman); this is a narrow Nova backport, not that commit or its clock API migration.
+---
+ src/Limelight.h         | 7 +++++++
+ src/RtpVideoQueue.c     | 3 +++
+ src/RtpVideoQueue.h     | 1 +
+ src/VideoDepacketizer.c | 7 ++++++-
+ 4 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 8ab72b7..40ca7e5 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -141,6 +141,8 @@ typedef struct _LENTRY {
+ #define FRAME_TYPE_IDR    0x01
+ 
+ // A decode unit describes a buffer chain of video data from multiple packets
++#define LI_RTP_TIMESTAMP_VERSION 1
++
+ typedef struct _DECODE_UNIT {
+     // Frame number
+     int frameNumber;
+@@ -187,6 +189,11 @@ typedef struct _DECODE_UNIT {
+     // Note: This is not currently parsed from the actual bitstream, so if your
+     // client has access to a bitstream parser, prefer that over this field.
+     uint8_t colorspace;
++
++    // Original host-order RTP timestamp: 90 kHz, modulo 2^32. Never synthesized
++    // from receive time, including zero at wrap. Clients unwrap and convert it;
++    // the legacy presentationTimeMs field retains its compatibility fallback.
++    uint32_t rtpTimestamp;
+ } DECODE_UNIT, *PDECODE_UNIT;
+ 
+ // Specifies that the audio stream should be encoded in stereo (default)
+diff --git a/src/RtpVideoQueue.c b/src/RtpVideoQueue.c
+index d5dbe94..bb9a589 100644
+--- a/src/RtpVideoQueue.c
++++ b/src/RtpVideoQueue.c
+@@ -154,6 +154,9 @@ static bool queuePacket(PRTP_VIDEO_QUEUE queue, PRTPV_QUEUE_ENTRY newEntry, PRTP
+     newEntry->isParity = isParity;
+     newEntry->prev = NULL;
+     newEntry->next = NULL;
++    // VideoStream has already converted RTP to host byte order. FEC recovery
++    // restores this raw timestamp from the accepted block before queuePacket().
++    newEntry->rtpTimestamp = packet->timestamp;
+     newEntry->presentationTimeMs = packet->timestamp / PTS_DIVISOR;
+ 
+     // FEC recovery packets are synthesized by us, so don't use them to determine OOS data
+diff --git a/src/RtpVideoQueue.h b/src/RtpVideoQueue.h
+index ec42c04..c797517 100644
+--- a/src/RtpVideoQueue.h
++++ b/src/RtpVideoQueue.h
+@@ -8,6 +8,7 @@ typedef struct _RTPV_QUEUE_ENTRY {
+     PRTP_PACKET packet;
+     uint64_t receiveTimeMs;
+     uint32_t presentationTimeMs;
++    uint32_t rtpTimestamp;
+     int length;
+     bool isParity;
+ } RTPV_QUEUE_ENTRY, *PRTPV_QUEUE_ENTRY;
+diff --git a/src/VideoDepacketizer.c b/src/VideoDepacketizer.c
+index b5321c1..b0fcbcf 100644
+--- a/src/VideoDepacketizer.c
++++ b/src/VideoDepacketizer.c
+@@ -21,6 +21,7 @@ static uint64_t syntheticPtsBase;
+ static uint16_t frameHostProcessingLatency;
+ static uint64_t firstPacketReceiveTime;
+ static unsigned int firstPacketPresentationTime;
++static uint32_t firstPacketRtpTimestamp;
+ static bool dropStatePending;
+ static bool idrFrameProcessed;
+ 
+@@ -72,6 +73,7 @@ void initializeVideoDepacketizer(int pktSize) {
+     frameHostProcessingLatency = 0;
+     firstPacketReceiveTime = 0;
+     firstPacketPresentationTime = 0;
++    firstPacketRtpTimestamp = 0;
+     lastPacketPayloadLength = 0;
+     dropStatePending = false;
+     idrFrameProcessed = false;
+@@ -485,6 +487,7 @@ static void reassembleFrame(int frameNumber) {
+             qdu->decodeUnit.frameHostProcessingLatency = frameHostProcessingLatency;
+             qdu->decodeUnit.receiveTimeMs = firstPacketReceiveTime;
+             qdu->decodeUnit.presentationTimeMs = firstPacketPresentationTime;
++            qdu->decodeUnit.rtpTimestamp = firstPacketRtpTimestamp;
+             qdu->decodeUnit.enqueueTimeMs = LiGetMillis();
+ 
+             // These might be wrong for a few frames during a transition between SDR and HDR,
+@@ -740,7 +743,7 @@ static bool isFirstPacket(uint8_t flags, uint8_t fecBlockNumber) {
+ // Process an RTP Payload
+ // The caller will free *existingEntry unless we NULL it
+ static void processRtpPayload(PNV_VIDEO_PACKET videoPacket, int length,
+-                       uint64_t receiveTimeMs, unsigned int presentationTimeMs,
++                       uint64_t receiveTimeMs, unsigned int presentationTimeMs, uint32_t rtpTimestamp,
+                        PLENTRY_INTERNAL* existingEntry) {
+     BUFFER_DESC currentPos;
+     uint32_t frameIndex;
+@@ -824,6 +827,7 @@ static void processRtpPayload(PNV_VIDEO_PACKET videoPacket, int length,
+         decodingFrame = true;
+         frameType = FRAME_TYPE_PFRAME;
+         firstPacketReceiveTime = receiveTimeMs;
++        firstPacketRtpTimestamp = rtpTimestamp;
+         
+         // Some versions of Sunshine don't send a valid PTS, so we will
+         // synthesize one using the receive time as the time base.
+@@ -1175,6 +1179,7 @@ void queueRtpPacket(PRTPV_QUEUE_ENTRY queueEntryPtr) {
+                       queueEntry.length - dataOffset,
+                       queueEntry.receiveTimeMs,
+                       queueEntry.presentationTimeMs,
++                      queueEntry.rtpTimestamp,
+                       &existingEntry);
+ 
+     if (existingEntry != NULL) {
