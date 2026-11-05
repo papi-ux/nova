@@ -45,6 +45,8 @@ struct DeckNativeSessionController::ResumeTicket {
     bool automaticReconnect = false;
     DeckAudioConfiguration audio;
     bool rumbleEnabled = true;
+    QString sourceTimePacing = "off";
+    bool sourceTimingEnabled = false;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
     int stickDeadzonePercent = kDeckDefaultStickDeadzone;
 };
@@ -76,8 +78,12 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::optional<DeckWorkingBaselineRequest> baselineRequest;
     std::function<bool()> refreshDiagnostics;
     std::function<bool()> applyDoctorFix, undoDoctorFix, checkDoctorResult;
+    std::atomic<std::uint64_t> sourceTimingGeneration{1};
     DeckFrameDelivery::Publisher deliverFrame;
     DeckFrameDelivery::Configure configureFrames;
+    DeckFrameDelivery::EpochPublisher publishMapperEpoch;
+    QString sourceTimePacing = "off";
+    bool sourceTimingEnabled = false;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
     int stickDeadzonePercent = kDeckDefaultStickDeadzone;
     std::mutex interruptMutex;
@@ -112,6 +118,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
         state.insert("canDisconnect", canDisconnect);
         state.insert("automaticReconnect", automaticAttempt > 0 && phase != "active");
         state.insert("reconnectAttempt", automaticAttempt);
+        state.insert("sourceTimePacingRequested", sourceTimePacing);
         state.insert("framePacingMode", deckFramePacingName(framePacing));
         state.insert("stickDeadzonePercent", stickDeadzonePercent);
     }
@@ -219,6 +226,12 @@ DeckNativeSessionController::~DeckNativeSessionController() {
 
 void DeckNativeSessionController::setSurface(DeckQtQuickRhiVaapiItem* surface) {
     setPresentationSink(surface, surface, surface ? surface->composedFrames() : nullptr);
+}
+
+void DeckNativeSessionController::resetPresentationTiming() {
+    if (!shared_ || !frameDelivery_) return;
+    const auto generation = ++shared_->sourceTimingGeneration;
+    frameDelivery_->resetTiming(generation);
 }
 
 bool DeckNativeSessionController::setPresentationSink(QObject* lifetime, DeckQtQuickRhiPresentationSink* sink,
@@ -437,6 +450,7 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     shared_->rumbleEnabled = resume ? resume->rumbleEnabled : DeckPlaySettings{}.rumbleEnabled();
     shared_->framePacing = resume ? resume->framePacing
         : deckFramePacing(DeckPlaySettings{}.framePacingMode()).value_or(DeckFramePacing::Latency);
+    shared_->sourceTimePacing = resume ? resume->sourceTimePacing : DeckPlaySettings{}.sourceTimePacing();
     shared_->stickDeadzonePercent = resume ? resume->stickDeadzonePercent : DeckPlaySettings{}.stickDeadzonePercent();
     stickDeadzonePercent_ = shared_->stickDeadzonePercent;
     // A changed threshold must re-evaluate already held sticks before capture
@@ -455,8 +469,12 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
             presentationSink_->presentVaapiSurface(frame);
         }
     });
+    shared_->sourceTimingEnabled = shared_->sourceTimePacing != "off" && shared_->framePacing == DeckFramePacing::Balanced &&
+        frameDelivery_->setSourceTimingEnabled(true);
+    frameDelivery_->resetTiming(shared_->sourceTimingGeneration.load());
     shared_->deliverFrame = frameDelivery_->publisher();
     shared_->configureFrames = frameDelivery_->configurator();
+    shared_->publishMapperEpoch = frameDelivery_->epochPublisher();
     shared_->publish("preparing", resume ? "Checking your existing game…" : "Preparing the selected game…");
     state_ = shared_->state;
     if (presentationOwner_ && presentationSink_) presentationSink_->presentVaapiSurface({});
@@ -832,15 +850,23 @@ void DeckNativeSessionController::poll() {
             hudSample->composed = hudSample->compositionAvailable ? presentationFrames_->load() : 0;
             hudSample->cpuUploadCompositions = presentationOwner_ && presentationCpuUploads_ ? presentationCpuUploads_->load() : 0;
             hudSample->cpuUploadsAvailable = presentationOwner_ && bool(presentationCpuUploads_);
+            hudSample->sourceTimeRequested = shared_->sourceTimePacing;
+            hudSample->sourceTimeEffective = "legacy";
+            hudSample->sourceTimeFallback = shared_->sourceTimePacing == "off" ? "not_requested" :
+                shared_->framePacing != DeckFramePacing::Balanced ? "pacing_mode_incompatible" : "renderer_not_participating";
             hudSample->deliveryAvailable = bool(frameDelivery_);
             if (frameDelivery_) {
                 const auto delivery = frameDelivery_->stats();
                 hudSample->deliveryDrops = delivery.dropped;
                 hudSample->deliveryQueueDepth = delivery.queued;
+                if (shared_->sourceTimePacing != "off" && shared_->framePacing == DeckFramePacing::Balanced) {
+                    hudSample->sourceTimeEffective = shared_->sourceTimingEnabled ? QString::fromUtf8(delivery.effective.data(), int(delivery.effective.size())) : "unavailable";
+                    hudSample->sourceTimeFallback = shared_->sourceTimingEnabled ? QString::fromUtf8(delivery.fallback.data(), int(delivery.fallback.size())) : "renderer_not_participating";
+                }
             }
             nextHud = hudMetrics_.sample(*hudSample);
             newMomentSample = true;
-            appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
+
         } else if (inputClock_.elapsed() - hudReceivedMs_ > 2500) {
             hudMetrics_.reset(); nextHud = DeckHudMetrics::empty();
         }
@@ -848,6 +874,26 @@ void DeckNativeSessionController::poll() {
     const auto hostView = !finished && !shared_->cancelled && next.value("phase") == "active"
         ? hostHud : DeckHudHostReducer::unavailable();
     for (auto it = hostView.cbegin(); it != hostView.cend(); ++it) nextHud.insert(it.key(), it.value());
+    // Keep requested/effective/fallback current even when frame-rate samples
+    // expire; an active stream must never silently become requested=off.
+    if (!finished && !shared_->cancelled && next.value("phase") == "active") {
+        nextHud["sourceTimeRequested"] = shared_->sourceTimePacing;
+        if (shared_->sourceTimePacing == "off") {
+            nextHud["sourceTimeEffective"] = "legacy"; nextHud["sourceTimeFallback"] = "not_requested";
+        } else if (shared_->framePacing != DeckFramePacing::Balanced) {
+            nextHud["sourceTimeEffective"] = "legacy"; nextHud["sourceTimeFallback"] = "pacing_mode_incompatible";
+        } else if (!shared_->sourceTimingEnabled || !frameDelivery_) {
+            nextHud["sourceTimeEffective"] = "unavailable"; nextHud["sourceTimeFallback"] = "renderer_not_participating";
+        } else {
+            const auto timing = frameDelivery_->stats();
+            nextHud["sourceTimeEffective"] = QString::fromUtf8(timing.effective.data(), int(timing.effective.size()));
+            nextHud["sourceTimeFallback"] = QString::fromUtf8(timing.fallback.data(), int(timing.fallback.size()));
+        }
+    }
+    if (nextHud.value("sourceTimeRequested") != "off" && nextHud.value("sourceTimeFallback") == "none" &&
+        hostView.value("hostSourceTimeFallback") != "none")
+        nextHud["sourceTimeFallback"] = hostView.value("hostSourceTimeFallback", "host_status_missing");
+    if (newMomentSample) appendDeckFrameQualificationTrace(nextHud, hudSample->atMs);
     if (nextHud.value("hostFresh").toBool() && nextHud.value("bitrateUnitsMode") == "request" &&
         nextHud.value("suggestedBitrateKbps").toInt() == 0 && hudSample && hudSample->codec == "PyroWave") {
         nextHud["suggestedBitrateKbps"] = std::min(nextHud.value("maximumBitrateKbps",300000).toInt(),
@@ -883,6 +929,12 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     Shared::Driver cancellableDriver(*shared, driver);
     DeckGuardedStreamSessionPreviewProducer producer(cancellableDriver, *shared);
     producer.decodedFrameProducer().presentationHandoff().setSink(shared);
+    producer.decodedFrameProducer().setSourceTimingCapacity(shared->framePacing == DeckFramePacing::Balanced ? 2 : 1);
+    producer.decodedFrameProducer().setSourceTimingGenerationReader([weak = std::weak_ptr<Shared>(shared)] {
+        const auto current = weak.lock(); return current ? current->sourceTimingGeneration.load() : 0;
+    });
+    if (shared->sourceTimingEnabled)
+        producer.decodedFrameProducer().setSourceTimingEpochPublisher(shared->publishMapperEpoch);
     DeckGuardedPreviewLifecycleGate gate(producer);
     std::optional<DeckNativeLaunchTarget> target;
     DeckSessionBuildResult built;
@@ -1159,7 +1211,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             { const std::lock_guard lock(shared->mutex); shared->acceptingInput = true; }
             if (!polaris::isSpaceGame(gameId.toStdString()) && !built.connectionInfo.hostSessionToken.empty()) {
                 activeTicket = std::make_shared<ResumeTicket>(ResumeTicket{hostId, gameId, configuration,
-                    target->appId, target->appUuid, built.connectionInfo.hostSessionToken, target->automaticReconnect, audio, shared->rumbleEnabled, shared->framePacing, shared->stickDeadzonePercent});
+                    target->appId, target->appUuid, built.connectionInfo.hostSessionToken, target->automaticReconnect, audio, shared->rumbleEnabled, shared->sourceTimePacing, shared->sourceTimingEnabled, shared->framePacing, shared->stickDeadzonePercent});
             }
             // Android's Space leave action ends its session. Keep detach scoped
             // to ordinary games until Deck has the full Space lifecycle.

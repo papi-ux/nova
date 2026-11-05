@@ -71,6 +71,22 @@ int main(int argc, char** argv) {
         require(!blocked.setStickDeadzonePercent(-20) && blocked.stickDeadzonePercent()==5,"failed deadzone save appeared applied");
     }
     {
+        const auto path = directory.filePath("source-time.ini");
+        DeckPlaySettings settings(path);
+        require(settings.sourceTimePacing()=="off", "source time default is not OFF");
+        for (const auto* mode : {"auto", "source_time", "off"})
+            require(settings.setSourceTimePacing(mode) && DeckPlaySettings(path).sourceTimePacing()==mode, "source time did not persist");
+        for (const auto* bad : {"", "on", "Auto", " source_time "})
+            require(!settings.setSourceTimePacing(bad), "invalid source time preference accepted");
+        require(settings.setSourceTimePacing("auto") && settings.resetFramePacingMode() && settings.sourceTimePacing()=="auto", "pacing reset erased source time");
+        require(settings.resetSourceTimePacing() && settings.sourceTimePacing()=="off", "source time reset did not restore OFF");
+        QSettings corrupt(path,QSettings::IniFormat); corrupt.setValue("Video/v1/source_time_pacing", true); corrupt.sync();
+        require(settings.sourceTimePacing()=="off", "malformed source time preference enabled feature");
+        QFile file(directory.filePath("source-time-blocked")); require(file.open(QIODevice::WriteOnly), "source time failure fixture failed"); file.close();
+        DeckPlaySettings blocked(file.fileName()+"/settings.ini");
+        require(!blocked.setSourceTimePacing("auto") && blocked.sourceTimePacing()=="off", "failed source time save appeared applied");
+    }
+    {
         const auto path = directory.filePath("pacing.ini");
         DeckPlaySettings settings(path);
         int changed = 0; QObject::connect(&settings, &DeckPlaySettings::framePacingModeChanged, [&] { ++changed; });

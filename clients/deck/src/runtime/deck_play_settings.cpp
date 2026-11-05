@@ -239,6 +239,24 @@ bool DeckPlaySettings::resetStickDeadzonePercent() {
     return true;
 }
 
+QString DeckPlaySettings::sourceTimePacing() const {
+    const auto value = store(fileName_)->value("Video/v1/source_time_pacing");
+    const auto mode = value.toString();
+    return value.metaType().id() == QMetaType::QString &&
+        (mode == "off" || mode == "auto" || mode == "source_time") ? mode : QStringLiteral("off");
+}
+bool DeckPlaySettings::setSourceTimePacing(const QString& mode) {
+    if (mode != "off" && mode != "auto" && mode != "source_time") return false;
+    auto settings = store(fileName_);
+    if (!writeValue(*settings, "Video/v1/source_time_pacing", mode)) return false;
+    emit sourceTimePacingChanged(); return true;
+}
+bool DeckPlaySettings::resetSourceTimePacing() {
+    auto settings = store(fileName_);
+    if (!writeValue(*settings, "Video/v1/source_time_pacing", {})) return false;
+    emit sourceTimePacingChanged(); return true;
+}
+
 QString DeckPlaySettings::framePacingMode() const {
     const auto value = store(fileName_)->value("Video/v1/framePacing");
     return value.metaType().id() == QMetaType::QString && deckFramePacing(value.toString())

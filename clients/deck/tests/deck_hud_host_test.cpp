@@ -873,8 +873,28 @@ void commandCenterReviewStability() {
     require(toggled != reconnected, "effective tuning change kept the old confirmation");
     std::cout << "[OK] Command Center review: stable across unsettled polls; permission, connection and state fences\n";
 }
+void sourceTimeHostFacts() {
+    auto status=envelope();
+    require(view(status).value("hostSourceTimeFallback")=="host_status_missing", "absent host timing was inferred");
+    const auto record=QJsonDocument::fromJson(R"({"schema":1,"session_generation":41,"requested":"false",
+        "requested_from":"launch","host_permission":true,"effective":true,"pacing_mode":"source_time",
+        "capture_pacing":"source_driven","fallback_reason":null,"host_pacing":{"fresh":true,"state":"source_time"}})").object();
+    status["vrr"]=record;
+    require(view(status).value("hostSourcePaced").toBool() && view(status).value("hostSourceTimeFallback")=="none", "fresh matching host timing was lost");
+    auto stale=record; stale["session_generation"]=40; status["vrr"]=stale;
+    require(!view(status).value("hostSourcePaced").toBool() && view(status).value("hostSourceTimeFallback")=="host_status_stale", "old host generation became current");
+    stale=record; stale["host_pacing"]=QJsonObject{{"fresh",false},{"state","source_time"}}; status["vrr"]=stale;
+    require(view(status).value("hostSourceTimeFallback")=="host_status_stale", "stale host receipt became proof");
+    status["vrr"]=QJsonValue::Null;
+    require(view(status).value("hostSourceTimeStatus")=="null", "null host record lost its identity");
+    status["vrr"]=false;
+    require(view(status).value("hostSourceTimeStatus")=="malformed", "malformed host record became absent");
+    status["vrr"]=record; status["owned_by_client"]=false;
+    require(!view(status).value("hostSourcePaced").toBool(), "another client's receipt became proof");
+}
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    sourceTimeHostFacts();
     commandCenterPresentation();
     commandCenterReviewStability();
     hdrStreamFact();

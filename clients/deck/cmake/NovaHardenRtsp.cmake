@@ -8,7 +8,7 @@ function(nova_deck_prepare_rtsp source destination)
     # A file the chain creates must not survive from an earlier configure.
     foreach(source_file IN ITEMS RtspConnection.c PlatformSockets.h
             ControlStream.c PacketReception.c PacketReception.h Platform.c Platform.h
-            RtpVideoQueue.c RtpVideoQueue.h SdpGenerator.c VideoStream.c)
+            RtpVideoQueue.c RtpVideoQueue.h SdpGenerator.c VideoStream.c Limelight.h VideoDepacketizer.c)
         if(EXISTS "${source}/src/${source_file}")
             file(COPY_FILE "${source}/src/${source_file}" "${destination}/src/${source_file}" ONLY_IF_DIFFERENT)
         else()
@@ -27,7 +27,8 @@ function(nova_deck_prepare_rtsp source destination)
     set(rtsp_patches
         0009-upstream-harden-RTSP-responses-and-Session.patch
         0010-clean-Session-errors-and-map-Windows-size-error.patch
-        0011-feat-video-report-bounded-native-packet-reception.patch)
+        0011-feat-video-report-bounded-native-packet-reception.patch
+        0012-feat-video-carry-source-presentation-time.patch)
     # Later patches change earlier context. Unwind verified patches in reverse
     # order on this generated copy, then apply the complete chain in order.
     set(reverse_patches ${rtsp_patches})

@@ -216,6 +216,16 @@ ApplicationWindow {
         mode("performance");
         root->setProperty("sample", original); settle();
         require(!item("hud-chip-hdr")->isVisible(), "the HDR10 chip outlived its reading");
+        auto source = base; source["sourceTimeRequested"]="source_time";
+        source["sourceTimeEffective"]="pending"; source["sourceTimeFallback"]="host_status_missing";
+        root->setProperty("sample",source); settle();
+        require(item("hud-source-time-requested")->property("text")=="Host timing requested source_time" &&
+            item("hud-source-time-effective")->property("text")=="Effective pending" &&
+            item("hud-source-time-fallback")->property("text")=="Fallback host_status_missing", "source timing facts were conflated");
+        textBounds(hud);
+        mode("minimal"); require(item("hud-source-time-fallback")->isVisible(), "explicit source timing fallback disappeared in minimal HUD");
+        mode("performance"); root->setProperty("sample",original); settle();
+        require(!item("hud-source-time")->isVisible(), "source timing facts outlived their request");
         // The display-mode chip is Qt's reported mode for this window's screen, beside fresh
         // stream readings only. It is never a delivered frame rate.
         auto fresh = base; fresh["fresh"] = true;

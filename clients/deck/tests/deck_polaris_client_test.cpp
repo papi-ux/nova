@@ -69,6 +69,38 @@ void testParsesCapabilities() {
     assert(parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 60));
 }
 
+void testSessionVrrReading() {
+    using Kind = DeckSessionVrrReading::Kind;
+    const auto record = QJsonDocument::fromJson(R"({"schema":1,"session_generation":7,"requested":"false",
+        "requested_from":"launch","host_permission":true,"effective":true,"pacing_mode":"source_time",
+        "capture_pacing":"source_driven","fallback_reason":null,"host_pacing":{"fresh":true,"state":"source_time"}})").object();
+    const auto status = parseSessionStatus(QJsonDocument(QJsonObject{{"vrr",record}}).toJson().toStdString());
+    assert(status && status->vrr.kind==Kind::Present && status->vrr.record->hostSourcePaced());
+    assert(status->vrr.record->sessionGeneration==7 && status->vrr.record->requested=="false");
+    assert(parseSessionStatus("{}")->vrr.kind==Kind::Absent);
+    assert(parseSessionStatus(R"({"vrr":null})")->vrr.kind==Kind::Null);
+    for (const auto* value : {"false", "[]", "4", "\"bad\"", "{}"})
+        assert(parseSessionStatus(std::string("{\"vrr\":")+value+"}")->vrr.kind==Kind::Malformed);
+    for (const auto* field : {"schema","session_generation","requested","requested_from","host_permission","effective","pacing_mode","capture_pacing","fallback_reason"}) {
+        auto missing=record; missing.remove(field); assert(!parseSessionVrr(missing));
+        auto bad=record; bad[field]=QJsonArray{}; assert(!parseSessionVrr(bad));
+    }
+    for (const auto generation : {-1.0, 1.5, 9007199254740992.0}) {
+        auto bad=record; bad["session_generation"]=generation; assert(!parseSessionVrr(bad));
+    }
+    auto noReceipt=record; noReceipt.remove("host_pacing");
+    assert(parseSessionVrr(noReceipt) && !parseSessionVrr(noReceipt)->hostSourcePaced());
+    auto nullReceipt=record; nullReceipt["host_pacing"]=QJsonValue::Null; assert(!parseSessionVrr(nullReceipt));
+    auto stale=record; stale["host_pacing"]=QJsonObject{{"fresh",false},{"state","source_time"}};
+    assert(!parseSessionVrr(stale)->hostSourcePaced());
+    auto fallback=record; fallback["effective"]=false; fallback["fallback_reason"]="request_not_enabled";
+    assert(parseSessionVrr(fallback)->fallbackReason==QString("request_not_enabled") && !parseSessionVrr(fallback)->hostSourcePaced());
+    assert(!parseSessionVrrHostPacing(QJsonObject{{"fresh",true}}));
+    assert(!parseSessionVrrHostPacing(QJsonObject{{"fresh","true"},{"state","source_time"}}));
+    const auto telemetry=parseHostTelemetry(QJsonDocument(QJsonObject{{"vrr",record}}).toJson().toStdString());
+    assert(telemetry && telemetry->vrr.kind==Kind::Present && telemetry->vrr.record->hostSourcePaced());
+}
+
 void testPyrowaveCaptureRefusalContract() {
     const auto parsed = parseCapabilities(R"({"capture":{"codecs":["h264","hevc"],"max_fps":120,
         "pyrowave_unavailable":{"reason":"fp16_capture","message":"PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."}}})");
@@ -532,6 +564,7 @@ void testSpaceLaunchModeOmissionsKeepLegacyDefaults() {
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
+    testSessionVrrReading();
     testSpaceLaunchModeOmissionsKeepLegacyDefaults();
     testParsesCapabilities();
     testLaunchModeAuthority();

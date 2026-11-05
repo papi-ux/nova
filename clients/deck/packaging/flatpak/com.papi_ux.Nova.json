@@ -45,6 +45,8 @@
         "-DNOVA_DECK_BUILD_PYROWAVE=ON"
       ],
       "post-install": [
+        "test -s /app/share/licenses/com.papi_ux.Nova/source-time-pacing/Nonary-moonlight-qt-LICENSE.txt",
+        "test -s /app/share/licenses/com.papi_ux.Nova/source-time-pacing/source-time-pacing.md",
         "test -x /app/bin/nova-deck-pyrowave-probe",
         "test -x /app/bin/nova-deck-v4l2-probe"
       ],

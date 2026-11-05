@@ -157,6 +157,16 @@ Item {
             textSize: 12
             wrapMode: Text.WordWrap
         }
+        ColumnLayout {
+            objectName: "hud-source-time"
+            visible: hud.readings.sourceTimeRequested !== undefined &&
+                (hud.readings.sourceTimeRequested !== "off" || hud.mode === "debug")
+            Layout.fillWidth: true
+            spacing: 2 * hud.scale
+            Fact { objectName: "hud-source-time-requested"; label: "Host timing requested"; reading: hud.value("sourceTimeRequested"); Layout.fillWidth: true }
+            Fact { objectName: "hud-source-time-effective"; label: "Effective"; reading: hud.value("sourceTimeEffective"); Layout.fillWidth: true }
+            Fact { objectName: "hud-source-time-fallback"; label: "Fallback"; reading: hud.value("sourceTimeFallback"); Layout.fillWidth: true }
+        }
         // Performance and Debug only. The host observer sets hdrStream only for this device's
         // own current stream; an older host, a stale reading or SDR leaves no chip.
         Flow {

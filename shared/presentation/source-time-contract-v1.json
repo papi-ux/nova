@@ -1,0 +1,79 @@
+{
+  "schema": "nova-source-time-v1",
+  "amendments": [
+    "ROOT D1: raw RTP only, no core presentationTimeUs",
+    "ROOT D2: anchor earliest sample unaffected by decoder/backend waits; use core enqueue where callback can block",
+    "ROOT D3: renderer_not_participating fallback",
+    "ROOT D4: off default until device receipts; auto and source_time qualify or fall back"
+  ],
+  "requested": {
+    "off": "legacy fixed-period pacing (phase 1 default)",
+    "auto": "qualified source-time pacing, fallback reason recorded",
+    "source_time": "explicit opt-in, fallback reason prominent"
+  },
+  "rtpTimestamp": {
+    "type": "uint32",
+    "clockHz": 90000,
+    "byteOrder": "host",
+    "wrap": "modulo 2^32",
+    "source": "raw RTP after byte-order conversion, before division; never synthetic"
+  },
+  "anchorUs": "client monotonic reassembly enqueue where callback can block; callback ingress diagnostic only; ms quantization explicit",
+  "policyVersion": 1,
+  "constantsProvisional": true,
+  "policy": {
+    "offsetWindowUs": 3000000,
+    "offsetSamples": 1024,
+    "warmupFrames": 8,
+    "offsetSlewUsPerSecond": 1000,
+    "offsetMaxStepUs": 100,
+    "reserveStartUs": 3000,
+    "reserveMaximumUs": 12000,
+    "readinessWindowUs": 3000000,
+    "readinessSamples": 1024,
+    "readinessPercentile": 98,
+    "readinessMarginUs": 500,
+    "reserveAttackUs": 500,
+    "cleanHoldUs": 2000000,
+    "reserveReleaseUsPerSecond": 250,
+    "discontinuityUs": 1000000,
+    "hitchExclusionUs": 25000,
+    "anchorResolutionUs": 1000,
+    "offsetDivergenceToleranceUs": 5000,
+    "offsetDivergenceFrames": 8,
+    "offsetBacklogLimitUs": 20000,
+    "offsetBacklogHoldUs": 1000000,
+    "offsetStepThresholdUs": 20000,
+    "offsetStepFrames": 8
+  },
+  "bounds": {
+    "decodedFramesLatency": 1,
+    "decodedFramesBalanced": 2,
+    "timingMetadataRecords": 64
+  },
+  "fallbackReasons": [
+    "renderer_not_participating",
+    "pacing_mode_incompatible",
+    "source_timestamp_missing",
+    "source_discontinuity",
+    "timing_metadata_missing",
+    "clock_mapping_unstable",
+    "buffer_limit",
+    "decoder_pressure",
+    "hold_ceiling_exceeded",
+    "stale_epoch",
+    "stale_frame",
+    "host_status_missing",
+    "host_status_stale"
+  ],
+  "offsetRewarmRule": "Slew limits only the APPLIED offset: clip the lower-envelope correction to elapsed-time credit (1000 us/s, 100 us/update, fractional residue carried); debt never triggers a reset by itself. Re-warm clock_mapping_unstable only for (1) lower-envelope movement from the oldest retained estimate within offsetWindowUs exceeding max(offsetDivergenceToleranceUs, 4*anchorResolutionUs), confirmed in the same direction by offsetDivergenceFrames consecutive forward raw offset samples; (2) post-slew correction backlog strictly above offsetBacklogLimitUs in one direction for strictly longer than offsetBacklogHoldUs; or (3) raw offset displacement from the pre-update applied offset strictly above offsetStepThresholdUs in the same direction for offsetStepFrames consecutive forward frames. All histories/counters clear on reset; a reset starts an epoch from the current observation, pending even for warmupFrames=1. Source discontinuities and explicit lifecycle resets remain immediate. Divergence estimate history excludes all warmup estimates and is seeded by the first valid steady estimate after warmup (observations > warmupFrames); raw offset history still fits startup normally.",
+  "offsetInstabilityRevision": 2,
+  "offsetDivergenceReferenceSeed": "first_steady_estimate_after_warmup",
+  "delivery": {
+    "reserveMaximumUs": 12000,
+    "maximumMappingErrorUs": 5000,
+    "holdCeilingUs": 17000,
+    "excessHoldPolicy": "reject_without_early_submission",
+    "freshnessUs": 1000000
+  }
+}

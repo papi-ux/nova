@@ -42,6 +42,7 @@ class DeckPlaySettings final : public QObject {
     Q_PROPERTY(QVariantMap audioSettings READ audioSettings NOTIFY audioSettingsChanged)
     Q_PROPERTY(bool rumbleEnabled READ rumbleEnabled NOTIFY rumbleEnabledChanged)
     Q_PROPERTY(QString videoScaleMode READ videoScaleMode NOTIFY videoScaleModeChanged)
+    Q_PROPERTY(QString sourceTimePacing READ sourceTimePacing NOTIFY sourceTimePacingChanged)
     Q_PROPERTY(QString framePacingMode READ framePacingMode NOTIFY framePacingModeChanged)
     Q_PROPERTY(int stickDeadzonePercent READ stickDeadzonePercent NOTIFY stickDeadzonePercentChanged)
     Q_PROPERTY(QVariantMap streamDefaults READ streamDefaults NOTIFY streamDefaultsChanged)
@@ -81,6 +82,9 @@ public:
     QString videoScaleMode() const;
     Q_INVOKABLE bool setVideoScaleMode(const QString& mode);
     Q_INVOKABLE bool resetVideoScaleMode();
+    QString sourceTimePacing() const;
+    Q_INVOKABLE bool setSourceTimePacing(const QString& mode);
+    Q_INVOKABLE bool resetSourceTimePacing();
     QString framePacingMode() const;
     Q_INVOKABLE bool setFramePacingMode(const QString& mode);
     Q_INVOKABLE bool resetFramePacingMode();
@@ -105,6 +109,7 @@ signals:
     void audioSettingsChanged();
     void rumbleEnabledChanged();
     void videoScaleModeChanged();
+    void sourceTimePacingChanged();
     void framePacingModeChanged();
     void stickDeadzonePercentChanged();
 private:

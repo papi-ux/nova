@@ -85,3 +85,15 @@ claim an unverified mapping to the CVEs listed in the PC release.
 The submodule pin is what these apply to. If it moves, rebase the branch and export the series
 again with `git format-patch --no-signature -o ../patches <old-pin>..HEAD`. The diff was kept small
 and free of refactoring precisely so that this stays a rebase rather than a merge.
+
+## Raw source timing (Nova #241/#242)
+
+Patch 0012 appends `uint32_t rtpTimestamp` to DECODE_UNIT, carrying the original
+host-order 90 kHz modulo-32 timestamp through the RTP queue, FEC repair and
+reassembly. It is inspired by upstream e356b2cfde604c35904793aaf485a6ede7102cae
+(Andy Grundman), with a deliberately narrower ABI: clients unwrap and convert
+the raw ticks; no `presentationTimeUs` with ambiguous synthetic semantics is added.
+`presentationTimeMs` and receive/enqueue millisecond statistics keep their meaning.
+All native consumers must rebuild. `tools/test_source_time_core.py` executes the
+real queue/depacketizer on original and repaired first/last packets, zero and wrap.
+Linux applies the same patch to its build-owned copy before optional PyroWave.
