@@ -12,6 +12,13 @@ void prune(std::deque<Sample>& samples, std::int64_t now, std::int64_t window, s
     while (!samples.empty() && (samples.size() > static_cast<std::size_t>(count) || now - samples.front().at > window))
         samples.pop_front();
 }
+int directionBeyond(std::int64_t value, std::int64_t bound) {
+    return value > bound ? 1 : value < -bound ? -1 : 0;
+}
+void confirm(int direction, int& previous, std::int64_t& frames) {
+    frames = direction == 0 ? 0 : direction == previous ? frames + 1 : 1;
+    previous = direction;
+}
 }
 DeckSourceClockMapper::DeckSourceClockMapper(DeckSourceClockPolicy policy, unsigned capacity, std::int64_t period)
     : policy_(policy), capacity_(capacity), admittedPeriod_(period), period_(period) {
@@ -20,6 +27,13 @@ DeckSourceClockMapper::DeckSourceClockMapper(DeckSourceClockPolicy policy, unsig
         policy.offsetSamples <= 0 || policy.offsetSamples > 1024 || policy.warmupFrames <= 0 || policy.warmupFrames > 1024 ||
         policy.offsetSlewUsPerSecond < 0 || policy.offsetSlewUsPerSecond > 1000 ||
         policy.offsetMaxStepUs < 0 || policy.offsetMaxStepUs > 100 ||
+        policy.anchorResolutionUs <= 0 || policy.anchorResolutionUs > 1'000'000 ||
+        policy.offsetDivergenceToleranceUs < 0 || policy.offsetDivergenceToleranceUs > 1'000'000 ||
+        policy.offsetDivergenceFrames <= 0 || policy.offsetDivergenceFrames > 1024 ||
+        policy.offsetBacklogLimitUs <= 0 || policy.offsetBacklogLimitUs > 1'000'000 ||
+        policy.offsetBacklogHoldUs <= 0 || policy.offsetBacklogHoldUs > 3'000'000 ||
+        policy.offsetStepThresholdUs <= 0 || policy.offsetStepThresholdUs > 1'000'000 ||
+        policy.offsetStepFrames <= 0 || policy.offsetStepFrames > 1024 ||
         policy.reserveStartUs < 0 || policy.reserveMaximumUs < 0 || policy.reserveMaximumUs > 12000 ||
         policy.readinessWindowUs <= 0 || policy.readinessWindowUs > 3'000'000 ||
         policy.readinessSamples <= 0 || policy.readinessSamples > 1024 ||
@@ -33,7 +47,9 @@ DeckSourceClockMapper::DeckSourceClockMapper(DeckSourceClockPolicy policy, unsig
 void DeckSourceClockMapper::reset() {
     ++epoch_; have_ = false; ticks_ = observations_ = 0; offset_ = lastAnchor_ = lastTarget_ = 0;
     lastReady_ = slewRemainder_ = releaseRemainder_ = 0; cleanSince_ = -1; pressure_ = false;
-    offsets_.clear(); ready_.clear(); periods_.clear(); period_ = admittedPeriod_;
+    backlogSince_ = -1; divergenceFrames_ = stepFrames_ = 0;
+    divergenceDirection_ = stepDirection_ = backlogDirection_ = 0;
+    offsets_.clear(); envelopes_.clear(); ready_.clear(); periods_.clear(); period_ = admittedPeriod_;
     reserve_ = std::min(policy_.reserveStartUs, reserveCapUs());
 }
 std::int64_t DeckSourceClockMapper::reserveCapUs() const {
@@ -70,6 +86,8 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
     prune(offsets_, anchor, policy_.offsetWindowUs, policy_.offsetSamples);
     auto minimum = offsets_.front().value;
     for (auto sample : offsets_) minimum = std::min(minimum, sample.value);
+    envelopes_.push_back({anchor, minimum});
+    prune(envelopes_, anchor, policy_.offsetWindowUs, policy_.offsetSamples);
     ++observations_;
     if (observations_ <= static_cast<std::size_t>(policy_.warmupFrames)) offset_ = std::min(offset_, minimum);
     else {
@@ -78,17 +96,36 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
         const auto step = std::min(policy_.offsetMaxStepUs, numerator / 1'000'000);
         slewRemainder_ = numerator % 1'000'000;
         const auto correction = minimum - offset_;
-        if (correction < -step || correction > step) {
-            // An unfunded correction is not clock drift we can keep tracking.
-            // Start a fresh epoch from this observation so queued old targets
-            // and readiness samples cannot qualify the new mapping.
+        const auto applied = std::clamp(correction, -step, step);
+
+        // Resolution/jitter can move the estimate by much more than one frame's
+        // slew credit. Smoothing debt alone is never an instability signal.
+        const auto tolerance = std::max(policy_.offsetDivergenceToleranceUs, 4 * policy_.anchorResolutionUs);
+        const auto reference = envelopes_.front().value;
+        const auto movement = directionBeyond(minimum - reference, tolerance);
+        const auto sampleMovement = directionBeyond(anchor - point.sourceUs - reference, tolerance);
+        confirm(movement == sampleMovement ? movement : 0, divergenceDirection_, divergenceFrames_);
+
+        // Positive steps would otherwise hide behind old low samples for up
+        // to the entire envelope window. Require forward samples in one
+        // direction, not one jitter spike, before re-anchoring them promptly.
+        confirm(directionBeyond(anchor - point.sourceUs - offset_, policy_.offsetStepThresholdUs),
+            stepDirection_, stepFrames_);
+        const auto backlog = directionBeyond(correction - applied, policy_.offsetBacklogLimitUs);
+        if (!backlog) backlogSince_ = -1;
+        else if (backlog != backlogDirection_ || backlogSince_ < 0) backlogSince_ = anchor;
+        backlogDirection_ = backlog;
+        if (divergenceFrames_ >= policy_.offsetDivergenceFrames || stepFrames_ >= policy_.offsetStepFrames ||
+            (backlogSince_ >= 0 && anchor - backlogSince_ > policy_.offsetBacklogHoldUs)) {
+            // Cancel the old epoch and readiness history. Exactly this forward
+            // sample seeds the new warmup, including with warmupFrames == 1.
             reset();
             auto rewarming = observe(frame, rtp, anchor);
             rewarming.active = false;
             rewarming.reason = "clock_mapping_unstable";
             return rewarming;
         }
-        offset_ += correction;
+        offset_ += applied;
     }
     point.baseUs = point.sourceUs + offset_;
     if (point.baseUs < 0 || point.baseUs > maxUs - reserve_) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }

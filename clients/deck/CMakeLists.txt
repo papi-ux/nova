@@ -281,7 +281,8 @@ if(BUILD_TESTING)
     add_custom_command(OUTPUT "${source_replay_header}"
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/generate_source_time_replay.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/presentation/tests/source-time-replay-v1.json" "${source_replay_header}"
-        DEPENDS ../../tools/generate_source_time_replay.py ../../shared/presentation/tests/source-time-replay-v1.json)
+        DEPENDS ../../tools/generate_source_time_replay.py ../../shared/presentation/tests/source-time-replay-v1.json
+            ../../shared/presentation/source-time-contract-v1.json)
     add_executable(nova_deck_source_clock_mapper_test tests/deck_source_clock_mapper_test.cpp
         src/runtime/deck_source_clock_mapper.cpp "${source_replay_header}")
     target_include_directories(nova_deck_source_clock_mapper_test PRIVATE src)

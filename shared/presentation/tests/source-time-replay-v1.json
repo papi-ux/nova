@@ -25,7 +25,14 @@
     "cleanHoldUs": 2000000,
     "reserveReleaseUsPerSecond": 250,
     "discontinuityUs": 1000000,
-    "hitchExclusionUs": 25000
+    "hitchExclusionUs": 25000,
+    "anchorResolutionUs": 1000,
+    "offsetDivergenceToleranceUs": 5000,
+    "offsetDivergenceFrames": 8,
+    "offsetBacklogLimitUs": 20000,
+    "offsetBacklogHoldUs": 1000000,
+    "offsetStepThresholdUs": 20000,
+    "offsetStepFrames": 8
   },
   "cases": [
     {
@@ -815,8 +822,8 @@
       ]
     },
     {
-      "name": "offset_over_budget_rewarms",
-      "description": "A -100 us correction exceeds the 9 us elapsed budget; discard the old epoch and re-warm for three observations.",
+      "name": "offset_over_budget_smooths",
+      "description": "A -100 us correction exceeds 9 us of elapsed credit; apply only funded correction and retain the epoch.",
       "policyOverrides": {
         "warmupFrames": 3
       },
@@ -883,12 +890,12 @@
             "resetBefore": false
           },
           "expected": {
-            "state": "pending",
-            "targetUs": 132900,
-            "sourceUs": 0,
+            "state": "source_time",
+            "targetUs": 132991,
+            "sourceUs": 30000,
             "reserveUs": 3000,
-            "reason": "clock_mapping_unstable",
-            "epoch": 2
+            "reason": "none",
+            "epoch": 1
           }
         },
         {
@@ -900,12 +907,12 @@
             "resetBefore": false
           },
           "expected": {
-            "state": "pending",
-            "targetUs": 142900,
-            "sourceUs": 10000,
+            "state": "source_time",
+            "targetUs": 142981,
+            "sourceUs": 40000,
             "reserveUs": 3000,
-            "reason": "warmup",
-            "epoch": 2
+            "reason": "none",
+            "epoch": 1
           }
         },
         {
@@ -918,18 +925,18 @@
           },
           "expected": {
             "state": "source_time",
-            "targetUs": 152900,
-            "sourceUs": 20000,
+            "targetUs": 152971,
+            "sourceUs": 50000,
             "reserveUs": 3000,
             "reason": "none",
-            "epoch": 2
+            "epoch": 1
           }
         }
       ]
     },
     {
-      "name": "offset_update_cap_rewarms",
-      "description": "Elapsed time funds more than 100 us, but the update cap is binding: 100 us is allowed, 101 us re-warms.",
+      "name": "offset_update_cap_smooths",
+      "description": "100 us/update cap clips a 101 us correction without re-warming; the last 1 us is applied next update.",
       "policyOverrides": {
         "warmupFrames": 2,
         "offsetWindowUs": 10000
@@ -997,12 +1004,12 @@
             "resetBefore": false
           },
           "expected": {
-            "state": "pending",
-            "targetUs": 2803201,
-            "sourceUs": 0,
+            "state": "source_time",
+            "targetUs": 2803200,
+            "sourceUs": 2700000,
             "reserveUs": 3000,
-            "reason": "clock_mapping_unstable",
-            "epoch": 2
+            "reason": "none",
+            "epoch": 1
           }
         },
         {
@@ -1016,17 +1023,17 @@
           "expected": {
             "state": "source_time",
             "targetUs": 3703201,
-            "sourceUs": 900000,
+            "sourceUs": 3600000,
             "reserveUs": 3000,
             "reason": "none",
-            "epoch": 2
+            "epoch": 1
           }
         }
       ]
     },
     {
-      "name": "offset_fractional_credit_and_rewarm",
-      "description": "Sub-millisecond updates carry fractional rate credit: a funded 1 us correction is allowed, an unfunded one re-warms.",
+      "name": "offset_fractional_credit_smooths",
+      "description": "Sub-ms fractional credit funds a 1 us step; unfunded correction remains queued until the next funded update, with no re-warm.",
       "policyOverrides": {
         "warmupFrames": 1,
         "offsetWindowUs": 400,
@@ -1129,12 +1136,12 @@
             "resetBefore": false
           },
           "expected": {
-            "state": "pending",
-            "targetUs": 102503,
-            "sourceUs": 0,
+            "state": "source_time",
+            "targetUs": 102502,
+            "sourceUs": 2500,
             "reserveUs": 0,
-            "reason": "clock_mapping_unstable",
-            "epoch": 2
+            "reason": "none",
+            "epoch": 1
           }
         },
         {
@@ -1148,14 +1155,964 @@
           "expected": {
             "state": "source_time",
             "targetUs": 103003,
-            "sourceUs": 500,
+            "sourceUs": 3000,
             "reserveUs": 0,
             "reason": "none",
-            "epoch": 2
+            "epoch": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "drift_+50ppm_1000us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 50,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 2600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_+500ppm_1000us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 500,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 2600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_-50ppm_1000us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": -50,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 2600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_-500ppm_1000us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": -500,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 2600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "jitter_2000us_1000us_10min",
+      "description": "Independent deterministic one-sided ingress jitter, no clock drift; zero re-warms over ten minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 2000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "jitter_4000us_1000us_10min",
+      "description": "Independent deterministic one-sided ingress jitter, no clock drift; zero re-warms over ten minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 4000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_+50ppm_1us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 50,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_+500ppm_1us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 500,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_-50ppm_1us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": -50,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_-500ppm_1us_10min",
+      "description": "Ten simulated minutes, 60 fps; exact zero re-warms, bounded true applied-offset error and per-update slew.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": -500,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1600,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "jitter_2000us_1us_10min",
+      "description": "Independent deterministic one-sided ingress jitter, no clock drift; zero re-warms over ten minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 2000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "jitter_4000us_1us_10min",
+      "description": "Independent deterministic one-sided ingress jitter, no clock drift; zero re-warms over ten minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 4000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 1000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "step_positive_30ms_eight_forward_frames",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 240,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 101,
+        "stepUs": 30000,
+        "expectedRewarms": 1,
+        "expectedFirstRewarmFrame": 108,
+        "maxAppliedOffsetErrorUs": 30000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 116,
+        "maxSettledAppliedOffsetErrorUs": 1
+      }
+    },
+    {
+      "name": "step_negative_30ms_eight_forward_frames",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 33333,
+      "series": {
+        "frames": 240,
+        "ticksPerFrame": 3000,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 101,
+        "stepUs": -30000,
+        "expectedRewarms": 1,
+        "expectedFirstRewarmFrame": 108,
+        "maxAppliedOffsetErrorUs": 30000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 116,
+        "maxSettledAppliedOffsetErrorUs": 1
+      }
+    },
+    {
+      "name": "lower_envelope_7ms_sustained_divergence",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 240,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 101,
+        "stepUs": -7000,
+        "expectedRewarms": 1,
+        "expectedFirstRewarmFrame": 108,
+        "maxAppliedOffsetErrorUs": 7000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 116,
+        "maxSettledAppliedOffsetErrorUs": 1
+      }
+    },
+    {
+      "name": "quantization_raises_divergence_tolerance",
+      "policyOverrides": {
+        "anchorResolutionUs": 2000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 240,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 2000,
+        "stepAtFrame": 101,
+        "stepUs": -7000,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 8000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "backlog_30ms_for_longer_than_one_second",
+      "policyOverrides": {
+        "anchorResolutionUs": 1,
+        "offsetDivergenceToleranceUs": 50000,
+        "offsetStepThresholdUs": 50000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 10000,
+      "series": {
+        "frames": 650,
+        "ticksPerFrame": 900,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 101,
+        "stepUs": 30000,
+        "expectedRewarms": 1,
+        "expectedFirstRewarmFrame": 499,
+        "maxAppliedOffsetErrorUs": 30000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 507,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_jitter_50ppm_4000us_1000us_10min",
+      "description": "Combined drift and independent ingress jitter; zero re-warms across ten simulated minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 50,
+        "jitterAmplitudeUs": 4000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 3000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_jitter_500ppm_4000us_1000us_10min",
+      "description": "Combined drift and independent ingress jitter; zero re-warms across ten simulated minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 500,
+        "jitterAmplitudeUs": 4000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1000,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 3000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_jitter_50ppm_4000us_1us_10min",
+      "description": "Combined drift and independent ingress jitter; zero re-warms across ten simulated minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 50,
+        "jitterAmplitudeUs": 4000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 2000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "drift_jitter_500ppm_4000us_1us_10min",
+      "description": "Combined drift and independent ingress jitter; zero re-warms across ten simulated minutes.",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 36001,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 500,
+        "jitterAmplitudeUs": 4000,
+        "jitterSeed": 17,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 0,
+        "stepUs": 0,
+        "expectedRewarms": 0,
+        "expectedFirstRewarmFrame": 0,
+        "maxAppliedOffsetErrorUs": 2000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 0,
+        "maxSettledAppliedOffsetErrorUs": 0
+      }
+    },
+    {
+      "name": "lower_envelope_positive_7ms_after_history_expires",
+      "policyOverrides": {
+        "anchorResolutionUs": 1
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "series": {
+        "frames": 450,
+        "ticksPerFrame": 1500,
+        "firstRtp": 90000,
+        "anchorBaseUs": 1000000,
+        "driftPpm": 0,
+        "jitterAmplitudeUs": 0,
+        "jitterSeed": 1,
+        "anchorResolutionUs": 1,
+        "stepAtFrame": 101,
+        "stepUs": 7000,
+        "expectedRewarms": 1,
+        "expectedFirstRewarmFrame": 287,
+        "maxAppliedOffsetErrorUs": 7000,
+        "errorCheckAfterFrame": 8,
+        "settledAfterFrame": 295,
+        "maxSettledAppliedOffsetErrorUs": 1
+      }
+    },
+    {
+      "name": "seven_step_frames_do_not_rewarm",
+      "description": "Seven forward 30 ms offset spikes followed by recovery never meet the eight-frame sustained-step gate; each anchor remains monotonic.",
+      "policyOverrides": {},
+      "capacity": 2,
+      "admittedPeriodUs": 40000,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 103000,
+            "sourceUs": 0,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 93600,
+            "anchorUs": 140000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 143000,
+            "sourceUs": 40000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 97200,
+            "anchorUs": 180000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 183000,
+            "sourceUs": 80000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 100800,
+            "anchorUs": 220000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 223000,
+            "sourceUs": 120000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 104400,
+            "anchorUs": 260000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 263000,
+            "sourceUs": 160000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 6,
+            "rtpTimestamp": 108000,
+            "anchorUs": 300000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 303000,
+            "sourceUs": 200000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 7,
+            "rtpTimestamp": 111600,
+            "anchorUs": 340000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 343000,
+            "sourceUs": 240000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 8,
+            "rtpTimestamp": 115200,
+            "anchorUs": 380000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 383000,
+            "sourceUs": 280000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 9,
+            "rtpTimestamp": 118800,
+            "anchorUs": 450000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 423000,
+            "sourceUs": 320000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 10,
+            "rtpTimestamp": 122400,
+            "anchorUs": 490000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 463000,
+            "sourceUs": 360000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 11,
+            "rtpTimestamp": 126000,
+            "anchorUs": 530000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 503000,
+            "sourceUs": 400000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 12,
+            "rtpTimestamp": 129600,
+            "anchorUs": 570000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 543000,
+            "sourceUs": 440000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 13,
+            "rtpTimestamp": 133200,
+            "anchorUs": 610000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 583000,
+            "sourceUs": 480000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 14,
+            "rtpTimestamp": 136800,
+            "anchorUs": 650000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 623000,
+            "sourceUs": 520000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 15,
+            "rtpTimestamp": 140400,
+            "anchorUs": 690000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 663000,
+            "sourceUs": 560000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 16,
+            "rtpTimestamp": 144000,
+            "anchorUs": 700000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 703000,
+            "sourceUs": 600000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 17,
+            "rtpTimestamp": 147600,
+            "anchorUs": 740000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 743000,
+            "sourceUs": 640000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 18,
+            "rtpTimestamp": 151200,
+            "anchorUs": 780000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 783000,
+            "sourceUs": 680000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 19,
+            "rtpTimestamp": 154800,
+            "anchorUs": 820000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 823000,
+            "sourceUs": 720000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 20,
+            "rtpTimestamp": 158400,
+            "anchorUs": 860000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 863000,
+            "sourceUs": 760000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
           }
         }
       ]
     }
   ],
-  "expectedFields": "state/targetUs/sourceUs/reserveUs/reason are checked when present; optional epoch verifies that re-warm invalidates previous metadata."
+  "expectedFields": "state/targetUs/sourceUs/reserveUs/reason are checked when present; optional epoch verifies that re-warm invalidates previous metadata.",
+  "offsetInstabilityRevision": 2,
+  "seriesGrammar": {
+    "version": "integer-series-v1",
+    "frames": "1-based; sourceUs = trunc((frame-1)*ticksPerFrame*1000/90), raw RTP = uint32(firstRtp + (frame-1)*ticksPerFrame)",
+    "truth": "anchorBaseUs + trunc(sourceUs*driftPpm/1000000) + (stepAtFrame > 0 and frame >= stepAtFrame ? stepUs : 0); signed truncation is toward zero",
+    "jitter": "state starts at jitterSeed; before EVERY frame state = uint32(state*1664525 + 1013904223); jitterUs = uint64(state) % (jitterAmplitudeUs+1)",
+    "anchor": "anchorUs = trunc((sourceUs + truth + jitterUs)/anchorResolutionUs)*anchorResolutionUs; nonnegative inputs only",
+    "error": "abs(mapped baseUs - sourceUs(global series) - truth); measured from errorCheckAfterFrame, plus settledAfterFrame when nonzero. This oracle stays meaningful after mapper sourceUs re-anchors. Re-anchoring can change integer source conversion phase by 1 us; step cases explicitly allow that 1 us.",
+    "rewarms": "count every mapper epoch change after construction; require clock_mapping_unstable on each change and exact expectedFirstRewarmFrame (0 if none)",
+    "defaults": "ReplaySeries fields/defaults in deck_source_clock_mapper_test.cpp; all cases below explicitly specify every generation field and error/re-warm bound; platform implementations consume this JSON, never C++ output as their oracle"
+  }
 }
