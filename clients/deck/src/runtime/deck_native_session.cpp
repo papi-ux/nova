@@ -81,6 +81,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::atomic<std::uint64_t> sourceTimingGeneration{1};
     DeckFrameDelivery::Publisher deliverFrame;
     DeckFrameDelivery::Configure configureFrames;
+    DeckFrameDelivery::EpochPublisher publishMapperEpoch;
     QString sourceTimePacing = "off";
     bool sourceTimingEnabled = false;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
@@ -473,6 +474,7 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     frameDelivery_->resetTiming(shared_->sourceTimingGeneration.load());
     shared_->deliverFrame = frameDelivery_->publisher();
     shared_->configureFrames = frameDelivery_->configurator();
+    shared_->publishMapperEpoch = frameDelivery_->epochPublisher();
     shared_->publish("preparing", resume ? "Checking your existing game…" : "Preparing the selected game…");
     state_ = shared_->state;
     if (presentationOwner_ && presentationSink_) presentationSink_->presentVaapiSurface({});
@@ -859,7 +861,7 @@ void DeckNativeSessionController::poll() {
                 hudSample->deliveryQueueDepth = delivery.queued;
                 if (shared_->sourceTimePacing != "off" && shared_->framePacing == DeckFramePacing::Balanced) {
                     hudSample->sourceTimeEffective = shared_->sourceTimingEnabled ? QString::fromUtf8(delivery.effective.data(), int(delivery.effective.size())) : "unavailable";
-                    hudSample->sourceTimeFallback = QString::fromUtf8(delivery.fallback.data(), int(delivery.fallback.size()));
+                    hudSample->sourceTimeFallback = shared_->sourceTimingEnabled ? QString::fromUtf8(delivery.fallback.data(), int(delivery.fallback.size())) : "renderer_not_participating";
                 }
             }
             nextHud = hudMetrics_.sample(*hudSample);
@@ -872,6 +874,22 @@ void DeckNativeSessionController::poll() {
     const auto hostView = !finished && !shared_->cancelled && next.value("phase") == "active"
         ? hostHud : DeckHudHostReducer::unavailable();
     for (auto it = hostView.cbegin(); it != hostView.cend(); ++it) nextHud.insert(it.key(), it.value());
+    // Keep requested/effective/fallback current even when frame-rate samples
+    // expire; an active stream must never silently become requested=off.
+    if (!finished && !shared_->cancelled && next.value("phase") == "active") {
+        nextHud["sourceTimeRequested"] = shared_->sourceTimePacing;
+        if (shared_->sourceTimePacing == "off") {
+            nextHud["sourceTimeEffective"] = "legacy"; nextHud["sourceTimeFallback"] = "not_requested";
+        } else if (shared_->framePacing != DeckFramePacing::Balanced) {
+            nextHud["sourceTimeEffective"] = "legacy"; nextHud["sourceTimeFallback"] = "pacing_mode_incompatible";
+        } else if (!shared_->sourceTimingEnabled || !frameDelivery_) {
+            nextHud["sourceTimeEffective"] = "unavailable"; nextHud["sourceTimeFallback"] = "renderer_not_participating";
+        } else {
+            const auto timing = frameDelivery_->stats();
+            nextHud["sourceTimeEffective"] = QString::fromUtf8(timing.effective.data(), int(timing.effective.size()));
+            nextHud["sourceTimeFallback"] = QString::fromUtf8(timing.fallback.data(), int(timing.fallback.size()));
+        }
+    }
     if (nextHud.value("sourceTimeRequested") != "off" && nextHud.value("sourceTimeFallback") == "none" &&
         hostView.value("hostSourceTimeFallback") != "none")
         nextHud["sourceTimeFallback"] = hostView.value("hostSourceTimeFallback", "host_status_missing");
@@ -915,6 +933,8 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
     producer.decodedFrameProducer().setSourceTimingGenerationReader([weak = std::weak_ptr<Shared>(shared)] {
         const auto current = weak.lock(); return current ? current->sourceTimingGeneration.load() : 0;
     });
+    if (shared->sourceTimingEnabled)
+        producer.decodedFrameProducer().setSourceTimingEpochPublisher(shared->publishMapperEpoch);
     DeckGuardedPreviewLifecycleGate gate(producer);
     std::optional<DeckNativeLaunchTarget> target;
     DeckSessionBuildResult built;

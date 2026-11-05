@@ -124,6 +124,8 @@ int main(int argc, char** argv) {
         auto old=timed(70,monotonicNs()/1000+10000,8);
         old.frameLease=std::shared_ptr<nova::deck::stream::DeckQrhiVaapiFrameLease>(epochOwner,nullptr);
         require(send(old), "old epoch fixture failed"); old.frameLease.reset(); epochOwner.reset();
+        source.epochPublisher()(2);
+        require(epochLease.expired(), "mapper reset waited for decoder output before releasing old lease");
         auto warm=timed(71,0,8); warm.timing.clock.epoch=2; warm.timing.clock.active=false;
         require(send(warm) && epochLease.expired(), "warmup epoch failed to release old lease");
         QThread::msleep(25); QCoreApplication::processEvents();

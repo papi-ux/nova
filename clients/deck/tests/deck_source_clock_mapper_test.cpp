@@ -1,4 +1,5 @@
 #include "runtime/deck_source_clock_mapper.h"
+#include "runtime/deck_source_delivery_policy.h"
 #include <algorithm>
 #include <cstdlib>
 #include "stream/deck_source_frame_timing.h"
@@ -94,6 +95,20 @@ int main(int argc, char** argv) {
     }
     // Long wrap replay, stale frames, bounded history and teardown are independent of fixture oracle generation.
     DeckSourceClockPolicy policy; policy.warmupFrames = 1;
+    {
+        DeckSourceClockMapper jump({}, 2, 33333);
+        DeckSourceClockPoint last;
+        for (unsigned i=1;i<=30;++i) last=jump.observe(i,90000+(i-1)*3000,1'000'000+(i-1)*33333);
+        const auto epoch=jump.epoch();
+        const auto decodedUs=1'000'000+29*33333+16000;
+        const auto distant=jump.observe(31,last.rtp+81000,decodedUs);
+        if (!distant.active || distant.epoch!=epoch ||
+            !sourceHoldExceedsCeiling(distant.targetUs,decodedUs*1000)) ++failures;
+        // There is deliberately no later observation. The delivery classifier
+        // refuses the distant deadline using the same helper as production.
+        if (sourceHoldExceedsCeiling(decodedUs+sourceHoldCeilingUs,decodedUs*1000) ||
+            !sourceHoldExceedsCeiling(decodedUs+sourceHoldCeilingUs+1,decodedUs*1000)) ++failures;
+    }
     DeckSourceClockMapper longRun(policy, 2, 10000);
     std::uint32_t raw = 0xfffffff0U;
     for (unsigned i=1;i<=6000;++i) { auto p=longRun.observe(i,raw,100000+std::int64_t(i)*10000); if (!p.valid || longRun.historySize()>1024) ++failures; raw+=900; }
@@ -111,7 +126,7 @@ int main(int argc, char** argv) {
         if (!outputA || outputA->clock.rtp != 90001 || store.size()!=1) ++failures;
         store.clear(); a.clock.epoch=2; a.clock.sourceUs=0;
         auto newPts=store.packetPts(a.clock);
-        if (!newPts || *newPts<=*bp || store.take(*bp,2'000'000)) ++failures;
+        if (!newPts || *newPts<=*bp || !store.stalePts(*bp) || store.stalePts(*newPts) || store.take(*bp,2'000'000)) ++failures;
         if (!store.put(*newPts,a) || store.put(*newPts,b) || store.take(*newPts,2'000'000)) ++failures;
         for (int i=0;i<64;++i) if(!store.put(i,a)) ++failures;
         if(store.put(65,b) || store.size()!=64) ++failures;

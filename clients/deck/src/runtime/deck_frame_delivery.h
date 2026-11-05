@@ -28,15 +28,18 @@ public:
     using Frame = stream::DeckQrhiVaapiPresentationDescriptor;
     using Consumer = std::function<void(const Frame&)>;
     using Publisher = std::function<bool(const Frame&)>;
+    using EpochPublisher = std::function<void(std::uint64_t)>;
     using Configure = std::function<bool(DeckFramePacing, int)>;
     explicit DeckFrameDelivery(Consumer consumer, QObject* parent = nullptr);
     ~DeckFrameDelivery() override;
     Publisher publisher() const;
+    // Decoder-owner notification, before waiting for new-epoch output.
+    EpochPublisher epochPublisher() const;
     // Worker-safe, once before the first decoded frame, with the admitted FPS.
     Configure configurator() const;
     DeckFrameDeliveryStats stats() const;
     void close();
-    // Phase 1 defaults off (ROOT D4); phase 2 connects a qualified request.
+    // Defaults off (ROOT D4); configure once from the stream preference.
     bool setSourceTimingEnabled(bool enabled);
     void resetTiming(std::uint64_t presentationGeneration);
 private:

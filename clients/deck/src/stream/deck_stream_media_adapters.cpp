@@ -1804,6 +1804,10 @@ void DeckVaapiFfmpegRenderer::setSourceTimingGenerationReader(std::function<std:
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     if (!ready_) timingGenerationReader_ = std::move(reader);
 }
+void DeckVaapiFfmpegRenderer::setSourceTimingEpochPublisher(std::function<void(std::uint64_t)> publisher) {
+    const std::lock_guard<std::mutex> lock(lifecycleMutex_);
+    if (!ready_) timingEpochPublisher_ = std::move(publisher);
+}
 DeckSourceFrameTiming DeckVaapiFfmpegRenderer::decodedTiming(const AVFrame& frame) {
     const auto now = sourceTimingNowNs();
     DeckSourceFrameTiming unavailable;
@@ -1827,12 +1831,14 @@ void DeckVaapiFfmpegRenderer::start() {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.startCalls;
     sourceClock_.reset(); timingStore_.clear();
+    if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
 }
 
 void DeckVaapiFfmpegRenderer::stop() {
     const std::lock_guard<std::mutex> lock(lifecycleMutex_);
     ++lifecycle_.stopCalls;
     sourceClock_.reset(); timingStore_.clear();
+    if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
 }
 
 void DeckVaapiFfmpegRenderer::cleanup() {
@@ -1899,9 +1905,11 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
     const auto generation = timingGenerationReader_ ? timingGenerationReader_() : 0;
     if (generation != presentationGeneration_) {
         presentationGeneration_ = generation; sourceClock_.reset(); timingStore_.clear();
+    if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
     }
     DeckSourceFrameTiming timing;
     timing.clock.reason = "timing_metadata_missing";
+    timing.clock.epoch = sourceClock_.epoch();
     timing.decoderGeneration = decoderGeneration_; timing.presentationGeneration = presentationGeneration_;
     timing.receiveTimeMs = decodeUnit->receiveTimeMs; timing.enqueueTimeMs = decodeUnit->enqueueTimeMs;
     timing.callbackMonoNs = callbackNs;
@@ -1912,6 +1920,7 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         timing.clock = sourceClock_.observe(static_cast<std::uint32_t>(decodeUnit->frameNumber),
             decodeUnit->rtpTimestamp, timing.anchorMonoNs / 1000);
     }
+    if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
     timingStore_.expire(callbackNs);
 
 
@@ -2079,6 +2088,7 @@ const DeckQrhiVaapiPresentationHandoff& DeckVaapiFfmpegRenderer::presentationHan
 void DeckVaapiFfmpegRenderer::resetDecoder() {
     ready_ = false;
     ++decoderGeneration_; sourceClock_.reset(); timingStore_.resetDecoder();
+    if (timingEpochPublisher_) timingEpochPublisher_(sourceClock_.epoch());
     presentationGeneration_ = timingGenerationReader_ ? timingGenerationReader_() : 0;
     decoderBackend_ = DeckDecoderBackend::Unavailable;
     previewFramePump_.clearPending();

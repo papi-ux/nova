@@ -232,3 +232,8 @@ source_time_vrr. Nominal Hz is separate and no adaptive-refresh request is sent.
 The canonical schema/generator are explicitly re-vendored byte-for-byte from the
 pin and outputs regenerated with the Nova driver, including shared Kotlin names;
 Android application source remains untouched.
+
+The decoder owner also publishes mapper epochs directly to delivery on resets
+and observations, before waiting for output. This releases queued old leases even
+if the new epoch produces no decoded frame. Descriptor and deadline checks remain
+in place to reject stale asynchronous output and callbacks.
