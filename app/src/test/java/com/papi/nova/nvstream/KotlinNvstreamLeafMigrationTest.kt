@@ -170,6 +170,7 @@ class KotlinNvstreamLeafMigrationTest {
                 intType,
                 charType,
                 longType,
+                longType,
                 longType
             ).returnType
         )

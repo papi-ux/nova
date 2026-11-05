@@ -3,6 +3,8 @@ package com.papi.nova.binding.video
 import android.os.SystemClock
 import android.view.Surface
 import com.papi.nova.LimeLog
+import com.papi.nova.binding.video.sourcetime.SourceTimePacingStatus
+import com.papi.nova.binding.video.sourcetime.SourceTimeRequest
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.NovaBitrateAdvice
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -360,7 +362,12 @@ class PyroWaveDecoderRenderer(
         frameHostProcessingLatency: Char,
         receiveTimeMs: Long,
         enqueueTimeMs: Long,
+        rtpTimestamp: Long,
     ): Int {
+        // rtpTimestamp is accepted and deliberately unused: this renderer decodes and presents on
+        // the arriving thread with a swapchain chosen never to wait, so it has nowhere to hold a
+        // frame for its source time. It reports that rather than pretending (see
+        // sourceTimePacingStatus).
         if (decodeUnitData == null || decodeUnitLength <= 0) {
             return MoonBridge.DR_NEED_IDR
         }
@@ -564,6 +571,21 @@ class PyroWaveDecoderRenderer(
     override fun notifyVideoForeground() = Unit
 
     override fun notifyVideoBackground() = Unit
+
+    // Host source time. This renderer does not take part in #242 by design: no output queue, no
+    // display timing and no present-time feedback, and sharing a submit signature with the
+    // MediaCodec renderer says nothing about its timing. Whatever was asked, the answer is
+    // unavailable, for a named reason.
+
+    @Volatile
+    private var sourceTimeRequest = SourceTimeRequest.OFF
+
+    override fun setSourceTimePacingRequest(request: SourceTimeRequest) {
+        sourceTimeRequest = request
+    }
+
+    override fun sourceTimePacingStatus(): SourceTimePacingStatus =
+        SourceTimePacingStatus.notParticipating(sourceTimeRequest)
 
     override fun armBenchmarkCapture(
         runId: String,

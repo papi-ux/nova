@@ -22,6 +22,9 @@ import android.view.WindowManager
 import com.papi.nova.BuildConfig
 import com.papi.nova.LimeLog
 import com.papi.nova.R
+import com.papi.nova.binding.video.sourcetime.SourceTimePacingStatus
+import com.papi.nova.binding.video.sourcetime.SourceTimeReason
+import com.papi.nova.binding.video.sourcetime.SourceTimeRequest
 import com.papi.nova.nvstream.av.video.VideoDecoderRenderer
 import com.papi.nova.nvstream.jni.MoonBridge
 import com.papi.nova.preferences.PreferenceConfiguration
@@ -774,6 +777,26 @@ class MediaCodecDecoderRenderer(
         }
         sb.append(context.getString(R.string.perf_overlay_dectime, decodeTimeMs))
         return sb.toString()
+    }
+
+    @Volatile
+    private var sourceTimeRequest = SourceTimeRequest.OFF
+
+    override fun setSourceTimePacingRequest(request: SourceTimeRequest) {
+        sourceTimeRequest = request
+    }
+
+    // Until this renderer keeps per-frame source time, a request has nothing to act on.
+    override fun sourceTimePacingStatus(): SourceTimePacingStatus {
+        val request = sourceTimeRequest
+        return SourceTimePacingStatus.legacy(
+            request,
+            if (request == SourceTimeRequest.OFF) {
+                SourceTimeReason.NOT_REQUESTED
+            } else {
+                SourceTimeReason.TIMING_METADATA_MISSING
+            },
+        )
     }
 
     override fun notifyVideoBackground() {
@@ -1718,6 +1741,7 @@ class MediaCodecDecoderRenderer(
         frameHostProcessingLatency: Char,
         receiveTimeMs: Long,
         enqueueTimeMs: Long,
+        rtpTimestamp: Long,
     ): Int {
         if (stopping) {
             return MoonBridge.DR_OK

@@ -74,7 +74,7 @@ class PyroWaveLatencyProvenanceTest {
         unavailable()
         renderer.start()
         assertEquals(com.papi.nova.nvstream.jni.MoonBridge.DR_NEED_IDR,
-            renderer.submitDecodeUnit(byteArrayOf(1), 1, 0, 1, 2, 0.toChar(), 0, 0))
+            renderer.submitDecodeUnit(byteArrayOf(1), 1, 0, 1, 2, 0.toChar(), 0, 0, 0))
         renderer.prepareForStop()
         renderer.stop()
         renderer.cleanup()
