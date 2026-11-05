@@ -191,6 +191,23 @@ class SourceTimePresenterTest {
     }
 
     @Test
+    fun everyArrivalPhaseKeepsEveryFrameWithOneSlotOrTwo() {
+        // Where in its refresh a frame is decoded decides how long it waits for the next vsync. With
+        // one slot there is no room to wait a whole refresh behind a queued frame, so the delay adds
+        // only half of one (addendum 2); with two it adds a whole one. Either way, at 60 FPS on
+        // 60 Hz, every frame after warm-up is shown at every phase.
+        for (capacity in listOf(1, 2)) {
+            for (phaseUs in 0L until 16_667L step 2_083L) {
+                val frames = stream(400, { 16_667 }, { phaseUs })
+                val shown = present(frames, hz60, capacity = capacity)
+                val missing = (40 until 400).filter { it !in shown.slots }
+                assertEquals("capacity $capacity, phase $phaseUs us: not shown $missing", 0, missing.size)
+                assertEquals(0L, shown.counters.overflow - present(frames.take(40), hz60, capacity = capacity).counters.overflow)
+            }
+        }
+    }
+
+    @Test
     fun aBurstAfterAStallIsNotCaughtUpInOneRefresh() {
         // Ten frames held for 60 ms arrive within a millisecond; at most one frame per refresh, the
         // stale ones superseded rather than flashed.
