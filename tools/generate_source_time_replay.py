@@ -20,7 +20,7 @@ def generate(source, destination):
         for step in case['steps']:
             i,e=step['input'],step['expected']
             val=lambda k: -1 if e.get(k) is None else e[k]
-            out.append('c.steps.push_back({' + ','.join(map(str,[i['frame'],i['rtpTimestamp'],i['anchorUs'],i['decodedUs'] if i['decodedUs'] is not None else -1,int(i['resetBefore']),val('targetUs'),val('sourceUs'),val('reserveUs'),val('reserveLessThan')])) + ',' + json.dumps(e['state']) + ',' + json.dumps(e['reason'] or '') + '});')
+            out.append('c.steps.push_back({' + ','.join(map(str,[i['frame'],i['rtpTimestamp'],i['anchorUs'],i['decodedUs'] if i['decodedUs'] is not None else -1,int(i['resetBefore']),val('targetUs'),val('sourceUs'),val('reserveUs'),val('reserveLessThan')])) + ',' + json.dumps(e['state']) + ',' + json.dumps(e['reason'] or '') + ',' + str(val('epoch')) + '});')
         out.append('out.push_back(c); }')
     out.append('return out; }')
     Path(destination).write_text('\n'.join(out)+'\n')

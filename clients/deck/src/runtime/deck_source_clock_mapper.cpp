@@ -77,7 +77,18 @@ DeckSourceClockPoint DeckSourceClockMapper::observe(std::uint32_t frame, std::ui
         const auto numerator = (anchor - lastAnchor_) * policy_.offsetSlewUsPerSecond + slewRemainder_;
         const auto step = std::min(policy_.offsetMaxStepUs, numerator / 1'000'000);
         slewRemainder_ = numerator % 1'000'000;
-        offset_ += std::clamp(minimum - offset_, -step, step);
+        const auto correction = minimum - offset_;
+        if (correction < -step || correction > step) {
+            // An unfunded correction is not clock drift we can keep tracking.
+            // Start a fresh epoch from this observation so queued old targets
+            // and readiness samples cannot qualify the new mapping.
+            reset();
+            auto rewarming = observe(frame, rtp, anchor);
+            rewarming.active = false;
+            rewarming.reason = "clock_mapping_unstable";
+            return rewarming;
+        }
+        offset_ += correction;
     }
     point.baseUs = point.sourceUs + offset_;
     if (point.baseUs < 0 || point.baseUs > maxUs - reserve_) { reset(); point.epoch = epoch_; point.reason = "clock_mapping_unstable"; return point; }

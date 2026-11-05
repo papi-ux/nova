@@ -7,7 +7,7 @@
 using namespace nova::deck::runtime;
 struct ReplayStep {
     std::uint32_t frame, rtp; std::int64_t anchor, decoded; bool reset;
-    std::int64_t target, source, reserve, reserveLessThan; std::string state, reason;
+    std::int64_t target, source, reserve, reserveLessThan; std::string state, reason; std::int64_t epoch;
 };
 struct ReplayCase { std::string name; DeckSourceClockPolicy policy; unsigned capacity; std::int64_t period; std::vector<ReplayStep> steps; };
 #include NOVA_SOURCE_REPLAY_HEADER
@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
             const bool ok = state == s.state && (s.target < 0 || p.targetUs == s.target) &&
                 (s.source < 0 || p.sourceUs == s.source) && (s.reserve < 0 || mapper.reserveUs() == s.reserve) &&
                 (s.reserveLessThan < 0 || mapper.reserveUs() < s.reserveLessThan) &&
-                (s.reason.empty() || p.reason == s.reason) && mapper.reserveUs() >= 0 &&
+                (s.reason.empty() || p.reason == s.reason) && (s.epoch < 0 || p.epoch == static_cast<std::uint64_t>(s.epoch)) && mapper.reserveUs() >= 0 &&
                 mapper.reserveUs() <= mapper.reserveCapUs() && mapper.historySize() <= 1024;
             if (!ok) { ++failures; std::cerr << "FAIL " << c.name << " frame=" << s.frame << " target=" << p.targetUs
                 << " expected=" << s.target << " source=" << p.sourceUs << " state=" << state << " reason=" << p.reason << " reserve=" << mapper.reserveUs() << '\n'; }

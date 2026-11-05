@@ -46,11 +46,13 @@
   },
   "fallbackReasons": [
     "renderer_not_participating",
+    "pacing_mode_incompatible",
     "source_timestamp_missing",
     "source_discontinuity",
     "timing_metadata_missing",
     "clock_mapping_unstable",
     "buffer_limit",
     "decoder_pressure"
-  ]
+  ],
+  "offsetRewarmRule": "After warmup, compute the full lower-envelope offset correction and the elapsed-time budget, carrying fractional credit: min(offsetMaxStepUs, (elapsedUs * offsetSlewUsPerSecond + remainder) / 1000000); if the magnitude of the correction exceeds that budget, begin a fresh mapper epoch from this observation, return pending clock_mapping_unstable, and complete warmup again instead of clipping the correction."
 }

@@ -284,7 +284,7 @@
           "input": {
             "frame": 2,
             "rtpTimestamp": 91800,
-            "anchorUs": 120100,
+            "anchorUs": 120020,
             "decodedUs": null,
             "resetBefore": false
           },
@@ -300,7 +300,7 @@
           "input": {
             "frame": 3,
             "rtpTimestamp": 93600,
-            "anchorUs": 140200,
+            "anchorUs": 140040,
             "decodedUs": null,
             "resetBefore": false
           },
@@ -312,7 +312,8 @@
             "reason": null
           }
         }
-      ]
+      ],
+      "description": "Corrections exactly equal to the elapsed budget stay active; over-budget divergence is covered separately."
     },
     {
       "name": "reserve_attack_and_clamp",
@@ -812,6 +813,349 @@
           }
         }
       ]
+    },
+    {
+      "name": "offset_over_budget_rewarms",
+      "description": "A -100 us correction exceeds the 9 us elapsed budget; discard the old epoch and re-warm for three observations.",
+      "policyOverrides": {
+        "warmupFrames": 3
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 103000,
+            "sourceUs": 0,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 90900,
+            "anchorUs": 110000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 113000,
+            "sourceUs": 10000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 91800,
+            "anchorUs": 120000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 123000,
+            "sourceUs": 20000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 92700,
+            "anchorUs": 129900,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 132900,
+            "sourceUs": 0,
+            "reserveUs": 3000,
+            "reason": "clock_mapping_unstable",
+            "epoch": 2
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 93600,
+            "anchorUs": 139900,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 142900,
+            "sourceUs": 10000,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 2
+          }
+        },
+        {
+          "input": {
+            "frame": 6,
+            "rtpTimestamp": 94500,
+            "anchorUs": 149900,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 152900,
+            "sourceUs": 20000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "offset_update_cap_rewarms",
+      "description": "Elapsed time funds more than 100 us, but the update cap is binding: 100 us is allowed, 101 us re-warms.",
+      "policyOverrides": {
+        "warmupFrames": 2,
+        "offsetWindowUs": 10000
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 103000,
+            "sourceUs": 0,
+            "reserveUs": 3000,
+            "reason": "warmup",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 171000,
+            "anchorUs": 1000000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 1003000,
+            "sourceUs": 900000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 252000,
+            "anchorUs": 1900100,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 1903100,
+            "sourceUs": 1800000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 333000,
+            "anchorUs": 2800201,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 2803201,
+            "sourceUs": 0,
+            "reserveUs": 3000,
+            "reason": "clock_mapping_unstable",
+            "epoch": 2
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 414000,
+            "anchorUs": 3700201,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 3703201,
+            "sourceUs": 900000,
+            "reserveUs": 3000,
+            "reason": "none",
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "offset_fractional_credit_and_rewarm",
+      "description": "Sub-millisecond updates carry fractional rate credit: a funded 1 us correction is allowed, an unfunded one re-warms.",
+      "policyOverrides": {
+        "warmupFrames": 1,
+        "offsetWindowUs": 400,
+        "reserveStartUs": 0
+      },
+      "capacity": 2,
+      "admittedPeriodUs": 16666,
+      "steps": [
+        {
+          "input": {
+            "frame": 1,
+            "rtpTimestamp": 90000,
+            "anchorUs": 100000,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 100000,
+            "sourceUs": 0,
+            "reserveUs": 0,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 2,
+            "rtpTimestamp": 90045,
+            "anchorUs": 100500,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 100500,
+            "sourceUs": 500,
+            "reserveUs": 0,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 3,
+            "rtpTimestamp": 90090,
+            "anchorUs": 101001,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 101001,
+            "sourceUs": 1000,
+            "reserveUs": 0,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 4,
+            "rtpTimestamp": 90135,
+            "anchorUs": 101501,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 101501,
+            "sourceUs": 1500,
+            "reserveUs": 0,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 5,
+            "rtpTimestamp": 90180,
+            "anchorUs": 102002,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 102002,
+            "sourceUs": 2000,
+            "reserveUs": 0,
+            "reason": "none",
+            "epoch": 1
+          }
+        },
+        {
+          "input": {
+            "frame": 6,
+            "rtpTimestamp": 90225,
+            "anchorUs": 102503,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "pending",
+            "targetUs": 102503,
+            "sourceUs": 0,
+            "reserveUs": 0,
+            "reason": "clock_mapping_unstable",
+            "epoch": 2
+          }
+        },
+        {
+          "input": {
+            "frame": 7,
+            "rtpTimestamp": 90270,
+            "anchorUs": 103003,
+            "decodedUs": null,
+            "resetBefore": false
+          },
+          "expected": {
+            "state": "source_time",
+            "targetUs": 103003,
+            "sourceUs": 500,
+            "reserveUs": 0,
+            "reason": "none",
+            "epoch": 2
+          }
+        }
+      ]
     }
-  ]
+  ],
+  "expectedFields": "state/targetUs/sourceUs/reserveUs/reason are checked when present; optional epoch verifies that re-warm invalidates previous metadata."
 }
