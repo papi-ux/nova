@@ -40,6 +40,7 @@ object NovaSettingsUiStateFactory {
         PreferenceConfiguration.FPS_PREF_STRING to listOf("fps", "frame rate", "refresh"),
         "video_format" to listOf("codec", "h264", "h265", "hevc", "av1"),
         "frame_pacing" to listOf("latency", "smoothness", "frame pacing"),
+        "source_time_pacing" to listOf("frame timing", "host timing", "source time", "judder"),
         "nova_polaris_hud" to listOf("hud", "overlay", "stats"),
         "checkbox_enable_perf_overlay" to listOf("stats", "fps", "overlay", "perf", "moonlight", "decode"),
         "checkbox_enable_rumble" to listOf("rumble", "vibration", "haptics"),

@@ -1,0 +1,288 @@
+# Nova source-time contract v1.2 — sustained divergence, instability revision 2
+
+Status: Shared implementation contract, W4 revision for ROOT task `task_371cab83f15b` / dispatch `ctx_300a1b798a86` (2026-11-05). Section 4 supersedes the defective per-update re-warm rule introduced in `b468357e`. Smoothing credit never independently triggers re-warm. Constants remain provisional, with physical tuning reserved to ROOT.
+
+This tracked copy inherits the D1–D4 design amendments from the sealed [phase-1 design](/Users/papi/Developer/beta2/evidence/ROOT-STABLE150/NOVA-241-IMPL-20261105/DESIGN-CONTRACT.md). Historical N/C/P citations and inputs below refer to the [original source map](/Users/papi/Developer/beta2/evidence/ROOT-STABLE150/NOVA-SOURCE-TIME-CONTRACT-20261105/SOURCE-MAP.md) and its adjacent retained inputs. Those packets and manifests remain unchanged. Current machine-readable policy and complete replay inputs live beside this document in `source-time-contract-v1.json` and `tests/source-time-replay-v1.json`; retain their exact hashes in trace headers.
+
+Sections outside 4 preserve the accepted design snapshot and its historical source pins. ROOT's subsequent platform and host-contract decisions take precedence over those proposals; this revision does not reassess or change their implementation.
+
+## Authority, pins and scope
+
+The live Scope and Acceptance sections of Nova [#241](https://gitea.centaur-frog.ts.net/papi-ux/nova/issues/241) and [#242](https://gitea.centaur-frog.ts.net/papi-ux/nova/issues/242) are retained in `inputs/issues.json`. ROOT confirmed them in message `msg_98092f6faa17`. Their older beta.2/1.6.0 headings do not supersede papi's 2026-11-05 decision: 1.5.0 includes Polaris host proof #395 and both Nova clients; milestone changes are comments 15529 and 15532. Device adaptive refresh remains capability-dependent. The Android packet owns platform integration; this document owns shared semantics and fixtures only.
+
+Historical design baseline Nova head and local origin/staging: `25f2531cac509105af18ed9f7f918a27e5fcb050`, clean. Polaris reference: origin/staging `2873e1389099e8b74dd35fe6f90f5117b0b13c6b`; its working checkout has another HEAD, so all Polaris citations were read with `git show` against the reference SHA. Core gitlink: `c999436858471dfefa7617af3b7dc03ec1644ce4`, ClassicOldSong fork. The submodule is uninitialised; inspection used the supplied exact-commit retained source, with hashes in `SOURCE-INPUTS.json`. No Git lazy fetch or submodule initialisation was necessary. `SOURCE-MAP.md` preserves citations with original file line numbers; N/C/P labels below refer to those excerpts.
+
+## Amendments taking precedence throughout this document
+
+D1: core carries raw rtpTimestamp only; all source microseconds are client computations. D2: anchor earliest wait-independent local sample, using core enqueue wherever submit can block (Deck and Android both qualify). D3: `renderer_not_participating` includes the phase-1 PyroWave path; metadata is carried but source pacing is not claimed for it. D4: requested=off means legacy fixed-period, auto means qualify then source-time or recorded fallback, source_time means explicit opt-in with prominent fallback; default stays off until device receipts pass. All constants remain provisional and must be captured in versioned replay/trace headers.
+
+## 1. Library decision
+
+Recommend a **narrow Nova patch `0012-feat-video-carry-source-presentation-time.patch`**, keeping the gitlink unchanged. It is the next available number at this head. Patch 0009 is the attributed upstream RTSP response-size/Session-token hardening; 0010 fixes Session error cleanup and Windows size-error mapping; 0011 adds private negotiated observation-only packet reception reporting and a monotonic microsecond clock with explicit failure. Keep all three (N16:40–81). Android applies 0001–0011 with `git am` and stable patch-ID checks (N15:28–60); Linux prepares 0009–0011 in a build-private copy, then applies its optional PyroWave patch (N14:1–65, N18:162–205).
+
+A pin bump to an existing fork commit containing all three timestamp upstream commits is **not currently available in the inspected fork history**. The following commits are each absent from the fork pin's ancestry (exit 1 is the expected negative answer, recorded in `SOURCE-INPUTS.json`):
+
+| Upstream commit | Relevant change | Why not import it wholesale for #241/#242 |
+| --- | --- | --- |
+| `82ee2d6590195e11cd79a6c8480fd310654e23cf` | High-resolution receive/enqueue statistics, microsecond clocks | Renames timing APIs and touches platform, audio, input, RTSP and video code; requires a broader accounting migration |
+| `a3ebaaf0152fc2f15e6b70c1ac48048ea5b034f7` | 64-bit presentation milliseconds | Avoids field-width truncation but does not by itself unwrap the 32-bit wire clock |
+| `e356b2cfde604c35904793aaf485a6ede7102cae` | `presentationTimeUs` and raw `rtpTimestamp` | Narrow source-time semantics worth adapting, with the existing fork's millisecond statistics preserved |
+
+The inspected upstream Android-v12.2 and Qt-v6.2.0 core refs are `874ac9548f1bd6f095ef2b435c42cdde460e7821` and `f900dd4767759c7b9d0e93bcea666b55c69ea62f`. Neither is a demonstrated drop-in replacement for the fork plus Nova's eleven patches. A future maintained fork pin containing the selected backport and existing extensions would simplify patch distribution, but creates no shortcut around patch rebase, ABI rebuild, accounting tests or qualification. For this bounded change, 0012 is cleaner than moving every clock/statistic consumer.
+
+0012 changes only core `src/Limelight.h`, `src/RtpVideoQueue.h`, `src/RtpVideoQueue.c` and `src/VideoDepacketizer.c`, plus its focused harness. Capture original packet timestamps after byte-order conversion and before division; carry them through reassembly, including repaired frames, with the first data packet's frame identity. Append only the raw RTP field to DECODE_UNIT, preserving all old member offsets where feasible; every native consumer must still rebuild against the new size. Do not patch only the header. Do not change receive/enqueue clocks, reception observers, recovery, sequence handling, codec negotiation or FEC behavior.
+
+## 2. Fields and clock meanings — ROOT amendment D1/D2
+
+The core adds **only `uint32_t rtpTimestamp`**, host byte order, 90 kHz modulo 2^32, captured after receive-side byte-order conversion and before millisecond division, carried through normal/FEC-repaired reassembly. Zero remains raw zero. **No core `presentationTimeUs` field is added.** Upstream uses that name with a receive-derived synthetic fallback, so reusing it with different semantics would make a future pin move silently change its meaning. The client mapper computes its own unwrapped relative microseconds from raw ticks. A 64-bit result alone never unwraps the 32-bit wire clock.
+
+Existing receiveTimeMs remains the client-core first-buffer receive observation, and enqueueTimeMs remains reassembly/decoder-queue admission in the same LiGetMillis epoch. Existing presentationTimeMs, including its synthetic fallback, stays unchanged. Receive/enqueue/decode/benchmark accounting must retain its original meaning.
+
+`R_i` is the earliest local sample unaffected by decoder/backend waits: **core enqueue time when the callback can block, otherwise callback ingress**. On Deck the submit mutex, FFmpeg/VAAPI send/receive, V4L2 input pressure and PyroWave GPU decode can block the core callback, so phase 1 anchors to enqueueTimeMs bridged to local steady time through the sampled core-clock age; the lower-envelope estimate explicitly retains 1 ms quantization. Callback ingress is diagnostic only. Android follows the same enqueue rule under MediaCodec input pressure.
+
+Client records separately retain frame ID/raw RTP, unwrapped source microseconds, core receive/enqueue ms, callback/anchor/decode-ready monotonic ns, mapped target and decoder/presentation generations. FFmpeg packet PTS uses microsecond timebase and a constant per-epoch offset when a mapper re-anchor would otherwise reuse an in-flight PTS. It is a correlation timeline; sourceUs stays the exact mapper value. AVFrame output is joined by returned PTS, never by the latest callback. Missing/ambiguous/expired timing falls back explicitly.
+
+## 3. RTP normalization and epoch lifetime
+
+Within one client connection, accept source chronology in **frame order**, not packet arrival order. FEC and packet reorder must not create extra mapper observations. For forward frames compute `delta = uint32_t(raw - previousRaw)`; `0 < delta < 2^31` is a forward candidate. Add the delta to checked 64-bit ticks, preserving integer conversion remainder. Crossing from near `0xffffffff` through zero with a plausible forward delta is normal wrap, not a reset. Repeated/older frame IDs do not move the baseline. Equal timestamps may be legitimate repeats but do not establish a new source interval; decode required references normally, suppress duplicate presentation only when identity/timing proves it, and trace the decision. Never infer image equality solely from equal timestamps.
+
+Zero is ambiguous, not globally invalid. An initial zero is provisional; admit source pacing after positive advancing raw timestamps establish continuity. A long all-zero stream remains `source_timestamp_missing`. A zero at a verified wrap stays valid even though the old millisecond field's fallback fires. An unexplained backwards step, ambiguous half-range delta, local clock reversal, checked overflow or loss of connection identity invalidates the mapper. Log a named reset and restart warmup rather than treating it as a 13-hour wait or using a fabricated arrival timeline. After a gap long enough to make modulo extension ambiguous, start a new epoch.
+
+**Host epoch correction:** at pinned Polaris, `video_epoch` is initialized inside `videoBroadcastThread`, at stream.cpp:1959–1962. It is shared by that broadcaster thread, not created by every admitted session. Source RTP uses `(capture/source steady timestamp - video_epoch)` at 90 kHz; fallback rate-control timestamps may be substituted for missing/duplicate timestamps (P03:2309–2340). Source-pacing mode separately requires source timestamps (P03:2025–2031). The header comment about an epoch at the first captured frame cannot be assumed to describe Polaris exactly.
+
+A resumed/new session may therefore continue the broadcaster's RTP epoch; a broadcaster restart may restart it. **Always discard the client's old mapping on launch, reconnect or resume, regardless of whether raw RTP appears continuous. Never require raw RTP to restart at zero.** Bind state to client connection generation + mapper epoch + decoder generation + surface generation. A source/capture epoch change can occur without broadcaster restart; when a verified status/trace generation exposes it, reset even if raw ticks are continuous. Raw RTP alone cannot prove that semantic epoch. Missing epoch metadata remains a limitation, not an inferred match.
+
+| Event | Required client action |
+| --- | --- |
+| Launch, resume, reconnect, decoder restart | Invalidate old callbacks/metadata and pending presents; re-anchor from new ingress observations; fresh negotiation snapshot |
+| Surface recreation, output move, display mode/compositor/VRR capability change | Increment surface generation, cancel old targets/feedback, release queued leases safely; re-anchor for new output; do not force an unrelated decoder/host restart |
+| Source discontinuity or prolonged source stall | Drop obsolete presentation backlog, retain decode recovery requirements, reset source fit/reserve warmup; present at most one current decoded frame per opportunity |
+| Timer/decode/GPU stall with source timestamps continuing normally | Record local pressure, expire superseded overdue work, bound reserve; do not reinterpret it as a host stall or source-clock drift |
+| Disconnect/stop/destruction | Close publishers, cancel waits, release metadata and leases on their owners; late callbacks cannot revive any effective state |
+
+## 4. Source-to-client mapping and bounded reserve
+
+The common algorithm is a pure replayable state machine. Platform implementations may be C++/Kotlin but consume the same fixture cases and policy version. Let `S_i` be normalized source microseconds and `R_i` the earliest wait-independent local observation, as defined in amended section 2. Estimate offset from a bounded sliding lower envelope of `R_i - S_i`, anchored from the **core enqueue observation wherever callbacks can block**. It is a relative playout alignment, not a measurement of one-way network latency or host/client clock synchronization. Do not use decoder completion as the clock anchor and do not set `target = arrival + period` on every frame.
+
+`target_i = (S_i + appliedOffset_i + reserve_i) * 1000`, adjusted for validated local clock conversion only. Keep the source's irregular intervals; stream FPS is an admission ceiling and sizing hint. It is not the presentation metronome. Do not enable Nonary's optional cadence smoothing/reduce-judder controller in this first port: smoothing would make a source-following claim harder to distinguish.
+
+Provisional policy constants accepted by ROOT for phase 1 (all must be captured in replay/trace headers, never hidden mutable tuning):
+
+| Policy | Proposed bound |
+| --- | --- |
+| Offset history | 3 seconds and at most 1024 observations; no decode/GPU wait samples |
+| Warmup | 8 forward valid frames; earlier minimum can replace startup anchor while effective state is pending |
+| Steady offset slew | At most 1000 us per second, capped at 100 us per update, with fractional elapsed-time credit carried. Clip the applied correction to this budget; unapplied correction stays pending and never independently triggers re-warm. Whole unused credit is not banked. |
+| Anchor resolution | `anchorResolutionUs = 1000` for the current Deck/Android enqueue clock; 1 only for an actually microsecond-resolution anchor. Do not infer resolution from a microsecond storage unit. |
+| Lower-envelope divergence | `offsetDivergenceToleranceUs = 5000`; effective tolerance is `max(5000, 4 * anchorResolutionUs)`. Compare the current lower-envelope estimate to the oldest retained estimate within the bounded 3 s/1024-observation window. Require movement **strictly greater** than tolerance and `offsetDivergenceFrames = 8` consecutive forward raw offset observations confirming that direction. A single low outlier retained in the envelope does not supply eight confirming observations. |
+| Correction backlog | After applying the budgeted correction, debt **strictly greater** than `offsetBacklogLimitUs = 20000` in the same direction for **strictly longer** than `offsetBacklogHoldUs = 1000000` re-warms. Clear the hold when within the bound or direction changes. |
+| Genuine clock/ingress step | Raw `R_i - S_i` displaced **strictly more** than `offsetStepThresholdUs = 20000` from the pre-update applied offset in one direction for `offsetStepFrames = 8` consecutive forward observations re-warms promptly. This independent check catches positive steps while older low samples remain in the envelope. |
+| Reserve | Start 3000 us; clamp to `[0, min(12000 us, N * observedSourcePeriodUs)]`, where N is presentation capacity (1 latency, 2 balanced); until observed rate is valid use admitted stream period |
+| Adaptation | p98 positive decoded-ready lateness over at most 1024 samples/3 seconds, 500 us margin; rise by at most 500 us/update; after 2 seconds clean, release by at most 250 us/second; clamps always apply |
+| Discontinuity | Source forward gap >1 second starts a new phase; any pause/resume event resets immediately; this is a re-anchor policy, not a network-loss diagnosis |
+| Decoded presentation backlog | At most 1 frame for existing Latency policy, 2 for Balanced, plus one explicitly tracked in-flight present; count decoder pools separately |
+| Timing metadata | At most 64 in-flight frame records per decoder, expiry/reset on terminal output or one-second invalidation; exhaustion disables timing provenance rather than guessing associations |
+
+For a steady update, compute `credit = elapsedUs * offsetSlewUsPerSecond + fractionalRemainder`, `budget = min(offsetMaxStepUs, credit / 1000000)`, and retain `credit % 1000000`. Apply `clamp(estimate - appliedOffset, -budget, budget)`. A correction of 1000 us with only 17 us credit applies 17 us and retains 983 us debt; it does not become an unstable clock. The independent divergence/step counters count only admitted forward observations, and reset on a non-confirming direction; duplicates and stale frames do not create observations. Backlog uses the **post-slew** residual. Lower-envelope estimate history has the same 3 s/1024-sample bounds as raw offset history; memory cannot grow with session length.
+
+**Warmup reference clarification (2026-11-05, task `task_668ce7b24bb8`):** warmup observations still fit the raw-offset lower envelope and may replace a late startup anchor. They do **not** populate divergence-estimate history. Seed that separate history from the first valid steady estimate **after** warmup (`observations > warmupFrames`, frame 9 for the default eight-frame warmup); compare only against retained steady estimates thereafter. The first steady comparison therefore has zero movement. Record `offsetDivergenceReferenceSeed = first_steady_estimate_after_warmup` in replay/trace headers beside revision/hash bindings. Startup convergence of more than 5 ms must cause zero re-warms; an actual subsequent sustained step keeps its existing threshold and eighth-frame reset. All three instability detectors retain their existing thresholds and begin evaluating in steady state.
+
+When any sustained-instability condition fires, increment the mapper epoch, clear fit/envelope/counters/readiness/reserve and pending presentation provenance, and seed fresh warmup from the current observation. Return `pending` with `clock_mapping_unstable` on that observation, even if a fixture uses warmupFrames=1; only this event starts a new source origin. Explicit lifecycle resets, local clock reversal, invalid arithmetic and RTP discontinuities from section 3 keep their immediate reset behavior. A genuine step with an admitted forward monotonic anchor therefore resets exactly once on the eighth confirming frame and recovers without repeated re-warms. A negative step that reverses the local anchor is instead handled immediately by the existing reversal guard.
+
+All new constants above, `offsetInstabilityRevision = 2`, policyVersion, effective anchor resolution, policy overrides, and exact shared contract/fixture hashes belong in every replay/qualification trace header. Default policy constants are duplicated in the JSON contract, fixture and C++ policy and checked for equality; they are not inferred from test outcomes. A future physical capture may motivate a ROOT-approved revision; no device behavior or final thresholds are qualified by these offline traces.
+
+The 12 ms reserve ceiling is a proposed added-client-buffer bound, not total motion-to-photon latency or an acceptance threshold from #395. Saturation reports `buffer_limit` or `decoder_pressure` and a counted late/drop result; it cannot grow a queue, retime the source, lower quality or alter host bitrate. Host stalls and the burst trailing them are excluded from link-jitter learning using source-time evidence. Single long decoder/GPU hitches are classified separately; sustained load still appears in readiness/pressure telemetry. Buffer release or offset changes must never create backwards targets/catch-up bursts; if a proposed shift violates chronology, hold the target or reset and discard superseded work with a trace event.
+
+Late policy: never deliberately submit a future frame early. If several decoded frames are overdue, discard superseded overdue frames and choose the newest due frame; keep a future frame only within capacity. If the sole current frame is late, present it once when the backend can accept it, with lateness recorded. A display's fixed-refresh quantization is an explicit final-stage constraint. No synthetic duplicate source-frame submissions to fill that grid. A retained last scanout, compositor repaint, LFC or panel refresh is not a new source frame. Do not drop undecoded reference frames merely to trim a presentation queue. Audio uses its existing clock/resampler policy; any new A/V error is a separately measured mapped-source-to-audio observation, never a silent audio retime.
+
+## 5. Negotiation, host status and presentation reporting
+
+At launch AND resume, serialize the existing `clientVrrRequested=1` exactly once only if the user allows adaptive presentation and a fresh snapshot of the chosen output/presentation path establishes VRR capability and a supported source-time scheduler. High QScreen Hz, a renderer name, extension presence, environment variables or a setting alone are insufficient. Absent/unknown/fixed capability omits the request. Watch/input-only sessions never acquire cadence authority. Preserve the host's parser behavior for duplicate/malformed arguments (P01; P02:4079–4087). On capability loss during a stream, immediately clear local effective VRR and report the named fallback; do not relaunch a game or change the host request mid-generation.
+
+Read the host's own `vrr` record for the requesting stream: `schema`, `requested`, `requested_from`, `host_permission`, `effective`, `pacing_mode`, `fallback_reason`, `capture_pacing`, identity, and `host_pacing.fresh/state`. At the pin, host effective means a fresh host source-time sample (freshness <=2 seconds); `receiver_presentation_verified`, `physical_acceptance` and `receiver_source_cadence_available` are explicitly false (P04:753–803). Preserve absent, false, null, malformed and stale as distinct states. Do not infer support from the host version, a configured switch or global capture labels. Host `host_permission=true` is permission, not proof of effective source cadence.
+
+**Additional verified integration gap:** the pinned authenticated `/polaris/v1/session/status` builds a `vrr` object inside the *input* passed to Doctor v2 (P07:9423–9464), but does not serialize a standalone `output["vrr"]`. Doctor can return before evaluating that input when disabled or collecting (P09:337–357); its eventual `source_cadence_policy` observation is a reduced diagnostic (P10:36–99), not the complete raw VRR contract. Client-row statistics do serialize their own `vrr` (P08:1434–1443), and `stream_stats::vrr_json` can generate the requester's record (P08:4617–4629). Therefore do not design a parser for a nonexistent guaranteed top-level status block.
+
+Propose one ROOT-owned Polaris contract change: expose the existing requester-scoped `vrr_json(stats, requester_generation)` as optional **`vrr`** in session/status, independent of Doctor enablement/warmup. No record means absent; never substitute another client, Watch row or last-session record. This is a new public status field and must go through the canonical generator before Nova consumes it. Carry the existing generation/identity fields; do not invent a new bearer identity or demand Nova protocol work to retroactively qualify the separate Nonary #395 proof route.
+
+Return presentation state through the existing authenticated client-settings `client_presentation` object, using existing `frame_pacing_state` (N10:152–160; P02:1551–1591). Proposed bounded ASCII grammar, max 256 bytes, exact enums and key order:
+
+```text
+st1;requested=auto;effective=source_time_fixed;vrr_requested=0;vrr_effective=0;fallback=display_fixed_refresh
+```
+
+`requested` is `off|auto|source_time`; `effective` is `legacy|pending|source_time_fixed|source_time_vrr|unavailable`; boolean values are 0/1; fallback is `none` or one machine reason. Emit a fresh report on state transitions and via the existing bounded runtime-report cadence, with current connection ownership/cancellation; keep it off the media/render critical path. Preserve existing `client_presentation.status` meanings (`synced|pending|blocked|unknown`) for display-policy application; a display-policy sync is not VRR acceptance. Retain the existing `presentation_policy` permissions, internal-display-only scope and fixed-refresh recommendations (P02:2175–2198). Do not pack raw tokens, device IDs or detailed traces into this string.
+
+Reasons include `not_requested`, `host_status_missing`, `host_status_stale`, the host's named fallback, `source_timestamp_missing`, `renderer_not_participating`, `pacing_mode_incompatible`, `source_discontinuity`, `timing_metadata_missing`, `clock_mapping_unstable`, `decoder_pressure`, `buffer_limit`, `display_fixed_refresh`, `display_capability_unknown`, `compositor_unverified`, `present_mode_unsupported`, `present_feedback_unavailable`, `present_feedback_stale`, and `surface_recreated`. Keep host/local reasons separately in the diagnostic model even if the summary selects one.
+
+Neither canonical schema currently declares a VRR/presentation object, despite these handwritten existing emitters/readers. Add canonical declarations for the fields Nova will consume and the state-string semantic version, declare consumers, then run Polaris `scripts/generate-polaris-contract.py`, its tests, and emitter audit. The current pins are **34 objects, 357 ordered fields, 320 generated C++ definitions** (P05:84–94); recompute and review changed counts rather than weakening these assertions. Vendor byte-identical schema/generator and exact upstream commit/hash provenance into Nova; run `tools/generate-nova-polaris-contract.py` plus `--check` and tests, refreshing generated Kotlin/C++ consumers (N21). Any later structured state/epoch/support fields must follow this same path; never add a Nova-only guessed JSON field.
+
+## 6. User-visible truth
+
+| Label | Required meaning |
+| --- | --- |
+| Display Hz | Current output mode reading; for VRR it can be the maximum/nominal mode, never proof of changing scanout intervals |
+| Source-paced | This client is using valid unwrapped host timestamps and the mapped bounded scheduler; fixed-refresh output is allowed; show host source-time status separately |
+| Host source-paced | Fresh own-stream host `vrr.effective=true` and source-time mode; never implies client VRR |
+| VRR requested | Admission flag sent after supported local path preflight; never implies host admission or active panel behavior |
+| VRR active | Fresh matching host source-time evidence + valid client mapping + qualified selected renderer/present mode + current compositor/output adaptive state + usable presented-frame evidence from the same surface/output generation |
+| VRR unverified/fallback | Any missing, stale, incapable or contradictory link; show the named reason while source-time fixed-refresh pacing can remain useful |
+
+Use the same reducer and reasons in HUD, Linux Command Center, Android summary and support exports. Generic present-wait completion can bound outstanding presents but has no precise scanout timestamp guarantee; label it accordingly. No `active` status based solely on a submitted/composed counter. Physical release acceptance still requires the route-specific receipt; runtime capability/evidence labels do not manufacture such a receipt.
+
+## 7. Shared discriminating fixtures and attribution
+
+Maintain versioned shared fixtures under `shared/presentation/tests/source-time-replay-v1.json` with policy, input clock domain, generation, RTP, frame identity, ingress/decode/feedback events and expected validity/reset/target/drop bounds. Both clients must pass the same chronology and pacing oracle, including equal arrivals with different source cadence and equal source cadence with different arrival jitter. Tests using only steady FPS/arrival timestamps are inadequate. Instability revision 2 adds compact integer-series inputs: ten simulated minutes at +/-50 and +/-500 ppm with 1 ms and 1 us anchors, independent 2/4 ms jitter, combined drift/jitter, zero re-warm and bounded true applied-offset error assertions. Step cases require exactly one re-warm on the eighth confirming forward frame; isolated lower-envelope and backlog cases pin their individual rules. `seriesGrammar` in the JSON defines every integer operation (including signed truncation and LCG modulo), and the generator only emits inputs and bounds, never mapper answers. The arrival-only mutant must continue to fail the same oracle. The Linux packet defines integration cases; #242 owns JNI signatures, MediaCodec/Choreographer and Android renderer lifecycle details. Existing Android enqueue-based codec PTS may remain an opaque correlation key while source timing travels in a separate metadata association; never replace PTS without migrating all T3/T4/decode/benchmark consumers and preserving their historical meanings.
+
+Nonary reference: exact VRR18 tag commit `1ad5848bd2190ab9dd9eea00d4730740d530ec29`. Immutable controller/header and GPLv3 license are retained and hashed in `inputs/Nonary-*`. Intended reuse is the wrap-aware source cadence, bounded lower-envelope source mapping and bounded playout control ideas/subroutines, not the entire renderer/controller stack or its optional smoothing. In `vrrtimingcontroller.cpp`, relevant original lines are 1653–1734, 2733–2842 and 3507–3514; these are candidate extraction boundaries, not a claim that all their dependencies are self-contained. Identify the minimal helper dependency closure before code import and retain each original header/copyright/license notice; preserve upstream authors in patch provenance. Reused source needs its exact original path/revision/link, a modification notice, GPL licensing compatible with Nova, a third-party notice and corresponding-source/package notice inclusion. Do not replace contributor notices with a generic Nonary credit.
+
+Proposed repository notice `docs/third-party/source-time-pacing.md` links [Nonary moonlight-qt](https://github.com/Nonary/moonlight-qt/tree/1ad5848bd2190ab9dd9eea00d4730740d530ec29) and [Vibeshine](https://github.com/Nonary/Vibeshine), names the protocol/design contribution and enumerates actually copied helpers/files. Add `licenses/Nonary-moonlight-qt-LICENSE.txt` and install the notice/license in Flatpak; #242 owns inclusion in Android's license assets if it reuses that code/design. Release documentation must thank Nonary and link both projects; ROOT/papi approve exact public text separately. No code was copied into the product in this dispatch.
+
+## Primary protocol references
+
+- [Kernel DRM VRR properties](https://docs.kernel.org/gpu/drm-kms.html): connector capability and CRTC VRR enable hint are different observations.
+- [Khronos present-wait specification](https://docs.vulkan.org/refpages/latest/refpages/source/VK_KHR_present_wait.html): completion has no precise pixel-time relationship guarantee.
+- [Wayland presentation-time protocol source](https://raw.githubusercontent.com/wayland-mirror/wayland-protocols/main/stable/presentation-time/presentation-time.xml): surface-commit correlation, output identity, clock and presented/discarded events.
+- [Pinned libplacebo Vulkan header](https://raw.githubusercontent.com/haasn/libplacebo/cee9b076f2c63104ccfd497fa79c39a867293ec4/src/include/libplacebo/vulkan.h), lines 286–305: preferred present mode can fall back to FIFO; swapchain-depth waiting is GPU completion, not display completion.
+
+## Delivery hold ceiling (W25 F1)
+
+The final Deck decoded-frame admission ceiling is `sourceHoldCeilingUs =
+sourceReserveMaximumUs (12000) + sourceMaximumMappingErrorUs (5000) = 17000 us`.
+The tolerated mapping error is a delivery safety limit, not a guarantee that the
+mapper always meets it. A target beyond decoded-ready time plus that ceiling is
+rejected and counted as a delivery drop with `hold_ceiling_exceeded`; it is never
+submitted early or converted to an arrival target. The same check precedes deadline
+arming. Thus an admitted sub-one-second forward jump followed by loss of all later
+observations cannot hold that decoded lease for hundreds of milliseconds. This
+bounds intentional target waiting; GUI stalls, rendering and compositor waits
+remain outside the bound. Constants are provisional and require physical receipts.
+
+## Delivery epoch fence (W25 F2)
+
+Every decoded descriptor carries the mapper epoch in `clock.epoch`, including
+inactive warmup/metadata-missing points. Publication of a newer epoch atomically
+releases the queued old leases, invalidates the queued deadline epoch and clears
+the delivered source watermark; older epochs are dropped as `stale_epoch`. A
+timer callback always reevaluates the current queue and epoch before arming or
+delivery. Decoder PTS remains unique across mapper/surface resets; the PTS store
+retains its chronology and current-epoch lower bound so missing/expired old output
+cannot be relabeled with a current epoch. Only a decoder teardown resets PTS.
+
+## Late source chronology (W25 F3)
+
+The delivered watermark is the last delivered mapper epoch, unwrapped source
+time and modulo-32 frame identity, never GUI wall time. A sole overdue frame
+newer in that chronology is displayed once; queued overdue frames still coalesce
+to the newest current frame. A source frame already superseded by the watermark
+is dropped as `stale_frame`. Reset/epoch transitions clear the watermark.
+
+## OFF lifecycle and accounting (W25 F4)
+
+When source timing is disabled, display/window timing resets are no-ops for
+delivery: the existing queue, cadence timer and in-flight old-generation frames
+follow the legacy path. Source-enabled reset discards are included in `dropped`.
+The submission-work observation begins before generation reset, mapper observe,
+lower-envelope/readiness processing and metadata expiry. These new callback
+operations therefore contribute to `videoWorkMicros`/`videoWorkSamples` in both
+OFF and enabled sessions. This is accounting coverage, not a CPU-cost receipt.
+
+## Deck phase-2 preference
+
+`Video/v1/source_time_pacing` persists the exact values `off`, `auto`,
+`source_time`, default `off` for absent/corrupt values. `off` selects legacy
+delivery. `auto` qualifies host timing and uses source targets when available,
+otherwise the named fallback. `source_time` requests the same safe path explicitly
+and keeps its fallback visible; it does not bypass qualification. Both enabled
+choices require Balanced and support fixed-refresh source pacing. Start snapshots
+the preference before `setSourceTimingEnabled`; reconnect retains that snapshot.
+The settings row uses existing focus/choice navigation and no motion behavior.
+No `clientVrrRequested` is added, and no presentation receipt is available.
+
+## Deck phase-2 facts and trace
+
+Requested is the saved stream snapshot. Effective is one of `legacy`, `pending`,
+`source_time_fixed`, `source_time_vrr`, `unavailable`; Deck emits fixed only after
+a current source-target delivery, never VRR without presentation receipts. The
+latest invalid point changes effectiveness immediately, and one second without
+new observations expires a source-paced state to pending/source_timestamp_missing.
+Named fallback is a separate field; host status and nominal display Hz cannot
+create a source-paced state. NovaHUD shows all three for an enabled request (also
+OFF in Debug), independently of the nominal display-mode chip. The existing
+opt-in qualification trace includes one bounded allowlisted `source_time` object
+per sample with these three facts and the versioned delivery limits.
+
+## Host status intake
+
+Deck reads `session_vrr` and `session_vrr_host_pacing` exactly as declared by
+Polaris `07e68ae6292f61f57830f0bdfbad139d3e714ebe`. Absent, JSON null, malformed
+and present records remain distinct backend states. Optional host-pacing absence
+never implies a receipt; malformed/null host-pacing rejects the record. Host proof
+requires matching response/session generations, permission, effective=true, null
+fallback, source_time mode and a fresh/source_time host-pacing receipt. Observer
+receipt age greater than two seconds invalidates host proof independently of the
+legacy telemetry freshness window. Missing/unreadable proof is `host_status_missing`
+and a mismatched generation/expired receipt is `host_status_stale`.
+
+Fixed-refresh client source-target delivery remains `source_time_fixed` when the
+local mapper is active even if host source-pacing proof is missing/stale; in that
+case the separate fallback fact records the host gap. Local safety fallbacks take
+precedence. Host status alone never promotes the client to source_time_fixed or
+source_time_vrr. Nominal Hz is separate and no adaptive-refresh request is sent.
+The canonical schema/generator are explicitly re-vendored byte-for-byte from the
+pin and outputs regenerated with the Nova driver, including shared Kotlin names;
+Android application source remains untouched.
+
+The decoder owner also publishes mapper epochs directly to delivery on resets
+and observations, before waiting for output. This releases queued old leases even
+if the new epoch produces no decoded frame. Descriptor and deadline checks remain
+in place to reject stale asynchronous output and callbacks.
+
+## Deck final submission fence (W47 D2)
+
+Enabled descriptors carry a shared mapper/presentation fence and a once-counted
+submission ticket from delivery selection through the GUI mailbox and render job.
+Mapper observe/reset mutations publish their epoch while holding this authority;
+output-generation invalidation uses it before publishing the new generation.
+Mailbox admission and the actual Vulkan start/submit/present lock pair revalidate
+under that same hold. A mismatch drops unsent work as `stale_epoch`; an old job
+cannot cross invalidation, even between the final check and submit/present.
+Already-submitted GPU ownership still retires normally. No fence is attached on
+OFF. Lock order is decoder lifecycle, delivery, fence; the final fenced callback
+never enters delivery/decoder or waits for GUI synchronization. The hold includes
+GPU submission work and can delay mapper invalidation; no duration guarantee is
+claimed. Host-buildable atomicity tests are distinct from native Vulkan execution.
+
+## Deck effectiveness ordering (W47 T1)
+
+Each enabled decoded admission receives a monotonic local ticket identity, kept
+by its queued frame, mailbox and completion. This orders even untimed output for
+which a source frame ID/PTS is missing; it adds no wire field. Invalid admission
+immediately records pending/unavailable with that identity and its existing named
+fallback. Both source-target and fallback completions commit only at or after the
+latest state identity. Thus valid A followed by untimed B stays pending while A
+completes and after fallback B delivers. Only an eligible newer source-target
+delivery restores `source_time_fixed/none`. Old fallback completions likewise
+cannot regress a newer success. Mapper/presentation invalidation and stale-submit
+counts remain independent fences; host fallback semantics are unchanged.
+
+## Deck End trace-tail limit (W47 / review T2)
+
+Decision: retain the existing per-sample trace contract; a terminal End flush is
+not implemented in this follow-up. The worker can publish `shared->hud` after the
+last GUI poll, then End sets cancellation before the next poll. That sample is
+not appended, and delivery/source transitions since the last sampled row can
+also be absent. Every successfully appended row is already flushed synchronously;
+End does not discard those completed rows. There is no terminal row, End receipt,
+retry, or guarantee that the last row describes the last delivered frame.
+
+The writer's existing limits bound bytes (16 MiB per file, at most 16 retained
+files), not QFile write/flush duration. A final fresh renderer/source snapshot
+would also require synchronization with worker/GPU ownership, including the final
+submission fence. Adding that work to GUI End has no cheap, established time bound
+or controller-level terminal freshness test on this host. This choice preserves
+stop/cancellation and keeps End independent of extra storage/GPU waits; it does
+not make missing tail counts zero or complete. ROOT must decide whether a future
+bounded pending terminal snapshot is required, with explicit sample age/terminal
+meaning and an End-before-next-poll controller test, before using traces as
+terminal source-time/count evidence. No new trace or wire vocabulary is added.

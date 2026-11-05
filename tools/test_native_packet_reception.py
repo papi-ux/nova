@@ -4,7 +4,7 @@ NOVA_PACKET_RECEPTION_HARNESS supplies a harness built by the Deck CMake from it
 own prepared core. Otherwise this prepares a build-owned copy of the selected core
 and builds the harness with ASan/UBSan:
 
-  NOVA_PACKET_RECEPTION_CHAIN=android        patches 0001-0012, as Android applies them
+  NOVA_PACKET_RECEPTION_CHAIN=android        patches 0001-0013, as Android applies them
   NOVA_PACKET_RECEPTION_CHAIN=deck           the Deck's nova_deck_prepare_rtsp() chain
   NOVA_PACKET_RECEPTION_CHAIN=deck-pyrowave  the Deck chain plus its optional PyroWave patch
 
@@ -25,7 +25,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 PATCHES = ROOT / "app/src/main/jni/moonlight-core/patches"
 SPEC = ROOT / "docs/native-packet-reception-feedback.md"
 RECEPTION_PATCH = "0011-feat-video-report-bounded-native-packet-reception.patch"
-TRANSPORT_PATCH = "0012-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch"
+TRANSPORT_PATCH = "0013-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch"
 
 EXPECTED_CASES = {
     "unit": [
@@ -83,7 +83,7 @@ def copy_core(source, destination):
 
 
 def prepare_android_chain(source, destination):
-    """Unwind any patches the source already carries, then apply 0001..0012 in order."""
+    """Unwind any patches the source already carries, then apply 0001..0013 in order."""
     copy_core(source, destination)
     patches = sorted(PATCHES.glob("*.patch"))
     for patch in reversed(patches):

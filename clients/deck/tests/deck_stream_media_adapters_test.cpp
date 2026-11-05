@@ -241,6 +241,27 @@ int main(int argc, char** argv) {
     qputenv("QT_QPA_PLATFORM", qgetenv("QT_QPA_PLATFORM").isEmpty() ? QByteArray("minimal") : qgetenv("QT_QPA_PLATFORM"));
     QGuiApplication app(argc, argv);
 
+    {
+        using namespace nova::deck::stream;
+        DeckFrameTimingStore pending;
+        DeckSourceFrameTiming a, b;
+        a.clock.valid = b.clock.valid = true; a.clock.epoch = b.clock.epoch = 1;
+        a.clock.rtp = 180000; b.clock.rtp = 180900;
+        a.clock.sourceUs = 1000000; b.clock.sourceUs = 1010000;
+        a.callbackMonoNs = b.callbackMonoNs = 1000;
+        AVFrame outputA{}; outputA.pts = *pending.packetPts(a.clock);
+        NOVA_TEST_REQUIRE(pending.put(outputA.pts, a));
+        const auto inputB = *pending.packetPts(b.clock);
+        NOVA_TEST_REQUIRE(pending.put(inputB, b));
+        auto found = pending.take(outputA.pts, 2000);
+        NOVA_TEST_REQUIRE(found && found->clock.rtp == a.clock.rtp && found->clock.sourceUs == a.clock.sourceUs);
+        NOVA_TEST_REQUIRE(pending.size() == 1);
+        pending.clear();
+        NOVA_TEST_REQUIRE(!pending.take(outputA.pts, 3000));
+        a.clock.epoch = 2; a.clock.sourceUs = 0;
+        NOVA_TEST_REQUIRE(*pending.packetPts(a.clock) > inputB);
+    }
+
     using nova::deck::stream::DeckLinuxAudioProbe;
     using nova::deck::stream::DeckLinuxMediaProbe;
     using nova::deck::stream::DeckPipeWireAudio;

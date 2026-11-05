@@ -35,6 +35,11 @@ class NovaStreamHud(
     // Read-only: the refresh rate of the streaming display's current mode, or null when that
     // display is not known. Asked only when the HUD publishes, never on a timer of its own.
     private val displayModeHz: (() -> Float?)? = null,
+    // Host frame timing (#242): the shared reducer, given the status the HUD holds, whether that
+    // status is current, and the display mode rate. Asked only when the HUD publishes. Before the
+    // Command Center callback so a trailing lambda still means that callback.
+    private val presentation: ((com.papi.nova.api.PolarisSessionStatus?, Boolean, Float?) ->
+        com.papi.nova.binding.video.sourcetime.PresentationTruth)? = null,
     private val onCommandCenterRequested: (() -> Unit)? = null
 ) {
     private var hudView: ComposeView? = null
@@ -510,6 +515,9 @@ class NovaStreamHud(
         // StreamPolicy owns legacy fallbacks and deliberately returns zero when a
         // present current policy is invalid. Do not replace that with an old rate.
         val displayBitrate = streamPolicy.effectiveBitrateKbps
+        // A display rate beside a stream that has stopped arriving describes nothing; read it once
+        // per publish, for the display chip and the presentation facts alike.
+        val currentDisplayModeHz = if (mediaFresh) displayModeHz?.invoke() else null
         hudState.value = NovaHudUiState.from(
             mode = currentMode,
             fps = lastFps,
@@ -535,8 +543,12 @@ class NovaStreamHud(
             mediaStale = lastMediaAtMs != null && !mediaFresh,
             hostFresh = hostFresh,
             launchPresetLabel = launchPresetLabel,
-            // A display rate beside a stream that has stopped arriving describes nothing.
-            displayModeHz = if (mediaFresh) displayModeHz?.invoke() else null
+            displayModeHz = currentDisplayModeHz,
+            presentation = if (mediaFresh) {
+                presentation?.invoke(lastSessionStatus, hostFresh, currentDisplayModeHz)
+            } else {
+                null
+            }
         )
     }
 

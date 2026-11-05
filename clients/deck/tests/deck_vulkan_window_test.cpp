@@ -100,6 +100,35 @@ int main(int argc, char** argv) {
     require(expectedPixel > 8 && expectedPixel < 247, "reference fixture lost its visible midtone");
     const int hdrRefs = av_buffer_get_ref_count(hdr->buf[0]), sdrRefs = av_buffer_get_ref_count(sdr->buf[0]);
     {
+        // D2 production mailbox -> render-job -> Vulkan control. Admission is
+        // current while hidden; mapper invalidation occurs before the first job
+        // can submit. An implementation without the final guard increments the
+        // real swapchain submission count instead of the stale drop count.
+        auto fence=std::make_shared<nova::deck::runtime::DeckSourceSubmissionFence>();
+        fence->advanceEpoch(1); fence->reset(7);
+        DeckSourceFrameTiming timing;
+        timing.clock.epoch=1; timing.presentationGeneration=7;
+        timing.submissionFence=fence; timing.submissionTicket=fence->ticket(1,7);
+        DeckVulkanVideoWindow window(true); window.resize(320,240);
+        require(window.submitFrame(*sdr,timing), "current source mailbox rejected");
+        fence->advanceEpoch(2);
+        window.show();
+        wait([&] { return fence->stats().dropped || window.presentationState().submittedFrames; }, "stale mailbox never reached final guard");
+        require(fence->stats().dropped==1 && window.presentationState().submittedFrames==0,
+            "old mapper epoch reached the actual Vulkan submit");
+        timing.clock.epoch=2; timing.submissionTicket=fence->ticket(2,7);
+        require(window.submitFrame(*sdr,timing), "new epoch mailbox rejected");
+        wait([&] { return window.presentationState().submittedFrames>0; }, "new epoch did not recover");
+        window.hide(); wait([&] { return !window.isExposed(); }, "fence window failed to hide");
+        const auto before=window.presentationState().submittedFrames;
+        timing.submissionTicket=fence->ticket(2,7);
+        require(window.submitFrame(*sdr,timing), "current surface mailbox rejected");
+        fence->reset(8); window.show();
+        wait([&] { return fence->stats().dropped==2 || window.presentationState().submittedFrames>before; }, "surface reset never reached final guard");
+        require(fence->stats().dropped==2 && window.presentationState().submittedFrames==before,
+            "old presentation generation reached the actual Vulkan submit");
+    }
+    {
         // Explicit software permission belongs only to this local test. Xvfb
         // is deliberately SDR; neither synthetic pixels nor window submission
         // is evidence of hardware decode, an HDR panel or physical frame pacing.

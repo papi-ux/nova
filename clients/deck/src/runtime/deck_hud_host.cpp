@@ -44,7 +44,7 @@ std::atomic<quint64> reviewSerial{0};
 qint64 nowMs() { return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count(); }
 }
 QVariantMap DeckHudHostReducer::unavailable() {
-    return {{"hostFresh", false}, {"hostRefreshing", false}, {"healthLabel", "Host readings unavailable"}, {"healthTone", "muted"},
+    return {{"hostSourceTimeStatus", "absent"}, {"hostSourcePaced", false}, {"hostSourceTimeFallback", "host_status_missing"}, {"hostFresh", false}, {"hostRefreshing", false}, {"healthLabel", "Host readings unavailable"}, {"healthTone", "muted"},
         {"hostTone", "muted"}, {"netTone", "muted"}, {"clientTone", "muted"},
         {"tuningLabel", "Tuning: Unknown"}, {"tuningTone", "muted"},
         {"appliedBitrate", "--"}, {"requestedBitrate", "--"}, {"qualityLimit", "--"},
@@ -172,6 +172,16 @@ QVariantMap DeckHudHostReducer::accept(const DeckHostTelemetry& s) {
     }
     if (!s.live) interrupt();
     out["hostFresh"] = true;
+    using VrrKind = polaris::DeckSessionVrrReading::Kind;
+    out["hostSourceTimeStatus"] = s.vrr.kind == VrrKind::Present ? "present" : s.vrr.kind == VrrKind::Null ? "null" :
+        s.vrr.kind == VrrKind::Malformed ? "malformed" : "absent";
+    if (s.vrr.kind == VrrKind::Present && s.vrr.record) {
+        const auto& vrr = *s.vrr.record;
+        const bool sameGeneration = s.generation && *s.generation == vrr.sessionGeneration;
+        out["hostSourcePaced"] = sameGeneration && vrr.hostSourcePaced();
+        out["hostSourceTimeFallback"] = !sameGeneration || (vrr.hostPacing && !vrr.hostPacing->fresh) ? "host_status_stale" :
+            vrr.hostSourcePaced() ? "none" : "host_status_missing";
+    }
     // Only for this device's own current stream, reached past the gates above; a downgrade
     // reported beside hdr10 contradicts it, and a contradiction shows no chip.
     out["hdrStream"] = s.hdrStream && !s.hdrDowngraded;
@@ -792,6 +802,13 @@ QVariantMap DeckHudHostObserver::snapshot() const {
     const std::lock_guard lock(shared_->mutex);
     auto view = shared_->stopped || Clock::now() - shared_->observed > std::chrono::milliseconds(shared_->staleMs)
         ? DeckHudHostReducer::unavailable() : shared_->view;
+    // Host source-pacing freshness is capped at two seconds independently of
+    // the older telemetry stale window. No display-rate inference is involved.
+    if (Clock::now() - shared_->observed > std::chrono::milliseconds(2000) &&
+        shared_->view.value("hostSourceTimeStatus") == "present") {
+        view["hostSourceTimeStatus"] = "present";
+        view["hostSourcePaced"] = false; view["hostSourceTimeFallback"] = "host_status_stale";
+    }
     // The session reads this every frame, so a Live Tuning line leaves on time without a new poll.
     if (view.take("tuningLineUntilMs").toLongLong() <= nowMs()) {
         view.remove("tuningLine"); view.remove("tuningLineKind"); view.remove("tuningLineSerial");

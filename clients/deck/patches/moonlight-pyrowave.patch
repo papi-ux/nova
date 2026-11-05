@@ -1,14 +1,34 @@
 --- a/src/Limelight.h
 +++ b/src/Limelight.h
-@@ -220,0 +221 @@
+@@ -225,6 +225,7 @@
+ 
+ // Passed in StreamConfiguration.supportedVideoFormats to specify supported codecs
+ // and to DecoderRendererSetup() to specify selected codec.
 +#define VIDEO_FORMAT_PYROWAVE        0x10000 // Nova/Polaris pinned SDR420 extension
-@@ -501,0 +503 @@
+ #define VIDEO_FORMAT_H264            0x0001 // H.264 High Profile
+ #define VIDEO_FORMAT_H264_HIGH8_444  0x0004 // H.264 High 4:4:4 8-bit Profile
+ #define VIDEO_FORMAT_H265            0x0100 // HEVC Main Profile
+@@ -506,6 +507,7 @@
+ void LiInitializeConnectionCallbacks(PCONNECTION_LISTENER_CALLBACKS clCallbacks);
+ 
+ // ServerCodecModeSupport values
 +#define SCM_PYROWAVE        0x00800000 // Nova/Polaris pinned SDR420 extension
+ #define SCM_H264            0x00000001
+ #define SCM_HEVC            0x00000100
+ #define SCM_HEVC_MAIN10     0x00000200
 --- a/src/RtspConnection.c
 +++ b/src/RtspConnection.c
-@@ -2,0 +3 @@
+@@ -1,5 +1,6 @@
+ #include "Limelight-internal.h"
+ #include "Rtsp.h"
 +#include "NovaPyrowaveProtocol.h"
-@@ -1076 +1077,10 @@
+ 
+ #define RTSP_CONNECT_TIMEOUT_SEC 10
+ #define RTSP_RECEIVE_TIMEOUT_SEC 15
+@@ -1100,7 +1101,16 @@
+             goto Exit;
+         }
+         
 -        if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
 +        if (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_PYROWAVE) {
 +            if (!(serverInfo->serverCodecModeSupport & SCM_PYROWAVE) ||
@@ -20,16 +40,31 @@
 +            NegotiatedVideoFormat = VIDEO_FORMAT_PYROWAVE;
 +        }
 +        else if ((StreamConfig.supportedVideoFormats & VIDEO_FORMAT_MASK_AV1) && strstr(response.payload, "AV1/90000")) {
+             if ((serverInfo->serverCodecModeSupport & SCM_AV1_HIGH10_444) && (StreamConfig.supportedVideoFormats & VIDEO_FORMAT_AV1_HIGH10_444)) {
+                 NegotiatedVideoFormat = VIDEO_FORMAT_AV1_HIGH10_444;
+             }
 --- a/src/SdpGenerator.c
 +++ b/src/SdpGenerator.c
-@@ -433 +433,4 @@
+@@ -438,7 +438,10 @@
+         snprintf(payloadStr, sizeof(payloadStr), "%d", slicesPerFrame);
+         err |= addAttributeString(&optionHead, "x-nv-video[0].videoEncoderSlicesPerFrame", payloadStr);
+ 
 -        if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
 +        if (NegotiatedVideoFormat == VIDEO_FORMAT_PYROWAVE) {
 +            err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "3");
 +        }
 +        else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
+             err |= addAttributeString(&optionHead, "x-nv-vqos[0].bitStreamFormat", "2");
+         }
+         else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_H265) {
 --- a/src/VideoDepacketizer.c
 +++ b/src/VideoDepacketizer.c
-@@ -215 +215 @@
+@@ -214,7 +214,7 @@
+             LC_ASSERT_VT(decodeUnit->bufferList->next->next->bufferType == BUFFER_TYPE_PPS);
+             LC_ASSERT_VT(decodeUnit->bufferList->next->next->next != NULL);
+         }
 -        else if (NegotiatedVideoFormat & VIDEO_FORMAT_MASK_AV1) {
 +        else if (NegotiatedVideoFormat & (VIDEO_FORMAT_MASK_AV1 | VIDEO_FORMAT_PYROWAVE)) {
+             // We don't parse the AV1 bitstream
+             LC_ASSERT_VT(decodeUnit->bufferList->bufferType == BUFFER_TYPE_PICDATA);
+         }

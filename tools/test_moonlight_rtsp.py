@@ -244,7 +244,10 @@ class NativePatchBootstrapTest(unittest.TestCase):
         self.assertIn("PacketReceptionNoteHostOffer", source)
         self.assertTrue((self.source / "src/PacketReception.c").is_file())
         self.assertIn("startReceptionTransport", (self.source / "src/ControlStream.c").read_text())
-        self.assertEqual(self.git(self.source, "rev-list", "--count", self.pin + "..HEAD").stdout.strip(), "12")
+        self.assertIn("LI_RTP_TIMESTAMP_VERSION", (self.source / "src/Limelight.h").read_text())
+        self.assertIn("decodeUnit.rtpTimestamp = firstPacketRtpTimestamp", (self.source / "src/VideoDepacketizer.c").read_text())
+        self.assertEqual(len(list(self.patches.glob("*.patch"))), 13)
+        self.assertEqual(self.git(self.source, "rev-list", "--count", self.pin + "..HEAD").stdout.strip(), str(len(list(self.patches.glob("*.patch")))))
 
     def test_fresh_and_repeat_bootstrap(self):
         self.bootstrap()
@@ -264,17 +267,33 @@ class NativePatchBootstrapTest(unittest.TestCase):
         self.assert_patched()
         self.git(self.source, "merge-base", "--is-ancestor", old, "HEAD")
 
-    def test_upgrade_from_ten_patches_adds_only_the_reception_patches(self):
+    def test_upgrade_from_ten_patches_adds_only_missing_patches(self):
         patches = sorted(self.patches.glob("*.patch"))[:10]
+        self.git(self.source, "am", *map(str, patches))
+        old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
+        self.bootstrap()
+        self.assert_patched()
+        self.assertEqual(self.git(self.source, "rev-parse", "HEAD~3").stdout.strip(), old)
+
+    def test_upgrade_from_eleven_patches_adds_only_source_time_and_transport(self):
+        patches = sorted(self.patches.glob("*.patch"))[:11]
         self.git(self.source, "am", *map(str, patches))
         old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
         self.bootstrap()
         self.assert_patched()
         self.assertEqual(self.git(self.source, "rev-parse", "HEAD~2").stdout.strip(), old)
 
-    def test_upgrade_from_eleven_patches_adds_only_the_transport_patch(self):
-        patches = sorted(self.patches.glob("*.patch"))[:11]
+    def test_upgrade_from_source_time_series_adds_only_transport(self):
+        patches = sorted(self.patches.glob("*.patch"))[:12]
         self.git(self.source, "am", *map(str, patches))
+        old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
+        self.bootstrap()
+        self.assert_patched()
+        self.assertEqual(self.git(self.source, "rev-parse", "HEAD~1").stdout.strip(), old)
+
+    def test_upgrade_from_throttle_series_preserves_ids_and_adds_only_source_time(self):
+        patches = sorted(self.patches.glob("*.patch"))
+        self.git(self.source, "am", *map(str, patches[:11]), str(patches[12]))
         old = self.git(self.source, "rev-parse", "HEAD").stdout.strip()
         self.bootstrap()
         self.assert_patched()
@@ -310,13 +329,16 @@ nova_deck_prepare_rtsp("{self.source.as_posix()}" "{destination.as_posix()}")
         source = (destination / "src/RtspConnection.c").read_bytes()
         self.assertTrue(b"MAX_RTSP_RESPONSE_SIZE" in source, "RTSP bound is absent from the generated source")
         self.assertTrue((destination / "src/PacketReception.c").is_file(), "the Deck copy lacks the reception observer")
+        self.assertIn("startReceptionTransport", (destination / "src/ControlStream.c").read_text())
+        self.assertIn("LI_RTP_TIMESTAMP_VERSION", (destination / "src/Limelight.h").read_text())
+        self.assertIn("decodeUnit.rtpTimestamp = firstPacketRtpTimestamp", (destination / "src/VideoDepacketizer.c").read_text())
         self.assertEqual(self.git(self.source, "status", "--porcelain").stdout, before)
         self.bootstrap()
         # Force the timestamp collision that a fast reconfigure can encounter.
         stamp = (destination / "src/RtspConnection.c").stat().st_mtime_ns
         os.utime(self.source / "src/RtspConnection.c", ns=(stamp, stamp))
         self.prepare(destination)
-        for name in ("RtspConnection.c", "VideoStream.c", "RtpVideoQueue.c", "PacketReception.c"):
+        for name in ("RtspConnection.c", "VideoStream.c", "RtpVideoQueue.c", "PacketReception.c", "PacketReception.h", "ControlStream.c", "Limelight.h", "RtpVideoQueue.h", "VideoDepacketizer.c"):
             self.assertEqual((destination / "src" / name).read_bytes(), (self.source / "src" / name).read_bytes(), name)
         self.assertEqual(self.git(self.source, "status", "--porcelain").stdout, before)
 

@@ -1218,6 +1218,11 @@ internal fun NovaPageScope.NovaCommandCenterDetails(
                             }
                         }
                         NovaDetailLine(stringResource(R.string.nova_cc_recent_limits), "")
+                        // Host frame timing (#242): read-only facts, no controls and no motion.
+                        if (stream.presentation.isNotEmpty()) {
+                            NovaSectionLabel(stringResource(R.string.nova_cc_presentation))
+                            stream.presentation.forEach { (label, value) -> NovaDetailLine(label, value) }
+                        }
                         // Only the existing fresh receipt route offers Undo; observations create no authority.
                         if (ui.value.doctorReceiptAction.visible) NovaQuickMenuInfoCard(ui, { it.doctorReceiptAction }, callbacks)
                     }

@@ -127,6 +127,7 @@ class KotlinVideoRuntimeMigrationTest {
             Int::class.javaPrimitiveType!!,
             Char::class.javaPrimitiveType!!,
             Long::class.javaPrimitiveType!!,
+            Long::class.javaPrimitiveType!!,
             Long::class.javaPrimitiveType!!
         )
         MediaCodecDecoderRenderer::class.java.getMethod("getCapabilities")

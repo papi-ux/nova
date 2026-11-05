@@ -53,6 +53,7 @@ struct DeckVulkanVideoWindow::Impl {
     QObject* worker = new QObject;
     std::unique_ptr<DeckVulkanQuickOverlay> overlay;
     std::shared_ptr<AVFrame> frame;
+    DeckSourceFrameTiming timing;
     std::shared_ptr<std::atomic<std::uint64_t>> composed = std::make_shared<std::atomic<std::uint64_t>>(0);
     std::shared_ptr<std::atomic<std::uint64_t>> cpuUploadCompositions = std::make_shared<std::atomic<std::uint64_t>>(0);
     std::shared_ptr<std::atomic<bool>> cancelled = std::make_shared<std::atomic<bool>>(false);
@@ -82,6 +83,7 @@ struct DeckVulkanVideoWindow::Impl {
         DeckWindowOutput output;
         DeckVideoScaleMode scale;
         std::shared_ptr<std::atomic<bool>> cancelled;
+        DeckSourceFrameTiming timing;
     };
     struct Sync {
         std::mutex mutex;
@@ -195,10 +197,10 @@ bool DeckVulkanVideoWindow::presentVaapiSurface(const DeckQrhiVaapiPresentationD
         clearFrame();
         return false;
     }
-    return submitFrame(*lease->frame());
+    return submitFrame(*lease->frame(), descriptor.timing);
 }
 
-bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame) {
+bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame, DeckSourceFrameTiming timing) {
     Q_ASSERT(QThread::currentThread() == thread());
     const auto color = DeckVideoColorInfo::fromFrame(frame);
     if (frame.width <= 0 || frame.height <= 0 || frame.width > 8192 || frame.height > 8192
@@ -215,8 +217,11 @@ bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame) {
         emit presentationChanged();
         return false;
     }
-    d->frame = std::move(owned);
-    ++d->frameSerial;
+    if (!timing.withCurrentSubmission([&] {
+        d->frame = std::move(owned);
+        d->timing = timing;
+        ++d->frameSerial;
+    })) return false;
     d->state.error.clear();
     requestUpdate();
     return true;
@@ -225,6 +230,7 @@ bool DeckVulkanVideoWindow::submitFrame(const AVFrame& frame) {
 void DeckVulkanVideoWindow::clearFrame() {
     Q_ASSERT(QThread::currentThread() == thread());
     d->frame.reset();
+    d->timing = {};
     ++d->revision;
     d->state.hdrActive = d->state.toneMapped = false;
     d->state.error.clear();
@@ -292,6 +298,7 @@ void DeckVulkanVideoWindow::Impl::release() {
 }
 
 void DeckVulkanVideoWindow::release() {
+    emit sourceTimingReset();
     *d->cancelled = true;
     ++d->epoch;
     d->retry.stop(); d->retire.stop();
@@ -315,6 +322,7 @@ void DeckVulkanVideoWindow::retireSurface() {
     d->retry.stop(); d->retire.stop();
     d->state.ready = d->state.hdr10Surface = d->state.hdrActive = d->state.toneMapped = false;
     d->frame.reset();
+    d->timing = {};
     QMetaObject::invokeMethod(d->worker, [this, epoch] {
         d->release();
         QMetaObject::invokeMethod(this, [this, epoch] {
@@ -348,7 +356,7 @@ void DeckVulkanVideoWindow::render() {
     }
     const auto ratio = devicePixelRatio();
     Impl::Job job{surface, QSize(qRound(width() * ratio), qRound(height() * ratio)), ratio,
-        d->frame, d->frameSerial, d->revision, d->epoch, d->output, d->scale, d->cancelled};
+        d->frame, d->frameSerial, d->revision, d->epoch, d->output, d->scale, d->cancelled, d->timing};
     d->busy = true; d->dirty = false;
     QMetaObject::invokeMethod(d->worker, [this, job] {
         const bool retry = d->render(this, job);
@@ -356,6 +364,10 @@ void DeckVulkanVideoWindow::render() {
         QMetaObject::invokeMethod(this, [this, job, state, retry] {
             if (job.epoch != d->epoch) return;
             d->busy = false;
+            if (job.timing.submissionFence && job.timing.submissionFence->wasRejected(job.timing.submissionTicket)
+                    && job.serial == d->frameSerial) {
+                d->frame.reset(); d->timing = {}; // retire the unsent stale mailbox on its GUI owner
+            }
             if (job.revision == d->revision && isExposed()) {
                 d->state = state;
                 if (state.pendingSourceFrames) d->retire.start();
@@ -416,58 +428,63 @@ bool DeckVulkanVideoWindow::Impl::render(DeckVulkanVideoWindow* window, const Jo
         overlay = this->overlay->overlay();
     }
     if (*job.cancelled) return false;
-    pl_swapchain_frame surface{};
-    if (!pl_swapchain_start_frame(gpu.swapchain, &surface)) {
-        gpu.state.error = QStringLiteral("The presentation surface is temporarily unavailable.");
-
-        return false;
-    }
-    // start/submit are a lock pair, including refusal/render failure paths.
-    gpu.state.pixelSize = QSize(surface.fbo->params.w, surface.fbo->params.h);
-    const auto actual = deckSurfaceColorOutput(surface);
-    const bool wrongOutput = !actual ||
-        (job.output == DeckWindowOutput::Sdr && *actual != DeckColorOutput::Srgb) ||
-        (job.output == DeckWindowOutput::RequireHdr10 && *actual != DeckColorOutput::Hdr10Pq);
-    bool rendered = false;
-    if (refuse || wrongOutput) {
-        gpu.state.error = QStringLiteral("The requested output format is unavailable on this surface.");
-    } else if (job.frame) {
-        rendered = gpu.renderer->renderToSurface(*job.frame, surface, overlay ? &*overlay : nullptr, job.scale);
-        gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
-    } else if (overlay) {
-        rendered = gpu.renderer->renderOverlayToSurface(surface, *overlay);
-        gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
-    }
-    if (!rendered) {
-        pl_frame target{};
-        pl_frame_from_swapchain(&target, &surface);
-        const float black[]{0, 0, 0};
-        pl_frame_clear(gpu.vk->gpu, &target, black);
-    }
-    gpu.state.pendingSourceFrames = gpu.renderer->pendingFrames();
-    // Qt's platform hooks perform Wayland frame-callback / X11 resize-sync
-    // bookkeeping even though libplacebo owns vkQueuePresentKHR.
-    instance.presentAboutToBeQueued(window);
-    const bool submitted = pl_swapchain_submit_frame(gpu.swapchain);
-    instance.presentQueued(window);
-    if (submitted) {
-        ++gpu.state.submittedFrames;
-        const bool videoRendered = rendered && bool(job.frame);
-        if (videoRendered && !*job.cancelled && gpu.composedSerial != job.serial) {
-            gpu.composedSerial = job.serial;
-            composed->fetch_add(1);
-            if (job.frame->format == AV_PIX_FMT_NV12 && !job.frame->hw_frames_ctx) {
-                cpuUploadCompositions->fetch_add(1);
-                ++gpu.state.cpuUploadCompositions;
-            }
+    // Acquire after GUI overlay synchronization, before start_frame's lock pair.
+    // Hold the same mapper/generation authority through submit AND swap_buffers;
+    // invalidation cannot slip between the final check and either Vulkan call.
+    job.timing.withCurrentSubmission([&] {
+        pl_swapchain_frame surface{};
+        if (!pl_swapchain_start_frame(gpu.swapchain, &surface)) {
+            gpu.state.error = QStringLiteral("The presentation surface is temporarily unavailable.");
+            return;
         }
-        gpu.state.hdrActive = videoRendered && actual == DeckColorOutput::Hdr10Pq;
-        gpu.state.toneMapped = videoRendered && hdrSource && actual == DeckColorOutput::Srgb;
-        pl_swapchain_swap_buffers(gpu.swapchain);
-    } else {
-        gpu.state.error = QStringLiteral("The Vulkan presentation surface was lost.");
-        release();
-    }
+        // start/submit are a lock pair, including refusal/render failure paths.
+        gpu.state.pixelSize = QSize(surface.fbo->params.w, surface.fbo->params.h);
+        const auto actual = deckSurfaceColorOutput(surface);
+        const bool wrongOutput = !actual ||
+            (job.output == DeckWindowOutput::Sdr && *actual != DeckColorOutput::Srgb) ||
+            (job.output == DeckWindowOutput::RequireHdr10 && *actual != DeckColorOutput::Hdr10Pq);
+        bool rendered = false;
+        if (refuse || wrongOutput) {
+            gpu.state.error = QStringLiteral("The requested output format is unavailable on this surface.");
+        } else if (job.frame) {
+            rendered = gpu.renderer->renderToSurface(*job.frame, surface, overlay ? &*overlay : nullptr, job.scale);
+            gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
+        } else if (overlay) {
+            rendered = gpu.renderer->renderOverlayToSurface(surface, *overlay);
+            gpu.state.error = rendered ? QString() : QString::fromStdString(gpu.renderer->error());
+        }
+        if (!rendered) {
+            pl_frame target{};
+            pl_frame_from_swapchain(&target, &surface);
+            const float black[]{0, 0, 0};
+            pl_frame_clear(gpu.vk->gpu, &target, black);
+        }
+        gpu.state.pendingSourceFrames = gpu.renderer->pendingFrames();
+        // Qt's platform hooks perform Wayland frame-callback / X11 resize-sync
+        // bookkeeping even though libplacebo owns vkQueuePresentKHR.
+        instance.presentAboutToBeQueued(window);
+        const bool submitted = pl_swapchain_submit_frame(gpu.swapchain);
+        instance.presentQueued(window);
+        if (submitted) {
+            if (job.timing.submissionTicket) job.timing.submissionTicket->submitted = true; // same fence hold
+            ++gpu.state.submittedFrames;
+            const bool videoRendered = rendered && bool(job.frame);
+            if (videoRendered && !*job.cancelled && gpu.composedSerial != job.serial) {
+                gpu.composedSerial = job.serial;
+                composed->fetch_add(1);
+                if (job.frame->format == AV_PIX_FMT_NV12 && !job.frame->hw_frames_ctx) {
+                    cpuUploadCompositions->fetch_add(1);
+                    ++gpu.state.cpuUploadCompositions;
+                }
+            }
+            gpu.state.hdrActive = videoRendered && actual == DeckColorOutput::Hdr10Pq;
+            gpu.state.toneMapped = videoRendered && hdrSource && actual == DeckColorOutput::Srgb;
+            pl_swapchain_swap_buffers(gpu.swapchain);
+        } else {
+            gpu.state.error = QStringLiteral("The Vulkan presentation surface was lost.");
+            release();
+        }
+    });
     return false;
 }
 

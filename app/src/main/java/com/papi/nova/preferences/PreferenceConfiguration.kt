@@ -156,6 +156,9 @@ class PreferenceConfiguration {
     @JvmField var touchscreenTrackpad = false
     @JvmField var audioConfiguration: MoonBridge.AudioConfiguration? = null
     @JvmField var framePacing = 0
+    // Host source-time presentation (#242). Off by default until the RP6 and Shield receipts pass;
+    // on asks the Balanced path to pace by the host's frame times (an explicit opt-in).
+    @JvmField var sourceTimePacing = DEFAULT_SOURCE_TIME_PACING
     @JvmField var absoluteMouseMode = false
     @JvmField var enableAudioFx = false
     @JvmField var reduceRefreshRate = false
@@ -243,6 +246,7 @@ class PreferenceConfiguration {
         private const val GUIDE_SHORTCUTS_PREF_STRING = "checkbox_guide_shortcuts"
         private const val LATENCY_TOAST_PREF_STRING = "checkbox_enable_post_stream_toast"
         private const val FRAME_PACING_PREF_STRING = "frame_pacing"
+        const val SOURCE_TIME_PACING_PREF_STRING = "source_time_pacing"
         private const val LOW_LATENCY_FRAME_BALANCE_PREF_STRING = "pref_low_latency_frame_balance"
         private const val ABSOLUTE_MOUSE_MODE_PREF_STRING = "checkbox_absolute_mouse_mode"
         private const val ENABLE_AUDIO_FX_PREF_STRING = "checkbox_enable_audiofx"
@@ -344,6 +348,7 @@ class PreferenceConfiguration {
         private const val DEFAULT_AUDIO_CONFIG = "2"
         private const val DEFAULT_LATENCY_TOAST = false
         private const val DEFAULT_FRAME_PACING = "latency"
+        const val DEFAULT_SOURCE_TIME_PACING = false
         private const val DEFAULT_ABSOLUTE_MOUSE_MODE = false
         private const val DEFAULT_ENABLE_AUDIO_FX = false
         private const val DEFAULT_REDUCE_REFRESH_RATE = false
@@ -878,6 +883,7 @@ class PreferenceConfiguration {
             config.videoScaleMode = getVideoScaleMode(prefs)
             config.videoFormat = getVideoFormatValue(prefs)
             config.framePacing = getFramePacingValue(prefs)
+            config.sourceTimePacing = prefs.getBoolean(SOURCE_TIME_PACING_PREF_STRING, DEFAULT_SOURCE_TIME_PACING)
             config.preferLowerDelays = getPreferLowerDelays(prefs)
 
             when (prefs.getString(FRAME_PACING_PREF_STRING, "")) {

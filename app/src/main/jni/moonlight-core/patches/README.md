@@ -78,7 +78,13 @@ sessions in both video encryption modes; the Deck registers the same fixtures in
 
 ## Reception transport
 
-Patch 0012 keeps stock ENet's unreliable packet throttle from silently discarding 0011's
+The integrated series keeps raw source timing at 0012 and moves the former
+Nova #445 transport patch from 0012 to 0013; its patch bytes, stable patch ID,
+authorship and production markers are unchanged. Android applies 0001 through
+0013 in filename order; Deck applies the shared 0009 through 0013 in that order
+before its optional PyroWave patch.
+
+Patch 0013 keeps stock ENet's unreliable packet throttle from silently discarding 0011's
 reports. Only for a connection whose negotiated observer actually started timing, the control
 stream sets the control peer's throttle deceleration to zero with
 `enet_peer_throttle_configure()` and restores a throttle that the START acknowledgements
@@ -87,7 +93,7 @@ This is peer-wide: other unreliable control traffic and the reliable window are 
 RTT-throttled, and ENet tells the host. Reports stay unreliable and unsequenced, one per tick.
 Bounded rows log the throttle state for an active connection. Android applies it with the
 series; the Deck applies it after 0011 in the same build-private copy. The
-[wire contract](../../../../../../docs/native-packet-reception-feedback.md#enet-unreliable-throttle-patch-0012)
+[wire contract](../../../../../../docs/native-packet-reception-feedback.md#enet-unreliable-throttle-patch-0013)
 lists the exact gate, lifecycle and side effects. `tools/test_native_packet_reception.py` drives
 the production control stream and ENet through a delaying loopback relay against a stock
 control.
@@ -101,3 +107,15 @@ claim an unverified mapping to the CVEs listed in the PC release.
 The submodule pin is what these apply to. If it moves, rebase the branch and export the series
 again with `git format-patch --no-signature -o ../patches <old-pin>..HEAD`. The diff was kept small
 and free of refactoring precisely so that this stays a rebase rather than a merge.
+
+## Raw source timing (Nova #241/#242)
+
+Patch 0012 appends `uint32_t rtpTimestamp` to DECODE_UNIT, carrying the original
+host-order 90 kHz modulo-32 timestamp through the RTP queue, FEC repair and
+reassembly. It is inspired by upstream e356b2cfde604c35904793aaf485a6ede7102cae
+(Andy Grundman), with a deliberately narrower ABI: clients unwrap and convert
+the raw ticks; no `presentationTimeUs` with ambiguous synthetic semantics is added.
+`presentationTimeMs` and receive/enqueue millisecond statistics keep their meaning.
+All native consumers must rebuild. `tools/test_source_time_core.py` executes the
+real queue/depacketizer on original and repaired first/last packets, zero and wrap.
+Linux applies the same patch to its build-owned copy before optional PyroWave.

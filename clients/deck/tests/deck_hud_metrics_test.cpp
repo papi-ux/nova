@@ -7,6 +7,11 @@ int main() {
     DeckHudMetrics metrics;
     DeckHudSample s;
     s.width = 1280; s.height = 800; s.targetFps = 90; s.codec = "H.264"; s.compositionAvailable = true;
+    s.sourceTimeRequested="auto"; s.sourceTimeEffective="pending"; s.sourceTimeFallback="clock_mapping_unstable";
+    const auto pending=metrics.sample(s);
+    require(pending.value("sourceTimeRequested")=="auto" && pending.value("sourceTimeEffective")=="pending" &&
+        pending.value("sourceTimeFallback")=="clock_mapping_unstable", "source timing facts collapsed");
+    s.sourceTimeEffective="source_time_fixed"; s.sourceTimeFallback="none";
     require(metrics.sample(s).value("fps") == "--", "target FPS became an observed rate");
     s.atMs = 1000; s.incoming = 60; s.decoded = 58; s.composed = 55; s.bytes = 2500000;
     s.videoWorkSamples = 60; s.videoWorkMicros = 120000; s.refused = 2;

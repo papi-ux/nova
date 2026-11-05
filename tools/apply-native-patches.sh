@@ -56,4 +56,6 @@ grep -q 'sessionToken == NULL' src/RtspConnection.c
 grep -q PACKET_RECEPTION_PTYPE src/PacketReception.h
 grep -q RtpvAddObservedPacket src/VideoStream.c
 grep -q startReceptionTransport src/ControlStream.c
-echo "Nova's protocol, RTSP hardening and packet reception patches are applied."
+grep -q LI_RTP_TIMESTAMP_VERSION src/Limelight.h
+grep -q "decodeUnit.rtpTimestamp = firstPacketRtpTimestamp" src/VideoDepacketizer.c
+echo "Nova's protocol, hardening, reception, raw source-timing and reception transport patches are applied."

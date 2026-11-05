@@ -5,6 +5,7 @@ import com.papi.nova.R
 import com.papi.nova.api.LiveTuningStatus
 import com.papi.nova.api.PolarisSessionStatus
 import com.papi.nova.binding.video.PerfOverlaySample
+import com.papi.nova.binding.video.sourcetime.PresentationTruth
 import com.papi.nova.manager.NovaBitrateUnits
 import com.papi.nova.manager.NovaLiveBitratePresentation
 
@@ -14,6 +15,8 @@ data class NovaCommandCenterStream(
     val rates: List<Pair<String, String>> = emptyList(),
     val recent: List<NovaConfirmedStreamChange> = emptyList(),
     val historyAvailable: Boolean = false,
+    /** Host frame timing facts (#242); empty when there is no current stream to describe. */
+    val presentation: List<Pair<String, String>> = emptyList(),
 )
 
 data class NovaConfirmedStreamChange(val beforeKbps: Int, val appliedKbps: Int)
@@ -137,6 +140,7 @@ internal fun commandCenterStream(
     active: Boolean,
     launchRequestKbps: Int,
     changes: List<NovaConfirmedStreamChange>,
+    presentationTruth: PresentationTruth? = null,
 ): NovaCommandCenterStream {
     val unavailable = context.getString(R.string.nova_cc_value_unavailable)
     fun rate(value: Int?) = value?.takeIf { it > 0 }?.let { commandCenterRate(it) } ?: unavailable
@@ -181,5 +185,30 @@ internal fun commandCenterStream(
             add(context.getString(R.string.nova_cc_rate_repair) to "${it.fecPercent}%")
         }
     }
-    return NovaCommandCenterStream(overview, rates, changes, live != null && live.supported)
+    return NovaCommandCenterStream(overview, rates, changes, live != null && live.supported,
+        commandCenterPresentation(context, presentationTruth.takeIf { fresh != null }))
+}
+
+/**
+ * Host frame timing as plain facts, from the shared reducer, for a current stream only. Every
+ * reason is recorded here, including the automatic fallbacks the HUD keeps quiet about.
+ */
+internal fun commandCenterPresentation(context: Context, truth: PresentationTruth?): List<Pair<String, String>> {
+    if (truth == null) return emptyList()
+    fun yes(value: Boolean) = context.getString(if (value) R.string.nova_cc_yes else R.string.nova_cc_no)
+    val off = truth.client.requested == com.papi.nova.binding.video.sourcetime.SourceTimeRequest.OFF
+    return listOf(
+        context.getString(R.string.nova_cc_display_mode) to
+            (truth.displayModeHz?.let { "$it Hz" } ?: context.getString(R.string.nova_cc_value_unavailable)),
+        context.getString(R.string.nova_cc_source_paced) to
+            (if (off) context.getString(R.string.nova_cc_off) else yes(truth.sourcePaced)),
+        context.getString(R.string.nova_cc_target_delay) to
+            (truth.targetDelayMs?.let { context.getString(R.string.nova_cc_target_delay_value, it) }
+                ?: context.getString(R.string.nova_cc_value_unavailable)),
+        context.getString(R.string.nova_cc_vrr_requested) to yes(truth.vrrRequested),
+        context.getString(R.string.nova_cc_vrr_active) to yes(truth.vrrActive),
+        context.getString(R.string.nova_cc_pacing_fallback) to
+            (truth.fallback?.let(PresentationTruth::plain) ?: PresentationTruth.plain(
+                com.papi.nova.binding.video.sourcetime.SourceTimeReason.NONE)),
+    )
 }

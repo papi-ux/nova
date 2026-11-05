@@ -69,6 +69,38 @@ void testParsesCapabilities() {
     assert(parseCapabilities("{}")->streamCapabilities.supports(1280, 800, 60));
 }
 
+void testSessionVrrReading() {
+    using Kind = DeckSessionVrrReading::Kind;
+    const auto record = QJsonDocument::fromJson(R"({"schema":1,"session_generation":7,"requested":"false",
+        "requested_from":"launch","host_permission":true,"effective":true,"pacing_mode":"source_time",
+        "capture_pacing":"source_driven","fallback_reason":null,"host_pacing":{"fresh":true,"state":"source_time"}})").object();
+    const auto status = parseSessionStatus(QJsonDocument(QJsonObject{{"vrr",record}}).toJson().toStdString());
+    assert(status && status->vrr.kind==Kind::Present && status->vrr.record->hostSourcePaced());
+    assert(status->vrr.record->sessionGeneration==7 && status->vrr.record->requested=="false");
+    assert(parseSessionStatus("{}")->vrr.kind==Kind::Absent);
+    assert(parseSessionStatus(R"({"vrr":null})")->vrr.kind==Kind::Null);
+    for (const auto* value : {"false", "[]", "4", "\"bad\"", "{}"})
+        assert(parseSessionStatus(std::string("{\"vrr\":")+value+"}")->vrr.kind==Kind::Malformed);
+    for (const auto* field : {"schema","session_generation","requested","requested_from","host_permission","effective","pacing_mode","capture_pacing","fallback_reason"}) {
+        auto missing=record; missing.remove(field); assert(!parseSessionVrr(missing));
+        auto bad=record; bad[field]=QJsonArray{}; assert(!parseSessionVrr(bad));
+    }
+    for (const auto generation : {-1.0, 1.5, 9007199254740992.0}) {
+        auto bad=record; bad["session_generation"]=generation; assert(!parseSessionVrr(bad));
+    }
+    auto noReceipt=record; noReceipt.remove("host_pacing");
+    assert(parseSessionVrr(noReceipt) && !parseSessionVrr(noReceipt)->hostSourcePaced());
+    auto nullReceipt=record; nullReceipt["host_pacing"]=QJsonValue::Null; assert(!parseSessionVrr(nullReceipt));
+    auto stale=record; stale["host_pacing"]=QJsonObject{{"fresh",false},{"state","source_time"}};
+    assert(!parseSessionVrr(stale)->hostSourcePaced());
+    auto fallback=record; fallback["effective"]=false; fallback["fallback_reason"]="request_not_enabled";
+    assert(parseSessionVrr(fallback)->fallbackReason==QString("request_not_enabled") && !parseSessionVrr(fallback)->hostSourcePaced());
+    assert(!parseSessionVrrHostPacing(QJsonObject{{"fresh",true}}));
+    assert(!parseSessionVrrHostPacing(QJsonObject{{"fresh","true"},{"state","source_time"}}));
+    const auto telemetry=parseHostTelemetry(QJsonDocument(QJsonObject{{"vrr",record}}).toJson().toStdString());
+    assert(telemetry && telemetry->vrr.kind==Kind::Present && telemetry->vrr.record->hostSourcePaced());
+}
+
 void testPyrowaveCaptureRefusalContract() {
     const auto parsed = parseCapabilities(R"({"capture":{"codecs":["h264","hevc"],"max_fps":120,
         "pyrowave_unavailable":{"reason":"fp16_capture","message":"PyroWave cannot read this HDR desktop. Choose HEVC or use a supported SDR capture route."}}})");
@@ -148,11 +180,13 @@ void testParsesGamesPageFromHostShape() {
     assert(portal.launchModeReason == "Host default is headless.");
     assert(portal.steamLaunchAvailable);
     assert(portal.steamLaunchRecommendedMode == "direct");
+    assert(portal.steamLaunchModeReason == "Steam Input fallback.");
     const auto& bare = page->games[1];
     assert(bare.appId == 9 && "Polaris emits app_id as a string");
     assert(bare.installed);
     assert(bare.launchRecommendedMode.empty());
     assert(!bare.steamLaunchAvailable);
+    assert(bare.steamLaunchModeReason.empty());
     assert(!parseGamesPage(R"({"total": 1})").has_value());
     const auto invalidDates = parseGamesPage(R"({"games":[
         {"id":"huge","name":"Huge","last_launched":1e100},{"id":"negative","name":"Negative","last_launched":-1},
@@ -275,6 +309,7 @@ void testParsesBodiesPolarisActuallyServed() {
     assert(bigPicture.launchAllowedModes.size() == 6);
     assert(!bigPicture.launchModeReason.empty());
     assert(!bigPicture.steamLaunchAvailable && bigPicture.steamLaunchAllowedModes.empty());
+    assert(bigPicture.steamLaunchModeReason.empty());
     assert(bigPicture.genres.empty());
 
     const auto& indy = page->games[1];
@@ -286,7 +321,29 @@ void testParsesBodiesPolarisActuallyServed() {
     assert(indy.launchRecommendedMode == "headless_stream");
     assert(indy.steamLaunchAvailable && indy.steamLaunchMode == "direct" && indy.steamLaunchRecommendedMode == "direct");
     assert(indy.steamLaunchAllowedModes.size() == 2);
+    assert(indy.steamLaunchModeReason == "Direct launch avoids opening Steam Big Picture.");
     assert(indy.genres.size() == 2 && indy.genres[0] == "Action");
+}
+
+// Polaris #586: the host can say that Steam may stop at its launch option dialog. The
+// reader keeps the host's sentence as sent; the game tools state trims it for Play
+// Setup and hides a blank one (deck_game_tools_test, deck_game_tools_qml_test).
+void testSteamLaunchNoticeIsTheHostsSentence() {
+    const auto page = parseGamesPage(R"({"games":[
+        {"id":"hades","name":"Hades","steam_launch":{"available":true,"mode":"direct","recommended_mode":"direct",
+         "allowed_modes":["direct","big-picture"],
+         "mode_reason":"Steam may ask which version of this game to start, because it has 3 launch options."}},
+        {"id":"blank","name":"Blank","steam_launch":{"available":true,"mode":"direct","allowed_modes":["direct","big-picture"],
+         "mode_reason":"  \n\t "}},
+        {"id":"typed","name":"Typed","steam_launch":{"available":true,"mode":"direct","allowed_modes":["direct","big-picture"],
+         "mode_reason":7}},
+        {"id":"absent","name":"Absent","steam_launch":{"available":true,"mode":"direct","allowed_modes":["direct","big-picture"]}}
+    ],"total":4})");
+    assert(page.has_value() && page->games.size() == 4);
+    assert(page->games[0].steamLaunchModeReason == "Steam may ask which version of this game to start, because it has 3 launch options.");
+    assert(page->games[1].steamLaunchModeReason == "  \n\t " && "the reader keeps the host's text; Play Setup hides a blank one");
+    assert(page->games[2].steamLaunchModeReason.empty() && "a non-string reason is not turned into text");
+    assert(page->games[3].steamLaunchModeReason.empty());
 }
 
 void testParsesSessionStatus() {
@@ -507,6 +564,7 @@ void testSpaceLaunchModeOmissionsKeepLegacyDefaults() {
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
+    testSessionVrrReading();
     testSpaceLaunchModeOmissionsKeepLegacyDefaults();
     testParsesCapabilities();
     testLaunchModeAuthority();
@@ -517,6 +575,7 @@ int main(int argc, char* argv[]) {
     testGameTimeMetadata();
     testArtworkManifestBoundaries();
     testParsesBodiesPolarisActuallyServed();
+    testSteamLaunchNoticeIsTheHostsSentence();
     testParsesSessionStatus();
     testParsesServerInfoHttpsPort();
     testSplitsPathAndQueryForQUrl();

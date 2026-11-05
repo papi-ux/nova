@@ -87,7 +87,7 @@ Item {
             }
             Copy {
                 objectName: "working-baseline-status"
-                text: baseline.hasBaseline ? "Baseline saved " + baseline.status.markedAtUtc + " (UTC)." : baseline.reasonText(baseline.status.reason)
+                text: baseline.hasBaseline ? "Baseline saved " + NovaLocalTime.withZone(baseline.status.markedAtUtc) + "." : baseline.reasonText(baseline.status.reason)
             }
             Copy {
                 objectName: "working-baseline-waiting"
@@ -126,9 +126,10 @@ Item {
                 visible: baseline.comparison.status === "ready"
                 spacing: 6 * baseline.unit
                 Copy {
-                    text: "Baseline marked " + (baseline.comparison.markedAtUtc || "") + " UTC, from readings this interface received at " +
-                        (baseline.comparison.sampleReceivedUtc || "") + ". Now: " +
-                        (baseline.comparison.currentFresh ? "readings received at " + baseline.comparison.currentSampleReceivedUtc + " UTC." : "current readings are unavailable.")
+                    objectName: "working-baseline-compare-times"
+                    text: "Baseline marked " + NovaLocalTime.withZone(baseline.comparison.markedAtUtc) + ", from readings this interface received at " +
+                        NovaLocalTime.withZone(baseline.comparison.sampleReceivedUtc) + ". Now: " +
+                        (baseline.comparison.currentFresh ? "readings received at " + NovaLocalTime.withZone(baseline.comparison.currentSampleReceivedUtc) + "." : "current readings are unavailable.")
                 }
                 // Name the specific known differences and unknowns; no overall verdict.
                 Copy {

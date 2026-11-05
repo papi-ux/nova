@@ -4,8 +4,8 @@ Shared wire contract for Nova #442 (client sender) and Polaris #615 (host receiv
 Nova's sender is native patch
 `0011-feat-video-report-bounded-native-packet-reception.patch`
 over the pinned moonlight-common-c `c9994368`; it adds `src/PacketReception.{c,h}`.
-Patch `0012-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch` keeps ENet's
-unreliable throttle from silently discarding those reports ([below](#enet-unreliable-throttle-patch-0012)).
+Patch `0013-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch` keeps ENet's
+unreliable throttle from silently discarding those reports ([below](#enet-unreliable-throttle-patch-0013)).
 Android applies both with `tools/apply-native-patches.sh`; the Deck applies them after the
 RTSP pair in its build-private `nova_deck_prepare_rtsp()` copy, before the optional
 PyroWave patch.
@@ -74,13 +74,18 @@ a cryptographic media proof, clean-delivery credit or any authority.
 | Framing | Inside the existing encrypted control v2 message (`NVCTL_ENCRYPTED_PACKET_HEADER`, type `0x0001`); the inner V2 header carries type `0x7F10` and the payload length, little-endian like every other control message |
 | ENet | Channel `CTRL_CHANNEL_GENERIC` (0), `ENET_PACKET_FLAG_UNSEQUENCED`, unreliable |
 | Cadence | At most one report per existing periodic control tick (100 ms sleep plus work). It is queued immediately before the existing reliable `0x0200` ping, which flushes both |
-| Failure | A failed send drops that observation only. No retry, queue, catch-up burst, probe or extra media. The sequence still advanced. On a connection with the active extension, ENet's unreliable throttle no longer discards reports (patch 0012); wire loss still does |
+| Failure | A failed send drops that observation only. No retry, queue, catch-up burst, probe or extra media. The sequence still advanced. On a connection with the active extension, ENet's unreliable throttle no longer discards reports (patch 0013); wire loss still does |
 
 Collision check (2026-11-03): `0x7F10` appears in none of moonlight-common-c `c9994368`
 with Nova patches 0001-0010, Nova's tree, the Deck PyroWave patch, or the Polaris
 `ff8a0af1` control dispatch.
 
-## ENet unreliable throttle (patch 0012)
+<a id="enet-unreliable-throttle-patch-0012"></a>
+
+## ENet unreliable throttle (patch 0013)
+
+This is Nova #445's former patch 0012, renumbered after the staging source-time
+patch without changing its patch bytes, stable patch ID or authorship.
 
 Stock ENet `115a10ba` gives every unreliable packet a rotating `packetThrottleCounter`
 (+7, mod 32) when it is flushed, and frees the packet inside `enet_host_service()`, after

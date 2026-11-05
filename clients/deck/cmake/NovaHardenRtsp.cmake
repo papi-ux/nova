@@ -8,7 +8,7 @@ function(nova_deck_prepare_rtsp source destination)
     # A file the chain creates must not survive from an earlier configure.
     foreach(source_file IN ITEMS RtspConnection.c PlatformSockets.h
             ControlStream.c PacketReception.c PacketReception.h Platform.c Platform.h
-            RtpVideoQueue.c RtpVideoQueue.h SdpGenerator.c VideoStream.c)
+            RtpVideoQueue.c RtpVideoQueue.h SdpGenerator.c VideoStream.c Limelight.h VideoDepacketizer.c)
         if(EXISTS "${source}/src/${source_file}")
             file(COPY_FILE "${source}/src/${source_file}" "${destination}/src/${source_file}" ONLY_IF_DIFFERENT)
         else()
@@ -22,14 +22,15 @@ function(nova_deck_prepare_rtsp source destination)
     set(git_patch_command "${CMAKE_COMMAND}" -E env
         --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE
         "GIT_CEILING_DIRECTORIES=${patch_ceiling}" "${GIT_EXECUTABLE}" apply --whitespace=error)
-    # The RTSP hardening pair, then the packet reception observer and its
-    # transport fix, which the Deck shares with Android. The optional PyroWave
-    # patch applies afterward.
+    # The RTSP hardening pair, then the packet reception observer, raw source
+    # timing and reception transport fix shared with Android. The optional
+    # PyroWave patch applies afterward.
     set(rtsp_patches
         0009-upstream-harden-RTSP-responses-and-Session.patch
         0010-clean-Session-errors-and-map-Windows-size-error.patch
         0011-feat-video-report-bounded-native-packet-reception.patch
-        0012-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch)
+        0012-feat-video-carry-source-presentation-time.patch
+        0013-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch)
     # Later patches change earlier context. Unwind verified patches in reverse
     # order on this generated copy, then apply the complete chain in order.
     set(reverse_patches ${rtsp_patches})

@@ -192,7 +192,8 @@ data class NovaHudUiState(
             hostFresh: Boolean = status != null,
             launchPresetLabel: String = "",
             liveTuningLine: NovaLiveTuningLine? = null,
-            displayModeHz: Float? = null
+            displayModeHz: Float? = null,
+            presentation: com.papi.nova.binding.video.sourcetime.PresentationTruth? = null
         ): NovaHudUiState {
             // A live media feed and the independently polled host status age separately.
             val currentStatus = status.takeIf { hostFresh && it?.streamingActive == true }
@@ -266,7 +267,8 @@ data class NovaHudUiState(
                 outputRateCaption = if (presentRequests) "SUBMIT" else "OUT",
                 outputGapCaption = if (presentRequests) "SUBMIT GAP" else "RENDER GAP",
                 liveTuningLine = liveTuningLine,
-                qualityChips = NovaHudQualityChips.from(currentStatus, displayModeHz.takeIf { mediaFresh })
+                qualityChips = NovaHudQualityChips.from(currentStatus, displayModeHz.takeIf { mediaFresh },
+                    presentation.takeIf { mediaFresh })
             )
         }
 

@@ -3,6 +3,7 @@
 #include "stream/deck_stream_media_adapters.h"
 #include "deck_preview_fixture.h"
 #include <QDir>
+#include <QLocale>
 #include <QGuiApplication>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -14,16 +15,22 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <time.h>
 
 // Working baseline Command Center flow (#282 Linux), offscreen with the software
 // backend. Each step drives the real QML and checks the session calls it caused.
 namespace {
 void require(bool ok, const char* message) { if (!ok) { std::cerr << message << '\n'; std::exit(1); } }
+// Newer CLDR data puts a narrow no-break space before AM/PM; read it as a space.
+QString shown(QString text) { return text.replace(QChar(0x202F), u' ').replace(QChar(0x00A0), u' '); }
 }
 
 int main(int argc, char** argv) {
+    // New York rules without tzdata, so the fixture stamps have a known local reading (#418).
+    qputenv("TZ", "EST5EDT,M3.2.0,M11.1.0"); tzset();
     QTemporaryDir directory; qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
     QGuiApplication app(argc, argv);
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
     QCoreApplication::setOrganizationName("NovaDeckTests"); QCoreApplication::setApplicationName("WorkingBaseline");
     qmlRegisterType<nova::deck::stream::DeckQtQuickRhiVaapiItem>("Nova.Deck.Stream", 0, 1, "DeckVaapiPreviewSurface");
     PreviewSession session; PreviewPlayers players(session);
@@ -127,6 +134,10 @@ ApplicationWindow {
     press(Qt::Key_Return);
     require(session.baselineSaves == 1 && session.baselineSavedGeneration == generation && session.baselineStored, "explicit save did not carry its generation");
     require(item("working-baseline-message")->property("text") == "Saved on this device.", "save result not shown");
+    // Saved 2026-10-10T12:00:00.000Z reads as local time with its zone; the stamp itself stays in the record (#418).
+    const auto savedLine = shown(item("working-baseline-status")->property("text").toString());
+    require(savedLine.startsWith("Baseline saved Oct 10, ") && savedLine.endsWith(" 8:00 AM EDT.") &&
+        !savedLine.contains("UTC") && !savedLine.contains("2026-10-10T"), qPrintable("saved time is not local: " + savedLine));
     require(untouched(), "baseline save called a Doctor, tuning, sync, report or lifecycle method");
 
     // A run change between opening and confirming is refused by the session.
@@ -146,6 +157,10 @@ ApplicationWindow {
     const auto unknownText = item("working-baseline-context-unknown")->property("text").toString();
     require(differentText.contains("Video codec") && unknownText.contains("Nova version") &&
         !differentText.contains("like for like") && !unknownText.contains("like for like"), "context notes are not specific or carry a verdict");
+    const auto times = shown(item("working-baseline-compare-times")->property("text").toString());
+    require(times.startsWith("Baseline marked Oct 10, ") && times.contains(" 8:00 AM EDT, from readings this interface received at Oct 10, ") &&
+        times.contains(" 7:59 AM EDT. Now: readings received at Oct 10, ") && times.endsWith(" 8:05 AM EDT.") &&
+        !times.contains("UTC") && !times.contains("2026-10-10T"), qPrintable("comparison times are not local: " + times));
     capture("working-baseline-compare-1280.png");
 
     // Clear also opens on the safe choice and cancels without effect.

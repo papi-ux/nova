@@ -1922,6 +1922,7 @@ class PolarisApiClient @JvmOverloads constructor(
                 liveTuningPresent = json.has("live_tuning"),
                 liveTuningUnavailable = json.opt("source") == com.papi.nova.manager.WorkerLaunchContract.SOURCE &&
                     json.has("live_tuning") && json.isNull("live_tuning"),
+                vrr = PolarisSessionVrr.reading(json.opt("vrr")),
                 adaptiveBitrateEnabled = json.optBoolean("adaptive_bitrate_enabled", false),
                 adaptiveTargetBitrateKbps = json.optInt("adaptive_target_bitrate_kbps", 0),
                 aiAutoQualityEnabled = json.optBoolean(

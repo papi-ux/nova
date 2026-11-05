@@ -57,6 +57,7 @@ public:
     void setSurface(stream::DeckQtQuickRhiVaapiItem* surface);
     // The QObject bounds the borrowed sink lifetime. Replacing a live target is
     // refused; detachment is always allowed and cancels delivery to that target.
+    void resetPresentationTiming();
     bool setPresentationSink(QObject* lifetime, stream::DeckQtQuickRhiPresentationSink* sink,
         std::shared_ptr<const std::atomic<std::uint64_t>> composed = {},
         std::shared_ptr<const std::atomic<std::uint64_t>> cpuUploads = {});
