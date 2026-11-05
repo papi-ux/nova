@@ -1884,6 +1884,18 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
         return DR_NEED_IDR;
     }
 
+    struct SubmissionObservation {
+        DeckRendererLifecycle& lifecycle;
+        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+        bool accepted = false;
+        ~SubmissionObservation() {
+            lifecycle.videoWorkMicros += std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - started).count();
+            ++lifecycle.videoWorkSamples;
+            if (!accepted) ++lifecycle.refusedFrames;
+        }
+    } observation{lifecycle_};
+
     const auto generation = timingGenerationReader_ ? timingGenerationReader_() : 0;
     if (generation != presentationGeneration_) {
         presentationGeneration_ = generation; sourceClock_.reset(); timingStore_.clear();
@@ -1902,17 +1914,6 @@ int DeckVaapiFfmpegRenderer::submitDecodeUnit(PDECODE_UNIT decodeUnit) {
     }
     timingStore_.expire(callbackNs);
 
-    struct SubmissionObservation {
-        DeckRendererLifecycle& lifecycle;
-        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
-        bool accepted = false;
-        ~SubmissionObservation() {
-            lifecycle.videoWorkMicros += std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::steady_clock::now() - started).count();
-            ++lifecycle.videoWorkSamples;
-            if (!accepted) ++lifecycle.refusedFrames;
-        }
-    } observation{lifecycle_};
 
 #ifdef NOVA_DECK_BUILD_PYROWAVE
     if (pyrowave_ && (decodeUnit->fullLength <= 0 || std::size_t(decodeUnit->fullLength) > nova::pyrowave::maxFrameBytes)) {

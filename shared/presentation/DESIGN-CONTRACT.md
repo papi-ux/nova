@@ -176,3 +176,13 @@ time and modulo-32 frame identity, never GUI wall time. A sole overdue frame
 newer in that chronology is displayed once; queued overdue frames still coalesce
 to the newest current frame. A source frame already superseded by the watermark
 is dropped as `stale_frame`. Reset/epoch transitions clear the watermark.
+
+## OFF lifecycle and accounting (W25 F4)
+
+When source timing is disabled, display/window timing resets are no-ops for
+delivery: the existing queue, cadence timer and in-flight old-generation frames
+follow the legacy path. Source-enabled reset discards are included in `dropped`.
+The submission-work observation begins before generation reset, mapper observe,
+lower-envelope/readiness processing and metadata expiry. These new callback
+operations therefore contribute to `videoWorkMicros`/`videoWorkSamples` in both
+OFF and enabled sessions. This is accounting coverage, not a CPU-cost receipt.

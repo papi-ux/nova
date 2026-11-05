@@ -46,6 +46,10 @@ int main(int argc, char** argv) {
         require(configure(DeckFramePacing::Balanced, 30) && !configure(DeckFramePacing::Latency, 60), "stream cadence was not frozen");
         const auto send = balanced.publisher();
         for (int i = 1; i <= 20; ++i) require(send({.width = i}), "balanced publisher rejected frame");
+        // Equivalent to the display refresh connection while source timing is OFF:
+        // both queued frames and their old generation survive the timing reset.
+        balanced.resetTiming(999);
+        require(balanced.stats().queued==2, "OFF refresh reset cleared the legacy queue");
         QCoreApplication::processEvents();
         require(frames.empty(), "Balanced bypassed its first deadline");
         QElapsedTimer timer; timer.start(); int heartbeats = 0;

@@ -64,10 +64,14 @@ bool DeckFrameDelivery::setSourceTimingEnabled(bool enabled) {
     state_->sourceEnabled = enabled; return true;
 }
 void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
-    timer_.stop(); sourceDeadline_->cancel();
     const std::lock_guard lock(state_->mutex);
+    // OFF keeps the legacy queue/timer lifecycle across display changes.
+    if (!state_->sourceEnabled) return;
+    timer_.stop(); sourceDeadline_->cancel();
+    state_->dropped += state_->frames.size();
     state_->frames.clear(); state_->queued = false; state_->wakeQueued = false;
-    state_->presentationGeneration = generation; state_->lastSourceDelivery.reset();
+    state_->deadlineEpoch.reset(); state_->lastSourceDelivery.reset();
+    state_->presentationGeneration = generation;
 }
 
 DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
@@ -108,7 +112,7 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
             sourceHoldExceedsCeiling(frame.timing.clock.targetUs, decodedNs)) {
             ++state->dropped; state->fallback = "hold_ceiling_exceeded"; return true;
         }
-        if (frame.timing.presentationGeneration < state->presentationGeneration) { ++state->dropped; return true; }
+        if (state->sourceEnabled && frame.timing.presentationGeneration < state->presentationGeneration) { ++state->dropped; return true; }
         if (state->sourceEnabled && frame.timing.usable() && state->lastSourceDelivery) {
             const auto& previous = *state->lastSourceDelivery;
             const auto delta = std::uint32_t(frame.timing.clock.frame - previous.frame);
