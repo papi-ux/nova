@@ -9,12 +9,14 @@
 #include <memory>
 #include <cstdint>
 #include <cstddef>
+#include <string_view>
 
 namespace nova::deck::runtime {
 
 struct DeckFrameDeliveryStats {
     std::uint64_t dropped = 0;
     std::size_t queued = 0;
+    std::string_view fallback = "not_requested";
 };
 
 // Latency mode holds the newest frame; Balanced holds at most two and spaces

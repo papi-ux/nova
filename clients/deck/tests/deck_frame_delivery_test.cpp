@@ -1,4 +1,5 @@
 #include "runtime/deck_frame_delivery.h"
+#include "runtime/deck_source_delivery_policy.h"
 #include <QCoreApplication>
 #include <QThread>
 #include <QElapsedTimer>
@@ -82,12 +83,18 @@ int main(int argc, char** argv) {
             DeckFrameDelivery::Frame f; f.width=id; f.timing.presentationGeneration=generation;
             f.timing.clock.valid=f.timing.clock.active=true; f.timing.clock.targetUs=target; return f;
         };
-        require(send(timed(1,start+20500)) && send(timed(2,start+40750)), "source publish rejected");
+        require(send(timed(1,start+5500)) && send(timed(2,start+10750)), "source publish rejected");
         QCoreApplication::processEvents(); require(frames.empty(), "future source frame delivered early");
         QElapsedTimer deadline; deadline.start();
         while(frames.size()<2 && deadline.elapsed()<1500) { QCoreApplication::processEvents(); QThread::usleep(100); }
         require(frames==std::vector<int>({1,2}), "source frames were lost or reordered");
-        require(actual[0]>=(start+20500)*1000 && actual[1]>=(start+40750)*1000, "sub-ms source target rounded early");
+        require(actual[0]>=(start+5500)*1000 && actual[1]>=(start+10750)*1000, "sub-ms source target rounded early");
+        // A sub-second source jump with no following observations must never arm
+        // its distant deadline (and must never be submitted early).
+        require(send(timed(99,monotonicNs()/1000+886984)), "jump rejection failed");
+        QCoreApplication::processEvents();
+        require(frames.size()==2 && source.stats().queued==0 &&
+            source.stats().fallback=="hold_ceiling_exceeded", "source jump escaped final hold ceiling");
         source.resetTiming(8);
         require(send(timed(3,monotonicNs()/1000-30000,8)) && send(timed(4,monotonicNs()/1000-20000,8)), "overdue publish failed");
         QCoreApplication::processEvents(); require(frames.size()==3 && frames.back()==4, "stalled source backlog caused a catch-up burst");

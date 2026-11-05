@@ -144,3 +144,16 @@ Proposed repository notice `docs/third-party/source-time-pacing.md` links [Nonar
 - [Khronos present-wait specification](https://docs.vulkan.org/refpages/latest/refpages/source/VK_KHR_present_wait.html): completion has no precise pixel-time relationship guarantee.
 - [Wayland presentation-time protocol source](https://raw.githubusercontent.com/wayland-mirror/wayland-protocols/main/stable/presentation-time/presentation-time.xml): surface-commit correlation, output identity, clock and presented/discarded events.
 - [Pinned libplacebo Vulkan header](https://raw.githubusercontent.com/haasn/libplacebo/cee9b076f2c63104ccfd497fa79c39a867293ec4/src/include/libplacebo/vulkan.h), lines 286–305: preferred present mode can fall back to FIFO; swapchain-depth waiting is GPU completion, not display completion.
+
+## Delivery hold ceiling (W25 F1)
+
+The final Deck decoded-frame admission ceiling is `sourceHoldCeilingUs =
+sourceReserveMaximumUs (12000) + sourceMaximumMappingErrorUs (5000) = 17000 us`.
+The tolerated mapping error is a delivery safety limit, not a guarantee that the
+mapper always meets it. A target beyond decoded-ready time plus that ceiling is
+rejected and counted as a delivery drop with `hold_ceiling_exceeded`; it is never
+submitted early or converted to an arrival target. The same check precedes deadline
+arming. Thus an admitted sub-one-second forward jump followed by loss of all later
+observations cannot hold that decoded lease for hundreds of milliseconds. This
+bounds intentional target waiting; GUI stalls, rendering and compositor waits
+remain outside the bound. Constants are provisional and require physical receipts.

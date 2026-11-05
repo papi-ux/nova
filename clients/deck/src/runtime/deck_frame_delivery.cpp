@@ -1,4 +1,5 @@
 #include "runtime/deck_frame_delivery.h"
+#include "runtime/deck_source_delivery_policy.h"
 #include <mutex>
 #include <optional>
 #include <deque>
@@ -27,6 +28,7 @@ struct DeckFrameDelivery::State {
     bool configured = false, started = false;
     std::uint64_t dropped = 0, presentationGeneration = 0;
     bool sourceEnabled = false;
+    std::string_view fallback = "not_requested";
     std::int64_t lastSourceDeliveryNs = -1;
 };
 
@@ -68,7 +70,7 @@ void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
 
 DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
     const std::lock_guard lock(state_->mutex);
-    return {state_->dropped, state_->frames.size()};
+    return {state_->dropped, state_->frames.size(), state_->fallback};
 }
 
 DeckFrameDelivery::Configure DeckFrameDelivery::configurator() const {
@@ -85,6 +87,12 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
     return [state = state_](const Frame& frame) {
         const std::lock_guard lock(state->mutex);
         if (state->closed || !state->receiver) return false;
+        const auto admittedNs = nowNs();
+        const auto decodedNs = frame.timing.decodedMonoNs > 0 ? frame.timing.decodedMonoNs : admittedNs;
+        if (state->sourceEnabled && frame.timing.usable() &&
+            sourceHoldExceedsCeiling(frame.timing.clock.targetUs, decodedNs)) {
+            ++state->dropped; state->fallback = "hold_ceiling_exceeded"; return true;
+        }
         if (frame.timing.presentationGeneration < state->presentationGeneration) { ++state->dropped; return true; }
         if (state->sourceEnabled && frame.timing.usable() &&
             frame.timing.clock.targetUs * 1000 <= state->lastSourceDeliveryNs) { ++state->dropped; return true; }
@@ -93,6 +101,7 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
         // not move an overdue backlog's deadline forward and preserve stale work.
         if (state->frames.empty()) state->cadence.arm(nowNs());
         state->frames.push_back(frame);
+        state->frames.back().timing.decodedMonoNs = decodedNs;
         while (state->frames.size() > state->cadence.capacity()) {
             state->frames.pop_front(); ++state->dropped;
         }
@@ -131,6 +140,14 @@ void DeckFrameDelivery::deliver() {
             return state_->sourceEnabled && f.timing.usable() && f.timing.presentationGeneration == state_->presentationGeneration;
         };
         if (sourceFrame(state_->frames.front())) {
+            if (sourceHoldExceedsCeiling(state_->frames.front().timing.clock.targetUs,
+                    state_->frames.front().timing.decodedMonoNs)) {
+                state_->frames.pop_front(); ++state_->dropped;
+                state_->fallback = "hold_ceiling_exceeded";
+                state_->queued = !state_->frames.empty();
+                if (state_->queued) timer_.start(0);
+                return;
+            }
             // Select the newest overdue frame, keeping future work in its source slot.
             while (state_->frames.size() > 1 && sourceFrame(state_->frames[1]) &&
                 state_->frames[1].timing.clock.targetUs * 1000 <= now) {
