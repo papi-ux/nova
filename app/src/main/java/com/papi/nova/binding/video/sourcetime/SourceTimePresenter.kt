@@ -18,6 +18,11 @@ package com.papi.nova.binding.video.sourcetime
  *   the next vsync says the frame-rendered feedback still pending belongs to the old fence. A
  *   decoded frame whose timing was made under an old epoch or surface is aimed by arrival with a
  *   named reason (stale_epoch, surface_recreated) and never restores source_time_fixed.
+ * - Source-paced has to stay fresh (W26 F4). A repeated RTP timestamp or an older frame identity
+ *   is one frame's condition and keeps the state, but when [staleFrames] frames in a row (one
+ *   second at the negotiated rate) or [STALE_AFTER_NS] go by without a valid mapped target, the
+ *   state becomes pending with source_timestamp_missing (the shared contract's one-second freshness
+ *   expiry, as on the Deck) until a frame is source-timed again.
  *
  * Every method is synchronized. Lock order is this object, then the scheduler's or the mapper's
  * lock, never the reverse: nothing here is called with the mapper's lock held.
@@ -25,7 +30,12 @@ package com.papi.nova.binding.video.sourcetime
 class SourceTimePresenter(
     capacity: Int,
     private val mapper: SourceTimeMapper,
+    /** The negotiated stream rate: a second of frames without a mapped target is stale. */
+    framesPerSecond: Int = 60,
 ) {
+    /** Consecutive frames without a valid mapped target that end a source-paced claim. */
+    val staleFrames = maxOf(1, framesPerSecond)
+
     data class Admission(
         /** Frames this pushed out of the queue or left behind a moved fence, to drop unrendered. */
         val dropped: List<SourceTimeScheduler.Entry>,
@@ -52,6 +62,8 @@ class SourceTimePresenter(
     private var reason = SourceTimeReason.NONE
     private var fence = SourceTimeScheduler.NO_FENCE
     private var fenceMovedSinceVsync = false
+    private var framesWithoutTarget = 0
+    private var lastTargetNs = Long.MIN_VALUE
 
     /** The learned presentation delay in microseconds; null before any frame measured it. */
     val targetDelayUs: Long?
@@ -111,6 +123,16 @@ class SourceTimePresenter(
                 }
             }
         }
+        if (targetNs != null) {
+            framesWithoutTarget = 0
+            lastTargetNs = decodedNs
+        } else {
+            framesWithoutTarget++
+            // A run of repeats, not one: the claim ends, whatever the frames' own reasons.
+            if (state == SourceTimeEffective.SOURCE_TIME_FIXED && (framesWithoutTarget >= staleFrames || stale(decodedNs))) {
+                fallback(SourceTimeReason.SOURCE_TIMESTAMP_MISSING)
+            }
+        }
         val kind = when {
             point == null -> SourceTimeCounters.Admission.TIMING_METADATA_MISSING
             staleTiming -> SourceTimeCounters.Admission.STALE_EPOCH
@@ -150,9 +172,15 @@ class SourceTimePresenter(
         reason = why
     }
 
-    /** The renderer's state for [request], with the buffer limit named when a bound was reached. */
+    /**
+     * The renderer's state for [request] at [nowNs], with the buffer limit named when a bound was
+     * reached. No mapped target for [STALE_AFTER_NS], frames or none, is no longer source-paced.
+     */
     @Synchronized
-    fun pacing(request: SourceTimeRequest): SourceTimePacingStatus {
+    fun pacing(request: SourceTimeRequest, nowNs: Long): SourceTimePacingStatus {
+        if (state == SourceTimeEffective.SOURCE_TIME_FIXED && stale(nowNs)) {
+            fallback(SourceTimeReason.SOURCE_TIMESTAMP_MISSING)
+        }
         if (state != SourceTimeEffective.SOURCE_TIME_FIXED) {
             return SourceTimePacingStatus(request, state, reason)
         }
@@ -172,6 +200,8 @@ class SourceTimePresenter(
 
     @Synchronized
     fun counters(): SourceTimeScheduler.Counters = scheduler.counters()
+
+    private fun stale(nowNs: Long) = lastTargetNs != Long.MIN_VALUE && nowNs - lastTargetNs >= STALE_AFTER_NS
 
     private fun fallback(why: SourceTimeReason) {
         state = SourceTimeEffective.PENDING
@@ -199,6 +229,9 @@ class SourceTimePresenter(
     companion object {
         /** A mapped target further ahead of its decode than this is a broken mapping (design C.3). */
         const val EARLY_BOUND_NS = 200_000_000L
+
+        /** A second without a valid mapped target ends a source-paced claim (W26 F4). */
+        const val STALE_AFTER_NS = 1_000_000_000L
 
         /** The state's reason after the renderer reset the mapping at the named site. */
         @JvmStatic

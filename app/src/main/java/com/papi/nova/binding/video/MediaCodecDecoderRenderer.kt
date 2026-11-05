@@ -904,7 +904,7 @@ class MediaCodecDecoderRenderer(
         if (!sourceTimeActive) {
             return SourceTimePacingStatus.legacy(request, SourceTimeReason.PACING_MODE_INCOMPATIBLE)
         }
-        return sourceTimePresenter?.pacing(request)
+        return sourceTimePresenter?.pacing(request, System.nanoTime())
             ?: SourceTimePacingStatus(request, SourceTimeEffective.PENDING, SourceTimeReason.NONE)
     }
 
@@ -942,7 +942,7 @@ class MediaCodecDecoderRenderer(
             val periodUs = (1_000_000L / max(1, if (redrawRate > 0) redrawRate else 60)).coerceIn(1L, 1_000_000L)
             val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, capacity, periodUs)
             sourceTimeMapper = mapper
-            sourceTimePresenter = SourceTimePresenter(capacity, mapper)
+            sourceTimePresenter = SourceTimePresenter(capacity, mapper, if (redrawRate > 0) redrawRate else 60)
         }
         sourceTimeConfigured = true
         LimeLog.info(

@@ -30,6 +30,9 @@ enum class SourceTimeEffective(val wire: String) {
  * presentation queue to schedule. STALE_EPOCH (W26 F3) is the Deck delivery fence's name for a
  * frame whose timing was made under a mapper epoch that no longer exists (contract "Delivery epoch
  * fence"); Android also uses it as a state reason, listed in addendum 2 for the contract owner.
+ * SOURCE_TIMESTAMP_MISSING also ends a source-paced claim that has gone a second of frames or a
+ * second of time without a valid mapped target (W26 F4), as the shared contract's one-second
+ * freshness expiry does on the Deck.
  */
 enum class SourceTimeReason(val wire: String) {
     NONE("none"),

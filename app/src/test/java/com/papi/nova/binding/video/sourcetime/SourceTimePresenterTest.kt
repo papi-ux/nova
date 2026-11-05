@@ -206,7 +206,7 @@ class SourceTimePresenterTest {
         val missing = presenter.admit(1, 1, 1_000_000, null, 1, 1)
         assertEquals(SourceTimeCounters.Admission.TIMING_METADATA_MISSING, missing.kind)
         assertFalse(missing.outOfBounds)
-        val status = presenter.pacing(SourceTimeRequest.SOURCE_TIME)
+        val status = presenter.pacing(SourceTimeRequest.SOURCE_TIME, 1_000_000)
         assertEquals(SourceTimeEffective.PENDING, status.effective)
         assertEquals(SourceTimeReason.TIMING_METADATA_MISSING, status.fallback)
     }
@@ -221,7 +221,7 @@ class SourceTimePresenterTest {
         val presenter = SourceTimePresenter(2, mapper)
         val w = Warm(mapper, presenter, 1_000_000_000L, 0)
         repeat(30) { stepFrame(w, display) }
-        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, presenter.pacing(SourceTimeRequest.AUTO).effective)
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
         return w
     }
 
@@ -247,11 +247,11 @@ class SourceTimePresenterTest {
         w.mapper.reset()
         w.presenter.onMappingReset(SourceTimePresenter.reasonForReset(SourceTimeCounters.RESET_FOREGROUND))
         assertEquals("the reset alone stops the claim", SourceTimeEffective.PENDING,
-            w.presenter.pacing(SourceTimeRequest.AUTO).effective)
+            w.presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
         assertFalse("the mapper says the point is not current", w.mapper.ready(pointA, a.arrivalUs + 3_000))
         val admission = w.presenter.admit(w.frame, w.frame.toLong(), w.t + 3_000_000, record(w.frame, a, pointA), 1, 1)
         assertEquals(SourceTimeCounters.Admission.STALE_EPOCH, admission.kind)
-        val status = w.presenter.pacing(SourceTimeRequest.AUTO)
+        val status = w.presenter.pacing(SourceTimeRequest.AUTO, w.t)
         assertEquals(SourceTimeEffective.PENDING, status.effective)
         assertEquals(SourceTimeReason.STALE_EPOCH, status.fallback)
         assertEquals(3000L, w.mapper.reserveUs)
@@ -299,16 +299,92 @@ class SourceTimePresenterTest {
         assertEquals(listOf(i), vsync.drop.map { it.index })
         assertTrue(vsync.fenceMoved)
         assertEquals(null, w.presenter.targetDelayUs)
-        assertEquals(SourceTimeReason.SURFACE_RECREATED, w.presenter.pacing(SourceTimeRequest.AUTO).fallback)
+        assertEquals(SourceTimeReason.SURFACE_RECREATED, w.presenter.pacing(SourceTimeRequest.AUTO, w.t).fallback)
         // A frame mapped for the old surface but decoded after the change is aimed by arrival.
         val j = w.frame++
         val g = Frame(j * 16_667L, w.t / 1000)
         val pointG = w.mapper.observe(j + 1, record(j, g, null).rtpTimestamp, g.arrivalUs)
         val admission = w.presenter.admit(j, j.toLong(), w.t + 3_000_000, record(j, g, pointG, surface = 1), 2, 1)
         assertEquals(SourceTimeCounters.Admission.STALE_EPOCH, admission.kind)
-        assertEquals(SourceTimeEffective.PENDING, w.presenter.pacing(SourceTimeRequest.AUTO).effective)
+        assertEquals(SourceTimeEffective.PENDING, w.presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
         // Frames mapped for the new surface source-pace again.
         repeat(5) { stepFrame(w, hz60, surface = 2) }
-        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, w.presenter.pacing(SourceTimeRequest.AUTO).effective)
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, w.presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
+    }
+
+    // --- W26 F4: source-paced has to stay fresh. ---
+
+    /** One frame whose RTP timestamp repeats the last one, enqueued and decoded at 60 Hz. */
+    private fun repeatFrame(w: Warm, display: Display = hz60) {
+        val i = w.frame++
+        val f = Frame((w.frame - 2) * 16_667L, w.t / 1000)
+        val rtp = (900_000 + (lastSourceUs(w)) * 90 / 1000) and 0xFFFF_FFFFL
+        val point = w.mapper.observe(i + 1, rtp, f.arrivalUs)
+        assertEquals(SourceTimeMapper.REASON_DUPLICATE_TIMESTAMP, point.reason)
+        w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point), 1, 1)
+        val k = (w.t + 4_000_000) / display.periodNs + 1
+        w.t += 16_667_000
+        w.presenter.onVsync(display.nowAt(k), display.slotsAt(k), display.periodNs, 1, 1)
+    }
+
+    private var repeatedSourceUs = -1L
+    private fun lastSourceUs(w: Warm): Long {
+        if (repeatedSourceUs < 0) repeatedSourceUs = (w.frame - 2) * 16_667L
+        return repeatedSourceUs
+    }
+
+    private fun truthOf(w: Warm) = PresentationTruth.from(w.presenter.pacing(SourceTimeRequest.SOURCE_TIME, w.t),
+        null, com.papi.nova.api.PolarisSessionVrr.Reading.Absent, true, 41, 60f)
+
+    @Test
+    fun anIsolatedRepeatKeepsTheStateButASecondOfRepeatsEndsTheClaimEverywhere() {
+        val w = warm()
+        assertEquals(60, w.presenter.staleFrames)
+        // A few repeated timestamps: one frame's condition each, source-paced stays.
+        repeat(5) { repeatFrame(w) }
+        assertTrue(truthOf(w).sourcePaced)
+        // The host keeps repeating for a second of frames: no target, so no claim.
+        repeat(w.presenter.staleFrames - 5) { repeatFrame(w) }
+        val truth = truthOf(w)
+        assertFalse("not source-paced in the reducer", truth.sourcePaced)
+        assertEquals(SourceTimeReason.SOURCE_TIMESTAMP_MISSING, truth.client.fallback)
+        assertEquals("st1;requested=source_time;effective=pending;vrr_requested=0;vrr_effective=0;fallback=source_timestamp_missing",
+            truth.client.toFramePacingState())
+        assertFalse("no HUD chip", com.papi.nova.ui.NovaHudQualityChips.from(null, 60f, truth).any { it.label == "Source-paced" })
+        // The host's next frame (one interval on; a gap over a second would be a discontinuity and a
+        // new warm-up) is source-timed again and restores it.
+        val i = w.frame++
+        val f = Frame(repeatedSourceUs + 16_667L, w.t / 1000)
+        repeatedSourceUs = -1
+        val point = w.mapper.observe(i + 1, record(i, f, null).rtpTimestamp, f.arrivalUs)
+        assertTrue(point.active)
+        assertEquals(SourceTimeCounters.Admission.SOURCE_TIMED,
+            w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, f, point), 1, 1).kind)
+        assertTrue(truthOf(w).sourcePaced)
+    }
+
+    @Test
+    fun aSecondWithoutAMappedTargetEndsTheClaimEvenWithFewFramesOrNone() {
+        // Few frames: at 30 FPS negotiated but frames 600 ms apart, two repeats already span a second.
+        val mapper = SourceTimeMapper(SourceTimePolicy.DEFAULT, 2, 33_333)
+        val presenter = SourceTimePresenter(2, mapper, framesPerSecond = 30)
+        val w = Warm(mapper, presenter, 1_000_000_000L, 0)
+        repeat(30) { stepFrame(w, hz60) }
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
+        // Three repeats, half a second apart: far fewer than 30 frames, but a second without a target.
+        repeatFrame(w)
+        w.t += 500_000_000
+        repeatFrame(w)
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
+        w.t += 500_000_000
+        repeatFrame(w)
+        assertEquals(SourceTimeReason.SOURCE_TIMESTAMP_MISSING, presenter.pacing(SourceTimeRequest.AUTO, w.t).fallback)
+        // No frames at all: a status read a second after the last target says the same.
+        repeatedSourceUs = -1
+        val idle = warm()
+        assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, idle.presenter.pacing(SourceTimeRequest.AUTO, idle.t).effective)
+        val later = idle.presenter.pacing(SourceTimeRequest.AUTO, idle.t + 1_000_000_000L)
+        assertEquals(SourceTimeEffective.PENDING, later.effective)
+        assertEquals(SourceTimeReason.SOURCE_TIMESTAMP_MISSING, later.fallback)
     }
 }

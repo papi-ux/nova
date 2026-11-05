@@ -105,6 +105,14 @@ class SourceTimeRendererSourceGuardTest {
     }
 
     @Test
+    fun theStatusIsReadFreshAndASecondOfFramesIsTheNegotiatedRate() {
+        // W26 F4: the state the HUD and the host read is judged at the moment it is read, and the
+        // stale-frame count is one second at the stream's negotiated rate.
+        assertTrue(renderer.contains("return sourceTimePresenter?.pacing(request, System.nanoTime())"))
+        assertTrue(renderer.contains("sourceTimePresenter = SourceTimePresenter(capacity, mapper, if (redrawRate > 0) redrawRate else 60)"))
+    }
+
+    @Test
     fun theApi33VsyncSourceIsOnlyReachedBehindAVersionCheck() {
         for (use in Regex("""SourceTimeFrameTimelineVsync""").findAll(renderer)) {
             val before = renderer.substring(maxOf(0, use.range.first - 240), use.range.first)
