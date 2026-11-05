@@ -1048,6 +1048,8 @@
 
     <string name="title_frame_pacing">Video frame pacing</string>
     <string name="summary_frame_pacing">Specify how to balance video latency and smoothness</string>
+    <string name="title_source_time_pacing">Pace video by host frame times</string>
+    <string name="summary_source_time_pacing">Shows each frame when the host made it, not when it arrived. Works with Balanced frame pacing on this display\'s fixed refresh rate. Applies to the next stream.</string>
     <string name="pacing_warp">Warp Drive (Experimental)</string>
     <string name="pacing_warp2">Warp 2 (Experimental)</string>
     <string name="pacing_latency">Prefer lowest latency</string>
@@ -2210,6 +2212,14 @@
     <string name="nova_cc_technical_details">Technical details</string>
     <string name="nova_cc_tuning_details_caption">View Live Tuning and bitrate details</string>
     <string name="nova_cc_value_unavailable">Unavailable</string>
+    <string name="nova_cc_presentation">Presentation</string>
+    <string name="nova_cc_display_mode">Display mode</string>
+    <string name="nova_cc_source_paced">Paced by host frame times</string>
+    <string name="nova_cc_vrr_requested">Variable refresh requested</string>
+    <string name="nova_cc_vrr_active">Variable refresh active</string>
+    <string name="nova_cc_pacing_fallback">Why not</string>
+    <string name="nova_cc_yes">Yes</string>
+    <string name="nova_cc_no">No</string>
     <string name="nova_cc_media_unavailable">Video feedback unavailable or stale</string>
     <string name="nova_cc_received_fps">%1$s fps received</string>
     <string name="nova_cc_rate_original">Original launch request budget</string>

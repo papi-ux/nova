@@ -199,7 +199,12 @@ internal fun commandCenterStream(status: com.papi.nova.api.PolarisSessionStatus?
         com.papi.nova.ui.currentCommandCenterMedia(lastCommandCenterMedia, novaApiClient, conn, status),
         android.os.SystemClock.elapsedRealtime(), isStreamActive && connected,
         configuredStreamBitrateKbps,
-        novaCommandCenterChanges.snapshot(novaApiClient, conn))
+        novaCommandCenterChanges.snapshot(novaApiClient, conn),
+        // #242: the same reducer as the HUD and the host report; the caller passes only current status.
+        presentationTruth(status, true,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                getSystemService(DisplayManager::class.java)?.getDisplay(streamingDisplayId)?.getMode()?.getRefreshRate()
+            else null))
 
 internal val novaLiveBitrate by lazy {
     com.papi.nova.manager.NovaStreamBitrateOwner(lifecycleScope,
@@ -7560,7 +7565,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
 getSystemService(DisplayManager::class.java)?.getDisplay(streamingDisplayId)?.getMode()?.getRefreshRate()
 else
 null
-}) {
+}, presentation = { status, hostFresh, displayHz -> presentationTruth(status, hostFresh, displayHz) }) {
 showGameMenu(null)
 }
 novaHud = hud

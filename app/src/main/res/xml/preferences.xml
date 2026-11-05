@@ -74,6 +74,14 @@
             android:title="@string/title_frame_pacing"
             app:iconSpaceReserved="false" />
 
+        <!-- Host frame timing (#242). Off by default; used only with Balanced frame pacing. -->
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="source_time_pacing"
+            android:summary="@string/summary_source_time_pacing"
+            android:title="@string/title_source_time_pacing"
+            app:iconSpaceReserved="false" />
+
         <!-- HDR -->
         <CheckBoxPreference
             android:defaultValue="false"
