@@ -31,7 +31,7 @@ class GameSourceTimeReportingSourceGuardTest {
     fun aChangeOfPacingStateIsReportedAndItComesFromTheSharedReducer() {
         assertTrue(report.contains("val presentationFacts = presentationTruth(status, true, appliedRefreshRate)\n" +
             "var framePacingState:String = presentationFacts.client.toFramePacingState()"))
-        val key = report.substringAfter("var reportKey").substringBefore("if ((reportKey")
+        val key = report.substringAfter("var reportKey").substringBefore("val reportNowMs")
         assertTrue("a state change must change the dedupe key", key.contains("framePacingState"))
     }
 
@@ -40,13 +40,28 @@ class GameSourceTimeReportingSourceGuardTest {
         // Design E.1: render_fps and dropped_frame_ratio, as the reducer bounded them, only when measured.
         assertTrue(report.contains("presentationFacts.renderFps?.let { presentation.put(\"render_fps\", it) }"))
         assertTrue(report.contains("presentationFacts.droppedFrameRatio?.let { presentation.put(\"dropped_frame_ratio\", it) }"))
-        val key = report.substringAfter("var reportKey").substringBefore("if ((reportKey")
+        val key = report.substringAfter("var reportKey").substringBefore("val reportNowMs")
         for (count in listOf("renderFps", "droppedFrameRatio", "presentationFacts")) {
             assertTrue("$count must not be in the dedupe key", !key.contains(count))
         }
         // The reducer every surface uses is handed the renderer's report (design E.2).
         val reducer = game.substringAfter("internal fun presentationTruth(").substringBefore("\nprivate fun ")
         assertTrue(reducer.contains("report = decoderRenderer?.sourceTimeReport()"))
+    }
+
+    @Test
+    fun anUnchangedReportIsRefreshedOnACadenceAndOnceAtTheEnd() {
+        // W26 F5: the state key still decides a transition, but it is no longer the only gate: an
+        // unchanged report is sent again on the cadence, and the end of a stream sends it once more.
+        assertTrue(game.contains("private val clientPresentationCadence = com.papi.nova.runtime.PresentationReportCadence()"))
+        assertTrue("the key alone no longer gates", !game.contains("lastReportedClientPresentationKey"))
+        assertTrue(report.contains("val reportWhy = clientPresentationCadence.due(reportKey!!, reportNowMs, ending = atEnd)\nif ((reportWhy == null ||"))
+        assertTrue(report.contains("clientPresentationCadence.sent(reportKey!!, reportNowMs)"))
+        val stop = game.substringAfter("private fun stopConnection() {").substringBefore("\nprivate fun ")
+        assertTrue(stop.contains("reportClientPresentationIfNeeded(endPresentationStatus, atEnd = true)"))
+        assertTrue("before the status refresh stops", stop.indexOf("atEnd = true") < stop.indexOf("stopPolarisLiveSessionStatusRefresh()"))
+        val cadence = File("src/main/java/com/papi/nova/runtime/PresentationReportCadence.kt").readText()
+        assertTrue(cadence.contains("const val REFRESH_MS = 5_000L"))
     }
 
     @Test

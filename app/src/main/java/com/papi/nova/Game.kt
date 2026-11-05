@@ -368,7 +368,9 @@ private var externalDisplayListener:DisplayManager.DisplayListener? = null
 @Volatile private var lastClientPresentationRefreshRate:Float = 0f
 @Volatile private var lastClientPresentationDisplayModeId:Int = 0
 @Volatile private var lastClientPresentationDisplayMode:String = ""
-@Volatile private var lastReportedClientPresentationKey:String = ""
+// #242 (W26 F5): a state change is reported at once, and an unchanged one again every five seconds
+// and at the end, so the frame window and counts the reducer adds are not frozen at the first report.
+private val clientPresentationCadence = com.papi.nova.runtime.PresentationReportCadence()
 @Volatile private var lastPolarisDeviceCapabilities:JSONObject? = null
 @Volatile private var lastPolarisAppliedStreamSettings:JSONObject? = null
 @Volatile private var lastClientProfileProvenance:com.papi.nova.manager.ClientProfileProvenance =
@@ -5838,6 +5840,15 @@ novaCommandCenterChanges.clear()
 lastCommandCenterMedia = null
 runtimeTasks.cancel("NovaStreamBitrateStatus")
 closeCompanionControls()
+// #242 (W26 F5): the stream's last frame window and counts, once, as it ends. Read before the
+// decoder stops; the renderer's counts outlive its codec.
+val endPresentationStatus = lastPolarisSessionStatus
+if (endPresentationStatus != null)
+{
+runtimeTasks.launchIo("NovaClientPresentationEnd") {
+reportClientPresentationIfNeeded(endPresentationStatus, atEnd = true)
+}
+}
 stopPolarisLiveSessionStatusRefresh()
 doctorTelemetryUploadGate.invalidate()
 frameSubmissionEpochBinding.retire()
@@ -7172,7 +7183,9 @@ Toast.makeText(this, warning, Toast.LENGTH_LONG).show()
 }
 }
 
-private fun reportClientPresentationIfNeeded(status:com.papi.nova.api.PolarisSessionStatus?) {
+// One overload per arity, so the one-argument status-poll call keeps its JVM signature.
+@JvmOverloads
+private fun reportClientPresentationIfNeeded(status:com.papi.nova.api.PolarisSessionStatus?, atEnd:Boolean = false) {
 if (status == null || !status!!.isStreaming || novaApiClient == null || !novaHasClientSettings())
 {
 return
@@ -7256,7 +7269,9 @@ presentationStatus + "|" +
 framePacingState + "|" +
 status!!.tuning.adaptiveTargetBitrateKbps + "|" +
 status!!.encoder.bitrateKbps)
-if ((reportKey!!.equals(lastReportedClientPresentationKey) || !clientPresentationReportInFlight.compareAndSet(false, true)))
+val reportNowMs:Long = android.os.SystemClock.elapsedRealtime()
+val reportWhy = clientPresentationCadence.due(reportKey!!, reportNowMs, ending = atEnd)
+if ((reportWhy == null || !clientPresentationReportInFlight.compareAndSet(false, true)))
 {
 return
 }
@@ -7285,8 +7300,8 @@ catch (ignored:Exception) {}
 var success:Boolean = reportPolarisClientSettingsSnapshot(presentation)
 if (success)
 {
-lastReportedClientPresentationKey = reportKey
-com.papi.nova.LimeLog.info(("Nova: Client presentation synced → " +
+clientPresentationCadence.sent(reportKey!!, reportNowMs)
+com.papi.nova.LimeLog.info(("Nova: Client presentation synced (" + reportWhy.name.lowercase() + ") → " +
 presentationStatus + " @ " + appliedRefreshRate + " Hz"))
 }
 else
