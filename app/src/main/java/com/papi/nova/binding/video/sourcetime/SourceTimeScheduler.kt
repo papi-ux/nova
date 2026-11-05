@@ -88,6 +88,11 @@ class SourceTimeScheduler(private val capacity: Int) {
     private var inFlightSlotNs = NONE
     private var inFlightDeadlineNs = NONE
 
+    // What the last release changed, so one that never reached the codec can be taken back.
+    private var lastReleasePtsUs = NONE
+    private var slotBeforeLastRelease = Long.MIN_VALUE
+    private var lastReleaseLate = false
+
     init {
         require(capacity >= 1) { "capacity must be at least one frame" }
     }
@@ -182,15 +187,35 @@ class SourceTimeScheduler(private val capacity: Int) {
         supersededCount += due.size
         released++
         val lateness = slot - half - shown.targetNs
+        lastReleaseLate = lateness > 0
         if (lateness > 0) {
             releasedLate++
             if (lateness > maxLatenessNs) maxLatenessNs = lateness
         }
+        lastReleasePtsUs = shown.ptsUs
+        slotBeforeLastRelease = lastReleasedSlotNs
         lastReleasedSlotNs = slot
         inFlightPtsUs = shown.ptsUs
         inFlightSlotNs = slot
         inFlightDeadlineNs = deadlinesNs[slotsNs.indexOf(slot)]
         return Decision(shown, slot, due)
+    }
+
+    /**
+     * The release [onVsync] last handed out never reached the codec: its fence moved between the
+     * decision and the hand-off (W34 D2). Nothing is in flight for it and its refresh is free again;
+     * it counts as a frame dropped under an old fence, not as released. Its lateness, if any, stays
+     * in [Counters.maxLatenessNs].
+     */
+    @Synchronized
+    fun withdraw(entry: Entry) {
+        staleDropped++
+        if (entry.ptsUs != lastReleasePtsUs) return
+        lastReleasePtsUs = NONE
+        released--
+        if (lastReleaseLate) releasedLate--
+        lastReleasedSlotNs = slotBeforeLastRelease
+        if (inFlightPtsUs == entry.ptsUs) forgetInFlight()
     }
 
     private fun forgetInFlight() {
@@ -206,6 +231,7 @@ class SourceTimeScheduler(private val capacity: Int) {
         queue.clear()
         lastAdmittedTargetNs = Long.MIN_VALUE
         lastReleasedSlotNs = Long.MIN_VALUE
+        lastReleasePtsUs = NONE
         // A flushed or stopping codec returns every buffer, the one in flight included.
         forgetInFlight()
         return waiting

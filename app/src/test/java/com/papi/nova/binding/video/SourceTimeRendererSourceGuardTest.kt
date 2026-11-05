@@ -105,6 +105,17 @@ class SourceTimeRendererSourceGuardTest {
     }
 
     @Test
+    fun aReleaseReachesTheCodecOnlyUnderTheEpochItWasAimedAt() {
+        // W34 D2: the one source-timed release call is inside the presenter's epoch hold, and a
+        // release it refuses is dropped, never rendered.
+        val present = renderer.substringAfter("private fun presentSourceTimeFrame(").substringBefore("\n    }\n")
+        assertTrue(present.contains("presenter.submit(shown, sourceSurfaceGeneration, sourceDecoderGeneration) {\n" +
+            "                videoDecoder!!.releaseOutputBuffer(shown.index, decision.releaseAtNs)\n            }"))
+        assertEquals(1, Regex("""releaseOutputBuffer\(shown\.index, decision\.releaseAtNs\)""").findAll(renderer).count())
+        assertTrue(present.contains("if (!submitted) {\n            try {\n                dropFrame(shown.index, intentional = true)"))
+    }
+
+    @Test
     fun theStatusIsReadFreshAndASecondOfFramesIsTheNegotiatedRate() {
         // W26 F4: the state the HUD and the host read is judged at the moment it is read, and the
         // stale-frame count is one second at the stream's negotiated rate.

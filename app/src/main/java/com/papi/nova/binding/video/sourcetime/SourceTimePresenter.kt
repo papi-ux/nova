@@ -26,8 +26,15 @@ package com.papi.nova.binding.video.sourcetime
  *   state becomes pending with source_timestamp_missing (the shared contract's one-second freshness
  *   expiry, as on the Deck) until a frame is source-timed again.
  *
- * Every method is synchronized. Lock order is this object, then the scheduler's or the mapper's
- * lock, never the reverse: nothing here is called with the mapper's lock held.
+ * - An epoch can move on another thread at any moment: observe() starts one under the mapper's
+ *   lock alone (W34 D2). So a source-timed admission commits its claim and its queue entry inside
+ *   [SourceTimeMapper.whileCurrent] for the epoch it was aimed under, or is aimed by arrival as
+ *   stale_epoch; a release reaches the codec only through [submit], under the same hold; and
+ *   [pacing] compares the claim's epoch with the mapper's current one.
+ *
+ * Every method but [submit] is synchronized. Lock order is this object, then the mapper's, its
+ * epoch's or the scheduler's lock, never the reverse: nothing here is called with the mapper's lock
+ * held, and nothing that holds the epoch's calls the mapper.
  */
 class SourceTimePresenter(
     capacity: Int,
@@ -72,6 +79,12 @@ class SourceTimePresenter(
         get() = delay.reportUs
 
     /**
+     * Tests only: runs after the mapper said a source-timed point is current and before its claim
+     * is committed, so a test can start a new epoch exactly there (W34 D2).
+     */
+    internal var beforeCommit: (() -> Unit)? = null
+
+    /**
      * One decoded frame, with the record queued beside it (or null), under the renderer's current
      * [surfaceGeneration] and [decoderGeneration].
      */
@@ -87,7 +100,8 @@ class SourceTimePresenter(
         val stale = refence(surfaceGeneration, decoderGeneration)
         val current = fence
         val point = record?.point
-        var targetNs: Long? = null
+        // A current, active, in-bounds mapped target, still to be committed under its epoch.
+        var mappedNs: Long? = null
         var outOfBounds = false
         var staleTiming = false
         when {
@@ -107,11 +121,11 @@ class SourceTimePresenter(
                 fallback(SourceTimeReason.STALE_EPOCH)
             }
             else -> {
-                val mappedNs = point.targetUs * 1000
-                val inBounds = mappedNs - decodedNs <= EARLY_BOUND_NS
+                val mapped = point.targetUs * 1000
+                val inBounds = mapped - decodedNs <= EARLY_BOUND_NS
                 if (!point.active) {
                     // Warm-up points teach the delay too, so it is ready when the mapping is.
-                    if (inBounds) delay.onAdmitted(decodedNs, mappedNs)
+                    if (inBounds) delay.onAdmitted(decodedNs, mapped)
                     state = SourceTimeEffective.PENDING
                     reason = reasonFor(point.reason) ?: SourceTimeReason.NONE
                 } else if (!inBounds) {
@@ -119,10 +133,31 @@ class SourceTimePresenter(
                     outOfBounds = true
                     fallback(SourceTimeReason.CLOCK_MAPPING_UNSTABLE)
                 } else {
-                    targetNs = mappedNs + delay.onAdmitted(decodedNs, mappedNs)
-                    state = SourceTimeEffective.SOURCE_TIME_FIXED
-                    reason = SourceTimeReason.NONE
+                    mappedNs = mapped
                 }
+            }
+        }
+        var targetNs: Long? = null
+        var queued: List<SourceTimeScheduler.Entry>? = null
+        var raced = emptyList<SourceTimeScheduler.Entry>()
+        if (mappedNs != null) {
+            val mapped: Long = mappedNs
+            beforeCommit?.invoke()
+            // ready() said the point is current, but observe() can start a new epoch since, under
+            // the mapper's lock alone (W34 D2). The claim, the delay's sample and the queue entry are
+            // committed while that epoch cannot move, or not at all.
+            val committed = mapper.whileCurrent(current.epoch) {
+                val target = mapped + delay.onAdmitted(decodedNs, mapped)
+                targetNs = target
+                state = SourceTimeEffective.SOURCE_TIME_FIXED
+                reason = SourceTimeReason.NONE
+                queued = scheduler.admit(index, ptsUs, decodedNs, target, current)
+            }
+            if (!committed) {
+                // As any point from an old epoch: aimed by arrival, under the new fence.
+                staleTiming = true
+                fallback(SourceTimeReason.STALE_EPOCH)
+                raced = refence(surfaceGeneration, decoderGeneration)
             }
         }
         if (targetNs != null) {
@@ -141,7 +176,8 @@ class SourceTimePresenter(
             targetNs != null -> SourceTimeCounters.Admission.SOURCE_TIMED
             else -> SourceTimeCounters.Admission.SOURCE_TIME_MISSING
         }
-        return Admission(stale + scheduler.admit(index, ptsUs, decodedNs, targetNs, current), kind, outOfBounds)
+        val admitted = queued ?: scheduler.admit(index, ptsUs, decodedNs, null, fence)
+        return Admission(stale + raced + admitted, kind, outOfBounds)
     }
 
     /**
@@ -166,6 +202,25 @@ class SourceTimePresenter(
         return Vsync(decision.release, decision.releaseAtNs, stale + decision.superseded, moved)
     }
 
+    /**
+     * Hands [release], which [onVsync] chose, to the codec (W34 D2). [submit] runs only while the
+     * mapper epoch it was aimed under is still current, with [surfaceGeneration] and
+     * [decoderGeneration] still its own, and no new epoch can start until [submit] returns: a frame
+     * the codec has is one submitted before the reset, never an old decision crossing it. When the
+     * fence moved after the decision nothing runs, the scheduler takes the release back and counts
+     * it stale, and the caller drops the frame unrendered: returns false.
+     *
+     * Not under this presenter's lock, so admission and the render callback never wait on the codec.
+     * The generations are the renderer's own volatiles, checked just before the hold, not under it.
+     */
+    fun submit(release: SourceTimeScheduler.Entry, surfaceGeneration: Int, decoderGeneration: Int, submit: () -> Unit): Boolean {
+        val aimed = release.fence
+        val ran = aimed.surfaceGeneration == surfaceGeneration && aimed.decoderGeneration == decoderGeneration &&
+            mapper.whileCurrent(aimed.epoch, submit)
+        if (!ran) synchronized(this) { scheduler.withdraw(release) }
+        return ran
+    }
+
     /** The codec reported the frame queued with [ptsUs] rendered. */
     @Synchronized
     fun onRendered(ptsUs: Long) {
@@ -188,6 +243,11 @@ class SourceTimePresenter(
      */
     @Synchronized
     fun pacing(request: SourceTimeRequest, nowNs: Long): SourceTimePacingStatus {
+        // The claim was made under the fence's epoch. A new one (the mapper re-warming on its own, or
+        // a reset) ends it now, not at the next admission or vsync (W34 D2).
+        if (state == SourceTimeEffective.SOURCE_TIME_FIXED && mapper.epoch != fence.epoch) {
+            fallback(SourceTimeReason.STALE_EPOCH)
+        }
         if (state == SourceTimeEffective.SOURCE_TIME_FIXED && stale(nowNs)) {
             fallback(SourceTimeReason.SOURCE_TIMESTAMP_MISSING)
         }

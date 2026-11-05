@@ -990,11 +990,11 @@ class MediaCodecDecoderRenderer(
             }
         }
         val shown = decision.release ?: return
-        try {
-            videoDecoder!!.releaseOutputBuffer(shown.index, decision.releaseAtNs)
-            lastRenderedFrameTimeNanos = decision.releaseAtNs
-            activeWindowVideoStats.totalFramesRendered++
-            presentFeedback.released(shown.ptsUs, decision.releaseAtNs, vsyncPeriodNs)
+        val submitted = try {
+            // Only under the epoch it was aimed at: a reset after the decision drops it instead (W34 D2).
+            presenter.submit(shown, sourceSurfaceGeneration, sourceDecoderGeneration) {
+                videoDecoder!!.releaseOutputBuffer(shown.index, decision.releaseAtNs)
+            }
         } catch (_: IllegalStateException) {
             try {
                 dropFrame(shown.index)
@@ -1002,7 +1002,20 @@ class MediaCodecDecoderRenderer(
                 e.printStackTrace()
                 handleDecoderException(e)
             }
+            return
         }
+        if (!submitted) {
+            try {
+                dropFrame(shown.index, intentional = true)
+            } catch (e: IllegalStateException) {
+                e.printStackTrace()
+                handleDecoderException(e)
+            }
+            return
+        }
+        lastRenderedFrameTimeNanos = decision.releaseAtNs
+        activeWindowVideoStats.totalFramesRendered++
+        presentFeedback.released(shown.ptsUs, decision.releaseAtNs, vsyncPeriodNs)
     }
 
     /** API 33+ vsync with frame timelines; returns false to stop being called. */

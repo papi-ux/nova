@@ -57,6 +57,11 @@ package com.papi.nova.binding.video.sourcetime
  *
  * Every public method is synchronized: observe() runs on the decode-unit submission thread and
  * ready() on the renderer thread. All of it is a few comparisons over bounded arrays.
+ *
+ * The epoch also has a lock of its own (review W34 D2). A new epoch is started with this mapper's
+ * lock held and then that one; [whileCurrent] holds only the epoch's, so what the presenter decided
+ * under one epoch (an admission's claim and queue entry, a release's hand-off to the codec) is
+ * committed before a new epoch can start or not at all, without waiting for observe()'s own work.
  */
 class SourceTimeMapper(
     private val policy: SourceTimePolicy = SourceTimePolicy.DEFAULT,
@@ -126,10 +131,13 @@ class SourceTimeMapper(
     private var observations = 0L
     private var have = false
 
-    /** Read under this mapper's lock: observe() can start a new epoch on another thread. */
-    @get:Synchronized
-    var epoch = 0L
-        private set
+    // Written only with both this mapper's lock and [epochLock] held, so either one reads it.
+    private val epochLock = Any()
+    private var epochValue = 0L
+
+    /** The current epoch. observe() can start a new one on another thread at any time. */
+    val epoch: Long
+        get() = synchronized(epochLock) { epochValue }
 
     /** The last ready() wanted more reserve than the cap allows, or saw a hitch. */
     var pressure = false
@@ -157,7 +165,7 @@ class SourceTimeMapper(
     fun reset() = resetLocked()
 
     private fun resetLocked() {
-        epoch++
+        synchronized(epochLock) { epochValue++ }
         have = false
         ticks = 0
         observations = 0
@@ -305,7 +313,7 @@ class SourceTimeMapper(
         lastRtp = rtp
         lastAnchor = anchorUs
         lastTarget = targetUs
-        return Point(epoch, frame, rtp, sourceUs, baseUs, targetUs, true, active, reason)
+        return Point(epochValue, frame, rtp, sourceUs, baseUs, targetUs, true, active, reason)
     }
 
     /**
@@ -314,7 +322,7 @@ class SourceTimeMapper(
      */
     @Synchronized
     fun ready(point: Point, decodedUs: Long): Boolean {
-        val current = point.valid && point.epoch == epoch
+        val current = point.valid && point.epoch == epochValue
         if (!current || decodedUs < point.baseUs || decodedUs < lastReady || decodedUs > MAX_US) {
             return current
         }
@@ -354,7 +362,21 @@ class SourceTimeMapper(
     }
 
     private fun invalid(frame: Int, rtp: Long, reason: String) =
-        Point(epoch, frame, rtp, 0, 0, 0, false, false, reason)
+        Point(epochValue, frame, rtp, 0, 0, 0, false, false, reason)
+
+    /**
+     * Runs [block] only while [epoch] is still the current epoch, and no new epoch can start until
+     * it returns (W34 D2). Returns whether it ran. A check made before [block] without this hold
+     * would let observe() start a new epoch between the check and the commit.
+     *
+     * [block] must not call this mapper's synchronized methods: a new epoch is started with this
+     * mapper's lock held, then waits here for [block]. Reading [epoch] is fine.
+     */
+    fun whileCurrent(epoch: Long, block: () -> Unit): Boolean = synchronized(epochLock) {
+        if (epochValue != epoch) return false
+        block()
+        true
+    }
 
     private fun pushOffset(at: Long, value: Long) {
         if (offsetSize == offsetAt.size) {

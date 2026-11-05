@@ -5,6 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 /**
  * The production path between dequeue and release: the shared mapper with its default policy, the
@@ -330,6 +333,131 @@ class SourceTimePresenterTest {
         // Frames mapped for the new surface source-pace again.
         repeat(5) { stepFrame(w, hz60, surface = 2) }
         assertEquals(SourceTimeEffective.SOURCE_TIME_FIXED, w.presenter.pacing(SourceTimeRequest.AUTO, w.t).effective)
+    }
+
+    // --- W34 D2: an epoch the submission thread starts at any moment, against admission and release. ---
+
+    /**
+     * The submission thread observes the host's next frame after its clock jumped five seconds: the
+     * mapper starts a new epoch on its own, with only its lock, and tells nobody.
+     */
+    private fun newEpochOnTheSubmissionThread(w: Warm) {
+        val before = w.mapper.epoch
+        val i = w.frame++
+        val f = Frame(i * 16_667L + 5_000_000L, w.t / 1000)
+        val point = w.mapper.observe(i + 1, record(i, f, null).rtpTimestamp, f.arrivalUs)
+        assertEquals(SourceTimeMapper.REASON_SOURCE_DISCONTINUITY, point.reason)
+        assertEquals(before + 1, w.mapper.epoch)
+    }
+
+    /** Vsyncs from refresh [k] until one releases frame [index]; null if none does in [count]. */
+    private fun releaseOf(w: Warm, index: Int, k: Long, count: Int = 6): SourceTimeScheduler.Entry? {
+        for (n in 0 until count) {
+            val at = k + n
+            val vsync = w.presenter.onVsync(hz60.nowAt(at), hz60.slotsAt(at), hz60.deadlinesAt(at), hz60.periodNs, 1, 1)
+            if (vsync.release?.index == index) return vsync.release
+        }
+        return null
+    }
+
+    /** Frames and vsyncs until a vsync hands out a release, as the renderer would then submit. */
+    private fun nextRelease(w: Warm): SourceTimeScheduler.Entry {
+        repeat(10) { stepFrame(w, hz60).release?.let { return it } }
+        throw AssertionError("no release in ten refreshes")
+    }
+
+    @Test
+    fun anEpochStartedBetweenReadyAndTheCommitNeitherClaimsSourcePacingNorQueuesTheOldTarget() {
+        // W34 D2, interleaving 1: admission reads epoch E and ready(A) says A is current; the
+        // submission thread then starts E+1; only then would admission commit A's claim and target.
+        val w = warm()
+        val i = w.frame++
+        val a = Frame(i * 16_667L, w.t / 1000)
+        val pointA = w.mapper.observe(i + 1, record(i, a, null).rtpTimestamp, a.arrivalUs)
+        assertTrue(pointA.active)
+        w.presenter.beforeCommit = { newEpochOnTheSubmissionThread(w) }
+        val admission = w.presenter.admit(i, i.toLong(), w.t + 3_000_000, record(i, a, pointA), 1, 1)
+        w.presenter.beforeCommit = null
+        assertEquals(pointA.epoch + 1, w.mapper.epoch)
+        assertEquals("aimed under an epoch that ended before its commit", SourceTimeCounters.Admission.STALE_EPOCH, admission.kind)
+        val status = w.presenter.pacing(SourceTimeRequest.AUTO, w.t)
+        assertEquals(SourceTimeEffective.PENDING, status.effective)
+        assertEquals(SourceTimeReason.STALE_EPOCH, status.fallback)
+        // A is queued by arrival under the new epoch and shown, not held at E's target nor dropped
+        // as stale at the next vsync.
+        val shown = releaseOf(w, i, (w.t + 4_000_000) / hz60.periodNs + 1)
+        assertTrue("A is shown", shown != null)
+        assertFalse("by arrival", shown!!.sourceTimed)
+        assertEquals(w.mapper.epoch, shown.fence.epoch)
+    }
+
+    @Test
+    fun theClaimEndsTheMomentTheMapperStartsANewEpochOnItsOwn() {
+        // W34 D2: an automatic epoch change is visible at the next status read, with no admission or
+        // vsync in between to move the presenter's fence.
+        val w = warm()
+        newEpochOnTheSubmissionThread(w)
+        val status = w.presenter.pacing(SourceTimeRequest.AUTO, w.t)
+        assertEquals(SourceTimeEffective.PENDING, status.effective)
+        assertEquals(SourceTimeReason.STALE_EPOCH, status.fallback)
+    }
+
+    @Test
+    fun aReleaseChosenBeforeANewEpochNeverReachesTheCodec() {
+        // W34 D2, interleaving 2: vsync chooses frame R under epoch E and returns; the submission
+        // thread starts E+1; the renderer then hands R to the codec.
+        val w = warm()
+        var codec = 0
+        assertTrue("a current release goes to the codec", w.presenter.submit(nextRelease(w), 1, 1) { codec++ })
+        val r = nextRelease(w)
+        val before = w.presenter.counters()
+        newEpochOnTheSubmissionThread(w)
+        assertFalse(w.presenter.submit(r, 1, 1) { codec++ })
+        assertEquals("the codec never saw the old decision", 1, codec)
+        val after = w.presenter.counters()
+        assertEquals("not released", before.released - 1, after.released)
+        assertEquals("dropped as stale", before.staleDropped + 1, after.staleDropped)
+        // Nor does a decision made for an earlier surface or decoder.
+        val s = nextReleaseAfterEpoch(w)
+        assertFalse(w.presenter.submit(s, 2, 1) { codec++ })
+        assertFalse(w.presenter.submit(s, 1, 2) { codec++ })
+        assertEquals(1, codec)
+    }
+
+    /** After a new epoch: one arrival frame and its release under that epoch. */
+    private fun nextReleaseAfterEpoch(w: Warm): SourceTimeScheduler.Entry {
+        val decodedNs = w.t + 3_000_000
+        w.presenter.admit(500, 500, decodedNs, null, 1, 1)
+        return releaseOf(w, 500, decodedNs / hz60.periodNs + 1) ?: throw AssertionError("no release")
+    }
+
+    @Test(timeout = 20_000)
+    fun aNewEpochWaitsForAReleaseAlreadyBeingHandedToTheCodec() {
+        // W34 D2: checking the epoch and then calling the codec without a hold would let the
+        // submission thread start a new epoch between the two. While the codec call runs, the new
+        // epoch waits; the frame is one submitted before the reset.
+        val w = warm()
+        val r = nextRelease(w)
+        val epoch = w.mapper.epoch
+        val started = CountDownLatch(1)
+        val done = CountDownLatch(1)
+        var epochInCodec = -1L
+        var waited = false
+        val submitted = w.presenter.submit(r, 1, 1) {
+            thread(name = "submission") {
+                started.countDown()
+                w.mapper.reset()
+                done.countDown()
+            }
+            assertTrue(started.await(5, TimeUnit.SECONDS))
+            waited = !done.await(300, TimeUnit.MILLISECONDS)
+            epochInCodec = w.mapper.epoch
+        }
+        assertTrue(submitted)
+        assertTrue("the new epoch waited for the codec call", waited)
+        assertEquals(epoch, epochInCodec)
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertEquals(epoch + 1, w.mapper.epoch)
     }
 
     // --- W26 F4: source-paced has to stay fresh. ---
