@@ -1427,6 +1427,15 @@ LimeLog.info("Balanced: preferLowerDelays=false, timeout=2000us")
 }
 catch (ignored:Throwable) {}
 
+ // Host source-time presentation (#242): the renderer decides at stream setup whether its path
+        // can use it; this only passes on what the player asked for.
+        decoderRenderer!!.setSourceTimePacingRequest(
+            if (prefConfig != null && prefConfig!!.sourceTimePacing)
+                com.papi.nova.binding.video.sourcetime.SourceTimeRequest.SOURCE_TIME
+            else
+                com.papi.nova.binding.video.sourcetime.SourceTimeRequest.OFF
+        )
+
  // Don't stream HDR if the decoder can't support it
 if (willStreamHdr && !decoderRenderer!!.isHdr10Supported)
 {

@@ -36,6 +36,8 @@ class SourceTimeSideMap(
         val hostLatencyTenths: Int,
         val connectionGeneration: Int,
         val decoderGeneration: Int,
+        /** Where the mapper placed this picture, when source time was asked for; else null. */
+        val point: SourceTimeMapper.Point? = null,
     )
 
     enum class PutResult { STORED, EXHAUSTED, DUPLICATE }
