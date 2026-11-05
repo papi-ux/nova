@@ -168,3 +168,11 @@ timer callback always reevaluates the current queue and epoch before arming or
 delivery. Decoder PTS remains unique across mapper/surface resets; the PTS store
 retains its chronology and current-epoch lower bound so missing/expired old output
 cannot be relabeled with a current epoch. Only a decoder teardown resets PTS.
+
+## Late source chronology (W25 F3)
+
+The delivered watermark is the last delivered mapper epoch, unwrapped source
+time and modulo-32 frame identity, never GUI wall time. A sole overdue frame
+newer in that chronology is displayed once; queued overdue frames still coalesce
+to the newest current frame. A source frame already superseded by the watermark
+is dropped as `stale_frame`. Reset/epoch transitions clear the watermark.

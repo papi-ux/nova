@@ -31,7 +31,7 @@ struct DeckFrameDelivery::State {
     std::optional<std::uint64_t> deadlineEpoch;
     bool sourceEnabled = false;
     std::string_view fallback = "not_requested";
-    std::int64_t lastSourceDeliveryNs = -1;
+    std::optional<DeckSourceClockPoint> lastSourceDelivery;
 };
 
 DeckFrameDelivery::DeckFrameDelivery(Consumer consumer, QObject* parent)
@@ -67,7 +67,7 @@ void DeckFrameDelivery::resetTiming(std::uint64_t generation) {
     timer_.stop(); sourceDeadline_->cancel();
     const std::lock_guard lock(state_->mutex);
     state_->frames.clear(); state_->queued = false; state_->wakeQueued = false;
-    state_->presentationGeneration = generation; state_->lastSourceDeliveryNs = -1;
+    state_->presentationGeneration = generation; state_->lastSourceDelivery.reset();
 }
 
 DeckFrameDeliveryStats DeckFrameDelivery::stats() const {
@@ -99,7 +99,7 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
                 // still own an old timer; its callback only rechecks this queue.
                 state->dropped += state->frames.size(); state->frames.clear();
                 state->mapperEpoch = epoch; state->deadlineEpoch.reset();
-                state->lastSourceDeliveryNs = -1;
+                state->lastSourceDelivery.reset();
             }
         }
         const auto admittedNs = nowNs();
@@ -109,8 +109,13 @@ DeckFrameDelivery::Publisher DeckFrameDelivery::publisher() const {
             ++state->dropped; state->fallback = "hold_ceiling_exceeded"; return true;
         }
         if (frame.timing.presentationGeneration < state->presentationGeneration) { ++state->dropped; return true; }
-        if (state->sourceEnabled && frame.timing.usable() &&
-            frame.timing.clock.targetUs * 1000 <= state->lastSourceDeliveryNs) { ++state->dropped; return true; }
+        if (state->sourceEnabled && frame.timing.usable() && state->lastSourceDelivery) {
+            const auto& previous = *state->lastSourceDelivery;
+            const auto delta = std::uint32_t(frame.timing.clock.frame - previous.frame);
+            if (frame.timing.clock.sourceUs <= previous.sourceUs || !delta || delta >= 0x80000000u) {
+                ++state->dropped; state->fallback = "stale_frame"; return true;
+            }
+        }
         state->started = true;
         // Only an empty queue may rebuffer after underflow. A new frame must
         // not move an overdue backlog's deadline forward and preserve stale work.
@@ -150,6 +155,10 @@ void DeckFrameDelivery::deliver() {
         state_->wakeQueued = false;
         if (state_->closed || state_->frames.empty()) { state_->queued = false; return; }
         const auto now = nowNs();
+        // A deadline belongs to the mapper epoch that armed it. A stale
+        // callback can wake this function, but cannot reuse that deadline.
+        if (state_->deadlineEpoch && *state_->deadlineEpoch != state_->mapperEpoch) sourceDeadline_->cancel();
+        state_->deadlineEpoch.reset();
         timer_.stop(); sourceDeadline_->cancel();
         const auto sourceFrame = [this](const Frame& f) {
             return state_->sourceEnabled && f.timing.usable() &&
@@ -177,7 +186,7 @@ void DeckFrameDelivery::deliver() {
                 state_->frames.clear(); state_->queued = false; ++state_->dropped; return;
             }
             frame = std::move(state_->frames.front()); state_->frames.pop_front();
-            state_->lastSourceDeliveryNs = now;
+            state_->lastSourceDelivery = frame->timing.clock;
         } else {
             const auto delay = state_->cadence.delay(now);
             if (delay > 0) { timer_.start(int((delay + 999'999) / 1'000'000)); return; }

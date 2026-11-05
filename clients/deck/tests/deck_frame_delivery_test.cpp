@@ -99,8 +99,19 @@ int main(int argc, char** argv) {
         source.resetTiming(8);
         require(send(timed(3,monotonicNs()/1000-30000,8)) && send(timed(4,monotonicNs()/1000-20000,8)), "overdue publish failed");
         QCoreApplication::processEvents(); require(frames.size()==3 && frames.back()==4, "stalled source backlog caused a catch-up burst");
-        require(send(timed(5,monotonicNs()/1000-10000,8)), "superseded publish failed");
-        QCoreApplication::processEvents(); require(frames.size()==3, "late arrival replayed after stall recovery");
+        require(send(timed(5,monotonicNs()/1000-10000,8)), "sole late publish failed");
+        QCoreApplication::processEvents(); require(frames.size()==4 && frames.back()==5, "sole late current frame was dropped after stall recovery");
+        // A target 100 delivered at 140; B target 120 decoded at 145.
+        // Both are overdue, but B has newer source chronology and must display.
+        source.resetTiming(9);
+        auto a=timed(80,monotonicNs()/1000-40000,9);
+        require(send(a), "A fixture failed"); QCoreApplication::processEvents();
+        auto b=timed(81,a.timing.clock.targetUs+20000,9);
+        QThread::msleep(5); require(send(b), "B fixture failed"); QCoreApplication::processEvents();
+        require(frames.back()==81, "newer sole late B was superseded by wall time");
+        require(send(a), "stale A consume failed"); QCoreApplication::processEvents();
+        require(frames.back()==81 && source.stats().fallback=="stale_frame", "older A redisplayed");
+        source.resetTiming(8);
         require(send(timed(6,monotonicNs()/1000+50000,7)), "old generation was not safely consumed");
         QCoreApplication::processEvents(); require(source.stats().queued==0, "recreated surface accepted old timing");
         // Queue old-epoch active work, then a new-epoch warmup point while
