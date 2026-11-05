@@ -75,6 +75,9 @@ data class SourceTimePolicy(
         /** The contract's offsetInstabilityRevision: re-warm only on sustained divergence. */
         const val INSTABILITY_REVISION = 2
 
+        /** The contract's offsetDivergenceReferenceSeed: warm-up estimates never seed divergence. */
+        const val DIVERGENCE_REFERENCE_SEED = "first_steady_estimate_after_warmup"
+
         @JvmField
         val DEFAULT = SourceTimePolicy()
     }

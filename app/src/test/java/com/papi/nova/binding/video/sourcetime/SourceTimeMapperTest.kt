@@ -300,6 +300,29 @@ class SourceTimeMapperTest {
     }
 
     @Test
+    fun aLateStartupConvergesInWarmUpWithoutARewarm() {
+        // A large first IDR completes reassembly late and the frames queued behind it drain 0.5 ms
+        // apart until they are on time again; the anchor (whole milliseconds) never goes back.
+        // Warm-up absorbs that, and since only steady estimates seed the divergence reference,
+        // nothing re-warms later (the shared case late_startup_over_5ms, here on Android anchors).
+        for (lateUs in listOf(6_000L, 12_000L, 20_000L, 50_000L)) {
+            val mapper = SourceTimeMapper(SourceTimePolicy(), 2, 16_666)
+            var lastExact = 0L
+            val epochs = mutableSetOf<Long>()
+            for (frame in 1..600) {
+                val ticks = (frame - 1) * 1500L
+                val nominal = 1_020_000L + ticks * 1000 / 90
+                val exact = if (frame == 1) nominal + lateUs else maxOf(nominal, lastExact + 500)
+                lastExact = exact
+                val point = mapper.observe(frame, (900_000 + ticks) and 0xFFFF_FFFFL, enqueueAnchorUs(exact))
+                assertTrue(point.valid)
+                epochs += point.epoch
+            }
+            assertEquals("late by $lateUs us", setOf(1L), epochs)
+        }
+    }
+
+    @Test
     fun reserveReleaseEarnsCreditOnlyAfterTheCleanHold() {
         // The shared mapper (b468357e on): release starts 2 s after the reserve last wanted more,
         // and the first release counts only the time past that hold, not the whole gap since the

@@ -33,16 +33,15 @@ class SourceTimeCountersTest {
     @Test
     fun warmUpSettlingIsNeitherSlewNorReset() {
         // The first frames arrive late and the lower envelope settles during warm-up; that is the
-        // mapping being found, not an offset slewing once warm. The settling stays inside the
-        // shared divergence tolerance (5 ms): warm-up estimates are in the divergence detector's
-        // reference window, so a larger startup settle re-warms once (see the phase-2c report).
+        // mapping being found, not an offset slewing once warm, and (since warm-up estimates never
+        // seed the divergence reference) not a reset either, even beyond the 5 ms tolerance.
         val mapper = SourceTimeMapper(SourceTimePolicy(), 2, 16_666)
         val counters = SourceTimeCounters()
         val offsets = mutableSetOf<Long>()
         for (i in 0 until 600) {
             val ticks = i * 1500L
             val sourceUs = ticks * 1000 / 90
-            val lateUs = if (i < 4) (4 - i) * 1_000L else 0L
+            val lateUs = if (i < 4) (4 - i) * 2_000L else 0L
             val point = mapper.observe(i + 1, rtp(ticks), 1_000_000L + sourceUs + 20_000L + lateUs)
             counters.onPoint(point)
             offsets += point.baseUs - point.sourceUs

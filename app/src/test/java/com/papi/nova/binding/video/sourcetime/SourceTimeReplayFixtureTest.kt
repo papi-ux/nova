@@ -133,6 +133,7 @@ class SourceTimeReplayFixtureTest {
         assertEquals("nova-source-time-replay-v1", root.getString("schema"))
         assertEquals(SourceTimePolicy.VERSION, root.getInt("policyVersion"))
         assertEquals(SourceTimePolicy.INSTABILITY_REVISION, root.getInt("offsetInstabilityRevision"))
+        assertEquals(SourceTimePolicy.DIVERGENCE_REFERENCE_SEED, root.getString("offsetDivergenceReferenceSeed"))
         // A grammar this loader does not implement must fail here, not be half-read.
         assertEquals(SERIES_GRAMMAR, root.getJSONObject("seriesGrammar").getString("version"))
         val base = policyOf(SourceTimePolicy(), root.getJSONObject("policy"))
@@ -316,6 +317,7 @@ class SourceTimeReplayFixtureTest {
             val root = fixture(path)
             assertEquals(path, SourceTimePolicy.VERSION, root.getInt("policyVersion"))
             assertEquals(path, SourceTimePolicy.INSTABILITY_REVISION, root.getInt("offsetInstabilityRevision"))
+            assertEquals(path, SourceTimePolicy.DIVERGENCE_REFERENCE_SEED, root.getString("offsetDivergenceReferenceSeed"))
             assertEquals(path, SourceTimePolicy.DEFAULT, policyOf(SourceTimePolicy.DEFAULT, root.getJSONObject("policy")))
         }
         val contract = fixture(CONTRACT)

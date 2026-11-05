@@ -30,9 +30,10 @@ package com.papi.nova.binding.video.sourcetime
  *
  * Only sustained divergence starts a new epoch (the shared contract's instability revision 2), each
  * on its own confirming detector:
- * - the lower envelope moved from the oldest estimate still in the window by more than
+ * - the lower envelope moved from the oldest steady estimate still in the window by more than
  *   max(offsetDivergenceToleranceUs, 4 x anchorResolutionUs), with offsetDivergenceFrames
- *   consecutive raw samples confirming the same direction (so one low outlier never does);
+ *   consecutive raw samples confirming the same direction (so one low outlier never does). Only
+ *   estimates after warm-up count: a late start that warm-up already corrected is no divergence;
  * - the post-slew debt stayed beyond offsetBacklogLimitUs in one direction for longer than
  *   offsetBacklogHoldUs;
  * - the raw sample stood more than offsetStepThresholdUs from the applied offset, in one direction,
@@ -97,8 +98,8 @@ class SourceTimeMapper(
     private val periodScratch = LongArray(MAX_PERIODS)
     private var periodHead = 0
     private var periodSize = 0
-    // Lower-envelope estimates, one per observation, with the offset history's bounds: the oldest
-    // still retained is the divergence detector's reference.
+    // Lower-envelope estimates, one per steady observation (never warm-up), with the offset
+    // history's bounds: the oldest still retained is the divergence detector's reference.
     private val envelopeAt = LongArray(policy.offsetSamples.toInt())
     private val envelopeValue = LongArray(policy.offsetSamples.toInt())
     private var envelopeHead = 0
@@ -234,11 +235,13 @@ class SourceTimeMapper(
             val value = offsetValue[(offsetHead + i) % offsetValue.size]
             if (value < minimum) minimum = value
         }
-        pushEnvelope(anchorUs, minimum)
         observations++
         if (observations <= policy.warmupFrames) {
             offset = minOf(offset, minimum)
         } else {
+            // Warm-up may replace a late startup offset; that expected convergence must not become
+            // a later instability vote, so only steady estimates seed the divergence reference.
+            pushEnvelope(anchorUs, minimum)
             // Elapsed-time credit, so the frame rate does not change the slew budget.
             val numerator = (anchorUs - lastAnchor) * policy.offsetSlewUsPerSecond + slewRemainder
             val step = minOf(policy.offsetMaxStepUs, numerator / 1_000_000)
