@@ -186,3 +186,15 @@ The submission-work observation begins before generation reset, mapper observe,
 lower-envelope/readiness processing and metadata expiry. These new callback
 operations therefore contribute to `videoWorkMicros`/`videoWorkSamples` in both
 OFF and enabled sessions. This is accounting coverage, not a CPU-cost receipt.
+
+## Deck phase-2 preference
+
+`Video/v1/source_time_pacing` persists the exact values `off`, `auto`,
+`source_time`, default `off` for absent/corrupt values. `off` selects legacy
+delivery. `auto` qualifies host timing and uses source targets when available,
+otherwise the named fallback. `source_time` requests the same safe path explicitly
+and keeps its fallback visible; it does not bypass qualification. Both enabled
+choices require Balanced and support fixed-refresh source pacing. Start snapshots
+the preference before `setSourceTimingEnabled`; reconnect retains that snapshot.
+The settings row uses existing focus/choice navigation and no motion behavior.
+No `clientVrrRequested` is added, and no presentation receipt is available.

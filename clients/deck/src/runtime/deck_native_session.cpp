@@ -45,6 +45,8 @@ struct DeckNativeSessionController::ResumeTicket {
     bool automaticReconnect = false;
     DeckAudioConfiguration audio;
     bool rumbleEnabled = true;
+    QString sourceTimePacing = "off";
+    bool sourceTimingEnabled = false;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
     int stickDeadzonePercent = kDeckDefaultStickDeadzone;
 };
@@ -79,6 +81,8 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
     std::atomic<std::uint64_t> sourceTimingGeneration{1};
     DeckFrameDelivery::Publisher deliverFrame;
     DeckFrameDelivery::Configure configureFrames;
+    QString sourceTimePacing = "off";
+    bool sourceTimingEnabled = false;
     DeckFramePacing framePacing = DeckFramePacing::Latency;
     int stickDeadzonePercent = kDeckDefaultStickDeadzone;
     std::mutex interruptMutex;
@@ -113,6 +117,7 @@ struct DeckNativeSessionController::Shared final : DeckQtQuickRhiPresentationSin
         state.insert("canDisconnect", canDisconnect);
         state.insert("automaticReconnect", automaticAttempt > 0 && phase != "active");
         state.insert("reconnectAttempt", automaticAttempt);
+        state.insert("sourceTimePacingRequested", sourceTimePacing);
         state.insert("framePacingMode", deckFramePacingName(framePacing));
         state.insert("stickDeadzonePercent", stickDeadzonePercent);
     }
@@ -444,6 +449,7 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
     shared_->rumbleEnabled = resume ? resume->rumbleEnabled : DeckPlaySettings{}.rumbleEnabled();
     shared_->framePacing = resume ? resume->framePacing
         : deckFramePacing(DeckPlaySettings{}.framePacingMode()).value_or(DeckFramePacing::Latency);
+    shared_->sourceTimePacing = resume ? resume->sourceTimePacing : DeckPlaySettings{}.sourceTimePacing();
     shared_->stickDeadzonePercent = resume ? resume->stickDeadzonePercent : DeckPlaySettings{}.stickDeadzonePercent();
     stickDeadzonePercent_ = shared_->stickDeadzonePercent;
     // A changed threshold must re-evaluate already held sticks before capture
@@ -462,6 +468,8 @@ bool DeckNativeSessionController::startRequest(const QString& hostId, const QStr
             presentationSink_->presentVaapiSurface(frame);
         }
     });
+    shared_->sourceTimingEnabled = shared_->sourceTimePacing != "off" && shared_->framePacing == DeckFramePacing::Balanced &&
+        frameDelivery_->setSourceTimingEnabled(true);
     frameDelivery_->resetTiming(shared_->sourceTimingGeneration.load());
     shared_->deliverFrame = frameDelivery_->publisher();
     shared_->configureFrames = frameDelivery_->configurator();
@@ -1171,7 +1179,7 @@ void DeckNativeSessionController::run(const std::shared_ptr<Shared>& shared,
             { const std::lock_guard lock(shared->mutex); shared->acceptingInput = true; }
             if (!polaris::isSpaceGame(gameId.toStdString()) && !built.connectionInfo.hostSessionToken.empty()) {
                 activeTicket = std::make_shared<ResumeTicket>(ResumeTicket{hostId, gameId, configuration,
-                    target->appId, target->appUuid, built.connectionInfo.hostSessionToken, target->automaticReconnect, audio, shared->rumbleEnabled, shared->framePacing, shared->stickDeadzonePercent});
+                    target->appId, target->appUuid, built.connectionInfo.hostSessionToken, target->automaticReconnect, audio, shared->rumbleEnabled, shared->sourceTimePacing, shared->sourceTimingEnabled, shared->framePacing, shared->stickDeadzonePercent});
             }
             // Android's Space leave action ends its session. Keep detach scoped
             // to ordinary games until Deck has the full Space lifecycle.
