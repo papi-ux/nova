@@ -24,11 +24,22 @@ package com.papi.nova.binding.video.sourcetime
  * Android the core's enqueue time; a callback can block behind MediaCodec input, so callback
  * ingress is diagnostic only). Source time is the RTP timestamp unwrapped in frame order. The
  * offset to local time is the lowest (anchor - source) of the last three seconds, so jitter and
- * queueing only ever make samples later; once warm, the offset follows that minimum by at most a
- * millisecond per second and a tenth of a millisecond per frame; a correction larger than one
- * update can fund starts a new epoch from that frame, pending with clock_mapping_unstable, and
- * warms up again rather than being clipped. A target is the mapped source time plus the current
- * reserve, and targets never go backwards within an epoch.
+ * queueing only ever make samples later; once warm, the applied offset follows that minimum by at
+ * most a millisecond per second and a tenth of a millisecond per frame. That budget only smooths:
+ * a correction it cannot fund yet waits as debt and is never by itself a reason to start again.
+ *
+ * Only sustained divergence starts a new epoch (the shared contract's instability revision 2), each
+ * on its own confirming detector:
+ * - the lower envelope moved from the oldest estimate still in the window by more than
+ *   max(offsetDivergenceToleranceUs, 4 x anchorResolutionUs), with offsetDivergenceFrames
+ *   consecutive raw samples confirming the same direction (so one low outlier never does);
+ * - the post-slew debt stayed beyond offsetBacklogLimitUs in one direction for longer than
+ *   offsetBacklogHoldUs;
+ * - the raw sample stood more than offsetStepThresholdUs from the applied offset, in one direction,
+ *   for offsetStepFrames consecutive frames (a genuine step the old low samples would hide).
+ * That frame starts the new epoch, pending with clock_mapping_unstable, and the mapping warms up
+ * again. A target is the mapped source time plus the current reserve, and targets never go
+ * backwards within an epoch.
  *
  * ready() learns the reserve from decoded-ready lateness: the 98th percentile of the last three
  * seconds plus half a millisecond, rising half a millisecond per frame at most, falling only after
@@ -86,6 +97,18 @@ class SourceTimeMapper(
     private val periodScratch = LongArray(MAX_PERIODS)
     private var periodHead = 0
     private var periodSize = 0
+    // Lower-envelope estimates, one per observation, with the offset history's bounds: the oldest
+    // still retained is the divergence detector's reference.
+    private val envelopeAt = LongArray(policy.offsetSamples.toInt())
+    private val envelopeValue = LongArray(policy.offsetSamples.toInt())
+    private var envelopeHead = 0
+    private var envelopeSize = 0
+    private var backlogSince = -1L
+    private var divergenceFrames = 0L
+    private var stepFrames = 0L
+    private var divergenceDirection = 0
+    private var stepDirection = 0
+    private var backlogDirection = 0
 
     private var period = admittedPeriodUs
     private var reserve = 0L
@@ -145,6 +168,14 @@ class SourceTimeMapper(
         pressure = false
         offsetHead = 0
         offsetSize = 0
+        envelopeHead = 0
+        envelopeSize = 0
+        backlogSince = -1
+        divergenceFrames = 0
+        stepFrames = 0
+        divergenceDirection = 0
+        stepDirection = 0
+        backlogDirection = 0
         readyHead = 0
         readySize = 0
         periodHead = 0
@@ -203,6 +234,7 @@ class SourceTimeMapper(
             val value = offsetValue[(offsetHead + i) % offsetValue.size]
             if (value < minimum) minimum = value
         }
+        pushEnvelope(anchorUs, minimum)
         observations++
         if (observations <= policy.warmupFrames) {
             offset = minOf(offset, minimum)
@@ -212,16 +244,42 @@ class SourceTimeMapper(
             val step = minOf(policy.offsetMaxStepUs, numerator / 1_000_000)
             slewRemainder = numerator % 1_000_000
             val correction = minimum - offset
-            if (correction < -step || correction > step) {
-                // A correction this update cannot fund is not drift the mapping can keep
-                // following: start a fresh epoch from this very observation, so queued targets and
-                // readiness samples from the old mapping cannot qualify the new one, and warm up
-                // again (the shared contract's offsetRewarmRule).
+            val applied = correction.coerceIn(-step, step)
+
+            // Resolution and jitter can move the estimate by much more than one frame's slew
+            // credit; smoothing debt alone is never an instability signal.
+            val tolerance = maxOf(policy.offsetDivergenceToleranceUs, 4 * policy.anchorResolutionUs)
+            val reference = envelopeValue[envelopeHead]
+            val movement = directionBeyond(minimum - reference, tolerance)
+            val sampleMovement = directionBeyond(anchorUs - sourceUs - reference, tolerance)
+            val divergence = if (movement == sampleMovement) movement else 0
+            divergenceFrames = confirmed(divergence, divergenceDirection, divergenceFrames)
+            divergenceDirection = divergence
+
+            // A forward step would otherwise hide behind old low samples for the whole window:
+            // samples in one direction, not one jitter spike, re-anchor it promptly.
+            val displacement = directionBeyond(anchorUs - sourceUs - offset, policy.offsetStepThresholdUs)
+            stepFrames = confirmed(displacement, stepDirection, stepFrames)
+            stepDirection = displacement
+
+            val backlog = directionBeyond(correction - applied, policy.offsetBacklogLimitUs)
+            if (backlog == 0) {
+                backlogSince = -1
+            } else if (backlog != backlogDirection || backlogSince < 0) {
+                backlogSince = anchorUs
+            }
+            backlogDirection = backlog
+
+            if (divergenceFrames >= policy.offsetDivergenceFrames || stepFrames >= policy.offsetStepFrames ||
+                (backlogSince >= 0 && anchorUs - backlogSince > policy.offsetBacklogHoldUs)
+            ) {
+                // Cancel the old epoch and its readiness history; exactly this forward sample
+                // seeds the new warm-up, pending even with warmupFrames == 1.
                 resetLocked()
                 return observe(frame, rtpTimestamp, anchorUs)
                     .copy(active = false, reason = REASON_CLOCK_MAPPING_UNSTABLE)
             }
-            offset += correction
+            offset += applied
         }
 
         val baseUs = sourceUs + offset
@@ -230,6 +288,10 @@ class SourceTimeMapper(
             return invalid(frame, rtp, REASON_CLOCK_MAPPING_UNSTABLE)
         }
         val targetUs = maxOf(baseUs + reserve, lastTarget + 1)
+        if (targetUs > MAX_US) {
+            resetLocked()
+            return invalid(frame, rtp, REASON_CLOCK_MAPPING_UNSTABLE)
+        }
         val active = observations >= policy.warmupFrames
         // A discontinuity or clock reason stays on its first re-anchored frame, warm or not.
         val reason = if (phase != PHASE_WARMUP) phase else if (active) REASON_NONE else PHASE_WARMUP
@@ -273,7 +335,9 @@ class SourceTimeMapper(
         } else {
             if (cleanSince < 0) cleanSince = decodedUs
             if (decodedUs - cleanSince >= policy.cleanHoldUs) {
-                val credit = elapsed * policy.reserveReleaseUsPerSecond + releaseRemainder
+                // Only time after the clean hold earns release credit.
+                val releaseElapsed = minOf(elapsed, decodedUs - cleanSince - policy.cleanHoldUs)
+                val credit = releaseElapsed * policy.reserveReleaseUsPerSecond + releaseRemainder
                 reserve -= minOf(reserve - bounded, credit / 1_000_000)
                 releaseRemainder = credit % 1_000_000
             }
@@ -314,6 +378,21 @@ class SourceTimeMapper(
         }
     }
 
+    private fun pushEnvelope(at: Long, value: Long) {
+        if (envelopeSize == envelopeAt.size) {
+            envelopeHead = (envelopeHead + 1) % envelopeAt.size
+            envelopeSize--
+        }
+        val tail = (envelopeHead + envelopeSize) % envelopeAt.size
+        envelopeAt[tail] = at
+        envelopeValue[tail] = value
+        envelopeSize++
+        while (envelopeSize > 0 && at - envelopeAt[envelopeHead] > policy.offsetWindowUs) {
+            envelopeHead = (envelopeHead + 1) % envelopeAt.size
+            envelopeSize--
+        }
+    }
+
     private fun pushPeriod(value: Long) {
         if (periodSize == periods.size) {
             periodHead = (periodHead + 1) % periods.size
@@ -345,6 +424,13 @@ class SourceTimeMapper(
         const val REASON_CLOCK_MAPPING_UNSTABLE = "clock_mapping_unstable"
 
         private const val U32 = 0xFFFF_FFFFL
+
+        /** 1 above [bound], -1 below -[bound], 0 within it. */
+        private fun directionBeyond(value: Long, bound: Long): Int = if (value > bound) 1 else if (value < -bound) -1 else 0
+
+        /** Consecutive frames in [direction]: 0 when none, restarting at 1 when it changes. */
+        private fun confirmed(direction: Int, previous: Int, frames: Long): Long =
+            if (direction == 0) 0 else if (direction == previous) frames + 1 else 1
         private const val HALF_RANGE = 0x8000_0000L
         private const val MAX_PERIODS = 31
         private const val MAX_US = Long.MAX_VALUE / 1000

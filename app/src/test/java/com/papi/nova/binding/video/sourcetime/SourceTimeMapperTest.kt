@@ -142,39 +142,64 @@ class SourceTimeMapperTest {
         }
     }
 
+    /** Seeded one-sided arrival jitter, 0..[amplitudeUs], by the shared fixture's LCG. */
+    private fun lcgJitter(amplitudeUs: Long, count: Int, seed: Long = 17): List<Long> {
+        var state = seed and 0xFFFF_FFFFL
+        return (0 until count).map {
+            state = (state * 1_664_525L + 1_013_904_223L) and 0xFFFF_FFFFL
+            state % (amplitudeUs + 1)
+        }
+    }
+
     @Test
-    fun onMillisecondAnchorsACorrectionBeyondOneUpdateRewarmsAndNothingElseMoves() {
-        // Android's anchor is the core's enqueue time in whole milliseconds (ROOT D2). With the
-        // host clock 50 ppm off, the floored lower envelope sometimes steps further than one
-        // update can fund; the shared offsetRewarmRule then starts a new epoch from that frame,
-        // pending with clock_mapping_unstable, rather than clipping. This pins that behaviour:
-        // every re-warm is named and starts an epoch, and inside an epoch targets keep following
-        // the source exactly.
+    fun onMillisecondAnchorsDriftAndJitterNeverRewarm() {
+        // Android's anchor is the core's enqueue time in whole milliseconds (ROOT D2). Under the
+        // shared contract's instability revision 2, neither clock drift inside the slew budget nor
+        // ordinary arrival jitter is instability: one epoch for the whole minute, the applied
+        // offset moving at most one update's budget, and targets following the source. Aiming the
+        // same frames by arrival fails the same oracle.
+        for (ppm in listOf(50L, -50L, 500L, -500L)) {
+            for (jitterUs in listOf(0L, 2_000L, 4_000L)) {
+                val count = 60 * 60
+                val jitter = lcgJitter(jitterUs, count)
+                val frames = (0 until count).map { i ->
+                    val sourceUs = i * 1500L * 1000 / 90
+                    Frame(sourceUs, 1_000_000 + sourceUs + sourceUs * ppm / 1_000_000 + 20_000 + jitter[i])
+                }
+                val aims = targets(frames, arrivalOnly = false, warmup = 8)
+                assertEquals("ppm=$ppm jitter=$jitterUs: one epoch", setOf(1L), aims.map { it.epoch }.toSet())
+                assertTrue("ppm=$ppm jitter=$jitterUs", followsSource(frames, aims))
+                assertFalse("ppm=$ppm jitter=$jitterUs", followsSource(frames, targets(frames, arrivalOnly = true, warmup = 8)))
+            }
+        }
+    }
+
+    @Test
+    fun onMillisecondAnchorsAGenuineStepRewarmsOnceOnTheEighthConfirmingFrame() {
+        // A real 30 ms jump in local arrival is instability: the step detector needs eight
+        // consecutive forward frames beyond 20 ms, then starts one new epoch, and the mapping
+        // settles on the new offset without re-warming again.
         val mapper = SourceTimeMapper(SourceTimePolicy(), 2, 16_666)
-        var rewarms = 0
-        var epochs = mutableSetOf<Long>()
-        var previous: SourceTimeMapper.Point? = null
-        var previousSource = 0L
-        for (i in 0 until 60 * 60) {
-            val sourceUs = i * 16_667L
-            val point = mapper.observe(i + 1, rtpOf(900_000, sourceUs), enqueueAnchorUs(1_000_000 + sourceUs - sourceUs * 50 / 1_000_000 + 20_000))
+        val rewarmFrames = ArrayList<Int>()
+        var last: SourceTimeMapper.Point? = null
+        var settledErrorUs = 0L
+        for (frame in 1..240) {
+            val ticks = (frame - 1) * 1500L
+            val sourceUs = ticks * 1000 / 90
+            val truth = 1_020_000L + if (frame >= 101) 30_000L else 0L
+            val point = mapper.observe(frame, (900_000 + ticks) and 0xFFFF_FFFFL, enqueueAnchorUs(sourceUs + truth))
             assertTrue(point.valid)
-            epochs += point.epoch
-            if (previous != null && point.epoch != previous.epoch) {
-                rewarms++
+            if (last != null && point.epoch != last.epoch) {
+                rewarmFrames += frame
                 assertEquals(SourceTimeMapper.REASON_CLOCK_MAPPING_UNSTABLE, point.reason)
                 assertFalse(point.active)
-                assertEquals(0L, point.sourceUs)
             }
-            if (previous != null && previous.active && point.active && point.epoch == previous.epoch) {
-                val step = point.targetUs - previous.targetUs
-                assertTrue("step $step at $i", kotlin.math.abs(step - (sourceUs - previousSource)) <= 101)
-            }
-            previous = point
-            previousSource = sourceUs
+            // The mapped base against the true offset, to the anchor's millisecond.
+            if (frame >= 116) settledErrorUs = maxOf(settledErrorUs, kotlin.math.abs(point.baseUs - sourceUs - truth))
+            last = point
         }
-        assertEquals(rewarms + 1, epochs.size)
-        assertTrue("the measured case re-warms (see the phase 2 report)", rewarms > 0)
+        assertEquals(listOf(108), rewarmFrames)
+        assertTrue("settled error $settledErrorUs us", settledErrorUs <= 1000)
     }
 
     @Test
@@ -255,13 +280,43 @@ class SourceTimeMapperTest {
     @Test
     fun targetsNeverGoBackwardsWithinAnEpoch() {
         val mapper = SourceTimeMapper(SourceTimePolicy(warmupFrames = 1), 2, 16_666)
-        var last = Long.MIN_VALUE
+        var last: SourceTimeMapper.Point? = null
+        var pairs = 0
+        var epochs = mutableSetOf<Long>()
         for (i in 1..500) {
-            // A minimum that keeps dropping pulls the offset down by up to 100 us a frame.
+            // A minimum that keeps dropping, 5% a frame: the applied offset follows only as fast as
+            // its budget allows, and the divergence soon re-warms (instability revision 2). A new
+            // epoch invalidates the old targets, so chronology holds inside each epoch.
             val point = mapper.observe(i, 90_000L + i * 90, 100_000L + i * 1_000 - i * 50)
-            assertTrue(point.targetUs > last)
-            last = point.targetUs
+            epochs += point.epoch
+            if (last != null && point.epoch == last.epoch) {
+                assertTrue("frame $i", point.targetUs > last.targetUs)
+                pairs++
+            }
+            last = point
         }
+        assertTrue("the oracle compared $pairs pairs", pairs >= 450)
+        assertTrue("this much drift is instability: ${epochs.size} epochs", epochs.size > 1)
+    }
+
+    @Test
+    fun reserveReleaseEarnsCreditOnlyAfterTheCleanHold() {
+        // The shared mapper (b468357e on): release starts 2 s after the reserve last wanted more,
+        // and the first release counts only the time past that hold, not the whole gap since the
+        // previous decoded frame. Readiness here forgets after 0.1 s so the clean frames decide.
+        val mapper = SourceTimeMapper(SourceTimePolicy(warmupFrames = 1, readinessWindowUs = 100_000), 2, 16_666)
+        val points = (1..200).map { frame ->
+            val ticks = (frame - 1) * 1500L
+            mapper.observe(frame, (900_000 + ticks) and 0xFFFF_FFFFL, 1_000_000 + ticks * 1000 / 90)
+        }
+        // Eleven frames 8 ms late raise the reserve from 3 ms to 8.5 ms, half a millisecond each.
+        for (i in 0 until 11) mapper.ready(points[i], points[i].baseUs + 8_000)
+        assertEquals(8_500L, mapper.reserveUs)
+        // Clean from frame 30, which starts the hold; frame 180 is 2.5 s later, 0.5 s past the hold.
+        mapper.ready(points[29], points[29].baseUs)
+        assertEquals(8_500L, mapper.reserveUs)
+        mapper.ready(points[179], points[179].baseUs)
+        assertEquals("0.5 s at 250 us/s, not the whole 2.5 s gap", 8_375L, mapper.reserveUs)
     }
 
     @Test
