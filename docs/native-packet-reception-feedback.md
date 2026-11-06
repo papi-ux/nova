@@ -4,7 +4,9 @@ Shared wire contract for Nova #442 (client sender) and Polaris #615 (host receiv
 Nova's sender is native patch
 `0011-feat-video-report-bounded-native-packet-reception.patch`
 over the pinned moonlight-common-c `c9994368`; it adds `src/PacketReception.{c,h}`.
-Android applies it with `tools/apply-native-patches.sh`; the Deck applies it after the
+Patch `0013-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch` keeps ENet's
+unreliable throttle from silently discarding those reports ([below](#enet-unreliable-throttle-patch-0013)).
+Android applies both with `tools/apply-native-patches.sh`; the Deck applies them after the
 RTSP pair in its build-private `nova_deck_prepare_rtsp()` copy, before the optional
 PyroWave patch.
 
@@ -72,11 +74,90 @@ a cryptographic media proof, clean-delivery credit or any authority.
 | Framing | Inside the existing encrypted control v2 message (`NVCTL_ENCRYPTED_PACKET_HEADER`, type `0x0001`); the inner V2 header carries type `0x7F10` and the payload length, little-endian like every other control message |
 | ENet | Channel `CTRL_CHANNEL_GENERIC` (0), `ENET_PACKET_FLAG_UNSEQUENCED`, unreliable |
 | Cadence | At most one report per existing periodic control tick (100 ms sleep plus work). It is queued immediately before the existing reliable `0x0200` ping, which flushes both |
-| Failure | A failed send drops that observation only. No retry, queue, catch-up burst, probe or extra media. The sequence still advanced |
+| Failure | A failed send drops that observation only. No retry, queue, catch-up burst, probe or extra media. The sequence still advanced. On a connection with the active extension, ENet's unreliable throttle no longer discards reports (patch 0013); wire loss still does |
 
 Collision check (2026-11-03): `0x7F10` appears in none of moonlight-common-c `c9994368`
 with Nova patches 0001-0010, Nova's tree, the Deck PyroWave patch, or the Polaris
 `ff8a0af1` control dispatch.
+
+<a id="enet-unreliable-throttle-patch-0012"></a>
+
+## ENet unreliable throttle (patch 0013)
+
+This is Nova #445's former patch 0012, renumbered after the staging source-time
+patch without changing its patch bytes, stable patch ID or authorship.
+
+Stock ENet `115a10ba` gives every unreliable packet a rotating `packetThrottleCounter`
+(+7, mod 32) when it is flushed, and frees the packet inside `enet_host_service()`, after
+`enet_peer_send()` already succeeded, if the counter exceeds `packetThrottle`
+(`protocol.c` `enet_protocol_check_outgoing_commands`). Every acknowledgement slower than the
+previous 5 s epoch's lowest RTT plus twice its variance lowers `packetThrottle` by the
+deceleration, 2 (`peer.c` `enet_peer_throttle`). At 0 only the packet whose counter is 0
+survives: every 32nd report when reports are the peer's only unreliable traffic. The discard
+is silent: no send failure, no log, and the report sequence has already advanced. ROOT's
+actual RP6 traces (`ROOT-NATIVE-AUTO-ACTUAL-E836-R1-20261104/PREFIX-REVIEW`) showed 218 absent
+reports that all fit this `7n mod 32` signature while the reliable ping and video continued.
+
+| Aspect | Behavior |
+| --- | --- |
+| Gate | `PacketReceptionIsTimed()`: the negotiated observer started, its clock is valid and it has not retired. Old, absent, refused, duplicated, withdrawn, mutex-failed and clock-failed peers keep stock ENet throttling and send nothing new |
+| When | Once per connection in `startControlStream()`, after `PacketReceptionStart()` and before the loss-stats thread exists, under `enetMutex` because the control receive thread already services ENet |
+| What | `enet_peer_throttle_configure(peer, interval, acceleration, 0)` with the peer's current interval and acceleration (ENet's defaults, 5000 ms and 2, for every Nova and Polaris peer), then a `packetThrottle` below `packetThrottleLimit` is set to that limit |
+| Why the restore | The API only changes future deceleration. ENet does not acknowledge CONNECT (VERIFY_CONNECT does), so START A's acknowledgement is the client's first RTT sample and opens the epoch, and START B's can lower the throttle one step, to 30, before the observer starts. The restore is the assignment ENet makes itself in its stable-RTT branch, and it keeps any bandwidth limit |
+| Retirement | If the extension retires while the stream continues (its clock sentinel, or the sequence limit), the loss-stats thread sends one more `THROTTLE_CONFIGURE` that restores the previous deceleration, after the sentinel was enqueued |
+| Stop and reconnect | Stop closes publication under `enetMutex` before it retires the collector, so it never sends a configuration. Every connection creates a new ENet host and peer with ENet's defaults, and the host's peer takes the client's values from CONNECT |
+| Unchanged | Reports stay unreliable and unsequenced on channel 0, at most one per tick, with no retry, queue or catch-up; wire loss still loses them. Negotiation, encryption, bounds, collector, stop fence, deadlines, ENet itself, the submodule pins and the host are unchanged |
+
+### Peer-wide effects
+
+The throttle belongs to the ENet peer, not to a message type, so on a configured connection:
+
+* No unreliable client control packet on this peer is RTT-throttled any more: frame FEC
+  status (`0x5502`), controller motion (non-null gyro and accelerometer), batchable touch and
+  pen hover/move input, and reports. Under a collapsed stock throttle all of them were
+  discarded too. They are still unreliable and still lost on wire loss; under sustained
+  congestion the client sends more of them than stock ENet would.
+* The client's reliable window is no longer scaled down. ENet keeps reliable data in transit
+  below `max(packetThrottle * windowSize / 32, mtu)`; with the throttle at its limit that is
+  the negotiated window (64 KiB against Polaris's unlimited bandwidth), where stock ENet would
+  shrink it towards one MTU after RTT spikes. Retransmission and peer timeouts are unchanged.
+* `THROTTLE_CONFIGURE` is an ENet protocol command (reliable, channel `0xFF`), outside the
+  encrypted control payloads and their sequence numbers. Polaris e836 handles it in the same
+  pinned ENet (`enet_protocol_handle_throttle_configure`), so its peer for this client stops
+  decelerating as well. Polaris e836 sends only reliable control messages, so on the host this
+  changes only that peer's reliable window scaling; host unreliable sends, if a later host adds
+  any, would no longer be RTT-throttled either.
+* `packetThrottleLimit` still applies, so a host that advertised a bandwidth limit would still
+  cap the throttle (Polaris creates its ENet host with unlimited bandwidth). Acceleration still
+  raises the throttle up to that limit.
+
+### Diagnostics
+
+For a connection with the active extension the control stream logs one setup row and then one
+row per 10 report sequences, about one a second, from the loss-stats thread after it enqueued
+that report. Values are read under `enetMutex`:
+
+```text
+Packet reception transport: extension active, throttle deceleration off; throttle 30 -> 32 of 32, counter 0, interval 5000 ms, acceleration 2, deceleration 2 -> 0, RTT 6 ms, variance 3 ms
+Packet reception transport: report 10, throttle 32 of 32, counter 31, deceleration 0, RTT 5 ms, variance 2 ms
+Packet reception transport: reports retired, throttle deceleration 2 restored
+```
+
+A periodic row is read before that tick's ping flushes the report, so the report still has to
+pass `(counter + 7) mod 32 <= throttle`. Rows carry only these ENet counters and estimates: no
+address, peer or session identity, key, nonce or report payload. Nothing is logged for a peer
+without the active extension.
+
+### Evidence boundary
+
+The `transport-throttle` and `transport-lifecycle` fixtures run the production control stream
+and pinned ENet over loopback, through a relay that holds host-to-client datagrams (20 ms, then
+120 ms). With the configuration switched off by a test-only hook, stock ENet collapses the
+throttle to 0 and discards most enqueued reports, none with counter 0, and most FEC status;
+with the patch every report and FEC status arrives once, one report per tick. A fixture host
+counts each `THROTTLE_CONFIGURE` on the wire. This is source and loopback evidence only: it is
+not device, automatic cut or physical gaming acceptance, and the client's throttle on a real
+network is observed only through the rows above.
 
 ## Payload
 

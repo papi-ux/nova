@@ -1,0 +1,343 @@
+From ae0130b89b4beb333f8bf6c1cd5f392de1474e31 Mon Sep 17 00:00:00 2001
+From: nova <nova@papi-ux.com>
+Date: Wed, 4 Nov 2026 17:00:00 -0500
+Subject: [PATCH] fix(video): keep ENet's throttle from discarding reception
+ reports
+
+Nova #442 follow-up. Stock ENet sends an unreliable packet only while its
+rotating packetThrottleCounter (+7 per packet, mod 32) does not exceed
+packetThrottle, and lowers packetThrottle by the deceleration (2) for
+every acknowledgement slower than the previous 5 s epoch's lowest RTT
+plus twice its variance. The rest are freed inside enet_host_service()
+after enet_peer_send() already succeeded, so an RTT spike silently
+erased runs of 0x7F10 reports while the reliable ping, video and the
+report clock all continued. At throttle 0 only a packet whose counter is
+0 survives: every 32nd report when reports are the peer's only
+unreliable traffic.
+
+Only for a control peer whose negotiated extension actually started
+timing (PacketReceptionIsTimed(): started, clock valid, not retired),
+startControlStream() now calls enet_peer_throttle_configure() with the
+peer's current interval and acceleration and zero deceleration, under
+enetMutex, after the observer starts and before the loss-stats thread
+exists. The API changes only future deceleration, and the START A/B
+acknowledgements may already have lowered the throttle, so a lowered
+packetThrottle is restored to packetThrottleLimit, the same assignment
+ENet makes in its own stable-RTT branch. Old, absent, refused,
+duplicated, withdrawn, mutex-failed and clock-failed peers keep stock
+ENet throttling and send nothing new. If the extension retires while the
+stream continues (clock sentinel or sequence limit) the loss-stats
+thread restores the previous deceleration; stop closes publication
+before retiring the collector and never sends it. A new connection
+starts from ENet's defaults.
+
+This is peer-wide, not report-only: unreliable frame-FEC status,
+controller motion and touch or pen hover/move input on this peer are no
+longer RTT-throttled either, the reliable window is no longer scaled
+down by the throttle, and THROTTLE_CONFIGURE (an ENet protocol command
+outside the encrypted control payloads) gives the host's peer the same
+zero deceleration. Reports stay unreliable and unsequenced, at most one
+per existing tick, with no retry, queue or catch-up; wire loss still
+loses them.
+
+The control stream logs one setup row per connection and one row per
+ten report sequences (about one a second): throttle, limit, counter,
+interval, acceleration, deceleration, RTT and variance, read under
+enetMutex. No address, identity, key, nonce or payload is logged. Test
+builds add a configure switch, a pre-configure hook and a reader.
+---
+ src/ControlStream.c   | 166 ++++++++++++++++++++++++++++++++++++++++--
+ src/PacketReception.c |  24 ++++++
+ src/PacketReception.h |  27 +++++++
+ 3 files changed, 210 insertions(+), 7 deletions(-)
+
+diff --git a/src/ControlStream.c b/src/ControlStream.c
+index 86252f6..7e226e7 100644
+--- a/src/ControlStream.c
++++ b/src/ControlStream.c
+@@ -105,6 +105,11 @@ static bool encryptedControlStream;
+ // Whether reception reports may still be enqueued. Guarded by enetMutex, which is also held
+ // across each enqueue, so stop can close it between a prepared report and its enqueue.
+ static bool receptionReportsOpen;
++// Whether this connection's control peer runs the reception transport (no throttle deceleration),
++// and the deceleration to give back if the extension retires mid-stream. Written before the
++// loss-stats thread starts and afterwards only by that thread; ENet itself is used under enetMutex.
++static bool receptionTransportConfigured;
++static enet_uint32 receptionTransportStockDeceleration;
+ static bool hdrEnabled;
+ static SS_HDR_METADATA hdrMetadata;
+ 
+@@ -332,6 +337,8 @@ int initializeControlStream(void) {
+ 
+     encryptedControlStream = APP_VERSION_AT_LEAST(7, 1, 431);
+     receptionReportsOpen = true;
++    receptionTransportConfigured = false;
++    receptionTransportStockDeceleration = ENET_PEER_PACKET_THROTTLE_DECELERATION;
+ 
+     if (AppVersionQuad[0] == 3) {
+         packetTypes = (short*)packetTypesGen3;
+@@ -1403,6 +1410,148 @@ static void controlReceiveThreadFunc(void* context) {
+     }
+ }
+ 
++// Packet reception transport (Nova #442). Stock ENet sends an unreliable packet only while its
++// rotating counter (+7 per packet, mod 32) does not exceed packetThrottle, and lowers packetThrottle
++// by the deceleration (2) for every acknowledgement slower than the previous 5 s epoch's lowest RTT
++// plus twice its variance. It discards the rest inside enet_host_service(), after a successful
++// enqueue, so RTT spikes could silently erase reception reports for seconds.
++//
++// Only for a control peer whose negotiated extension actually started timing, this stops the
++// deceleration and restores a throttle that the START acknowledgements already lowered. That is
++// peer-wide, not report-only: every unreliable control packet on this peer (reports, frame FEC
++// status, controller motion and touch or pen hover/move input) is no longer RTT-throttled, the
++// reliable window is no longer scaled down by the throttle, and ENet's THROTTLE_CONFIGURE command
++// gives the host's peer the same zero deceleration. Reports stay unreliable and unsequenced, one
++// per tick, with no retry or catch-up. A new connection starts from ENet's defaults again.
++
++#ifdef NOVA_PACKET_RECEPTION_TEST
++static bool testTransportConfigure = true;
++static void (*testTransportBeforeConfigure)(void);
++#define RECEPTION_TRANSPORT_CONFIGURE testTransportConfigure
++#else
++#define RECEPTION_TRANSPORT_CONFIGURE true
++#endif
++
++// Must be called with enetMutex held and a control peer.
++static void readReceptionTransport(PPACKET_RECEPTION_TRANSPORT transport) {
++    transport->packetThrottle = peer->packetThrottle;
++    transport->packetThrottleLimit = peer->packetThrottleLimit;
++    transport->packetThrottleCounter = peer->packetThrottleCounter;
++    transport->packetThrottleInterval = peer->packetThrottleInterval;
++    transport->packetThrottleAcceleration = peer->packetThrottleAcceleration;
++    transport->packetThrottleDeceleration = peer->packetThrottleDeceleration;
++    transport->roundTripTime = peer->roundTripTime;
++    transport->roundTripTimeVariance = peer->roundTripTimeVariance;
++}
++
++// Called once per connection by startControlStream(), after the observer started and before the
++// loss-stats thread exists. The control receive thread already services ENet, hence enetMutex.
++static void startReceptionTransport(void) {
++    PACKET_RECEPTION_TRANSPORT before, after;
++    bool configured = false;
++
++    if (peer == NULL || !PacketReceptionIsTimed()) {
++        return;
++    }
++
++#ifdef NOVA_PACKET_RECEPTION_TEST
++    if (testTransportBeforeConfigure != NULL) {
++        testTransportBeforeConfigure();
++    }
++#endif
++
++    PltLockMutex(&enetMutex);
++    readReceptionTransport(&before);
++    if (peer->state == ENET_PEER_STATE_CONNECTED && RECEPTION_TRANSPORT_CONFIGURE) {
++        receptionTransportStockDeceleration = peer->packetThrottleDeceleration;
++        enet_peer_throttle_configure(peer, peer->packetThrottleInterval, peer->packetThrottleAcceleration, 0);
++        // The API only changes future deceleration. Like ENet's own stable-RTT branch, restore a
++        // throttle already lowered by earlier acknowledgements to its bandwidth limit.
++        if (peer->packetThrottle < peer->packetThrottleLimit) {
++            peer->packetThrottle = peer->packetThrottleLimit;
++        }
++        receptionTransportConfigured = true;
++        configured = true;
++    }
++    readReceptionTransport(&after);
++    PltUnlockMutex(&enetMutex);
++
++    Limelog("Packet reception transport: extension active, throttle deceleration %s; throttle %u -> %u of %u, counter %u, "
++            "interval %u ms, acceleration %u, deceleration %u -> %u, RTT %u ms, variance %u ms\n",
++            configured ? "off" : "unchanged",
++            before.packetThrottle, after.packetThrottle, after.packetThrottleLimit, after.packetThrottleCounter,
++            after.packetThrottleInterval, after.packetThrottleAcceleration,
++            before.packetThrottleDeceleration, after.packetThrottleDeceleration,
++            after.roundTripTime, after.roundTripTimeVariance);
++}
++
++// Loss-stats thread only, for a report it just enqueued: one row per
++// PACKET_RECEPTION_TRANSPORT_LOG_REPORTS sequence numbers. The state is read before this tick's
++// ping flushes the report, so the report still has to pass counter + 7 (mod 32) <= throttle.
++static void logReceptionTransport(const uint8_t* report) {
++    PACKET_RECEPTION_TRANSPORT transport;
++    // The big-endian report sequence at wire offset 4 (docs/native-packet-reception-feedback.md).
++    uint32_t sequence = ((uint32_t)report[4] << 24) | ((uint32_t)report[5] << 16) |
++                        ((uint32_t)report[6] << 8) | (uint32_t)report[7];
++
++    if (sequence % PACKET_RECEPTION_TRANSPORT_LOG_REPORTS != 0) {
++        return;
++    }
++
++    PltLockMutex(&enetMutex);
++    readReceptionTransport(&transport);
++    PltUnlockMutex(&enetMutex);
++
++    Limelog("Packet reception transport: report %u, throttle %u of %u, counter %u, deceleration %u, RTT %u ms, variance %u ms\n",
++            sequence, transport.packetThrottle, transport.packetThrottleLimit, transport.packetThrottleCounter,
++            transport.packetThrottleDeceleration, transport.roundTripTime, transport.roundTripTimeVariance);
++}
++
++// Loss-stats thread only. When the extension retires while the stream continues (after its clock
++// sentinel, or at the sequence limit), give the peer back its stock deceleration. Stop closes
++// publication under enetMutex before it retires the collector, so a stop never sends this.
++static void endReceptionTransportIfRetired(void) {
++    enet_uint32 deceleration;
++    bool restored = false;
++
++    if (!receptionTransportConfigured || PacketReceptionIsPublishing()) {
++        return;
++    }
++
++    PltLockMutex(&enetMutex);
++    if (receptionReportsOpen && peer->state == ENET_PEER_STATE_CONNECTED) {
++        enet_peer_throttle_configure(peer, peer->packetThrottleInterval, peer->packetThrottleAcceleration,
++                                     receptionTransportStockDeceleration);
++        receptionTransportConfigured = false;
++        restored = true;
++    }
++    deceleration = peer->packetThrottleDeceleration;
++    PltUnlockMutex(&enetMutex);
++
++    if (restored) {
++        Limelog("Packet reception transport: reports retired, throttle deceleration %u restored\n", deceleration);
++    }
++}
++
++#ifdef NOVA_PACKET_RECEPTION_TEST
++void PacketReceptionTestSetTransport(bool configure, void (*beforeConfigure)(void)) {
++    testTransportConfigure = configure;
++    testTransportBeforeConfigure = beforeConfigure;
++}
++
++bool PacketReceptionTestReadTransport(PPACKET_RECEPTION_TRANSPORT transport) {
++    bool read = false;
++
++    PltLockMutex(&enetMutex);
++    if (peer != NULL) {
++        readReceptionTransport(transport);
++        read = true;
++    }
++    PltUnlockMutex(&enetMutex);
++    return read;
++}
++#endif
++
+ static void lossStatsThreadFunc(void* context) {
+     BYTE_BUFFER byteBuffer;
+ 
+@@ -1444,14 +1593,16 @@ static void lossStatsThreadFunc(void* context) {
+                     uint8_t receptionReport[PACKET_RECEPTION_MAX_PAYLOAD_BYTES];
+                     int receptionReportLength = PacketReceptionTakeReport(receptionReport, sizeof(receptionReport));
+ 
+-                    if (receptionReportLength > 0) {
+-                        sendMessageEnet(PACKET_RECEPTION_PTYPE,
+-                                        (short)receptionReportLength,
+-                                        receptionReport,
+-                                        CTRL_CHANNEL_GENERIC,
+-                                        ENET_PACKET_FLAG_UNSEQUENCED,
+-                                        true);
++                    if (receptionReportLength > 0 &&
++                            sendMessageEnet(PACKET_RECEPTION_PTYPE,
++                                            (short)receptionReportLength,
++                                            receptionReport,
++                                            CTRL_CHANNEL_GENERIC,
++                                            ENET_PACKET_FLAG_UNSEQUENCED,
++                                            true)) {
++                        logReceptionTransport(receptionReport);
+                     }
++                    endReceptionTransportIfRetired();
+                 }
+             }
+ 
+@@ -1944,6 +2095,7 @@ int startControlStream(void) {
+ 
+     // Only the Sunshine periodic-ping path below carries reception observations.
+     PacketReceptionStart(encryptedControlStream && usePeriodicPing && IS_SUNSHINE());
++    startReceptionTransport();
+ 
+     err = PltCreateThread("LossStats", lossStatsThreadFunc, NULL, &lossStatsThread);
+     if (err != 0) {
+diff --git a/src/PacketReception.c b/src/PacketReception.c
+index ed34832..544dfca 100644
+--- a/src/PacketReception.c
++++ b/src/PacketReception.c
+@@ -451,6 +451,30 @@ bool PacketReceptionIsEnabled(void) {
+     return collectorEnabled;
+ }
+ 
++bool PacketReceptionIsTimed(void) {
++    bool timed;
++
++    if (!collectorEnabled) {
++        return false;
++    }
++    PltLockMutex(&collectorMutex);
++    timed = !collector.retired && !collector.clockFailed;
++    PltUnlockMutex(&collectorMutex);
++    return timed;
++}
++
++bool PacketReceptionIsPublishing(void) {
++    bool publishing;
++
++    if (!collectorEnabled) {
++        return false;
++    }
++    PltLockMutex(&collectorMutex);
++    publishing = !collector.retired;
++    PltUnlockMutex(&collectorMutex);
++    return publishing;
++}
++
+ void PacketReceptionNoteReceive(int receiveResult, PPACKET_RECEPTION_CAPTURE capture) {
+     if (!collectorEnabled) {
+         return;
+diff --git a/src/PacketReception.h b/src/PacketReception.h
+index 4cdfb66..125dbc6 100644
+--- a/src/PacketReception.h
++++ b/src/PacketReception.h
+@@ -143,12 +143,33 @@ bool PacketReceptionNegotiate(void);
+ void PacketReceptionNegotiationWithdrawn(void);
+ void PacketReceptionStart(bool controlPathEligible);
+ bool PacketReceptionIsEnabled(void);
++// Started, not retired and its clock has not failed: the extension is actually timing reports.
++bool PacketReceptionIsTimed(void);
++// Started and not retired: a report (possibly the one clock sentinel) can still be published.
++bool PacketReceptionIsPublishing(void);
+ void PacketReceptionNoteReceive(int receiveResult, PPACKET_RECEPTION_CAPTURE capture);
+ void PacketReceptionCommit(const PACKET_RECEPTION_CAPTURE* capture, uint32_t frameIndex, uint16_t rtpSequence, bool isParity);
+ int PacketReceptionTakeReport(uint8_t* buffer, size_t bufferLength);
+ void PacketReceptionStop(void);
+ void PacketReceptionDestroy(void);
+ 
++// Control peer throttle facts for the bounded reception transport diagnostics: ENet's own
++// counters and round-trip estimates, never an address, identity, key or report payload.
++typedef struct _PACKET_RECEPTION_TRANSPORT {
++    uint32_t packetThrottle;
++    uint32_t packetThrottleLimit;
++    uint32_t packetThrottleCounter;
++    uint32_t packetThrottleInterval;
++    uint32_t packetThrottleAcceleration;
++    uint32_t packetThrottleDeceleration;
++    uint32_t roundTripTime;
++    uint32_t roundTripTimeVariance;
++} PACKET_RECEPTION_TRANSPORT, *PPACKET_RECEPTION_TRANSPORT;
++
++// One periodic transport row per this many report sequence numbers: about one a second at the
++// 100 ms control tick, plus one setup row per connection.
++#define PACKET_RECEPTION_TRANSPORT_LOG_REPORTS 10
++
+ #ifdef NOVA_PACKET_RECEPTION_TEST
+ // Test-only clock replacement for lifecycle fixtures. Production builds have no such hook.
+ void PacketReceptionSetTestClock(bool (*clock)(uint64_t* nowUs));
+@@ -156,4 +177,10 @@ void PacketReceptionSetTestClock(bool (*clock)(uint64_t* nowUs));
+ // enqueue by the control stream, and of collector retirement. Production builds have neither.
+ void PacketReceptionSetTestPublicationHook(void (*hook)(const uint8_t* report, int length));
+ bool PacketReceptionTestIsRetired(void);
++// Test-only, implemented by the control stream. configure=false keeps stock ENet throttling for an
++// active extension (the fixture's control); beforeConfigure runs on the starting thread just before
++// the transport decision, without enetMutex. Read only while the control stream is initialized; it
++// returns false without a control peer.
++void PacketReceptionTestSetTransport(bool configure, void (*beforeConfigure)(void));
++bool PacketReceptionTestReadTransport(PPACKET_RECEPTION_TRANSPORT transport);
+ #endif

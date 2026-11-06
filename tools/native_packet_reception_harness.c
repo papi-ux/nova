@@ -11,6 +11,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <poll.h>
+#include <stddef.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -523,6 +525,8 @@ typedef struct {
     uint16_t length;
     uint8_t channel;
     uint32_t enetFlags;
+    // The fixture host's own ENet view of the client's throttle deceleration when this arrived.
+    uint32_t hostPeerDeceleration;
     uint64_t receivedUs;
     uint8_t payload[256];
 } CONTROL_MESSAGE;
@@ -532,6 +536,119 @@ static CONTROL_MESSAGE controlMessages[MAX_CONTROL_MESSAGES];
 static int controlMessageCount;
 static int controlDecryptFailures;
 static uint32_t observedConnectData;
+// Throttle deceleration the client's CONNECT gave the fixture host's peer. (ENet resets the host
+// peer before it dispatches DISCONNECT, so the end of a connection is judged on the wire below.)
+static uint32_t observedConnectDeceleration;
+
+// Every ENet THROTTLE_CONFIGURE command the client sent, read from the host's received datagrams
+// before ENet handles them; retransmissions share a reliable sequence number and count once.
+#define MAX_THROTTLE_CONFIGURES 16
+typedef struct {
+    uint16_t reliableSequence;
+    uint32_t interval;
+    uint32_t acceleration;
+    uint32_t deceleration;
+} THROTTLE_CONFIGURE_SEEN;
+static THROTTLE_CONFIGURE_SEEN throttleConfigures[MAX_THROTTLE_CONFIGURES];
+static int throttleConfigureCount;
+static int throttleConfigureCopies;
+
+static int ENET_CALLBACK interceptThrottleConfigure(ENetHost* host, ENetEvent* event) {
+    const enet_uint8* data = host->receivedData;
+    size_t length = host->receivedDataLength;
+    size_t offset;
+    enet_uint16 peerId;
+
+    (void)event;
+    if (length < sizeof(peerId)) {
+        return 0;
+    }
+    memcpy(&peerId, data, sizeof(peerId));
+    peerId = ENET_NET_TO_HOST_16(peerId);
+    if (peerId & ENET_PROTOCOL_HEADER_FLAG_COMPRESSED) {
+        return 0;
+    }
+    offset = (peerId & ENET_PROTOCOL_HEADER_FLAG_SENT_TIME) ? sizeof(ENetProtocolHeader) : offsetof(ENetProtocolHeader, sentTime);
+    if (host->checksum != NULL) {
+        offset += sizeof(enet_uint32);
+    }
+    while (offset + sizeof(ENetProtocolCommandHeader) <= length) {
+        const ENetProtocol* command = (const ENetProtocol*)(data + offset);
+        enet_uint8 number = command->header.command & ENET_PROTOCOL_COMMAND_MASK;
+        size_t size;
+
+        if (number >= ENET_PROTOCOL_COMMAND_COUNT) {
+            break;
+        }
+        size = enet_protocol_command_size(number);
+        if (size == 0 || offset + size > length) {
+            break;
+        }
+        if (number == ENET_PROTOCOL_COMMAND_THROTTLE_CONFIGURE) {
+            enet_uint16 sequence = ENET_NET_TO_HOST_16(command->header.reliableSequenceNumber);
+            int i;
+            bool known = false;
+
+            pthread_mutex_lock(&controlLock);
+            throttleConfigureCopies++;
+            for (i = 0; i < throttleConfigureCount; i++) {
+                known = known || throttleConfigures[i].reliableSequence == sequence;
+            }
+            if (!known && throttleConfigureCount < MAX_THROTTLE_CONFIGURES) {
+                THROTTLE_CONFIGURE_SEEN* seen = &throttleConfigures[throttleConfigureCount++];
+                seen->reliableSequence = sequence;
+                seen->interval = ENET_NET_TO_HOST_32(command->throttleConfigure.packetThrottleInterval);
+                seen->acceleration = ENET_NET_TO_HOST_32(command->throttleConfigure.packetThrottleAcceleration);
+                seen->deceleration = ENET_NET_TO_HOST_32(command->throttleConfigure.packetThrottleDeceleration);
+            }
+            pthread_mutex_unlock(&controlLock);
+        }
+        offset += size;
+        switch (number) {
+        case ENET_PROTOCOL_COMMAND_SEND_RELIABLE:
+            offset += ENET_NET_TO_HOST_16(command->sendReliable.dataLength);
+            break;
+        case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE:
+            offset += ENET_NET_TO_HOST_16(command->sendUnreliable.dataLength);
+            break;
+        case ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
+            offset += ENET_NET_TO_HOST_16(command->sendUnsequenced.dataLength);
+            break;
+        case ENET_PROTOCOL_COMMAND_SEND_FRAGMENT:
+        case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT:
+            offset += ENET_NET_TO_HOST_16(command->sendFragment.dataLength);
+            break;
+        default:
+            break;
+        }
+    }
+    return 0;
+}
+
+// Exactly the expected THROTTLE_CONFIGURE decelerations, each with ENet's default interval and
+// acceleration, in order.
+static bool throttleConfiguresAre(const uint32_t* decelerations, int count) {
+    bool same;
+    int i;
+
+    pthread_mutex_lock(&controlLock);
+    same = throttleConfigureCount == count;
+    for (i = 0; same && i < count; i++) {
+        same = throttleConfigures[i].deceleration == decelerations[i] &&
+               throttleConfigures[i].interval == ENET_PEER_PACKET_THROTTLE_INTERVAL &&
+               throttleConfigures[i].acceleration == ENET_PEER_PACKET_THROTTLE_ACCELERATION;
+    }
+    pthread_mutex_unlock(&controlLock);
+    return same;
+}
+
+static int throttleConfiguresSeen(void) {
+    int count;
+    pthread_mutex_lock(&controlLock);
+    count = throttleConfigureCount;
+    pthread_mutex_unlock(&controlLock);
+    return count;
+}
 static volatile bool serverStop;
 static pthread_t serverThreadHandle;
 static ENetHost* server;
@@ -557,6 +674,9 @@ static void* serverThread(void* context) {
         }
         if (event.type == ENET_EVENT_TYPE_CONNECT) {
             observedConnectData = event.data;
+            pthread_mutex_lock(&controlLock);
+            observedConnectDeceleration = event.peer->packetThrottleDeceleration;
+            pthread_mutex_unlock(&controlLock);
         }
         else if (event.type == ENET_EVENT_TYPE_RECEIVE) {
             const uint8_t* data = event.packet->data;
@@ -580,6 +700,7 @@ static void* serverThread(void* context) {
                         m->length = (uint16_t)(plain[2] | (plain[3] << 8));
                         m->channel = event.channelID;
                         m->enetFlags = event.packet->flags;
+                        m->hostPeerDeceleration = event.peer->packetThrottleDeceleration;
                         m->receivedUs = realMonotonicUs();
                         if (m->length > sizeof(m->payload) || (int)m->length != plainLength - 4) {
                             controlDecryptFailures++;
@@ -610,14 +731,34 @@ static void* serverThread(void* context) {
     return NULL;
 }
 
+// The control stream's packet reception transport rows, kept for the transport fixtures.
+#define TRANSPORT_ROW_PREFIX "Packet reception transport:"
+#define MAX_TRANSPORT_ROWS 256
+static pthread_mutex_t transportRowLock = PTHREAD_MUTEX_INITIALIZER;
+static char transportRows[MAX_TRANSPORT_ROWS][256];
+static int transportRowCount;
+static int transportRowOverflow;
+
 static void logMessage(const char* format, ...) {
+    char line[512];
     va_list args;
-    if (getenv("NOVA_RECEPTION_VERBOSE") == NULL) {
-        return;
-    }
+
     va_start(args, format);
-    vfprintf(stderr, format, args);
+    vsnprintf(line, sizeof(line), format, args);
     va_end(args);
+    if (strncmp(line, TRANSPORT_ROW_PREFIX, strlen(TRANSPORT_ROW_PREFIX)) == 0) {
+        pthread_mutex_lock(&transportRowLock);
+        if (transportRowCount < MAX_TRANSPORT_ROWS && strlen(line) < sizeof(transportRows[0])) {
+            strcpy(transportRows[transportRowCount++], line);
+        }
+        else {
+            transportRowOverflow++;
+        }
+        pthread_mutex_unlock(&transportRowLock);
+    }
+    if (getenv("NOVA_RECEPTION_VERBOSE") != NULL) {
+        fputs(line, stderr);
+    }
 }
 
 static void connectionTerminated(int errorCode) {
@@ -761,6 +902,11 @@ typedef struct {
     int encryptionFlags;
     uint32_t hostEncryptionSupported;
     int appVersion[4];
+    // Route control through the delaying relay, starting with this host-to-client delay.
+    bool relay;
+    uint32_t relayDelayUs;
+    // Runs after negotiation and before the control stream starts (withdrawal, clock fault).
+    void (*afterNegotiate)(void);
 } SESSION_OPTIONS;
 
 static SESSION_OPTIONS defaultOptions(void) {
@@ -781,6 +927,162 @@ static struct sockaddr_in loopback(uint16_t port) {
     a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     a.sin_port = htons(port);
     return a;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Control relay for the transport fixtures
+//
+// Sits between the client's ENet control peer and the fixture host on loopback. Client datagrams
+// pass at once; host datagrams are held for relayDelayUs and released in arrival order, so every
+// acknowledgement the client's real ENet receives carries a scripted round-trip time. Nothing is
+// dropped, duplicated or reordered: any report the host misses was discarded inside the client.
+
+#define RELAY_SLOTS 1024
+#define RELAY_DATAGRAM_BYTES 4096
+
+typedef struct {
+    uint64_t releaseUs;
+    int length;
+    uint8_t data[RELAY_DATAGRAM_BYTES];
+} RELAY_SLOT;
+
+static RELAY_SLOT relayQueue[RELAY_SLOTS];
+static int relayHead;
+static int relayCount;
+static int relayOverflows;
+static int relayClientSocket = -1;
+static int relayHostSocket = -1;
+static struct sockaddr_in relayClientAddr;
+static bool relayHasClient;
+static volatile bool relayStop;
+static bool relayRunning;
+static pthread_t relayThreadHandle;
+static pthread_mutex_t relayLock = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t relayDelayUs;
+static uint64_t relayLastReleaseUs;
+static int relaySendFailures;
+
+static void setRelayDelayMs(uint32_t delayMs) {
+    pthread_mutex_lock(&relayLock);
+    relayDelayUs = delayMs * 1000;
+    pthread_mutex_unlock(&relayLock);
+}
+
+static void* relayThread(void* context) {
+    static uint8_t datagram[RELAY_DATAGRAM_BYTES];
+    (void)context;
+
+    while (!relayStop) {
+        struct pollfd fds[2];
+        uint64_t now;
+
+        fds[0].fd = relayClientSocket;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+        fds[1].fd = relayHostSocket;
+        fds[1].events = POLLIN;
+        fds[1].revents = 0;
+        poll(fds, 2, 1);
+
+        // Client to host: immediately.
+        for (;;) {
+            struct sockaddr_in from;
+            socklen_t fromLength = sizeof(from);
+            ssize_t n = recvfrom(relayClientSocket, datagram, sizeof(datagram), MSG_DONTWAIT, (struct sockaddr*)&from, &fromLength);
+            if (n <= 0) {
+                break;
+            }
+            pthread_mutex_lock(&relayLock);
+            relayClientAddr = from;
+            relayHasClient = true;
+            pthread_mutex_unlock(&relayLock);
+            if (send(relayHostSocket, datagram, (size_t)n, 0) != n) {
+                relaySendFailures++;
+            }
+        }
+
+        // Host to client: held for the current delay, never released ahead of an earlier datagram.
+        for (;;) {
+            ssize_t n = recv(relayHostSocket, datagram, sizeof(datagram), MSG_DONTWAIT);
+            if (n <= 0) {
+                break;
+            }
+            now = realMonotonicUs();
+            pthread_mutex_lock(&relayLock);
+            if (relayCount == RELAY_SLOTS) {
+                relayOverflows++;
+            }
+            else {
+                RELAY_SLOT* slot = &relayQueue[(relayHead + relayCount) % RELAY_SLOTS];
+                uint64_t release = now + relayDelayUs;
+                if (release < relayLastReleaseUs) {
+                    release = relayLastReleaseUs;
+                }
+                relayLastReleaseUs = release;
+                slot->releaseUs = release;
+                slot->length = (int)n;
+                memcpy(slot->data, datagram, (size_t)n);
+                relayCount++;
+            }
+            pthread_mutex_unlock(&relayLock);
+        }
+
+        now = realMonotonicUs();
+        pthread_mutex_lock(&relayLock);
+        while (relayCount > 0 && relayHasClient && relayQueue[relayHead].releaseUs <= now) {
+            RELAY_SLOT* slot = &relayQueue[relayHead];
+            if (sendto(relayClientSocket, slot->data, (size_t)slot->length, 0,
+                       (struct sockaddr*)&relayClientAddr, sizeof(relayClientAddr)) != slot->length) {
+                relaySendFailures++;
+            }
+            relayHead = (relayHead + 1) % RELAY_SLOTS;
+            relayCount--;
+        }
+        pthread_mutex_unlock(&relayLock);
+    }
+    return NULL;
+}
+
+// Returns the relay's client-facing port, or 0.
+static uint16_t startRelay(uint16_t hostPort, uint32_t delayUs) {
+    struct sockaddr_in any = loopback(0);
+    struct sockaddr_in host = loopback(hostPort);
+    struct sockaddr_in bound;
+    socklen_t boundLength = sizeof(bound);
+
+    relayHead = relayCount = relayOverflows = relaySendFailures = 0;
+    relayHasClient = false;
+    relayLastReleaseUs = 0;
+    relayDelayUs = delayUs;
+    relayStop = false;
+    relayClientSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    relayHostSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (relayClientSocket < 0 || relayHostSocket < 0 ||
+            bind(relayClientSocket, (struct sockaddr*)&any, sizeof(any)) != 0 ||
+            bind(relayHostSocket, (struct sockaddr*)&any, sizeof(any)) != 0 ||
+            connect(relayHostSocket, (struct sockaddr*)&host, sizeof(host)) != 0 ||
+            getsockname(relayClientSocket, (struct sockaddr*)&bound, &boundLength) != 0 ||
+            pthread_create(&relayThreadHandle, NULL, relayThread, NULL) != 0) {
+        return 0;
+    }
+    relayRunning = true;
+    return ntohs(bound.sin_port);
+}
+
+static void stopRelay(void) {
+    if (relayRunning) {
+        relayStop = true;
+        pthread_join(relayThreadHandle, NULL);
+        relayRunning = false;
+    }
+    if (relayClientSocket >= 0) {
+        close(relayClientSocket);
+        relayClientSocket = -1;
+    }
+    if (relayHostSocket >= 0) {
+        close(relayHostSocket);
+        relayHostSocket = -1;
+    }
 }
 
 // RTSP-equivalent state, then the production SDP generator. Returns whether it echoed.
@@ -862,6 +1164,9 @@ static int startSession(const SESSION_OPTIONS* o, bool* echoed, uint32_t* encryp
     controlMessageCount = 0;
     controlDecryptFailures = 0;
     observedConnectData = 0;
+    observedConnectDeceleration = 0;
+    throttleConfigureCount = 0;
+    throttleConfigureCopies = 0;
     pthread_mutex_unlock(&controlLock);
 
     err = initializePlatform();
@@ -876,8 +1181,15 @@ static int startSession(const SESSION_OPTIONS* o, bool* echoed, uint32_t* encryp
     if (server == NULL) {
         return -1;
     }
+    server->intercept = interceptThrottleConfigure;
     enet_socket_get_address(server->socket, &address);
     ControlPortNumber = ntohs(((struct sockaddr_in*)&address.address)->sin_port);
+    if (o->relay) {
+        ControlPortNumber = startRelay(ControlPortNumber, o->relayDelayUs);
+        if (ControlPortNumber == 0) {
+            return -1;
+        }
+    }
 
     videoSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (videoSocket < 0 || bind(videoSocket, (struct sockaddr*)&bind4, sizeof(bind4)) != 0 ||
@@ -888,6 +1200,9 @@ static int startSession(const SESSION_OPTIONS* o, bool* echoed, uint32_t* encryp
     memset(&VideoPingPayload, 0, sizeof(VideoPingPayload));
 
     *echoed = negotiate(o, encryptionEnabled);
+    if (o->afterNegotiate != NULL) {
+        o->afterNegotiate();
+    }
 
     serverStop = false;
     if (pthread_create(&serverThreadHandle, NULL, serverThread, NULL) != 0) {
@@ -946,6 +1261,7 @@ static void finishStoppedSession(bool checkStoppedCollector) {
 
     serverStop = true;
     pthread_join(serverThreadHandle, NULL);
+    stopRelay();
     enet_host_destroy(server);
     server = NULL;
     close(videoSocket);
@@ -1857,6 +2173,12 @@ static void sessionStopPublicationFence(void) {
     CHECK(!parkedArrived, "the held report was still sent instead of being dropped by stop (waited %d ms)", waitedMs);
     CHECK(stopUs < 5000000, "stop took %llu us", (unsigned long long)stopUs);
     CHECK(n >= 2 && pings >= 2 && badTransport == 0 && terminationError == 0, "reports %d pings %d", n, pings);
+    {
+        // The held publisher resumes after retirement and sees a retired collector, but stop had
+        // already closed publication: the transport is configured once and never restored by stop.
+        static const uint32_t expected[] = { 0 };
+        CHECK(throttleConfiguresAre(expected, 1), "%d THROTTLE_CONFIGURE commands across the fenced stop", throttleConfiguresSeen());
+    }
     endCase();
 
     // Reconnect once: a normal epoch with periodic reports and pings.
@@ -1878,6 +2200,717 @@ static void sessionStopPublicationFence(void) {
               "report %d sequence %u flags %x", i, reports[i].reportSequence, reports[i].flags);
     }
     CHECK(pings >= 2 && badTransport == 0 && terminationError == 0, "pings %d", pings);
+    endCase();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Transport fixtures: the client's real ENet throttle under a scripted bad round-trip time
+
+// The first acknowledgement (CONNECT, through the relay) opens ENet's 5 s throttle epoch with this
+// RTT, so its threshold is about 20 + 2 * 10 ms. Every later acknowledgement at 120 ms exceeds it,
+// and stock ENet lowers packetThrottle by 2 for each one. Each session ends inside that epoch.
+#define TRANSPORT_BASELINE_DELAY_MS 20
+#define TRANSPORT_BAD_DELAY_MS 120
+#define TRANSPORT_BASELINE_PHASE_MS 300
+#define TRANSPORT_BAD_PHASE_MS 2000
+#define TRANSPORT_FEC_FRAMES 8
+#define TRANSPORT_FEC_SPACING_MS 75
+#define TRANSPORT_DRAIN_MS 400
+#define TRANSPORT_MAX_SEQUENCE 1024
+
+// Client-side publication record from the existing test hook: every report the collector produced,
+// with its time, before the control stream enqueued it.
+static pthread_mutex_t publishedLock = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t publishedSequence[TRANSPORT_MAX_SEQUENCE];
+static uint64_t publishedUs[TRANSPORT_MAX_SEQUENCE];
+static int publishedCount;
+
+static void recordPublication(const uint8_t* report, int length) {
+    if (length < PACKET_RECEPTION_HEADER_BYTES) {
+        return;
+    }
+    pthread_mutex_lock(&publishedLock);
+    if (publishedCount < TRANSPORT_MAX_SEQUENCE) {
+        publishedSequence[publishedCount] = be32(report + 4);
+        publishedUs[publishedCount] = realMonotonicUs();
+        publishedCount++;
+    }
+    pthread_mutex_unlock(&publishedLock);
+}
+
+static int publicationsSoFar(void) {
+    int count;
+    pthread_mutex_lock(&publishedLock);
+    count = publishedCount;
+    pthread_mutex_unlock(&publishedLock);
+    return count;
+}
+
+static void beginTransportCapture(void) {
+    pthread_mutex_lock(&publishedLock);
+    publishedCount = 0;
+    pthread_mutex_unlock(&publishedLock);
+    pthread_mutex_lock(&transportRowLock);
+    transportRowCount = 0;
+    transportRowOverflow = 0;
+    pthread_mutex_unlock(&transportRowLock);
+    PacketReceptionSetTestPublicationHook(recordPublication);
+}
+
+static void endTransportCapture(void) {
+    PacketReceptionSetTestPublicationHook(NULL);
+    PacketReceptionTestSetTransport(true, NULL);
+}
+
+// Stop 30 ms after a report was published: that tick's ping has flushed it, and the next report is
+// about 70 ms away, so stop never races a report (the stop fence is tested separately).
+static void waitBetweenTicks(void) {
+    int before = publicationsSoFar();
+    int waited = 0;
+    while (publicationsSoFar() == before && waited < 400) {
+        sleepMs(1);
+        waited++;
+    }
+    sleepMs(30);
+}
+
+// Report n is this peer's n-th unreliable packet when nothing else unreliable is sent, so stock
+// ENet gives it throttle counter 7n mod 32 and sends it only if that does not exceed packetThrottle.
+static uint32_t reportThrottleCounter(uint32_t sequence) {
+    return (uint32_t)(((uint64_t)sequence * ENET_PEER_PACKET_THROTTLE_COUNTER) % ENET_PEER_PACKET_THROTTLE_SCALE);
+}
+
+typedef struct {
+    int setup;
+    int setupConfigured;
+    int periodic;
+    int retired;
+    int malformed;
+    uint32_t lastPeriodicThrottle;
+    uint32_t lastPeriodicDeceleration;
+} TRANSPORT_ROWS;
+
+// Every row must be exactly one of the control stream's three formats: numbers and fixed words.
+static void readTransportRows(const char* label, TRANSPORT_ROWS* rows, bool print) {
+    int i;
+
+    memset(rows, 0, sizeof(*rows));
+    pthread_mutex_lock(&transportRowLock);
+    CHECK(transportRowOverflow == 0, "%s: %d transport rows overflowed", label, transportRowOverflow);
+    for (i = 0; i < transportRowCount; i++) {
+        const char* row = transportRows[i];
+        char state[16], rebuilt[256];
+        unsigned a, b, c, d, e, f, g, h, k, l;
+
+        if (sscanf(row, TRANSPORT_ROW_PREFIX " extension active, throttle deceleration %15[a-z]; throttle %u -> %u of %u, counter %u, "
+                        "interval %u ms, acceleration %u, deceleration %u -> %u, RTT %u ms, variance %u ms",
+                   state, &a, &b, &c, &d, &e, &f, &g, &h, &k, &l) == 11) {
+            snprintf(rebuilt, sizeof(rebuilt), TRANSPORT_ROW_PREFIX " extension active, throttle deceleration %s; throttle %u -> %u of %u, counter %u, "
+                     "interval %u ms, acceleration %u, deceleration %u -> %u, RTT %u ms, variance %u ms\n", state, a, b, c, d, e, f, g, h, k, l);
+            rows->setup++;
+            if (strcmp(state, "off") == 0) {
+                rows->setupConfigured++;
+            }
+            else if (strcmp(state, "unchanged") != 0) {
+                rows->malformed++;
+            }
+        }
+        else if (sscanf(row, TRANSPORT_ROW_PREFIX " report %u, throttle %u of %u, counter %u, deceleration %u, RTT %u ms, variance %u ms",
+                        &a, &b, &c, &d, &e, &f, &g) == 7) {
+            snprintf(rebuilt, sizeof(rebuilt), TRANSPORT_ROW_PREFIX " report %u, throttle %u of %u, counter %u, deceleration %u, RTT %u ms, variance %u ms\n",
+                     a, b, c, d, e, f, g);
+            rows->periodic++;
+            rows->lastPeriodicThrottle = b;
+            rows->lastPeriodicDeceleration = e;
+            if (a % PACKET_RECEPTION_TRANSPORT_LOG_REPORTS != 0) {
+                rows->malformed++;
+            }
+        }
+        else if (sscanf(row, TRANSPORT_ROW_PREFIX " reports retired, throttle deceleration %u restored", &a) == 1) {
+            snprintf(rebuilt, sizeof(rebuilt), TRANSPORT_ROW_PREFIX " reports retired, throttle deceleration %u restored\n", a);
+            rows->retired++;
+        }
+        else {
+            rebuilt[0] = 0;
+        }
+        if (strcmp(rebuilt, row) != 0) {
+            rows->malformed++;
+            CHECK(false, "%s: unexpected transport row: %s", label, row);
+        }
+        if (print) {
+            printf("TRANSPORT_ROW label=%s %s", label, row);
+        }
+    }
+    pthread_mutex_unlock(&transportRowLock);
+}
+
+static bool readClientTransport(PACKET_RECEPTION_TRANSPORT* transport) {
+    memset(transport, 0, sizeof(*transport));
+    return PacketReceptionTestReadTransport(transport);
+}
+
+static void checkStockSettings(const char* label, const PACKET_RECEPTION_TRANSPORT* t) {
+    CHECK(t->packetThrottleInterval == ENET_PEER_PACKET_THROTTLE_INTERVAL &&
+          t->packetThrottleAcceleration == ENET_PEER_PACKET_THROTTLE_ACCELERATION &&
+          t->packetThrottleDeceleration == ENET_PEER_PACKET_THROTTLE_DECELERATION,
+          "%s: client throttle settings %u/%u/%u are not ENet's defaults", label,
+          t->packetThrottleInterval, t->packetThrottleAcceleration, t->packetThrottleDeceleration);
+}
+
+typedef struct {
+    int generated;
+    int reports;
+    int pings;
+    int duplicates;
+    int unpublished;
+    int badTransport;
+    int missing;
+    int missingBeforeFec;
+    int missingBeforeFecCounterZero;
+    int fecStatuses;
+    uint32_t minIntervalUs;
+    uint32_t hostConnectDeceleration;
+    uint32_t hostLastDeceleration;
+    int hostThrottleConfigures;
+    int hostThrottleConfigureCopies;
+    bool clientReadBeforeFec;
+    bool clientReadEnd;
+    PACKET_RECEPTION_TRANSPORT clientBeforeFec;
+    PACKET_RECEPTION_TRANSPORT clientEnd;
+    TRANSPORT_ROWS rows;
+} BAD_RTT_RESULT;
+
+// Host-side view against the client's own publication record.
+static void analyzeTransport(const char* label, uint64_t fecStartUs, BAD_RTT_RESULT* r) {
+    static PACKET_RECEPTION_REPORT reports[MAX_CONTROL_MESSAGES];
+    static uint64_t arrivals[MAX_CONTROL_MESSAGES];
+    static uint8_t received[TRANSPORT_MAX_SEQUENCE + 1];
+    uint8_t fec[16][32];
+    char missingList[1024];
+    size_t used = 0;
+    int i, listed = 0;
+
+    memset(received, 0, sizeof(received));
+    r->reports = collectReports(reports, arrivals, MAX_CONTROL_MESSAGES, &r->pings, &r->fecStatuses, fec, &r->badTransport);
+    r->minIntervalUs = UINT32_MAX;
+    for (i = 0; i < r->reports; i++) {
+        uint32_t sequence = reports[i].reportSequence;
+        if (sequence < 1 || sequence > TRANSPORT_MAX_SEQUENCE) {
+            r->unpublished++;
+            continue;
+        }
+        if (received[sequence]) {
+            r->duplicates++;
+        }
+        received[sequence] = 1;
+        if (i > 0 && reports[i].intervalUs < r->minIntervalUs) {
+            r->minIntervalUs = reports[i].intervalUs;
+        }
+    }
+
+    missingList[0] = 0;
+    pthread_mutex_lock(&publishedLock);
+    r->generated = publishedCount;
+    for (i = 0; i < publishedCount; i++) {
+        uint32_t sequence = publishedSequence[i];
+        CHECK(sequence == (uint32_t)(i + 1), "%s: published sequence %u at %d", label, sequence, i);
+        if (sequence >= 1 && sequence <= TRANSPORT_MAX_SEQUENCE && received[sequence]) {
+            received[sequence] = 2;
+            continue;
+        }
+        r->missing++;
+        if (publishedUs[i] < fecStartUs) {
+            r->missingBeforeFec++;
+            if (reportThrottleCounter(sequence) == 0) {
+                r->missingBeforeFecCounterZero++;
+            }
+        }
+        if (listed < 64 && used + 16 < sizeof(missingList)) {
+            used += (size_t)snprintf(missingList + used, sizeof(missingList) - used, " %u:%u", sequence, reportThrottleCounter(sequence));
+            listed++;
+        }
+    }
+    pthread_mutex_unlock(&publishedLock);
+    for (i = 1; i <= TRANSPORT_MAX_SEQUENCE; i++) {
+        if (received[i] == 1) {
+            r->unpublished++;
+        }
+    }
+
+    pthread_mutex_lock(&controlLock);
+    r->hostConnectDeceleration = observedConnectDeceleration;
+    r->hostThrottleConfigures = throttleConfigureCount;
+    r->hostThrottleConfigureCopies = throttleConfigureCopies;
+    r->hostLastDeceleration = UINT32_MAX;
+    for (i = 0; i < controlMessageCount; i++) {
+        r->hostLastDeceleration = controlMessages[i].hostPeerDeceleration;
+    }
+    pthread_mutex_unlock(&controlLock);
+    readTransportRows(label, &r->rows, true);
+
+    printf("TRANSPORT label=%s generated=%d reports=%d pings=%d missing=%d missing_before_fec=%d missing_before_fec_counter_zero=%d "
+           "duplicates=%d unpublished=%d fec_frames=%d fec_statuses=%d min_interval_us=%u "
+           "client_throttle_before_fec=%u client_throttle_end=%u client_limit_end=%u client_deceleration_end=%u reliable_window_scale_end=%u/32 "
+           "host_deceleration_connect=%u host_deceleration_last=%u host_throttle_configures=%d host_throttle_configure_copies=%d "
+           "setup_rows=%d periodic_rows=%d retired_rows=%d relay_overflows=%d relay_send_failures=%d\n",
+           label, r->generated, r->reports, r->pings, r->missing, r->missingBeforeFec, r->missingBeforeFecCounterZero,
+           r->duplicates, r->unpublished, fecStartUs != UINT64_MAX ? TRANSPORT_FEC_FRAMES : 0, r->fecStatuses,
+           r->minIntervalUs == UINT32_MAX ? 0 : r->minIntervalUs,
+           r->clientBeforeFec.packetThrottle, r->clientEnd.packetThrottle, r->clientEnd.packetThrottleLimit,
+           r->clientEnd.packetThrottleDeceleration, r->clientEnd.packetThrottle,
+           r->hostConnectDeceleration, r->hostLastDeceleration, r->hostThrottleConfigures, r->hostThrottleConfigureCopies,
+           r->rows.setup, r->rows.periodic, r->rows.retired, relayOverflows, relaySendFailures);
+    printf("TRANSPORT_MISSING label=%s sequence:counter%s\n", label, missingList);
+}
+
+static void sendRecoverableFrame(uint32_t frame) {
+    FRAME_SHARDS f;
+    // Data shard 2 is lost; parity shard 4 reconstructs it, so the queue reports FEC status.
+    buildFrame(&f, (uint16_t)((frame - 1) * (DATA_SHARDS + PARITY_SHARDS)), frame);
+    sendShard(&f, 0, frame, false);
+    sendShard(&f, 1, frame, false);
+    sendShard(&f, 3, frame, false);
+    sendShard(&f, 4, frame, false);
+}
+
+// One encrypted extension session: baseline RTT, the bad RTT with reports only, then recoverable
+// video frames so unreliable FEC status shares the throttle, then the production stop.
+static bool runBadRttSession(const char* label, bool configure, BAD_RTT_RESULT* r) {
+    SESSION_OPTIONS o = defaultOptions();
+    uint32_t encryptionEnabled, frame;
+    uint64_t fecStartUs;
+    bool echoed = false;
+
+    memset(r, 0, sizeof(*r));
+    o.relay = true;
+    o.relayDelayUs = TRANSPORT_BASELINE_DELAY_MS * 1000;
+    beginTransportCapture();
+    PacketReceptionTestSetTransport(configure, NULL);
+    videoEncrypted = true;
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "%s: session start failed", label);
+        PltDestroyCryptoContext(senderCrypto);
+        endTransportCapture();
+        return false;
+    }
+    CHECK(echoed && PacketReceptionIsEnabled(), "%s: extension not active", label);
+    sleepMs(TRANSPORT_BASELINE_PHASE_MS);
+    setRelayDelayMs(TRANSPORT_BAD_DELAY_MS);
+    sleepMs(TRANSPORT_BAD_PHASE_MS);
+
+    r->clientReadBeforeFec = readClientTransport(&r->clientBeforeFec);
+    fecStartUs = realMonotonicUs();
+    for (frame = 1; frame <= TRANSPORT_FEC_FRAMES; frame++) {
+        sendRecoverableFrame(frame);
+        sleepMs(TRANSPORT_FEC_SPACING_MS);
+    }
+    sleepMs(TRANSPORT_DRAIN_MS);
+    waitBetweenTicks();
+    r->clientReadEnd = readClientTransport(&r->clientEnd);
+    stopSession(true);
+    PltDestroyCryptoContext(senderCrypto);
+    analyzeTransport(label, fecStartUs, r);
+    endTransportCapture();
+
+    CHECK(r->clientReadBeforeFec && r->clientReadEnd, "%s: client transport unreadable", label);
+    CHECK(relayOverflows == 0 && relaySendFailures == 0, "%s: relay overflow %d send failures %d", label, relayOverflows, relaySendFailures);
+    CHECK(controlDecryptFailures == 0, "%s: %d control messages failed to decrypt", label, controlDecryptFailures);
+    CHECK(terminationError == 0, "%s: connection terminated %d", label, terminationError);
+    // Shared by both modes: one report per tick from the collector, all published reports
+    // unreliable and unsequenced on the generic channel, every reliable ping delivered.
+    CHECK(r->generated >= 25, "%s: only %d reports generated", label, r->generated);
+    CHECK(r->generated >= r->pings - 1 && r->generated <= r->pings + 1, "%s: %d reports for %d ticks", label, r->generated, r->pings);
+    CHECK(r->duplicates == 0 && r->unpublished == 0, "%s: duplicates %d unpublished %d", label, r->duplicates, r->unpublished);
+    CHECK(r->badTransport == 0, "%s: %d reports not unreliable unsequenced on the generic channel", label, r->badTransport);
+    CHECK(r->reports < 2 || r->minIntervalUs >= 90000, "%s: report interval %u us: more than one report per tick", label, r->minIntervalUs);
+    CHECK(r->hostConnectDeceleration == ENET_PEER_PACKET_THROTTLE_DECELERATION, "%s: connect deceleration %u", label, r->hostConnectDeceleration);
+    CHECK(r->rows.setup == 1 && r->rows.malformed == 0 && r->rows.retired == 0, "%s: setup rows %d malformed %d retired %d",
+          label, r->rows.setup, r->rows.malformed, r->rows.retired);
+    CHECK(r->rows.periodic == r->generated / PACKET_RECEPTION_TRANSPORT_LOG_REPORTS, "%s: %d periodic rows for %d reports",
+          label, r->rows.periodic, r->generated);
+    return true;
+}
+
+static void transportStockControl(void) {
+    BAD_RTT_RESULT r;
+
+    beginCase("transport_stock_throttle_discards_reports_under_bad_rtt");
+    if (runBadRttSession("stock", false, &r)) {
+        // The fixture reproduces the field signature with ENet's own code: the throttle collapses,
+        // enqueued reports vanish, and a report whose counter is 0 is never among them.
+        CHECK(r.rows.setupConfigured == 0, "stock control configured the transport");
+        checkStockSettings("stock", &r.clientEnd);
+        CHECK(r.clientBeforeFec.packetThrottle <= 2, "stock throttle only fell to %u", r.clientBeforeFec.packetThrottle);
+        CHECK(r.missingBeforeFec >= 10, "only %d reports discarded before FEC traffic", r.missingBeforeFec);
+        CHECK(r.missingBeforeFecCounterZero == 0, "%d discarded reports had throttle counter 0", r.missingBeforeFecCounterZero);
+        CHECK(r.fecStatuses < TRANSPORT_FEC_FRAMES, "all %d FEC statuses survived a collapsed throttle", r.fecStatuses);
+        CHECK(r.hostLastDeceleration == ENET_PEER_PACKET_THROTTLE_DECELERATION && r.hostThrottleConfigures == 0,
+              "host deceleration %u, %d THROTTLE_CONFIGURE without configuration", r.hostLastDeceleration, r.hostThrottleConfigures);
+    }
+    endCase();
+}
+
+static void transportCandidate(void) {
+    BAD_RTT_RESULT r;
+
+    beginCase("transport_reports_survive_bad_rtt_one_per_tick");
+    if (runBadRttSession("candidate", true, &r)) {
+        // Same sequence: every scheduled report arrives exactly once, with no retransmission or
+        // catch-up, and the same peer-wide change keeps unreliable FEC status too.
+        CHECK(r.missing == 0, "%d of %d reports silently discarded", r.missing, r.generated);
+        CHECK(r.reports == r.generated, "reports %d generated %d", r.reports, r.generated);
+        CHECK(r.rows.setupConfigured == 1, "transport not configured");
+        CHECK(r.clientEnd.packetThrottleDeceleration == 0 && r.clientEnd.packetThrottle == r.clientEnd.packetThrottleLimit &&
+              r.clientEnd.packetThrottleLimit == ENET_PEER_PACKET_THROTTLE_SCALE,
+              "client throttle %u of %u deceleration %u", r.clientEnd.packetThrottle, r.clientEnd.packetThrottleLimit,
+              r.clientEnd.packetThrottleDeceleration);
+        CHECK(r.clientEnd.packetThrottleInterval == ENET_PEER_PACKET_THROTTLE_INTERVAL &&
+              r.clientEnd.packetThrottleAcceleration == ENET_PEER_PACKET_THROTTLE_ACCELERATION,
+              "interval %u acceleration %u changed", r.clientEnd.packetThrottleInterval, r.clientEnd.packetThrottleAcceleration);
+        CHECK(r.fecStatuses == TRANSPORT_FEC_FRAMES, "%d of %d FEC statuses", r.fecStatuses, TRANSPORT_FEC_FRAMES);
+        // Exactly one THROTTLE_CONFIGURE (deceleration 0, defaults otherwise) reached the host's
+        // ENet and took effect there; stop sent no second configuration.
+        {
+            static const uint32_t expected[] = { 0 };
+            CHECK(throttleConfiguresAre(expected, 1), "%d THROTTLE_CONFIGURE commands", r.hostThrottleConfigures);
+        }
+        CHECK(r.hostLastDeceleration == 0, "host deceleration %u", r.hostLastDeceleration);
+        CHECK(r.rows.lastPeriodicThrottle == ENET_PEER_PACKET_THROTTLE_SCALE && r.rows.lastPeriodicDeceleration == 0,
+              "last row throttle %u deceleration %u", r.rows.lastPeriodicThrottle, r.rows.lastPeriodicDeceleration);
+    }
+    endCase();
+}
+
+// Acknowledgements before the observer starts can already have lowered the throttle. ENet does
+// not acknowledge CONNECT (VERIFY_CONNECT does), so START A's acknowledgement is the client's first
+// RTT sample and opens the epoch; in production only START B's can then lower it, by one step.
+// Here the hook lets both arrive at the baseline RTT, switches the relay to the bad RTT, and sends
+// one more reliable control message until stock ENet has really lowered the throttle; then the
+// transport decides.
+static PACKET_RECEPTION_TRANSPORT loweredBeforeConfigure;
+static bool loweredRead;
+static int loweredExtraSends;
+
+static void lowerThrottleBeforeConfigure(void) {
+    int waited = 0;
+
+    loweredRead = false;
+    loweredExtraSends = 0;
+    while (waited < 1000) {
+        loweredRead = readClientTransport(&loweredBeforeConfigure);
+        if (loweredRead && loweredBeforeConfigure.roundTripTime < ENET_PEER_DEFAULT_ROUND_TRIP_TIME) {
+            break;
+        }
+        sleepMs(5);
+        waited += 5;
+    }
+    sleepMs(60);
+    setRelayDelayMs(TRANSPORT_BAD_DELAY_MS);
+    for (waited = 0; waited < 3000; waited += 5) {
+        if (waited % 500 == 0 && loweredExtraSends < 4) {
+            LiSendExecServerCmd(0);
+            loweredExtraSends++;
+        }
+        sleepMs(5);
+        loweredRead = readClientTransport(&loweredBeforeConfigure);
+        if (loweredRead && loweredBeforeConfigure.packetThrottle < loweredBeforeConfigure.packetThrottleLimit) {
+            break;
+        }
+    }
+}
+
+static void transportLoweredRestored(void) {
+    SESSION_OPTIONS o = defaultOptions();
+    PACKET_RECEPTION_TRANSPORT started, end;
+    BAD_RTT_RESULT r;
+    uint32_t encryptionEnabled;
+    bool echoed = false, startedRead, endRead;
+
+    beginCase("transport_lowered_throttle_restored_at_start");
+    memset(&r, 0, sizeof(r));
+    o.relay = true;
+    o.relayDelayUs = TRANSPORT_BASELINE_DELAY_MS * 1000;
+    beginTransportCapture();
+    PacketReceptionTestSetTransport(true, lowerThrottleBeforeConfigure);
+    videoEncrypted = true;
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "session start failed");
+        PltDestroyCryptoContext(senderCrypto);
+        endTransportCapture();
+        endCase();
+        return;
+    }
+    startedRead = readClientTransport(&started);
+    sleepMs(1000);
+    waitBetweenTicks();
+    endRead = readClientTransport(&end);
+    stopSession(true);
+    PltDestroyCryptoContext(senderCrypto);
+    r.clientBeforeFec = started;
+    r.clientEnd = end;
+    analyzeTransport("lowered", UINT64_MAX, &r);
+    endTransportCapture();
+
+    printf("TRANSPORT_LOWERED before_configure=%u limit=%u deceleration=%u rtt=%u extra_reliable_sends=%d after_start=%u "
+           "after_start_deceleration=%u end=%u\n",
+           loweredBeforeConfigure.packetThrottle, loweredBeforeConfigure.packetThrottleLimit,
+           loweredBeforeConfigure.packetThrottleDeceleration, loweredBeforeConfigure.roundTripTime, loweredExtraSends,
+           started.packetThrottle, started.packetThrottleDeceleration, end.packetThrottle);
+    CHECK(loweredRead && loweredBeforeConfigure.packetThrottle < loweredBeforeConfigure.packetThrottleLimit,
+          "stock ENet did not lower the throttle before the start (%u)", loweredBeforeConfigure.packetThrottle);
+    CHECK(loweredBeforeConfigure.packetThrottleDeceleration == ENET_PEER_PACKET_THROTTLE_DECELERATION, "deceleration before start %u",
+          loweredBeforeConfigure.packetThrottleDeceleration);
+    CHECK(startedRead && started.packetThrottle == started.packetThrottleLimit && started.packetThrottleDeceleration == 0,
+          "throttle %u of %u deceleration %u after start", started.packetThrottle, started.packetThrottleLimit,
+          started.packetThrottleDeceleration);
+    CHECK(endRead && end.packetThrottle == end.packetThrottleLimit, "throttle fell again to %u", end.packetThrottle);
+    CHECK(r.missing == 0 && r.generated >= 8 && r.duplicates == 0 && r.badTransport == 0, "missing %d of %d", r.missing, r.generated);
+    CHECK(r.rows.setupConfigured == 1, "transport not configured");
+    {
+        static const uint32_t expected[] = { 0 };
+        CHECK(throttleConfiguresAre(expected, 1), "%d THROTTLE_CONFIGURE commands", r.hostThrottleConfigures);
+    }
+    CHECK(terminationError == 0 && relayOverflows == 0, "termination %d relay overflow %d", terminationError, relayOverflows);
+    endCase();
+}
+
+// Withdrawal after the echo, as the SDP generator does when it cannot add the attribute.
+static void withdrawAfterNegotiation(void) {
+    PacketReceptionNegotiationWithdrawn();
+}
+
+// Negotiated with a working clock, then the origin read fails when the observer starts.
+static void breakClockBeforeStart(void) {
+    clockBroken = true;
+    PacketReceptionSetTestClock(fixtureClock);
+}
+
+static void transportNoneligiblePeers(void) {
+    static const char* const names[] = {
+        "offer_absent", "offer_version_2", "offer_duplicated", "connect_data_absent",
+        "clock_unsupported", "withdrawn", "clock_failed_at_start",
+    };
+    PACKET_RECEPTION_REPORT reports[64];
+    uint64_t arrivals[64];
+    uint8_t fec[16][32];
+    int v;
+
+    beginCase("transport_noneligible_peers_keep_stock_throttle");
+    for (v = 0; v < 7; v++) {
+        SESSION_OPTIONS o = defaultOptions();
+        PACKET_RECEPTION_TRANSPORT client;
+        TRANSPORT_ROWS rows;
+        uint32_t encryptionEnabled, hostLast = UINT32_MAX;
+        int pings, fecCount, badTransport, n, i;
+        bool echoed = false, read;
+
+        switch (v) {
+        case 0: o.describe = "v=0\r\na=x-ss-general.featureFlags:0\r\n"; break;
+        case 1: o.describe = "v=0\r\na=x-ss-video.packetReceptionFeedbackVersion:2\r\n"; break;
+        case 2: o.describe = "v=0\r\na=x-ss-video.packetReceptionFeedbackVersion:1\r\na=x-ss-video.packetReceptionFeedbackVersion:1\r\n"; break;
+        case 3: o.connectData = false; break;
+        case 4: clockBroken = true; PacketReceptionSetTestClock(fixtureClock); break;
+        case 5: o.afterNegotiate = withdrawAfterNegotiation; break;
+        default: o.afterNegotiate = breakClockBeforeStart; break;
+        }
+        beginTransportCapture();
+        videoEncrypted = true;
+        senderCrypto = PltCreateCryptoContext();
+        if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+            CHECK(false, "%s: start failed", names[v]);
+            PltDestroyCryptoContext(senderCrypto);
+            endTransportCapture();
+            continue;
+        }
+        sleepMs(350);
+        read = readClientTransport(&client);
+        stopSession(false);
+        PltDestroyCryptoContext(senderCrypto);
+        PacketReceptionSetTestClock(NULL);
+        clockBroken = false;
+        n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+        readTransportRows(names[v], &rows, true);
+        endTransportCapture();
+        pthread_mutex_lock(&controlLock);
+        for (i = 0; i < controlMessageCount; i++) {
+            hostLast = controlMessages[i].hostPeerDeceleration;
+        }
+        CHECK(observedConnectDeceleration == ENET_PEER_PACKET_THROTTLE_DECELERATION &&
+              hostLast == ENET_PEER_PACKET_THROTTLE_DECELERATION &&
+              throttleConfigureCount == 0,
+              "%s: host deceleration connect %u last %u, %d THROTTLE_CONFIGURE", names[v], observedConnectDeceleration, hostLast,
+              throttleConfigureCount);
+        pthread_mutex_unlock(&controlLock);
+        printf("TRANSPORT_NONELIGIBLE variant=%s echoed=%d enabled_reports=%d pings=%d client_deceleration=%u client_interval=%u "
+               "client_acceleration=%u rows=%d\n", names[v], echoed, n, pings, client.packetThrottleDeceleration,
+               client.packetThrottleInterval, client.packetThrottleAcceleration, rows.setup + rows.periodic + rows.retired);
+        CHECK(read, "%s: client transport unreadable", names[v]);
+        checkStockSettings(names[v], &client);
+        CHECK(rows.setup + rows.periodic + rows.retired == 0, "%s: transport rows logged", names[v]);
+        CHECK(pings >= 2 && terminationError == 0, "%s: pings %d termination %d", names[v], pings, terminationError);
+        if (v == 6) {
+            // The started-but-untimed observer sends its one clock sentinel through stock ENet.
+            CHECK(n == 1 && (reports[0].flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE), "%s: reports %d", names[v], n);
+        }
+        else {
+            CHECK(n == 0, "%s: %d reports", names[v], n);
+        }
+    }
+    endCase();
+}
+
+static void transportReconnect(void) {
+    PACKET_RECEPTION_REPORT reports[64];
+    uint64_t arrivals[64];
+    uint8_t fec[16][32];
+    int round;
+
+    beginCase("transport_reconnect_restores_stock_defaults");
+    for (round = 0; round < 3; round++) {
+        SESSION_OPTIONS o = defaultOptions();
+        PACKET_RECEPTION_TRANSPORT client;
+        TRANSPORT_ROWS rows;
+        uint32_t encryptionEnabled, hostLast = UINT32_MAX;
+        int pings, fecCount, badTransport, n, i;
+        bool echoed = false, read, active = round != 1;
+        char label[32];
+
+        snprintf(label, sizeof(label), "reconnect_%d", round);
+        if (!active) {
+            o.describe = "v=0\r\na=x-ss-general.featureFlags:0\r\n";
+        }
+        beginTransportCapture();
+        videoEncrypted = true;
+        senderCrypto = PltCreateCryptoContext();
+        if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+            CHECK(false, "%s: start failed", label);
+            PltDestroyCryptoContext(senderCrypto);
+            endTransportCapture();
+            break;
+        }
+        sleepMs(250);
+        waitBetweenTicks();
+        read = readClientTransport(&client);
+        stopSession(true);
+        PltDestroyCryptoContext(senderCrypto);
+        n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+        readTransportRows(label, &rows, true);
+        endTransportCapture();
+        pthread_mutex_lock(&controlLock);
+        for (i = 0; i < controlMessageCount; i++) {
+            hostLast = controlMessages[i].hostPeerDeceleration;
+        }
+        // Every connection starts from ENet's defaults; only an active one is configured, and
+        // stop does not send a second configuration.
+        CHECK(observedConnectDeceleration == ENET_PEER_PACKET_THROTTLE_DECELERATION, "%s: connect deceleration %u",
+              label, observedConnectDeceleration);
+        CHECK(hostLast == (active ? 0u : (uint32_t)ENET_PEER_PACKET_THROTTLE_DECELERATION) &&
+              throttleConfigureCount == (active ? 1 : 0) && (!active || throttleConfigures[0].deceleration == 0),
+              "%s: host deceleration last %u, %d THROTTLE_CONFIGURE", label, hostLast, throttleConfigureCount);
+        pthread_mutex_unlock(&controlLock);
+        printf("TRANSPORT_RECONNECT round=%d active=%d reports=%d first_sequence=%u client_deceleration=%u client_throttle=%u setup_rows=%d\n",
+               round, active, n, n > 0 ? reports[0].reportSequence : 0, client.packetThrottleDeceleration, client.packetThrottle, rows.setup);
+        CHECK(read, "%s: client transport unreadable", label);
+        if (active) {
+            CHECK(n >= 2 && reports[0].reportSequence == 1, "%s: reports %d", label, n);
+            CHECK(client.packetThrottleDeceleration == 0 && rows.setupConfigured == 1 && rows.setup == 1, "%s: deceleration %u setup %d",
+                  label, client.packetThrottleDeceleration, rows.setupConfigured);
+        }
+        else {
+            CHECK(n == 0, "%s: %d reports", label, n);
+            checkStockSettings(label, &client);
+            CHECK(rows.setup + rows.periodic + rows.retired == 0, "%s: transport rows", label);
+        }
+        CHECK(pings >= 2 && badTransport == 0 && terminationError == 0, "%s: pings %d", label, pings);
+    }
+    endCase();
+}
+
+// The extension retires mid-stream (clock failure): its sentinel still goes out under the
+// transport, then the loss-stats thread gives the peer back its stock deceleration.
+static void transportRetiredRestores(void) {
+    SESSION_OPTIONS o = defaultOptions();
+    PACKET_RECEPTION_REPORT reports[64];
+    uint64_t arrivals[64];
+    uint8_t fec[16][32];
+    PACKET_RECEPTION_TRANSPORT active, retired;
+    TRANSPORT_ROWS rows;
+    uint32_t encryptionEnabled, hostLast = UINT32_MAX, hostBeforeSentinel = UINT32_MAX, previous = UINT32_MAX;
+    bool sawSentinel = false;
+    int pings, fecCount, badTransport, n, i, sentinels = 0, waited = 0;
+    bool echoed = false, activeRead, retiredRead = false;
+
+    beginCase("transport_retired_extension_restores_deceleration");
+    beginTransportCapture();
+    clockBroken = false;
+    PacketReceptionSetTestClock(fixtureClock);
+    videoEncrypted = true;
+    senderCrypto = PltCreateCryptoContext();
+    if (startSession(&o, &echoed, &encryptionEnabled) != 0) {
+        CHECK(false, "start failed");
+        PltDestroyCryptoContext(senderCrypto);
+        PacketReceptionSetTestClock(NULL);
+        endTransportCapture();
+        endCase();
+        return;
+    }
+    sleepMs(250);
+    activeRead = readClientTransport(&active);
+    clockBroken = true;
+    while (waited < 1500) {
+        retiredRead = readClientTransport(&retired);
+        if (retiredRead && retired.packetThrottleDeceleration != 0) {
+            break;
+        }
+        sleepMs(5);
+        waited += 5;
+    }
+    sleepMs(300);
+    stopSession(true);
+    PltDestroyCryptoContext(senderCrypto);
+    PacketReceptionSetTestClock(NULL);
+    clockBroken = false;
+    n = collectReports(reports, arrivals, 64, &pings, &fecCount, fec, &badTransport);
+    readTransportRows("retired", &rows, true);
+    endTransportCapture();
+
+    pthread_mutex_lock(&controlLock);
+    // ENet handles a whole datagram before dispatching its events, and the restoring
+    // THROTTLE_CONFIGURE can share the sentinel's datagram, so judge the host by the message
+    // before the sentinel (the previous tick) and by the last one.
+    for (i = 0; i < controlMessageCount; i++) {
+        if (!sawSentinel && controlMessages[i].type == PACKET_RECEPTION_PTYPE && controlMessages[i].length >= 2 &&
+                (controlMessages[i].payload[1] & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE)) {
+            sawSentinel = true;
+            hostBeforeSentinel = previous;
+        }
+        previous = controlMessages[i].hostPeerDeceleration;
+        hostLast = controlMessages[i].hostPeerDeceleration;
+    }
+    pthread_mutex_unlock(&controlLock);
+    {
+        // Configured at start, restored once at retirement, nothing at stop.
+        static const uint32_t expected[] = { 0, ENET_PEER_PACKET_THROTTLE_DECELERATION };
+        CHECK(throttleConfiguresAre(expected, 2), "%d THROTTLE_CONFIGURE commands", throttleConfiguresSeen());
+    }
+    for (i = 0; i < n; i++) {
+        if (reports[i].flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE) {
+            sentinels++;
+        }
+    }
+    printf("TRANSPORT_RETIRED reports=%d sentinels=%d active_deceleration=%u retired_deceleration=%u host_before_sentinel=%u host_last=%u "
+           "setup_rows=%d retired_rows=%d pings=%d\n", n, sentinels, active.packetThrottleDeceleration, retired.packetThrottleDeceleration,
+           hostBeforeSentinel, hostLast, rows.setup, rows.retired, pings);
+    CHECK(activeRead && active.packetThrottleDeceleration == 0, "active deceleration %u", active.packetThrottleDeceleration);
+    CHECK(retiredRead, "client transport unreadable");
+    checkStockSettings("retired", &retired);
+    CHECK(sentinels == 1 && n >= 2 && (reports[n - 1].flags & PACKET_RECEPTION_FLAG_CLOCK_UNAVAILABLE), "reports %d sentinels %d", n, sentinels);
+    CHECK(hostBeforeSentinel == 0 && hostLast == ENET_PEER_PACKET_THROTTLE_DECELERATION, "host deceleration before sentinel %u last %u",
+          hostBeforeSentinel, hostLast);
+    CHECK(rows.setupConfigured == 1 && rows.retired == 1 && rows.malformed == 0, "setup %d retired %d", rows.setupConfigured, rows.retired);
+    CHECK(pings >= 4 && badTransport == 0 && terminationError == 0, "pings %d termination %d", pings, terminationError);
     endCase();
 }
 
@@ -1987,6 +3020,16 @@ int main(int argc, char** argv) {
     else if (strcmp(command, "stop-publication") == 0) {
         sessionStopPublicationFence();
     }
+    else if (strcmp(command, "transport-throttle") == 0) {
+        transportStockControl();
+        transportCandidate();
+        transportLoweredRestored();
+    }
+    else if (strcmp(command, "transport-lifecycle") == 0) {
+        transportNoneligiblePeers();
+        transportReconnect();
+        transportRetiredRestores();
+    }
     else if (strcmp(command, "clock-review") == 0) {
         clockReviewLifecycle();
         sessionReceiverClockFault(false);
@@ -1994,7 +3037,7 @@ int main(int argc, char** argv) {
         sessionSnapshotEarlierThanReceiveRead();
     }
     else {
-        fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates|clock-review|stop-publication\n", argv[0]);
+        fprintf(stderr, "usage: %s unit|golden|session-paths|session-reconnect|session-clock|session-gates|clock-review|stop-publication|transport-throttle|transport-lifecycle\n", argv[0]);
         return 2;
     }
 

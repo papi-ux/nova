@@ -4,12 +4,13 @@ NOVA_PACKET_RECEPTION_HARNESS supplies a harness built by the Deck CMake from it
 own prepared core. Otherwise this prepares a build-owned copy of the selected core
 and builds the harness with ASan/UBSan:
 
-  NOVA_PACKET_RECEPTION_CHAIN=android        patches 0001-0011, as Android applies them
+  NOVA_PACKET_RECEPTION_CHAIN=android        patches 0001-0013, as Android applies them
   NOVA_PACKET_RECEPTION_CHAIN=deck           the Deck's nova_deck_prepare_rtsp() chain
   NOVA_PACKET_RECEPTION_CHAIN=deck-pyrowave  the Deck chain plus its optional PyroWave patch
 
 NOVA_MOONLIGHT_SOURCE_DIR selects the core (default: the pinned submodule). The
-selected source is never modified. The session fixtures run real native sessions over
+selected source is never modified. NOVA_PACKET_RECEPTION_ECHO=1 also prints each
+fixture command's output. The session fixtures run real native sessions over
 loopback; nothing here needs a host, device or network.
 """
 import os
@@ -24,6 +25,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 PATCHES = ROOT / "app/src/main/jni/moonlight-core/patches"
 SPEC = ROOT / "docs/native-packet-reception-feedback.md"
 RECEPTION_PATCH = "0011-feat-video-report-bounded-native-packet-reception.patch"
+TRANSPORT_PATCH = "0013-fix-video-keep-ENet-s-throttle-from-discarding-recep.patch"
 
 EXPECTED_CASES = {
     "unit": [
@@ -50,7 +52,23 @@ EXPECTED_CASES = {
         "session_snapshot_earlier_than_rejected_receive_read",
     ],
     "stop-publication": ["session_no_report_enqueued_after_stop_retirement", "session_reconnect_after_fenced_stop"],
+    "transport-throttle": [
+        "transport_stock_throttle_discards_reports_under_bad_rtt", "transport_reports_survive_bad_rtt_one_per_tick",
+        "transport_lowered_throttle_restored_at_start",
+    ],
+    "transport-lifecycle": [
+        "transport_noneligible_peers_keep_stock_throttle", "transport_reconnect_restores_stock_defaults",
+        "transport_retired_extension_restores_deceleration",
+    ],
 }
+
+# The only client log rows the transport may write: fixed words and ENet's own numbers.
+TRANSPORT_ROWS = (
+    re.compile(r"Packet reception transport: extension active, throttle deceleration (off|unchanged); throttle \d+ -> \d+ of \d+, "
+               r"counter \d+, interval \d+ ms, acceleration \d+, deceleration \d+ -> \d+, RTT \d+ ms, variance \d+ ms"),
+    re.compile(r"Packet reception transport: report \d+, throttle \d+ of \d+, counter \d+, deceleration \d+, RTT \d+ ms, variance \d+ ms"),
+    re.compile(r"Packet reception transport: reports retired, throttle deceleration \d+ restored"),
+)
 
 
 def git_apply(directory, patch, *arguments):
@@ -65,7 +83,7 @@ def copy_core(source, destination):
 
 
 def prepare_android_chain(source, destination):
-    """Unwind any patches the source already carries, then apply 0001..0011 in order."""
+    """Unwind any patches the source already carries, then apply 0001..0013 in order."""
     copy_core(source, destination)
     patches = sorted(PATCHES.glob("*.patch"))
     for patch in reversed(patches):
@@ -150,6 +168,9 @@ target_link_libraries(reception PRIVATE moonlight-common-c enet)
     def run_fixtures(self, command):
         ran = subprocess.run([str(self.harness), command], capture_output=True, text=True, timeout=60)
         output = ran.stdout + ran.stderr
+        if os.environ.get("NOVA_PACKET_RECEPTION_ECHO"):
+            # Retain the fixtures' measurement rows in evidence logs; assertions are unchanged.
+            print(f"\n=== {command} ===\n{output}", flush=True)
         self.assertNotIn("runtime error", output, output)
         self.assertNotIn("ERROR: AddressSanitizer", output, output)
         results = dict(re.findall(r"^CASE (\S+) (PASS|FAIL)", ran.stdout, re.MULTILINE))
@@ -186,6 +207,34 @@ target_link_libraries(reception PRIVATE moonlight-common-c enet)
     def test_stop_never_enqueues_a_report_after_retirement(self):
         self.run_fixtures("stop-publication")
 
+    def assert_transport_rows_are_bounded(self, output):
+        rows = re.findall(r"^TRANSPORT_ROW label=\S+ (.*)$", output, re.MULTILINE)
+        for row in rows:
+            self.assertTrue(any(pattern.fullmatch(row) for pattern in TRANSPORT_ROWS), row)
+        return rows
+
+    def test_reports_survive_the_enet_throttle_under_bad_rtt(self):
+        output = self.run_fixtures("transport-throttle")
+        sessions = {label: dict(re.findall(r"(\w+)=(\d+)", fields))
+                    for label, fields in re.findall(r"^TRANSPORT label=(\S+) (.*)$", output, re.MULTILINE)}
+        stock, candidate = sessions["stock"], sessions["candidate"]
+        # Same scripted RTT: stock ENet silently discards enqueued reports with the field's
+        # counter signature; the configured peer delivers every one, once, one per tick.
+        self.assertGreaterEqual(int(stock["missing_before_fec"]), 10, output)
+        self.assertEqual(int(stock["missing_before_fec_counter_zero"]), 0, output)
+        self.assertEqual(int(candidate["missing"]), 0, output)
+        self.assertEqual(int(candidate["reports"]), int(candidate["generated"]), output)
+        self.assertEqual(int(candidate["duplicates"]), 0, output)
+        self.assertEqual(int(candidate["host_deceleration_last"]), 0, output)
+        self.assertEqual(int(stock["host_deceleration_last"]), 2, output)
+        self.assertEqual(int(sessions["lowered"]["missing"]), 0, output)
+        self.assertTrue(self.assert_transport_rows_are_bounded(output), output)
+
+    def test_transport_scope_reconnect_and_retirement(self):
+        output = self.run_fixtures("transport-lifecycle")
+        self.assertEqual(len(re.findall(r"^TRANSPORT_NONELIGIBLE ", output, re.MULTILINE)), 7, output)
+        self.assert_transport_rows_are_bounded(output)
+
     def test_spec_carries_the_serializer_golden_encodings(self):
         ran = subprocess.run([str(self.harness), "golden"], capture_output=True, text=True, timeout=20)
         self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
@@ -198,7 +247,7 @@ target_link_libraries(reception PRIVATE moonlight-common-c enet)
 
 
 class PacketReceptionPatchChainTest(unittest.TestCase):
-    """The new patch applies after the existing ten and on the Deck's own chain."""
+    """The reception patches apply after the existing ten and on the Deck's own chain."""
 
     def setUp(self):
         self.source = pathlib.Path(os.environ.get("NOVA_MOONLIGHT_SOURCE_DIR",
@@ -214,6 +263,7 @@ class PacketReceptionPatchChainTest(unittest.TestCase):
         self.assertIn("RtpvAddObservedPacket", (self.root / "android/src/VideoStream.c").read_text())
         self.assertIn("PYROWAVE_PROFILE_TOKEN", (self.root / "android/src/RtspConnection.c").read_text())
         self.assertIn("#define PACKET_RECEPTION_PTYPE 0x7F10", (self.root / "android/src/PacketReception.h").read_text())
+        self.assertIn("startReceptionTransport", (self.root / "android/src/ControlStream.c").read_text())
 
     def test_deck_chain_and_optional_pyrowave_carry_the_observer(self):
         android_patched = "PYROWAVE_PROFILE_TOKEN" in (self.source / "src/RtspConnection.c").read_text()
@@ -231,6 +281,7 @@ class PacketReceptionPatchChainTest(unittest.TestCase):
                 self.assertIn("RtpvAddObservedPacket", (destination / "src/VideoStream.c").read_text())
                 self.assertIn("MAX_RTSP_RESPONSE_SIZE", (destination / "src/RtspConnection.c").read_text())
                 self.assertIn("PacketReceptionNoteHostOffer", (destination / "src/RtspConnection.c").read_text())
+                self.assertIn("startReceptionTransport", (destination / "src/ControlStream.c").read_text())
 
     def test_reception_patch_only_touches_its_declared_files(self):
         text = (PATCHES / RECEPTION_PATCH).read_text()
@@ -240,6 +291,15 @@ class PacketReceptionPatchChainTest(unittest.TestCase):
             "src/Platform.h", "src/RtpVideoQueue.c", "src/RtpVideoQueue.h", "src/RtspConnection.c",
             "src/SdpGenerator.c", "src/VideoStream.c",
         ])
+
+    def test_transport_patch_only_touches_its_declared_files(self):
+        text = (PATCHES / TRANSPORT_PATCH).read_text()
+        touched = sorted(set(re.findall(r"^\+\+\+ b/(\S+)", text, re.MULTILINE)))
+        self.assertEqual(touched, ["src/ControlStream.c", "src/PacketReception.c", "src/PacketReception.h"])
+        # Reports keep their unreliable, unsequenced transport; nothing in the patch makes them reliable.
+        added = "\n".join(line for line in text.splitlines() if line.startswith("+") and not line.startswith("+++"))
+        self.assertNotIn("ENET_PACKET_FLAG_RELIABLE", added)
+        self.assertIn("ENET_PACKET_FLAG_UNSEQUENCED", added)
 
 
 if __name__ == "__main__":

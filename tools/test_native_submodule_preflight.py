@@ -79,6 +79,8 @@ class NativeSubmodulePreflightTest(unittest.TestCase):
         self.assertTrue(APPLY_SCRIPT.is_file(), f"{APPLY_SCRIPT} is missing")
         script = APPLY_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("LI_RTP_TIMESTAMP_VERSION", script)
+        self.assertIn("startReceptionTransport", script)
+        self.assertIn("decodeUnit.rtpTimestamp = firstPacketRtpTimestamp", script)
         self.assertIn("am ", script, "the script does not apply the patch series")
         self.assertIn(
             "grep -q PYROWAVE_PROFILE_TOKEN",
