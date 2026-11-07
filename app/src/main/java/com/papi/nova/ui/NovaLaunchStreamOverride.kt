@@ -16,6 +16,18 @@ object NovaLaunchStreamOverride {
      */
     const val UNVERIFIED_SOURCE = "nova_explicit_launch_unverified_v1"
 
+    /** Caller intent only: Game must still obtain and validate a fresh host response. */
+    fun hasExplicitFpsOverride(raw: JSONObject?, requestedFps: Float): Boolean {
+        if (requestedFps <= 0f || !requestedFps.isFinite() ||
+            raw?.optString("normalization_reason") != NORMALIZATION_REASON) return false
+        val field = raw.optJSONObject("resolved_profile")?.optJSONObject("fields")
+            ?.optJSONObject("target_fps") ?: return false
+        return field.optString("source") == "explicit_launch_request" &&
+            field.optString("reason_code") == NORMALIZATION_REASON &&
+            field.opt("locked") == true && field.opt("normalized") == false &&
+            (field.opt("value") as? Number)?.toFloat() == requestedFps
+    }
+
     /**
      * The client-side fps pin: Tuning = High FPS means the Settings frame rate,
      * guaranteed. The other preferences leave the host in control.

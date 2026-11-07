@@ -10,6 +10,7 @@ import com.papi.nova.manager.LaunchRefusalReason
 import com.papi.nova.manager.StreamSyncManager
 import com.papi.nova.preferences.PreferenceConfiguration
 import com.papi.nova.shadows.ShadowMoonBridge
+import com.papi.nova.ui.NovaLaunchStreamOverride
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -26,6 +27,72 @@ import org.robolectric.util.ReflectionHelpers.ClassParameter.from
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[33],shadows=[ShadowMoonBridge::class])
 class GameTierDisplayTest {
+    private fun explicitFpsLaunch(hostFps: Int, normalized: Boolean = false, honorLock: Boolean = true,
+        setupFps: Int? = 60): Pair<Any, List<Array<Any>>> {
+        ShadowDisplayManager.setSupportedModes(0, mode(120f))
+        val game = Robolectric.buildActivity(Game::class.java).get()
+        game.prefConfig = PreferenceConfiguration().apply { bitrate = 30000 }
+        ReflectionHelpers.setField(game, "appUUID", "fixture-game")
+        // Reproduce #454: the paired plan says 120, but Play Setup explicitly chose 60.
+        val setup = NovaLaunchStreamOverride.compose(response(), null, setupFps, 1920, 1080, 120)!!
+        ReflectionHelpers.setField(game, "launchOptimizationJson", setup.toString())
+        val calls = mutableListOf<Array<Any>>()
+        game.novaApiClient = Mockito.mock(PolarisApiClient::class.java) { invocation ->
+            when (invocation.method.name) {
+                "identifyLaunchHost" -> PolarisLaunchHostKind.CURRENT_POLARIS
+                "getOptimization" -> {
+                    calls += invocation.arguments
+                    val locked = invocation.arguments[10] as Boolean
+                    val fps = if (locked && honorLock) hostFps else 120
+                    response().apply {
+                        val fields = getJSONObject("resolved_profile").getJSONObject("fields")
+                        for (name in listOf("display_width", "display_height", "target_fps")) {
+                            fields.getJSONObject(name).put("locked", locked)
+                        }
+                        fields.getJSONObject("target_fps").put("value", fps).put("normalized", normalized)
+                        fields.getJSONObject("display_mode").put("value", "1920x1080x$fps")
+                    }
+                }
+                else -> Mockito.RETURNS_DEFAULTS.answer(invocation)
+            }
+        }
+        val result = Game::class.java.declaredMethods.single { it.name == "loadLaunchOptimization" }
+            .apply { isAccessible = true }
+            .invoke(game, "Fixture", false, 1920, 1080, 60f, false, false, false, "auto")
+        return result to calls
+    }
+
+    @Test fun explicitSetup60IsLockedInTheFreshHostRequestAndRemains60() {
+        val (result, calls) = explicitFpsLaunch(60)
+        assertEquals(1, calls.size)
+        assertEquals(60f, calls.single()[9])
+        assertEquals(true, calls.single()[10])
+        assertFalse(ReflectionHelpers.getField<Boolean>(result, "policyBlocked"))
+        val resolved = ReflectionHelpers.getField<JSONObject>(result, "optimization")
+        assertEquals(60f, StreamSyncManager.resolveAutoSafeTargetFps(60f, resolved), 0.01f)
+    }
+
+    @Test fun hostCannotReplaceExplicitSetup60WithItsPaired120() {
+        val (result, _) = explicitFpsLaunch(120, honorLock = false)
+        assertTrue(ReflectionHelpers.getField<Boolean>(result, "policyBlocked"))
+        assertEquals(LaunchRefusalReason.DISPLAY_MODE, ReflectionHelpers.getField<Any>(result, "policyReason"))
+    }
+
+    @Test fun explicitFpsStillAllowsALowerNormalizedCapabilityLimit() {
+        val (result, _) = explicitFpsLaunch(30, normalized = true)
+        assertFalse(ReflectionHelpers.getField<Boolean>(result, "policyBlocked"))
+        val resolved = ReflectionHelpers.getField<JSONObject>(result, "optimization")
+        assertEquals(30f, StreamSyncManager.resolveAutoSafeTargetFps(60f, resolved), 0.01f)
+    }
+
+    @Test fun autoFpsStillUsesTheTrustedPaired120WithoutALaunchLock() {
+        val (result, calls) = explicitFpsLaunch(120, setupFps = null)
+        assertTrue("Auto keeps the validated host plan", calls.isEmpty())
+        assertFalse(ReflectionHelpers.getField<Boolean>(result, "policyBlocked"))
+        val resolved = ReflectionHelpers.getField<JSONObject>(result, "optimization")
+        assertEquals(120f, StreamSyncManager.resolveAutoSafeTargetFps(60f, resolved), 0.01f)
+    }
+
     private fun response():JSONObject {
         fun field(v:Any)=JSONObject().put("value",v).put("source","client_launch_request")
             .put("reason_code","requested").put("locked",false).put("normalized",false)
