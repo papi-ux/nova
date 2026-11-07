@@ -3200,11 +3200,20 @@ return blocked(com.papi.nova.manager.LaunchRefusalReason.HOST_TOO_OLD)
 }
 val observedManualMaximumKbps = com.papi.nova.preferences.NovaBitrateAdvice.manualMaximum(
 novaApiClient!!.getLaunchCapabilities()?.features?.manualBitrateMaxKbps)
+val explicitFpsOverride = try {
+NovaLaunchStreamOverride.hasExplicitFpsOverride(
+launchOptimizationJson?.let(::JSONObject), requestedFps)
+} catch (e:Exception) { false }
+// Re-resolve a Play Setup pin as caller intent, never as a trusted client-edited response.
+// The existing API locks a complete display mode; use the dimensions already reviewed
+// in Play Setup. High FPS already has a host-side cadence lock without locking dimensions.
+val explicitDisplayLock = displayLocked ||
+(explicitFpsOverride && !preference.equals("high_fps", ignoreCase = true))
 val callerRequest = com.papi.nova.manager.LaunchOptimizationRequestEnvelope(
 width = requestedWidth,
 height = requestedHeight,
 fps = requestedFps,
-displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,
+displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(explicitDisplayLock,
     com.papi.nova.manager.WorkerLaunchContract.isProfileApp(safeAppIdentity)),
 bitrateKbps = (if (bitrateLocked) prefConfig.meteredBitrate else prefConfig.bitrate).coerceAtMost(observedManualMaximumKbps),
 bitrateLocked = com.papi.nova.manager.NovaTierLaunchPolicy.bitrateLocked(prefConfig.videoFormat,

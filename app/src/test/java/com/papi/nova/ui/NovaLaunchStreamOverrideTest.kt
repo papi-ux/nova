@@ -15,6 +15,20 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class NovaLaunchStreamOverrideTest {
 
+    @Test
+    fun onlyTheMatchingExplicitFpsPinBecomesCallerLockIntent() {
+        val raw = deterministicBlob()
+        val resolutionOnly = NovaLaunchStreamOverride.compose(raw, choice("1280x720x120"), null, 1920, 1080, 60)
+        assertFalse(NovaLaunchStreamOverride.hasExplicitFpsOverride(raw, 60f))
+        assertFalse(NovaLaunchStreamOverride.hasExplicitFpsOverride(resolutionOnly, 60f))
+        val explicit = NovaLaunchStreamOverride.compose(raw, null, 60, 1920, 1080, 60)!!
+        assertTrue(NovaLaunchStreamOverride.hasExplicitFpsOverride(explicit, 60f))
+        assertFalse(NovaLaunchStreamOverride.hasExplicitFpsOverride(explicit, 120f))
+        explicit.getJSONObject("resolved_profile").getJSONObject("fields")
+            .getJSONObject("target_fps").put("source", "paired_client")
+        assertFalse(NovaLaunchStreamOverride.hasExplicitFpsOverride(explicit, 60f))
+    }
+
     private fun choice(targetMode: String, id: String = "balanced") = NovaDisplayResolutionChoice(
         id = id,
         title = "Balanced",

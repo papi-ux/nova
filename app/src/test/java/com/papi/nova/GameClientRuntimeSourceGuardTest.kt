@@ -57,7 +57,8 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("width = requestedWidth") &&
                 game.contains("height = requestedHeight") &&
                 game.contains("fps = requestedFps") &&
-                game.contains("displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,") &&
+                // Explicit FPS joins the caller's display lock before host validation.
+                game.contains("displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(explicitDisplayLock,") &&
                 !game.contains("queryWidth = resolution.width") &&
                 !game.contains("queryHeight = resolution.height") &&
                 !game.contains("queryFps = com.papi.nova.manager.StreamSyncManager") &&
@@ -127,7 +128,7 @@ class GameClientRuntimeSourceGuardTest {
                 game.contains("val containsNovaLaunchOverride =") &&
                 game.contains("NovaLaunchStreamOverride.NORMALIZATION_REASON") &&
                 game.contains(") == null && !containsNovaLaunchOverride)") &&
-                game.contains("displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(displayLocked,") &&
+                game.contains("displayLocked = com.papi.nova.manager.NovaTierLaunchPolicy.displayLocked(explicitDisplayLock,") &&
                 !game.contains("queryDisplayLocked = containsNovaLaunchOverride") &&
                 game.contains("return LaunchOptimizationDecision(optimizationResult, false, preference, true,\n" +
                     "manualBitrateMaximumKbps = observedManualMaximumKbps)")

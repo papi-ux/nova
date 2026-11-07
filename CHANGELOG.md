@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- On Android, an explicit per-game frame rate in Play Setup takes priority over the host's stored automatic profile when the stream starts, while host and device capability limits still apply.
 - The source-time test harness chooses Ninja when available, falls back to make, and reports a missing build tool before configuring CMake.
 - On Linux, Updates distinguishes an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. Copies without an update channel point to manual downloads, including the ARM64 Frame bundle.
 - On Linux, **System → Appearance → Reduce Motion** turns off Nova's interface transitions, including any already under way, and is remembered on the device. Otherwise, Updates eases new status in briefly; errors, progress, buttons and controller focus still respond at once. Updates also explains that Stable and Beta use the same Nova app, pairing and settings, that a channel installer applies once it is published on Nova Downloads, and that Nova never switches channels by itself. Copies without a channel, including Steam Frame's ARM64 download, keep updating from their release downloads.
