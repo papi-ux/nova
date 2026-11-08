@@ -36,12 +36,17 @@ concurrency:
 
 jobs:
   source:
-    if: github.repository == 'papi-ux/nova' && github.ref == 'refs/heads/master'
+    if: github.repository == 'papi-ux/nova-updates' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       commit: ${{ steps.release.outputs.commit }}
+      automation_commit: ${{ steps.release.outputs.automation_commit }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          repository: papi-ux/nova
+          ref: master
+          fetch-depth: 0
       - name: Validate published release and resolve its exact commit
         id: release
         env:
@@ -49,7 +54,11 @@ jobs:
           NOVA_TAG: ${{ inputs.release_tag }}
           NOVA_CHANNEL: ${{ inputs.channel }}
           NOVA_ARCH: ${{ inputs.arch }}
+          NOVA_QUALIFIED_SOURCE: c9b0104f7fc17cb9ec06577d354d105ff1a386e6
         run: |
+          # Refuse the old public automation before executing its helpers.
+          automation_commit="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$automation_commit"
           python3 - <<'PY'
           import os
           from tools.nova_flatpak_feed import BUILD_TAG, validate_build_target
@@ -57,11 +66,13 @@ jobs:
           if not BUILD_TAG.fullmatch(os.environ['NOVA_TAG']):
               raise SystemExit('Use a versioned release tag')
           PY
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${NOVA_TAG}" > release.json
+          gh api "repos/papi-ux/nova/releases/tags/${NOVA_TAG}" > release.json
           python3 tools/nova_flatpak_feed.py validate-release release.json --channel "$NOVA_CHANNEL"
-          source_commit="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${NOVA_TAG}" --jq .sha)"
+          source_commit="$(gh api "repos/papi-ux/nova/commits/${NOVA_TAG}" --jq .sha)"
           test "${#source_commit}" = 40
+          git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$source_commit"
           echo "commit=$source_commit" >> "$GITHUB_OUTPUT"
+          echo "automation_commit=$automation_commit" >> "$GITHUB_OUTPUT"
 
   build:
     needs: source
@@ -81,9 +92,12 @@ jobs:
         run: test "$NOVA_SIGNING_CONFIGURED" = true
       - uses: actions/checkout@v5
         with:
+          repository: papi-ux/nova
+          ref: ${{ needs.source.outputs.automation_commit }}
           path: automation
       - uses: actions/checkout@v5
         with:
+          repository: papi-ux/nova
           ref: ${{ needs.source.outputs.commit }}
           submodules: recursive
           path: source

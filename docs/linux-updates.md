@@ -56,19 +56,27 @@ the first public channel is available:
    tagging, include the [Linux update channels](https://updates.papi-ux.com/nova/) link in that
    release's checked-in notes so **Open Nova Downloads** leads users to the
    installer. Publish the feed before announcing the channel's availability.
-2. Enable GitHub Pages for this repository with **GitHub Actions** as its source.
-   Configure DNS, its custom domain `updates.papi-ux.com`, and direct HTTPS
+2. Use the dedicated publisher repository **`papi-ux/nova-updates`**, branch
+   **`main`**. Copy the reviewed `.github/workflows/flatpak-feed.yml` there and
+   enable GitHub Pages for **that publisher repository** with **GitHub Actions**
+   as its source. Keep Pages disabled on `papi-ux/nova`: GitHub reserves the
+   repository-name route `/nova/` even with a custom domain, which redirects
+   the existing product page. The separate publisher avoids that route.
+   Configure DNS, the publisher's custom domain `updates.papi-ux.com`, and direct HTTPS
    **before any rooted-feed workflow run**, including a `publish=false`,
    `bootstrap=true` rehearsal. DNS/TLS/transport failures remain fatal; they are
    never treated as the HTTP 404 that permits a first-feed bootstrap.
-   The artifact is rooted at `site/nova/`; the fixed root index links to the
-   existing product page `https://papi-ux.com/nova/`, which is not replaced.
+   The artifact remains rooted at `site/nova/`; the fixed root index links to
+   the product page `https://papi-ux.com/nova/` on the separate product site.
    Verify that the final feed URL serves directly without redirects: the app
    does not follow catalog redirects. DNS/Pages changes are owner activation,
    not an effect of preparing this source.
 3. Keep a durable backup of a dedicated Flatpak signing key. Store its base64
    encoded private export under the workflow's existing secret name
-   `FLATPAK_GPG_PRIVATE_KEY`.
+   `FLATPAK_GPG_PRIVATE_KEY` in **`papi-ux/nova-updates`**, not in Nova or the
+   product-site repository. An existing package-signing key is a feed identity
+   only after the owner selects it and its private availability and backup are
+   verified; finding its public key alone does not establish either.
    The workflow expects one primary signing key usable noninteractively. Never
    commit private signing material. Keep this key across releases; changing it
    is a separate trust migration. The owner must publish the public fingerprint
@@ -76,8 +84,11 @@ the first public channel is available:
    yet. Descriptors embed the public key. A production signing environment or
    reviewer is an owner configuration choice at activation; this source adds
    no manual approval gate or environment prerequisite to private rehearsal.
-4. Run **Stage or publish Linux updates** from master with the published tag,
-   the intended channel and architecture, `bootstrap=true`, and `publish=false`.
+4. Run **Stage or publish Linux updates** in **`papi-ux/nova-updates` from main**
+   with the published **Nova** tag, the intended channel and architecture,
+   `bootstrap=true`, and `publish=false`. Do not dispatch the old Nova-hosted
+   workflow. The publisher's own `GITHUB_TOKEN` reads public Nova source/releases
+   and deploys its own Pages artifact; no cross-repository PAT is needed.
    Supported builds are `x86_64/stable`, `x86_64/beta` and `aarch64/beta`; the job
    checks that its native runner matches the selected architecture. Inspect the
    staged site and bundle. The job verifies the generated repository's summary
@@ -88,8 +99,18 @@ the first public channel is available:
    A network error, missing/stale catalog or bad signature aborts
    publication. Bootstrap is accepted only when no existing summary is present.
 
-The workflow checks out the release's resolved commit, builds the app with its
-channel, signs it, creates `.flatpakref` installers and a `.flatpakrepo`, and
+All source and release requests explicitly target **`papi-ux/nova`**, while
+workflow runs, artifacts, secrets and Pages belong to **`papi-ux/nova-updates`**.
+The source job checks out Nova master with full history and requires the
+qualified source baseline `c9b0104f7fc17cb9ec06577d354d105ff1a386e6` in both
+its automation history and the selected release commit's history. The old
+public automation is refused before its helpers run. The build then pins its
+Nova automation checkout to that exact admitted commit, independently of the
+release checkout, so a later master update cannot replace the admitted helper.
+This does not promote source or qualify a public release by itself.
+
+The workflow checks out the Nova release's resolved commit, builds the app with
+its channel, signs it, creates `.flatpakref` installers and a `.flatpakrepo`, and
 stages the complete site as a Pages artifact. It also retains a bundle that
 includes the repository URL and public key. Publication is an explicit workflow
 input, off by default and separate from ordinary PR builds and Android releases.

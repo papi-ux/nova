@@ -460,6 +460,34 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow_url, cmake_url)
         self.assertEqual(cmake_url, "https://updates.papi-ux.com/nova")
 
+    def test_publisher_keeps_source_and_release_identity_in_the_nova_repository(self):
+        workflow = (self.root / ".github/workflows/flatpak-feed.yml").read_text()
+        self.assertIn("if: github.repository == 'papi-ux/nova-updates' && github.ref == 'refs/heads/main'", workflow)
+        checkouts = [block.split("\n      - ", 1)[0]
+                     for block in workflow.split("      - uses: actions/checkout@v5\n")[1:]]
+        self.assertEqual(len(checkouts), 3)
+        for checkout in checkouts:
+            self.assertIn("repository: papi-ux/nova", checkout)
+        self.assertIn("ref: master", checkouts[0])
+        self.assertIn("fetch-depth: 0", checkouts[0])
+        self.assertIn("ref: ${{ needs.source.outputs.automation_commit }}", checkouts[1])
+        self.assertIn("ref: ${{ needs.source.outputs.commit }}", checkouts[2])
+        self.assertIn('repos/papi-ux/nova/releases/tags/${NOVA_TAG}', workflow)
+        self.assertIn('repos/papi-ux/nova/commits/${NOVA_TAG}', workflow)
+        self.assertNotIn('${GITHUB_REPOSITORY}', workflow)
+        self.assertIn('NOVA_QUALIFIED_SOURCE: c9b0104f7fc17cb9ec06577d354d105ff1a386e6', workflow)
+        for binding in ['git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$automation_commit"',
+                        'git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$source_commit"',
+                        'echo "automation_commit=$automation_commit" >> "$GITHUB_OUTPUT"',
+                        'automation_commit: ${{ steps.release.outputs.automation_commit }}']:
+            self.assertIn(binding, workflow)
+        self.assertLess(workflow.index('git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$automation_commit"'),
+                        workflow.index("from tools.nova_flatpak_feed import"))
+        self.assertIn('GH_TOKEN: ${{ github.token }}', workflow)
+        self.assertIn('pages: write', workflow)
+        self.assertIn('id-token: write', workflow)
+        self.assertNotIn('secrets.GH_TOKEN', workflow)
+
     def test_actual_workflow_preflight_refuses_unsupported_inputs_before_release_requests(self):
         workflow = (self.root / ".github/workflows/flatpak-feed.yml").read_text()
         preflight = textwrap.dedent(re.search(r"python3 - <<'PY'\n(.*?)\n          PY", workflow, re.DOTALL).group(1))
