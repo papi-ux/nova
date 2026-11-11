@@ -134,6 +134,8 @@ internal class NovaWorkingBaselinePages(
         message = NovaWorkingBaselineText.compared(context, flow.compare()),
         closeLabel = context.getString(R.string.nova_working_baseline_done),
         monospace = true,
+        // When each reading was marked is its first lines: the page opens on them.
+        readFirst = true,
     )
 
     /**

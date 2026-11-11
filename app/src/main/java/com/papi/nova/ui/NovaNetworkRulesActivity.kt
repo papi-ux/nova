@@ -100,7 +100,7 @@ class NovaNetworkRulesActivity : NovaActivity() {
 private fun <T> List<T>.after(current: T): T = this[(indexOf(current) + 1).mod(size)]
 
 @Composable
-private fun NetworkRulesScreen(
+internal fun NetworkRulesScreen(
     hostName: String,
     rules: HostNetworkRules,
     profiles: List<SettingsProfile>,
@@ -119,11 +119,15 @@ private fun NetworkRulesScreen(
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             val label = stringResource(R.string.nova_network_rules_enabled)
+            // With no saved profile the switch is the only stop, so it carries why it can do nothing
+            // yet: the sentence under it is never reached with a D-pad, and TalkBack never said it (#470).
+            val noProfiles = stringResource(R.string.nova_network_rules_no_profiles)
+            val spoken = if (profiles.isEmpty()) "$label. $noProfiles" else label
             Text(label, modifier = Modifier.weight(1f))
             Switch(
                 checked = rules.enabled,
                 onCheckedChange = { onChange(rules.copy(enabled = it)) },
-                modifier = Modifier.testTag(NovaNetworkRulesActivity.TAG_ENABLED).semantics { contentDescription = label },
+                modifier = Modifier.testTag(NovaNetworkRulesActivity.TAG_ENABLED).semantics { contentDescription = spoken },
             )
         }
         Text(stringResource(R.string.nova_network_rules_explainer), style = MaterialTheme.typography.bodySmall)

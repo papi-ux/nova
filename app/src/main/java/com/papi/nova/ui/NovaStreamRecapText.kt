@@ -194,6 +194,8 @@ internal object NovaStreamRecapPages {
             },
             // The end reason and the time are the report's first lines: the page opens on them.
             readFirst = true,
+            // The graph is no stop, so a screen reader on a remote hears its caption with the report.
+            readAlso = recap.fpsTrail?.let { NovaStreamRecapText.fpsTrail(context, recap, it) },
         )
 
     /**

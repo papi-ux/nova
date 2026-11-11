@@ -16,8 +16,8 @@ class NovaDoctorAiTest {
     private val connection = Any()
     private val scope = DoctorAiScope("session", 7, "doctor-network", "a".repeat(64), 9)
     private fun context(at: Long, scope: DoctorAiScope = this.scope, api: Any = this.api, connection: Any = this.connection,
-        available: Boolean = true, enabled: Boolean = true) = DoctorAiContext(api, connection,
-        DoctorAiReading(true, DoctorAiDescriptor(enabled, true, available, "", scope.sourceResultId, scope.findingFingerprint, scope.controllerRevision), scope, at))
+        available: Boolean = true, enabled: Boolean = true, reason: String = "") = DoctorAiContext(api, connection,
+        DoctorAiReading(true, DoctorAiDescriptor(enabled, true, available, reason, scope.sourceResultId, scope.findingFingerprint, scope.controllerRevision), scope, at))
     private val text = DoctorAiText("Optional cause", listOf("Evidence"), listOf("Prose"), "No setting writer")
 
     @Test fun observationsAndPageOpenSendNothingAndRepeatedPendingClickSendsOnce() = runTest {
@@ -115,6 +115,17 @@ class NovaDoctorAiTest {
             publication.get(2, java.util.concurrent.TimeUnit.SECONDS)
             assertTrue("Inline fetch held the model monitor", sawOrderedObservation.get())
         } finally { model.retire(); pool.shutdownNow(); jobs.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
+    }
+    /** Its own request makes the host busy: the page says it is explaining, not that the host is busy (#476). */
+    @Test fun anOwnPendingRequestIsNotCaptionedAsTheHostsRefusal() = runTest {
+        val reply = CompletableDeferred<DoctorAiResponse>()
+        val model = NovaDoctorAi(backgroundScope, { testScheduler.currentTime + 1 }) { _, _ -> reply.await() }
+        model.observe(context(1)); model.pageVisible(true); model.explain(); runCurrent()
+        model.observe(context(1, available = false, reason = "request_busy"))
+        assertEquals(NovaDoctorAiMessage.PENDING, model.state.value.message)
+        reply.complete(DoctorAiResponse(text, 1000)); runCurrent()
+        assertEquals(NovaDoctorAiMessage.EXPLAINED, model.state.value.message)
+        assertEquals(text, model.state.value.text)
     }
     @Test fun disabledOrUnavailableReadingDoesNotStartARequest() = runTest {
         var calls = 0

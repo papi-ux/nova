@@ -192,6 +192,12 @@ sealed interface NovaCommonPage : NovaPage {
         val destructive: Boolean,
         val onConfirm: () -> Unit,
         val onStay: () -> Unit = {},
+        /**
+         * For a result that arrives on its own after a wait, such as Moment Saved: its [message] is
+         * a polite live region, so a screen reader is told what happened, not only the name of the
+         * focused answer (#470). Nothing on screen changes.
+         */
+        val announce: Boolean = false,
     ) : NovaCommonPage
 
     /**
@@ -215,6 +221,12 @@ sealed interface NovaCommonPage : NovaPage {
         /** Makes [message] a row that takes focus and A, for a line that does something when pressed. */
         val onMessagePress: (() -> Unit)? = null,
         /**
+         * Words a screen reader is told after a [readFirst] message, for what stands under it and
+         * is no stop: the Last Stream graph's caption. With a TV remote TalkBack reads only what
+         * takes focus, so the graph was never described (#470). Nothing on screen changes.
+         */
+        val readAlso: String? = null,
+        /**
          * Makes [message] the page's first stop, for a report longer than the panel. The report
          * scrolls in an area of its own, sized so that [beforeActions] and the actions stay in view
          * under it; the page opens on it, at its top, Up and Down scroll it while it has focus, and
@@ -222,6 +234,14 @@ sealed interface NovaCommonPage : NovaPage {
          * long message is scrolled to its end with its start out of a D-pad's reach (#459).
          */
         val readFirst: Boolean = false,
+        /**
+         * Gives [message] an area of its own only when it is longer than the page has room for: it
+         * then scrolls there, with its start and the actions in view, and is a stop Up from the
+         * actions reaches. The action keeps the first focus, so the page's answer stays one press
+         * away. A message that fits is laid out and focused exactly as without this (#464). Where
+         * the page has to scroll as well, the message takes the first focus, as [readFirst] does.
+         */
+        val longMessageScrolls: Boolean = false,
     ) : NovaCommonPage
 
     /**
