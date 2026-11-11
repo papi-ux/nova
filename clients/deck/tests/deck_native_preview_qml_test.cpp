@@ -466,7 +466,10 @@ int main(int argc, char** argv) {
     session.transition("active", true, "Your game is connected.");
     settle();
     focused(*window, primary, "connected overlay must focus Continue game");
-    require(primary->property("text") == "Close" && end->isVisible(), "missing active controls");
+    // Intended input handoff (#485): a run connects with Command Center open and
+    // gameplay input held back; Continue, not Close, hands input to the game.
+    require(primary->property("text") == "Continue" && session.controlsVisible() && end->isVisible(),
+        "connect did not offer Continue to hand input to the game");
     const auto primaryBounds = primary->mapRectToScene(primary->boundingRect());
     const auto disconnectBounds = disconnect->mapRectToScene(disconnect->boundingRect());
     const auto endBounds = end->mapRectToScene(end->boundingRect());
@@ -513,6 +516,7 @@ int main(int argc, char** argv) {
     require(session.stops == 0 && session.starts == 1, "hidden controls must not receive play input");
     key(*window, Qt::Key_Escape);
     focused(*window, primary, "opening controls must recover visible focus");
+    require(primary->property("text") == "Close", "reopened Command Center did not offer Close after the handover");
     key(*window, Qt::Key_Escape);
     require(!session.controlsVisible(), "Escape from overlay must resume play");
     const auto point = controls->mapToScene(QPointF(controls->width() / 2, controls->height() / 2));
@@ -734,6 +738,13 @@ int main(int argc, char** argv) {
     settle();
     require(qAbs(primary->height() - disconnect->height()) < 1, "Close height drifted after connection state changes");
     screenshot("native-controls-960.png");
+    auto* commandScroll = root->findChild<QQuickItem*>("native-command-center-scroll");
+    require(commandScroll, "Command Center scroll missing");
+    const qreal scrolledTo = qMin<qreal>(160, commandScroll->property("contentHeight").toReal() - commandScroll->height());
+    require(scrolledTo > 0, "Command Center list too short to scroll in the 960x600 fixture");
+    commandScroll->setProperty("contentY", scrolledTo);
+    settle();
+    require(qAbs(commandScroll->property("contentY").toReal() - scrolledTo) < 1, "fixture could not scroll the Command Center list");
     tapItem(disconnect);
     require(session.disconnects == 1 && session.stops == stopsBeforeDisconnect, "touch Disconnect called End game");
     session.transition("disconnected", true, "Finishing disconnect…");
@@ -762,7 +773,14 @@ int main(int argc, char** argv) {
     require(!resumeReturn->isVisible(), "pending Resume left stale return controls");
     session.transition("active", true, "Game resumed.");
     settle();
-    require(primary->property("text") == "Close", "resumed stream lost input focus handoff");
+    require(primary->property("text") == "Continue" && session.controlsVisible(), "resumed stream lost input focus handoff");
+    require(commandScroll->property("contentY").toReal() < 1, "Resume kept the previous run's Command Center scroll position");
+    session.resumeInput();
+    settle();
+    // The View+Menu chord and Ctrl+Alt+Shift+M both reach session.showControls().
+    session.showControls();
+    settle();
+    require(primary->property("text") == "Close" && session.controlsVisible(), "chord reopen after the handover did not offer Close");
     tapItem(disconnect);
     session.transition("disconnected", false, "Disconnected without ending the game.");
     settle();
@@ -805,7 +823,7 @@ int main(int argc, char** argv) {
     require(session.reconnects == 2, "controller could not retry reconnect");
     session.transition("active", true, "Game resumed. Continue to send controls to the game.");
     settle();
-    require(primary->property("text") == "Close" && session.controlsVisible(), "reconnected game skipped input handoff");
+    require(primary->property("text") == "Continue" && session.controlsVisible(), "reconnected game skipped input handoff");
     session.allowResume = false;
     session.transition("interrupted", false, "The connection was interrupted. Return to the library and check this PC.");
     settle();
@@ -892,7 +910,7 @@ int main(int argc, char** argv) {
         "wake tap launched a new game instead of resuming");
     session.transition("active", true, "Game resumed. Continue to send controls to the game.");
     settle();
-    require(primary->property("text") == "Close" && session.controlsVisible(), "wake skipped input handoff");
+    require(primary->property("text") == "Continue" && session.controlsVisible(), "wake skipped input handoff");
     session.transition("disconnected", false, "Disconnected without ending the game.");
     settle();
     key(*window, Qt::Key_Escape);

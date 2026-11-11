@@ -1925,7 +1925,9 @@ Physical Deck/external-controller acceptance remains pending.
 
 The active native stream now forwards physical keyboard keys and direct mouse
 pointer movement, five mouse buttons, and vertical/horizontal wheel scrolling.
-Close Command Center to send input to the PC. **Ctrl + Alt + Shift + M** opens
+A stream connects with Command Center open and input held back, so the press
+that started it never reaches the game; **Continue** sends input to the PC.
+Reopened later, the same action reads **Close**. **Ctrl + Alt + Shift + M** opens
 Command Center; plain **Escape** goes to the game. The Deck View/Menu shortcut
 and touch access remain available. In Direct Pointer mode, Nova's HUD and Command Center clicks remain
 local, including drags that leave their bounds.

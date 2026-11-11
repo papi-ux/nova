@@ -97,6 +97,15 @@ Popup {
     readonly property bool reconnectAvailable: attempted && !nativeSessionState.sleeping && !nativeSessionState.busy && nativeSessionState.canReconnect === true && reviewCurrent
     readonly property bool recoveryAvailable: resumeAvailable || reconnectAvailable
     readonly property bool nativePlaying: !nativeSessionState.sleeping && nativeSessionState.phase === "active"
+    // Every run connects with Command Center open and gameplay input held back, so
+    // the press that started it never reaches the game (#485). Until the player hands
+    // input over, the primary action reads Continue; reopened later, it reads Close.
+    property bool inputHandedOver: false
+    onNativePlayingChanged: if (nativePlaying) {
+        inputHandedOver = false
+        commandScroll.cancelFlick()
+        commandScroll.contentY = 0
+    }
 
     property var streamDetailsReturn: null
     function openStreamDetails(bitrateFocused) {
@@ -195,6 +204,7 @@ Popup {
             })
         }
         function onControlsChanged() {
+            if (!session.controlsVisible && nativePreview.nativePlaying) nativePreview.inputHandedOver = true
             if (!session.controlsVisible) { liveBitrate.close(); doctor.close(); workingBaseline.closeAll(); momentReport.closeAll(); polarisSync.close(); videoScaling.close(); streamTools.close() }
             if (!nativePreview.opened) return
             Qt.callLater(function() {
@@ -503,6 +513,7 @@ Popup {
                 height: Math.ceil(actionCount / columns) * buttonHeight + (Math.ceil(actionCount / columns) - 1) * gap
             }
             NovaScrollColumn {
+                id: commandScroll
                 objectName: "native-command-center-scroll"
                 anchors.left: parent.left; anchors.right: parent.right
                 anchors.top: commandHeader.bottom; anchors.bottom: parent.bottom
@@ -904,7 +915,7 @@ Popup {
             width: nativePlaying ? commandHeader.buttonWidth : nativePreview.attempted ? 440 * nativePreview.unit : playSetup.footerActionWidth
             height: nativePlaying ? commandHeader.buttonHeight : nativePreview.attempted ? Math.max(60 * nativePreview.unit, implicitHeight) : Math.max(playSetup.footerActionHeight, implicitHeight)
             text: nativeSessionState.sleeping ? "Waiting for wake" : !nativePreview.attempted ? (nativePreview.resumeFromLibrary ? "Resume" : "Play")
-                : nativePlaying ? "Close" : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
+                : nativePlaying ? (nativePreview.inputHandedOver ? "Close" : "Continue") : reconnectAvailable ? "Reconnect" : resumeAvailable ? "Resume game"
                 : nativeSessionState.busy ? (nativeSessionState.automaticReconnect ? "Cancel reconnect" : "Cancel connection") : nativePreview.returnLabel
             visible: !nativePlaying || session.controlsVisible
             enabled: !nativeSessionState.sleeping && (nativePreview.attempted || (nativePreview.observedResumeAvailable && nativePreview.reviewValid && playSetup.launchModeAllowed && playSetup.setupAllowed && playSetup.plan.playable && (!presentationBridge || presentationBridge.ready)))
