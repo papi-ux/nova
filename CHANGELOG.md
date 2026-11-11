@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- On Android, the Library's **Last Stream** page opens at the top of its report, on why the stream ended and when, instead of scrolled to its end with focus on Save Report. The report scrolls in its own area, with the frame-rate line, Save Report and Close still in view under it. It is the page's first stop: Up and Down scroll it with a controller or a TV remote, and Down at its end moves on to Save Report, then Close.
 - On Android, an explicit per-game frame rate in Play Setup takes priority over the host's stored automatic profile when the stream starts, while host and device capability limits still apply.
 - The source-time test harness chooses Ninja when available, falls back to make, and reports a missing build tool before configuring CMake.
 - On Linux, Updates distinguishes an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. Copies without an update channel point to manual downloads, including the ARM64 Frame bundle.
