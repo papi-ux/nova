@@ -137,6 +137,21 @@ Popup {
         else if (nativePreviewAction.enabled) nativePreviewAction.forceActiveFocus()
         else playSetup.focusSettings()
     }
+    // Play Setup opens on a setting only when Play cannot be pressed yet, for example while this
+    // device's PyroWave check or the PC's answer is still on its way. If Play becomes available
+    // while focus is still where the page put it, focus goes to Play. Once the player has moved,
+    // it is never taken from them.
+    property Item openingFocus: null
+    readonly property Item focusNow: nativeStreamContent.Window.window ? nativeStreamContent.Window.window.activeFocusItem : null
+    onFocusNowChanged: if (openingFocus && focusNow !== openingFocus) openingFocus = null
+    Connections {
+        target: nativePreviewAction
+        function onEnabledChanged() {
+            if (!nativePreviewAction.enabled || !nativePreview.openingFocus) return
+            nativePreview.openingFocus = null
+            if (nativePreview.opened && !nativePreview.attempted) nativePreviewAction.forceActiveFocus()
+        }
+    }
     onReviewCurrentChanged: {
         if (opened && !attempted && !reviewCurrent) {
             reviewValid = false
@@ -207,8 +222,12 @@ Popup {
         playSetup.prepare()
         focusReview()
     }
-    onOpened: focusReview()
+    onOpened: {
+        focusReview()
+        openingFocus = !attempted && reviewValid && !nativePreviewAction.enabled ? focusNow : null
+    }
     onClosed: {
+        openingFocus = null
         resumeFromLibrary = false
         autoStartRequested = false
         launchArtworkShown = ""

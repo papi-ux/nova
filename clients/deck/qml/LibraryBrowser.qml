@@ -1055,8 +1055,12 @@ FocusScope {
                 font.weight: Font.DemiBold
             }
             CopyLabel {
+                objectName: "library-footer-hints"
+                // Back is offered only where it does something: it clears a search or filter, or
+                // returns to the games from the header. On a game with nothing to clear it does nothing.
+                readonly property bool backActs: constrained || !(browsing || emptyState.activeFocus)
                 text: search.activeFocus ? "A  Games     B  Clear search"
-                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + "     B  Back" + (browser.narrow ? "" : "     D-pad / Stick  Navigate     LB / RB  Page")
+                    : (browsing && visibleGames.length ? "A  Details" : "A  Select") + (backActs ? "     B  Back" : "") + (browser.narrow ? "" : "     D-pad / Stick  Navigate     LB / RB  Page")
                 color: NovaTheme.secondary
                 font.pixelSize: 16 * unit * NovaTheme.fontScale
             }
