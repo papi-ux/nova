@@ -606,6 +606,19 @@ int main(int argc, char** argv) {
     require(primary->isEnabled(), "late plan did not enable Play");
     focused(*window, movedTo, "a late Play took focus from a player who had moved");
     key(*window, Qt::Key_Escape);
+    // A press that leaves focus where it was is still the player's: no jump to Play after it.
+    preview->setProperty("streamCapabilities", QVariantMap{{"h264", false}});
+    require(QMetaObject::invokeMethod(preview, "open"), "cannot review unavailable codec for a press in place");
+    settle();
+    auto* openedOn = root->findChild<QQuickItem*>("play-setup-resolution");
+    focused(*window, openedOn, "press-in-place review lost settings focus");
+    key(*window, Qt::Key_X);
+    focused(*window, openedOn, "an unhandled key moved focus");
+    preview->setProperty("streamCapabilities", QVariantMap{{"h264", true}, {"maxFps", 30}});
+    settle();
+    require(primary->isEnabled(), "late plan did not enable Play after a press in place");
+    focused(*window, openedOn, "a late Play took focus from a player who had pressed a key");
+    key(*window, Qt::Key_Escape);
     preview->setProperty("streamCapabilities", QVariantMap{{"h264", false}});
     require(QMetaObject::invokeMethod(preview, "open"), "cannot review unavailable codec again");
     settle();
