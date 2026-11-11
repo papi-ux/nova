@@ -25,6 +25,8 @@ using DeckSpaceSelector = std::function<polaris::DeckPolarisResult<polaris::Deck
 
 // Standalone library requests have one owner and one immutable result. A failed
 // selection never borrows another PC's games or retains old launch authority.
+// An automatic check the PC did not answer keeps the list it was checking for a
+// few closer retries before the failure is shown.
 class DeckLibraryController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantMap state READ state NOTIFY stateChanged)
@@ -75,7 +77,7 @@ private:
     QTimer automaticTimer_;
     QElapsedTimer automaticClock_;
     qint64 nextRefreshMs_ = 0;
-    int intervalMs_ = 0, retryMs_ = 0, maxRetryMs_ = 0;
+    int intervalMs_ = 0, retryMs_ = 0, maxRetryMs_ = 0, silentRetries_ = 0;
     bool windowActive_ = false, seenActive_ = false, interactionPaused_ = true;
     bool automaticBlocked_ = false, closing_ = false;
     std::shared_ptr<Result> result_;

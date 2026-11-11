@@ -127,16 +127,18 @@ void testAutomaticRefresh() {
 
     fixture.mode = 4;
     controller.setWindowActive(true);
-    until([&] { return fixture.aCalls == 4 && !controller.busy(); });
-    processFor(50); // The first failure waits 80ms, twice the normal interval.
-    require(fixture.aCalls == 4, "offline retry ignored first backoff");
-    until([&] { return fixture.aCalls == 5 && !controller.busy(); });
+    // An unanswered check of a good list is reported after three closer retries (#460).
+    until([&] { return controller.state().value("failed").toBool() && !controller.busy(); });
+    require(fixture.aCalls == 7, "offline PC was not reported after its three closer retries");
+    processFor(50); // The reported failure waits 80ms, twice the normal interval.
+    require(fixture.aCalls == 7, "offline retry ignored first backoff");
+    until([&] { return fixture.aCalls == 8 && !controller.busy(); });
     processFor(100); // Further failures wait the capped 160ms interval.
-    require(fixture.aCalls == 5, "offline retry ignored capped backoff");
-    until([&] { return fixture.aCalls == 6 && !controller.busy(); });
+    require(fixture.aCalls == 8, "offline retry ignored capped backoff");
+    until([&] { return fixture.aCalls == 9 && !controller.busy(); });
     QElapsedTimer cappedWait;
     cappedWait.start();
-    until([&] { return fixture.aCalls == 7 && !controller.busy(); });
+    until([&] { return fixture.aCalls == 10 && !controller.busy(); });
     require(cappedWait.elapsed() < 300, "offline backoff grew past its cap");
 
     fixture.mode = 1;
