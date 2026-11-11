@@ -1276,6 +1276,14 @@ internal fun NovaDoctorAiDetails(state: NovaDoctorAiState, onExplain: () -> Unit
         NovaDoctorAiMessage.FALLBACK -> R.string.nova_doctor_ai_fallback
         NovaDoctorAiMessage.EXPLAINED -> R.string.nova_doctor_ai_informational
         NovaDoctorAiMessage.UNAVAILABLE -> R.string.nova_doctor_ai_unavailable
+        NovaDoctorAiMessage.STOPPING -> R.string.nova_doctor_ai_stopping
+        NovaDoctorAiMessage.IN_A_SPACE -> R.string.nova_doctor_ai_in_a_space
+        NovaDoctorAiMessage.NOT_ALLOWED -> R.string.nova_doctor_ai_not_allowed
+        NovaDoctorAiMessage.OWNER_ONLY -> R.string.nova_doctor_ai_owner_only
+        NovaDoctorAiMessage.PROVIDER_NOT_OFFERED -> R.string.nova_doctor_ai_provider_not_offered
+        NovaDoctorAiMessage.NOT_ELIGIBLE -> R.string.nova_doctor_ai_not_eligible
+        NovaDoctorAiMessage.BUSY -> R.string.nova_doctor_ai_busy
+        NovaDoctorAiMessage.RATE_LIMITED -> R.string.nova_doctor_ai_rate_limited
     })
     Column(Modifier.fillMaxWidth().padding(NovaPanelMetrics.SpaceMd)) {
         com.papi.nova.ui.compose.NovaActionSurface(

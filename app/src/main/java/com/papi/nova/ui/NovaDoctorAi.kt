@@ -25,7 +25,30 @@ internal data class DoctorAiContext(val api: Any, val connection: Any, val readi
         reading.descriptor?.enabled == true && reading.descriptor.permitted
 }
 
-enum class NovaDoctorAiMessage { UNAVAILABLE, DISABLED, READY, PENDING, FALLBACK, EXPLAINED }
+enum class NovaDoctorAiMessage {
+    UNAVAILABLE, DISABLED, READY, PENDING, FALLBACK, EXPLAINED,
+    // The host's own reasons for refusing (#476): each says what stands in the way.
+    STOPPING, IN_A_SPACE, NOT_ALLOWED, OWNER_ONLY, PROVIDER_NOT_OFFERED, NOT_ELIGIBLE, BUSY, RATE_LIMITED,
+}
+
+/**
+ * The message for the reason a host's paired descriptor gives for refusing an explanation
+ * (blocked_reason, Polaris src/doctor_ai_explanation.cpp), or null for none or one this build does
+ * not know. Every refusal read "unavailable for this reading", which pointed the player at the
+ * reading whatever the reason was (#476).
+ */
+internal fun novaDoctorAiRefusal(blockedReason: String): NovaDoctorAiMessage? = when (blockedReason) {
+    "server_stopping" -> NovaDoctorAiMessage.STOPPING
+    "unsupported_scope" -> NovaDoctorAiMessage.IN_A_SPACE
+    "permission_required" -> NovaDoctorAiMessage.NOT_ALLOWED
+    "active_owner_required" -> NovaDoctorAiMessage.OWNER_ONLY
+    "host_ai_disabled" -> NovaDoctorAiMessage.DISABLED
+    "provider_not_ready" -> NovaDoctorAiMessage.PROVIDER_NOT_OFFERED
+    "evidence_unavailable" -> NovaDoctorAiMessage.NOT_ELIGIBLE
+    "request_busy" -> NovaDoctorAiMessage.BUSY
+    "rate_limited" -> NovaDoctorAiMessage.RATE_LIMITED
+    else -> null
+}
 
 data class NovaDoctorAiState(
     val enabled: Boolean = false,
@@ -92,16 +115,21 @@ internal class NovaDoctorAi(
         val c = context
         val valid = visible && c?.valid(now()) == true
         val ready = valid && c?.reading?.descriptor?.available == true
+        // The host's first reason, which it checks in order; it names a stopping host even where AI is off.
+        val refusal = c?.reading?.takeIf { it.supported }?.descriptor?.let { novaDoctorAiRefusal(it.blockedReason) }
         val previous = mutable.value
         mutable.value = previous.copy(enabled = ready && request == null,
             ageSeconds = if (previous.text != null) ((now() - capturedAtMs) / 1000).coerceAtLeast(0) else 0,
             message = when {
+                !valid && refusal != null -> refusal
                 !valid && c?.reading?.supported == true && c.reading.descriptor?.enabled == false -> NovaDoctorAiMessage.DISABLED
                 !valid -> NovaDoctorAiMessage.UNAVAILABLE
+                // Nova's own request is what makes the host busy: it is explaining, not refusing.
                 request != null -> NovaDoctorAiMessage.PENDING
                 previous.text != null -> NovaDoctorAiMessage.EXPLAINED
                 previous.message == NovaDoctorAiMessage.FALLBACK -> NovaDoctorAiMessage.FALLBACK
                 ready -> NovaDoctorAiMessage.READY
+                refusal != null -> refusal
                 else -> NovaDoctorAiMessage.UNAVAILABLE
             })
     }

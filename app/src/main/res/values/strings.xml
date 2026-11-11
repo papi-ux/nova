@@ -2282,6 +2282,15 @@
     <string name="nova_doctor_ai_ready">Ask for an optional explanation of this reading.</string>
     <string name="nova_doctor_ai_disabled">Enable AI explanations on your host to use this.</string>
     <string name="nova_doctor_ai_unavailable">AI explanation is unavailable for this reading.</string>
+    <!-- Why the host refused, one per blocked_reason it can send (#476). -->
+    <string name="nova_doctor_ai_stopping">Your host is stopping this stream.</string>
+    <string name="nova_doctor_ai_in_a_space">AI explanations aren\'t offered for a stream in a Space.</string>
+    <string name="nova_doctor_ai_not_allowed">Your host hasn\'t given this device permission to ask.</string>
+    <string name="nova_doctor_ai_owner_only">Only the device playing this stream can ask, while no one else is watching.</string>
+    <string name="nova_doctor_ai_provider_not_offered">Your host\'s AI provider isn\'t offered to Nova. Try Explain with AI in Mission Control.</string>
+    <string name="nova_doctor_ai_not_eligible">This reading can\'t be explained with AI.</string>
+    <string name="nova_doctor_ai_busy">Your host is busy with another explanation. Try again in a moment.</string>
+    <string name="nova_doctor_ai_rate_limited">Too many explanations just now. Try again shortly.</string>
     <string name="nova_doctor_ai_pending">Explaining this reading…</string>
     <string name="nova_doctor_ai_fallback">AI explanation was unavailable. The Doctor reading and its controls are still available.</string>
     <string name="nova_doctor_ai_informational">Informational explanation. Doctor diagnosis and controls remain unchanged.</string>
