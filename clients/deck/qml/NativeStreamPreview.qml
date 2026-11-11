@@ -139,8 +139,8 @@ Popup {
     }
     // Play Setup opens on a setting only when Play cannot be pressed yet, for example while this
     // device's PyroWave check or the PC's answer is still on its way. If Play becomes available
-    // while focus is still where the page put it, focus goes to Play. Once the player has moved,
-    // it is never taken from them.
+    // while focus is still where the page put it, focus goes to Play. Once the player has moved
+    // focus, pressed any key, opened a choice or changed a value, it is never taken from them.
     property Item openingFocus: null
     readonly property Item focusNow: nativeStreamContent.Window.window ? nativeStreamContent.Window.window.activeFocusItem : null
     onFocusNowChanged: if (openingFocus && focusNow !== openingFocus) openingFocus = null
@@ -321,6 +321,10 @@ Popup {
         }
         PlaySetup {
             id: playSetup
+            // Seen here before any ancestor and never accepted: every key a row did not handle.
+            // Keys a row does handle move focus or open its choices, which cancel it as well.
+            Keys.onPressed: (event) => { nativePreview.openingFocus = null }
+            onConfigurationChanged: nativePreview.openingFocus = null
             hostSettingsController: nativePreview.hostSettingsController
             gameTools: nativePreview.gameTools
             anchors.fill: parent
@@ -338,7 +342,7 @@ Popup {
             destinationName: nativePreview.reviewedDestinationName
             editable: nativePreview.reviewValid
             returnLabel: nativePreview.returnLabel
-            onChoiceOpened: nativePreview.autoStartRequested = false
+            onChoiceOpened: { nativePreview.autoStartRequested = false; nativePreview.openingFocus = null }
             onFocusPlayRequested: nativePreview.focusReview()
             onBackRequested: nativePreview.close()
             onHostDefaultsMayHaveChanged: {
