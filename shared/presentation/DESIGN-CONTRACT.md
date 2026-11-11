@@ -229,6 +229,17 @@ local mapper is active even if host source-pacing proof is missing/stale; in tha
 case the separate fallback fact records the host gap. Local safety fallbacks take
 precedence. Host status alone never promotes the client to source_time_fixed or
 source_time_vrr. Nominal Hz is separate and no adaptive-refresh request is sent.
+
+NovaHUD words the host gap instead of printing it, because it is not a fallback:
+the two host reasons only replace a local `none`, so delivery here is source-time
+paced and only the host's own pacing is unproven. The third line reads
+`Host pacing not confirmed` when the host's current record for this stream does
+not prove source pacing, `Host pacing not reported` when there is no record
+(absent or null, including no host readings), `Host pacing status unreadable`
+for a malformed record and `Host pacing status out of date` for
+`host_status_stale`. Every local reason, and `none`, still reads
+`Fallback <reason>`. The HUD readings, the qualification trace and logs keep the
+raw tokens.
 The canonical schema/generator are explicitly re-vendored byte-for-byte from the
 pin and outputs regenerated with the Nova driver, including shared Kotlin names;
 Android application source remains untouched.

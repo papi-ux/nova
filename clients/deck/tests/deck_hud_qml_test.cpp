@@ -217,14 +217,46 @@ ApplicationWindow {
         root->setProperty("sample", original); settle();
         require(!item("hud-chip-hdr")->isVisible(), "the HDR10 chip outlived its reading");
         auto source = base; source["sourceTimeRequested"]="source_time";
-        source["sourceTimeEffective"]="pending"; source["sourceTimeFallback"]="host_status_missing";
+        source["sourceTimeEffective"]="pending"; source["sourceTimeFallback"]="clock_mapping_unstable";
         root->setProperty("sample",source); settle();
         require(item("hud-source-time-requested")->property("text")=="Host timing requested source_time" &&
             item("hud-source-time-effective")->property("text")=="Effective pending" &&
-            item("hud-source-time-fallback")->property("text")=="Fallback host_status_missing", "source timing facts were conflated");
+            item("hud-source-time-fallback")->property("text")=="Fallback clock_mapping_unstable", "source timing facts were conflated");
         textBounds(hud);
         mode("minimal"); require(item("hud-source-time-fallback")->isVisible(), "explicit source timing fallback disappeared in minimal HUD");
-        mode("performance"); root->setProperty("sample",original); settle();
+        mode("performance");
+        const auto fallbackLine = [&](const QVariantMap& reading) {
+            root->setProperty("sample", reading); settle(); return item("hud-source-time-fallback")->property("text").toString();
+        };
+        // A real local fallback, and none, keep their reason whatever the host reported.
+        for (const char* local : {"none", "not_requested", "renderer_not_participating", "pacing_mode_incompatible",
+                 "source_timestamp_missing", "source_discontinuity", "timing_metadata_missing", "clock_mapping_unstable",
+                 "buffer_limit", "decoder_pressure", "hold_ceiling_exceeded", "stale_epoch", "stale_frame"}) {
+            auto localReason = source; localReason["sourceTimeFallback"] = local; localReason["hostSourceTimeStatus"] = "present";
+            require(fallbackLine(localReason) == QString("Fallback ") + local, "a local source timing fallback lost its reason");
+        }
+        // #484: Auto on a fixed-refresh display. Delivery here is source-time paced and the host
+        // answered without proving its own pacing, which is not a fallback. Requested and
+        // Effective keep their readings.
+        auto hostGap = base; hostGap["sourceTimeRequested"]="auto"; hostGap["sourceTimeEffective"]="source_time_fixed";
+        hostGap["sourceTimeFallback"]="host_status_missing"; hostGap["hostSourceTimeStatus"]="present";
+        require(fallbackLine(hostGap)=="Host pacing not confirmed" &&
+            item("hud-source-time-requested")->property("text")=="Host timing requested auto" &&
+            item("hud-source-time-effective")->property("text")=="Effective source_time_fixed",
+            "unproven host pacing read as a source timing fallback");
+        textBounds(hud);
+        // No host record for this stream, including no host readings at all.
+        for (const char* absent : {"absent", "null"}) {
+            hostGap["hostSourceTimeStatus"] = absent;
+            require(fallbackLine(hostGap)=="Host pacing not reported", "an absent host record read as a fallback");
+        }
+        hostGap.remove("hostSourceTimeStatus");
+        require(fallbackLine(hostGap)=="Host pacing not reported", "missing host readings read as a fallback");
+        hostGap["hostSourceTimeStatus"]="malformed";
+        require(fallbackLine(hostGap)=="Host pacing status unreadable", "a malformed host record lost its identity");
+        hostGap["hostSourceTimeStatus"]="present"; hostGap["sourceTimeFallback"]="host_status_stale";
+        require(fallbackLine(hostGap)=="Host pacing status out of date", "a stale host record lost its identity");
+        root->setProperty("sample",original); settle();
         require(!item("hud-source-time")->isVisible(), "source timing facts outlived their request");
         // The display-mode chip is Qt's reported mode for this window's screen, beside fresh
         // stream readings only. It is never a delivered frame rate.
