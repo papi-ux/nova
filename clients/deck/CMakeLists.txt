@@ -923,6 +923,8 @@ if(NOVA_DECK_BUILD_QT_SHELL)
                 qml/MomentReport.qml
                 qml/StreamRecap.qml
                 qml/NowPlayingPill.qml
+                qml/StreamAction.qml
+                qml/EndConfirmation.qml
                 qml/NovaButton.qml
                 qml/NovaScrollColumn.qml
                 qml/SteamControls.qml

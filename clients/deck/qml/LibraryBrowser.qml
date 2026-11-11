@@ -99,6 +99,7 @@ FocusScope {
     readonly property bool browsing: grid.activeFocus || (grid.currentItem && grid.currentItem.activeFocus)
         || emptyState.activeFocus
     readonly property bool interactionPaused: detailOpen || destinations.opened || options.opened || systemMenu.opened
+        || resumePill.confirmingEnd || detailEndConfirmation.opened
         || sourcePicker.opened || morePicker.opened || sortPicker.opened || faceDefaultPicker.opened
         || settingsHub.opened || polarisSync.opened || audioSettings.opened || rumbleSettings.opened || appearanceSettings.opened || powerSheet.opened || wakeSheet.opened || appSteamSheet.opened || !browsing
     readonly property string layoutMode: preferences.layoutMode
@@ -239,6 +240,8 @@ FocusScope {
         if (options.opened) { options.close(); return }
         if (polarisSync.opened) { polarisSync.close(); return }
         if (systemMenu.opened) { systemMenu.close(); return }
+        if (resumePill.confirmingEnd) { resumePill.cancelEnd(); return }
+        if (detailEndConfirmation.opened) { detailEndConfirmation.close(); return }
         if (detailOpen) { detailOpen = false; Qt.callLater(focusGame); return }
         if (search.activeFocus) { search.clear(); focusGame(); return }
         if (constrained) clearConstraints()
@@ -1060,6 +1063,15 @@ FocusScope {
         }
     }
 
+    EndConfirmation {
+        id: detailEndConfirmation
+        objectName: "game-detail-end-confirmation"
+        namePrefix: "game-detail-end"
+        unit: browser.unit
+        frame: Overlay.overlay
+        onClosed: Qt.callLater(function() { if (detailEnd.visible && detailEnd.enabled) detailEnd.forceActiveFocus(); else browser.focusGame() })
+        onConfirmed: if (detailEnd.visible && detailEnd.enabled && browser.resumeController) browser.resumeController.endSession()
+    }
     DestinationPicker {
         id: destinations
         controller: browser.libraryController
@@ -1314,7 +1326,9 @@ FocusScope {
                     id: detailEnd; objectName: "game-detail-end-session"
                     text: "End Session"; visible: browser.selectedResumable
                     enabled: !browser.sessionBusy && browser.resumeState.canEnd === true && !browser.resumeState.busy
-                    onClicked: if (browser.resumeController) browser.resumeController.endSession()
+                    onClicked: detailEndConfirmation.open()
+                    onEnabledChanged: if (!enabled) detailEndConfirmation.close()
+                    onVisibleChanged: if (!visible) detailEndConfirmation.close()
                     Keys.onLeftPressed: playButton.forceActiveFocus()
                     Keys.onRightPressed: artworkButton.forceActiveFocus()
                     Keys.onUpPressed: detailBack.forceActiveFocus()

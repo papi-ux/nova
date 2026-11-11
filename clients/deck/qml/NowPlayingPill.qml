@@ -13,7 +13,13 @@ FocusScope {
     implicitHeight: content.implicitHeight + 16 * unit
     objectName: namePrefix + "-now-playing"
     signal resumeRequested()
+    // Sent only from the confirmation: End Session asks before the game is closed on the PC.
     signal endRequested()
+    readonly property bool canEnd: actionsEnabled && sessionState.canEnd === true && !sessionState.busy
+    readonly property bool confirmingEnd: endConfirmation.opened
+    function cancelEnd() { endConfirmation.close() }
+    onCanEndChanged: if (!canEnd) endConfirmation.close()
+    onVisibleChanged: if (!visible) endConfirmation.close()
     signal leaveUp()
     signal leaveDown()
     function focusResume() { if (resume.enabled) resume.forceActiveFocus(); else leaveUp() }
@@ -52,13 +58,22 @@ FocusScope {
             NovaButton {
                 id: end; objectName: pill.namePrefix + "-end-session"
                 Layout.fillWidth: pill.compact; unit: pill.unit; text: "End Session"
-                enabled: pill.actionsEnabled && pill.sessionState.canEnd === true && !pill.sessionState.busy
-                onClicked: pill.endRequested()
+                enabled: pill.canEnd
+                onClicked: endConfirmation.open()
                 Keys.onLeftPressed: resume.forceActiveFocus()
                 Keys.onRightPressed: pill.leaveUp()
                 Keys.onUpPressed: pill.leaveUp()
                 Keys.onDownPressed: pill.leaveDown()
             }
         }
+    }
+    EndConfirmation {
+        id: endConfirmation
+        objectName: pill.namePrefix + "-end-confirmation"
+        namePrefix: pill.namePrefix + "-end"
+        unit: pill.unit
+        frame: Overlay.overlay
+        onClosed: Qt.callLater(function() { if (pill.visible && end.enabled) end.forceActiveFocus(); else pill.leaveDown() })
+        onConfirmed: if (pill.canEnd) pill.endRequested()
     }
 }
