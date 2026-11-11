@@ -532,6 +532,12 @@ class PcGridAdapter(
         val playing = action.playing
         pill.background = NovaViewBridge.primaryButton(context)
         pill.isSelected = parentView.isFocused
+        // Every host poll rebinds the card and gives the pill a new background. A view hands a new
+        // background its state before it becomes the drawable's callback, so on a card that already
+        // holds focus the fade to the accent began with nobody to run it and stopped at its first
+        // frame: the accent at nothing over the tile, under a label already in its on-accent colour,
+        // until focus left (#469). A new background shows the state it is in at once.
+        pill.background.jumpToCurrentState()
         primaryAction?.visibility = View.GONE
         holder.nowPlayingText?.let {
             it.text = novaNowPlayingWords(context, playing)
