@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <QTcpSocket>
 #include <QCryptographicHash>
+#include <QDebug>
 
 namespace nova::deck::runtime {
 namespace {
@@ -76,6 +77,20 @@ QString blockedCopy(const polaris::DeckSpaces& spaces) {
 QVariantMap state(bool busy, bool failed, const QString& copy, bool automatic = false) {
     return {{"busy", busy}, {"failed", failed}, {"copy", copy}, {"automatic", automatic}};
 }
+
+// A PC that is ending a session answers nothing until the game has closed, then answers
+// normally. Only that silence is waited out; any answer, even a refusal, is reported at once.
+bool gaveNoAnswer(polaris::DeckPolarisRequestStatus status) {
+    return status == polaris::DeckPolarisRequestStatus::Timeout || status == polaris::DeckPolarisRequestStatus::Unreachable;
+}
+constexpr int kSilentRetries = 3;
+
+// One line per automatic check, for telling a held-back retry from one that ran and failed.
+// Status, outcome and wait only: never a host name, address, port or token.
+void logAutomaticCheck(std::string_view status, const char* outcome, qint64 nextMs) {
+    qInfo().noquote() << "Nova Deck library check:" << "status=" + QString::fromUtf8(status.data(), qsizetype(status.size()))
+                      << QString("result=") + outcome << (nextMs < 0 ? QString("next=none") : QString("next_ms=%1").arg(nextMs));
+}
 } // namespace
 
 struct DeckLibraryController::Result {
@@ -83,6 +98,9 @@ struct DeckLibraryController::Result {
     QString copy = "The game list could not be refreshed. Try again.";
     bool failed = true;
     bool automatic = false, retryAllowed = true, changing = false;
+    // An automatic check of a list that was good, which the selected PC did not answer.
+    bool keepsList = false, silent = false;
+    std::string_view status = "no-result"; // describe() of the selected PC's probe; static text.
 };
 
 DeckLibraryController::DeckLibraryController(std::optional<identity::DeckMoonlightIdentity> identity,
@@ -403,6 +421,9 @@ bool DeckLibraryController::request(const QString& hostId, bool automatic, const
     result_ = std::make_shared<Result>();
     result_->automatic = automatic;
     result_->changing = !destination.isEmpty();
+    const auto* shown = selectedProbe(snapshot_);
+    result_->keepsList = automatic && !state_.value("failed").toBool() && hostId == selectedHost() &&
+        shown && shown->status == polaris::DeckPolarisRequestStatus::Ok;
     result_->snapshot = snapshot_;
     result_->snapshot.selectedHostId = hostId.toStdString();
     result_->snapshot.library.games.clear();
@@ -448,6 +469,8 @@ bool DeckLibraryController::request(const QString& hostId, bool automatic, const
             next.selectedHostId = selected;
             result->failed = next.probes.empty() || next.probes.front().status != polaris::DeckPolarisRequestStatus::Ok;
             result->retryAllowed = next.probes.empty() || !stopsAutomaticRefresh(next.probes.front().status);
+            result->silent = !next.probes.empty() && gaveNoAnswer(next.probes.front().status);
+            if (!next.probes.empty()) result->status = polaris::describe(next.probes.front().status);
             if (!desired.empty() && destinationId(next).toStdString() != desired) {
                 next.library.games.clear(); result->failed = true; result->retryAllowed = false;
             }
@@ -477,12 +500,28 @@ void DeckLibraryController::poll() {
     delete worker_;
     worker_ = nullptr;
     timer_.stop();
+    if (result_->failed && result_->keepsList && result_->silent && silentRetries_ < kSilentRetries) {
+        // Keep the last good list and its authority, exactly as between two periodic checks,
+        // and ask again soon: a sixteenth of the interval, doubling, three times at most.
+        const qint64 wait = (std::max(16, intervalMs_) / 16) << silentRetries_++;
+        nextRefreshMs_ = automaticClock_.elapsed() + wait;
+        logAutomaticCheck(result_->status, "kept", wait);
+        result_.reset();
+        state_ = runtime::state(false, false, snapshot_.library.games.empty() ? "This PC has no games to show." : "Game list updated.", true);
+        updateSpacesState();
+        state_["selectionConfirmed"] = false;
+        emit stateChanged();
+        scheduleAutomaticRefresh();
+        return;
+    }
+    silentRetries_ = 0;
     if (destinationId(snapshot_) != destinationId(result_->snapshot)) ++*generation_;
     snapshot_ = std::move(result_->snapshot);
     state_ = runtime::state(false, result_->failed, result_->copy, result_->automatic);
     automaticBlocked_ = !result_->retryAllowed;
     retryMs_ = result_->failed ? static_cast<int>(std::min<qint64>(maxRetryMs_, qint64(retryMs_) * 2)) : intervalMs_;
     nextRefreshMs_ = automaticClock_.elapsed() + retryMs_;
+    if (result_->automatic) logAutomaticCheck(result_->status, result_->failed ? "reported" : "ok", automaticBlocked_ ? -1 : retryMs_);
     const bool selected = result_->changing && !result_->failed;
     result_.reset();
     updateSpacesState();

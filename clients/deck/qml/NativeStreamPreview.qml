@@ -137,6 +137,21 @@ Popup {
         else if (nativePreviewAction.enabled) nativePreviewAction.forceActiveFocus()
         else playSetup.focusSettings()
     }
+    // Play Setup opens on a setting only when Play cannot be pressed yet, for example while this
+    // device's PyroWave check or the PC's answer is still on its way. If Play becomes available
+    // while focus is still where the page put it, focus goes to Play. Once the player has moved
+    // focus, pressed any key, opened a choice or changed a value, it is never taken from them.
+    property Item openingFocus: null
+    readonly property Item focusNow: nativeStreamContent.Window.window ? nativeStreamContent.Window.window.activeFocusItem : null
+    onFocusNowChanged: if (openingFocus && focusNow !== openingFocus) openingFocus = null
+    Connections {
+        target: nativePreviewAction
+        function onEnabledChanged() {
+            if (!nativePreviewAction.enabled || !nativePreview.openingFocus) return
+            nativePreview.openingFocus = null
+            if (nativePreview.opened && !nativePreview.attempted) nativePreviewAction.forceActiveFocus()
+        }
+    }
     onReviewCurrentChanged: {
         if (opened && !attempted && !reviewCurrent) {
             reviewValid = false
@@ -207,8 +222,12 @@ Popup {
         playSetup.prepare()
         focusReview()
     }
-    onOpened: focusReview()
+    onOpened: {
+        focusReview()
+        openingFocus = !attempted && reviewValid && !nativePreviewAction.enabled ? focusNow : null
+    }
     onClosed: {
+        openingFocus = null
         resumeFromLibrary = false
         autoStartRequested = false
         launchArtworkShown = ""
@@ -257,52 +276,7 @@ Popup {
         }
     }
 
-    component SessionAction: Button {
-        id: action
-        property string caption: ""
-        property bool destructive: false
-        property real textScale: nativePreview.unit
-        readonly property real titleWidth: actionTitle.implicitWidth + leftPadding + rightPadding
-        Accessible.description: caption
-        implicitHeight: Math.max(52, contentItem.implicitHeight + 20 * nativePreview.unit)
-        Layout.minimumHeight: implicitHeight
-        topPadding: 10 * nativePreview.unit; bottomPadding: 10 * nativePreview.unit
-        leftPadding: 10 * nativePreview.unit; rightPadding: 10 * nativePreview.unit
-        topInset: 0; bottomInset: 0
-        contentItem: Item {
-            implicitHeight: actionLabels.implicitHeight
-            Column {
-                id: actionLabels
-                anchors.centerIn: parent
-                width: parent.width
-                spacing: 4
-                Text {
-                    id: actionTitle
-                    width: parent.width
-                    text: action.text; textFormat: Text.PlainText
-                    wrapMode: Text.Wrap
-                    color: action.activeFocus ? NovaTheme.window : "white"
-                    font.pixelSize: 20 * action.textScale * NovaTheme.fontScale; font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                Text {
-                    width: parent.width
-                    visible: action.caption.length > 0
-                    text: action.caption; textFormat: Text.PlainText
-                    wrapMode: Text.WordWrap
-                    color: action.activeFocus ? NovaTheme.raised : NovaTheme.secondary
-                    font.pixelSize: 13 * action.textScale * NovaTheme.fontScale
-                    horizontalAlignment: Text.AlignHCenter
-                }
-            }
-        }
-        background: Rectangle {
-            radius: 12
-            color: action.activeFocus ? NovaTheme.focus : action.destructive ? "#422B3A" : NovaTheme.raised
-            border.color: action.activeFocus ? NovaTheme.focus : action.destructive ? NovaTheme.danger : NovaTheme.divider
-            border.width: action.activeFocus ? 5 : 1
-        }
-    }
+    component SessionAction: StreamAction { unit: nativePreview.unit }
 
     contentItem: Item {
         id: nativeStreamContent
@@ -347,6 +321,10 @@ Popup {
         }
         PlaySetup {
             id: playSetup
+            // Seen here before any ancestor and never accepted: every key a row did not handle.
+            // Keys a row does handle move focus or open its choices, which cancel it as well.
+            Keys.onPressed: (event) => { nativePreview.openingFocus = null }
+            onConfigurationChanged: nativePreview.openingFocus = null
             hostSettingsController: nativePreview.hostSettingsController
             gameTools: nativePreview.gameTools
             anchors.fill: parent
@@ -364,7 +342,7 @@ Popup {
             destinationName: nativePreview.reviewedDestinationName
             editable: nativePreview.reviewValid
             returnLabel: nativePreview.returnLabel
-            onChoiceOpened: nativePreview.autoStartRequested = false
+            onChoiceOpened: { nativePreview.autoStartRequested = false; nativePreview.openingFocus = null }
             onFocusPlayRequested: nativePreview.focusReview()
             onBackRequested: nativePreview.close()
             onHostDefaultsMayHaveChanged: {
@@ -1044,72 +1022,22 @@ Popup {
                 else nativePreviewAction.forceActiveFocus()
             }
         }
-        Popup {
+        EndConfirmation {
             id: endConfirmation
             objectName: "native-end-confirmation"
+            namePrefix: "native-end"
+            unit: nativePreview.unit
             // Follow the content when the Vulkan view moves it to its render
             // window. An explicit Overlay.overlay parent retains the library's
             // overlay and opens an invisible confirmation behind the stream.
             parent: nativeStreamContent
-            anchors.centerIn: parent
-            width: Math.min(620, parent.width - 48)
-            height: Math.min(implicitHeight, parent.height - 48)
-            padding: 24
-            modal: true
-            focus: true
-            closePolicy: Popup.CloseOnEscape
-            Overlay.modal: Rectangle { color: NovaTheme.alpha(NovaTheme.window, 0.702) }
-            onOpened: stayAction.forceActiveFocus()
             onClosed: Qt.callLater(function() {
                 if (!nativePreview.opened) return
                 if (nativePlaying && session.controlsVisible) nativeEndAction.forceActiveFocus()
                 else if (nativePlaying) nativeStreamContent.forceActiveFocus()
                 else nativePreviewAction.forceActiveFocus()
             })
-            background: Rectangle { color: "#152238"; radius: 18; border.color: NovaTheme.divider; border.width: 1 }
-            contentItem: NovaScrollColumn {
-                spacing: 14
-                Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.Wrap
-                    text: "End this game?"
-                    color: NovaTheme.text; font.pixelSize: 26 * NovaTheme.fontScale; font.bold: true
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: "This closes the game on your PC. Unsaved progress may be lost."
-                    color: NovaTheme.secondary; font.pixelSize: 18 * NovaTheme.fontScale; wrapMode: Text.WordWrap
-                }
-                SessionAction {
-                    id: stayAction
-                    objectName: "native-end-stay"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.max(56, implicitHeight)
-                    textScale: 1
-                    text: "Keep playing"
-                    onClicked: endConfirmation.close()
-                    Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) endConfirmation.close() }
-                    Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) endConfirmation.close() }
-                    Keys.onDownPressed: confirmEndAction.forceActiveFocus()
-                }
-                SessionAction {
-                    id: confirmEndAction
-                    objectName: "native-end-confirm"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.max(56, implicitHeight)
-                    textScale: 1
-                    text: "End game"; destructive: true
-                    function endGame() {
-                        if (!endConfirmation.opened || !nativePlaying) return
-                        endConfirmation.close()
-                        session.stop()
-                    }
-                    onClicked: endGame()
-                    Keys.onReturnPressed: (event) => { if (!event.isAutoRepeat) endGame() }
-                    Keys.onEnterPressed: (event) => { if (!event.isAutoRepeat) endGame() }
-                    Keys.onUpPressed: stayAction.forceActiveFocus()
-                }
-            }
+            onConfirmed: if (nativePlaying) session.stop()
         }
         NovaButton {
             id: showControls

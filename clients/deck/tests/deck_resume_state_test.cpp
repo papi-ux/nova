@@ -107,6 +107,18 @@ int main(int argc, char** argv) {
         {"summary", "Frames are arriving unevenly."}, {"recommendation", QJsonObject{{"body", "Cap the game's frame rate, then check again."}}}};
     auto view = doctorPresentation(doctor);
     require(view.value("title") == "Frames are arriving unevenly." && view.value("advice") == "Cap the game's frame rate, then check again.", "host Doctor wording discarded");
+    // #465: the host says whether its sentence is a step to take or a finding that needs none.
+    require(view.contains("hasStep") && view.value("hasStep").toBool(), "a finding that needs action lost its step");
+    auto steady = QJsonObject{{"version", 2}, {"result_id", "fixture"}, {"status", "ok"}, {"severity", "info"}, {"traffic_light", "green"},
+        {"primary_issue", "none"}, {"evidence", QJsonArray{}}, {"summary", "Your stream looks steady."},
+        {"recommendation", QJsonObject{{"body", "Nothing needs changing."}}}};
+    view = doctorPresentation(steady);
+    require(view.value("advice") == "Nothing needs changing." && view.contains("hasStep") && !view.value("hasStep").toBool(),
+            "a finding that needs no action was framed as a step");
+    steady["status"] = "unknown"; // Still measuring: the host asks for nothing yet.
+    require(!doctorPresentation(steady).value("hasStep").toBool(), "a stream still being measured was framed as a step");
+    steady["severity"] = "warning"; steady["traffic_light"] = "amber"; // No stream to read: starting one is the step.
+    require(doctorPresentation(steady).value("hasStep").toBool(), "an unreadable stream lost its step");
     doctor.remove("summary"); doctor.remove("recommendation");
     require(doctorPresentation(doctor).value("title") == "Frames are arriving unevenly", "legacy Doctor fallback is technical");
     std::cout << "paused/resumed/ended/expired/stale authority and host wording passed\n";
