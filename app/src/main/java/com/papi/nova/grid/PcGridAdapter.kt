@@ -619,13 +619,21 @@ class PcGridAdapter(
         primaryAction ?: return
         primaryAction.visibility = View.VISIBLE
         primaryAction.isActivated = ready
-        primaryAction.isSelected = false
+        // Its selection is left as it is: the bind sets it once, from the card's focus, after this.
+        // It was dropped here and set again on every host poll, and each time the view announced
+        // itself as newly selected, so TalkBack said "Open Library" every 1.6 s for as long as the
+        // card held focus (#470).
         // What a press on the card does, drawn as every primary is: a tile with its label in the
         // accent at rest, and the accent fill while the card holds focus. It was filled at rest,
         // as loud as focus, so the ring never said which card A would act on. Until it is ready
         // it is the same quiet tile as any other chip.
         if (ready) {
             primaryAction.background = NovaViewBridge.primaryButton(context)
+            // A view hands a new background its state before it becomes the drawable's callback, so
+            // on a button already selected the fade to the accent would stop at its first frame,
+            // the accent at nothing over the tile (as the now-playing pill did, #469). It shows the
+            // state it is in at once.
+            primaryAction.background.jumpToCurrentState()
             primaryAction.setTextColor(NovaViewBridge.primaryButtonText(context))
         } else {
             primaryAction.setBackgroundResource(R.drawable.nova_chip_default)

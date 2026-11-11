@@ -192,6 +192,12 @@ sealed interface NovaCommonPage : NovaPage {
         val destructive: Boolean,
         val onConfirm: () -> Unit,
         val onStay: () -> Unit = {},
+        /**
+         * For a result that arrives on its own after a wait, such as Moment Saved: its [message] is
+         * a pane titled [title] and a polite live region, so a screen reader is told
+         * what happened, not only the name of the focused answer (#470). Nothing on screen changes.
+         */
+        val announce: Boolean = false,
     ) : NovaCommonPage
 
     /**
@@ -214,6 +220,12 @@ sealed interface NovaCommonPage : NovaPage {
         val beforeActions: (@Composable () -> Unit)? = null,
         /** Makes [message] a row that takes focus and A, for a line that does something when pressed. */
         val onMessagePress: (() -> Unit)? = null,
+        /**
+         * Words a screen reader is told after a [readFirst] message, for what stands under it and
+         * is no stop: the Last Stream graph's caption. With a TV remote TalkBack reads only what
+         * takes focus, so the graph was never described (#470). Nothing on screen changes.
+         */
+        val readAlso: String? = null,
         /**
          * Makes [message] the page's first stop, for a report longer than the panel. The report
          * scrolls in an area of its own, sized so that [beforeActions] and the actions stay in view

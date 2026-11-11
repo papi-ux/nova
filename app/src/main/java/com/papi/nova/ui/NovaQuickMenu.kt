@@ -141,16 +141,7 @@ class NovaQuickMenu(
      * the explicit choice that opens another app, which can pause or stop the stream.
      */
     private fun momentSavedPage(report: com.papi.nova.diagnostics.NovaMomentReporter.Saved) =
-        com.papi.nova.ui.panel.NovaCommonPage.Confirm(
-            key = "nova-moment-saved-${report.file.name}",
-            title = game.getString(R.string.nova_moment_report_saved_title),
-            message = androidx.compose.ui.text.AnnotatedString(
-                game.getString(R.string.nova_moment_report_saved_message, NovaLocalTime.withZone(game, report.markedAtUtc))),
-            stayLabel = game.getString(R.string.nova_moment_report_keep_playing),
-            actionLabel = game.getString(R.string.nova_moment_report_share),
-            destructive = false,
-            onConfirm = { momentReporter.share(report) },
-        )
+        novaMomentSavedPage(game, report, onShare = { momentReporter.share(report) })
 
     private fun workingBaselineRow(): NovaWorkingBaselineRow = workingBaseline.state().let { state ->
         NovaWorkingBaselineRow(
@@ -1738,3 +1729,24 @@ internal interface NovaCommandCenterRuntime {
         }
     }
 }
+
+/**
+ * The saved moment, in the stream. Keep Playing is focused and is what B does; Share Report is the
+ * explicit choice that opens another app, which can pause or stop the stream.
+ */
+internal fun novaMomentSavedPage(
+    context: android.content.Context,
+    report: com.papi.nova.diagnostics.NovaMomentReporter.Saved,
+    onShare: () -> Unit,
+) = com.papi.nova.ui.panel.NovaCommonPage.Confirm(
+    key = "nova-moment-saved-${report.file.name}",
+    title = context.getString(R.string.nova_moment_report_saved_title),
+    message = androidx.compose.ui.text.AnnotatedString(
+        context.getString(R.string.nova_moment_report_saved_message, NovaLocalTime.withZone(context, report.markedAtUtc))),
+    stayLabel = context.getString(R.string.nova_moment_report_keep_playing),
+    actionLabel = context.getString(R.string.nova_moment_report_share),
+    destructive = false,
+    onConfirm = onShare,
+    // It arrives a few seconds after the press, with focus on Keep Playing: TalkBack is told what was saved (#470).
+    announce = true,
+)

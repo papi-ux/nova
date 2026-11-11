@@ -81,6 +81,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.focused
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
@@ -351,7 +352,21 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, exit: NovaPa
     val stay = { exit.leaveThen(page.onStay) }
     NovaBackHandler(active = true, onBack = stay)
     PageColumn {
-        Text(text = page.message, style = novaPanelType.rowTitle, color = colors.textSecondary)
+        Text(
+            text = page.message,
+            style = novaPanelType.rowTitle,
+            color = colors.textSecondary,
+            // A result that came on its own is told as one: a pane with the page's title, and its
+            // message, where TalkBack said only the name of the focused answer (#470).
+            modifier = if (page.announce) {
+                Modifier.semantics {
+                    paneTitle = page.title
+                    liveRegion = LiveRegionMode.Polite
+                }
+            } else {
+                Modifier
+            },
+        )
         NovaPanelButtonPair(
             first = { NovaPanelButton(text = page.stayLabel, onClick = stay, modifier = Modifier.novaInitialFocus()) },
             second = {
@@ -512,7 +527,11 @@ private fun NovaPageScope.NoticeReport(page: NovaCommonPage.Notice) {
                 .fillMaxWidth()
                 .testTag(NovaNoticeReportTag)
                 // The words are what a reader of the screen is told has focus.
-                .semantics { focused = holdsFocus },
+                .semantics {
+                    focused = holdsFocus
+                    // Then what stands under them and takes no focus, which a remote never reaches (#470).
+                    page.readAlso?.let { also -> contentDescription = page.message + "\n\n" + also }
+                },
         )
     }
 }
