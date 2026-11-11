@@ -86,9 +86,12 @@ class NovaLocalTimeTest {
         }
     }
 
+    /** Read from the page itself since its builder can be reached (#470): local time and zone, never the stamp. */
     @Test fun theMomentPageIsGivenLocalTime() {
-        val menu = File("src/main/java/com/papi/nova/ui/NovaQuickMenu.kt").readText()
-        val page = menu.substringAfter("private fun momentSavedPage(").substringBefore("private fun workingBaselineRow(")
-        assertTrue(page, page.contains("R.string.nova_moment_report_saved_message, NovaLocalTime.withZone(game, report.markedAtUtc)"))
+        val saved = com.papi.nova.diagnostics.NovaMomentReporter.Saved(File("nova-moment-20261008T130000Z.md"), stamp)
+        val message = novaMomentSavedPage(context, saved, onShare = {}).message.text
+        assertTrue(message, message.contains(NovaLocalTime.withZone(context, stamp)))
+        assertFalse(message, message.contains(stamp))
+        assertFalse(message, message.contains("UTC"))
     }
 }

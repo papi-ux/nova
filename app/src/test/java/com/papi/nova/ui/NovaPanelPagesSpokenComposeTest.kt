@@ -47,8 +47,9 @@ import org.robolectric.annotation.Config
  *   only what takes focus, so its caption was never spoken. The report, the page's first stop, now
  *   carries the caption after its own words. Nothing on screen and no D-pad route changes; the
  *   #459 tests pin the route.
- * - Moment Saved: TalkBack said only "Keep Playing". Its message is now a pane titled Moment Saved
- *   and a polite live region, with Keep Playing still focused.
+ * - Moment Saved: TalkBack said only "Keep Playing". The page was already a pane titled Moment
+ *   Saved, as every page is (NovaPageStackHost), and that was not spoken. Its message is now a
+ *   polite live region, with Keep Playing still focused.
  *
  * These read the semantics tree, which is what Android's accessibility nodes are built from. They
  * cannot show what TalkBack chooses to say about a pane or a live region, or when: the Shield walk
@@ -118,17 +119,19 @@ class NovaPanelPagesSpokenComposeTest {
     private fun momentSaved() =
         novaMomentSavedPage(rule.activity, NovaMomentReporter.Saved(File("nova-moment-20261111T022625Z.md"), marked), onShare = {})
 
-    @Test fun momentSavedIsAPaneTitledWithItsMessageALiveRegionAndKeepPlayingFocused() {
+    @Test fun momentSavedHasItsMessageALiveRegionAndKeepPlayingFocused() {
         val page = momentSaved()
         assertEquals(text(R.string.nova_moment_report_saved_title), page.title)
         show(page)
-        rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, page.title)).assertExists()
         val message = rule.onNodeWithText(page.message.text).fetchSemanticsNode().config
         assertEquals(LiveRegionMode.Polite, message.getOrNull(SemanticsProperties.LiveRegion))
         rule.onNodeWithText(text(R.string.nova_moment_report_keep_playing)).assertIsFocused()
+        // One pane, the page itself, as every page is: the message adds none of its own.
+        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle)).assertCountEquals(1)
+        rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, page.title)).assertExists()
     }
 
-    /** Every other confirmation is as it was: no pane, no live region. */
+    /** Every other confirmation is as it was: the page's own pane, as every page has, and no live region. */
     @Test fun anOrdinaryConfirmationAnnouncesNothingOfItsOwn() {
         val page = NovaCommonPage.Confirm(
             key = "end-session",
@@ -140,7 +143,7 @@ class NovaPanelPagesSpokenComposeTest {
             onConfirm = {},
         )
         show(page)
-        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle)).assertCountEquals(0)
+        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle)).assertCountEquals(1)
         rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertCountEquals(0)
         rule.onAllNodesWithText(page.message.text).assertCountEquals(1)
     }

@@ -88,7 +88,6 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.focused
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
@@ -362,16 +361,10 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, exit: NovaPa
             text = page.message,
             style = novaPanelType.rowTitle,
             color = colors.textSecondary,
-            // A result that came on its own is told as one: a pane with the page's title, and its
-            // message, where TalkBack said only the name of the focused answer (#470).
-            modifier = if (page.announce) {
-                Modifier.semantics {
-                    paneTitle = page.title
-                    liveRegion = LiveRegionMode.Polite
-                }
-            } else {
-                Modifier
-            },
+            // A result that came on its own is told: its message is a live region, where TalkBack
+            // said only the name of the focused answer. The page is already a pane with its title,
+            // as every page is, and that alone was not spoken on the Shield (#470).
+            modifier = if (page.announce) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
         )
         NovaPanelButtonPair(
             first = { NovaPanelButton(text = page.stayLabel, onClick = stay, modifier = Modifier.novaInitialFocus()) },
