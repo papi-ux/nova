@@ -48,8 +48,11 @@ import org.robolectric.annotation.Config
  *   carries the caption after its own words. Nothing on screen and no D-pad route changes; the
  *   #459 tests pin the route.
  * - Moment Saved: TalkBack said only "Keep Playing". The page was already a pane titled Moment
- *   Saved, as every page is (NovaPageStackHost), and that was not spoken. Its message is now a
- *   polite live region, with Keep Playing still focused.
+ *   Saved, as every page is (NovaPageStackHost), and that was not spoken. Its message became a
+ *   polite live region, with Keep Playing still focused, and the Shield then spoke the message but
+ *   still not the title: TalkBack registered the pane and said nothing for it. The live region now
+ *   carries the title, then the message, as its description, which TalkBack speaks in place of its
+ *   text. On screen the title stays in the header and the message under it, as before.
  *
  * These read the semantics tree, which is what Android's accessibility nodes are built from. They
  * cannot show what TalkBack chooses to say about a pane or a live region, or when: the Shield walk
@@ -119,12 +122,20 @@ class NovaPanelPagesSpokenComposeTest {
     private fun momentSaved() =
         novaMomentSavedPage(rule.activity, NovaMomentReporter.Saved(File("nova-moment-20261111T022625Z.md"), marked), onShare = {})
 
-    @Test fun momentSavedHasItsMessageALiveRegionAndKeepPlayingFocused() {
+    @Test fun momentSavedAnnouncesItsTitleThenItsMessageWithKeepPlayingFocused() {
         val page = momentSaved()
-        assertEquals(text(R.string.nova_moment_report_saved_title), page.title)
+        val title = text(R.string.nova_moment_report_saved_title)
+        assertEquals(title, page.title)
         show(page)
         val message = rule.onNodeWithText(page.message.text).fetchSemanticsNode().config
         assertEquals(LiveRegionMode.Polite, message.getOrNull(SemanticsProperties.LiveRegion))
+        // What the live region is read as: the title, then the message, the words each already
+        // shows. Its own words on screen are the message alone, as before.
+        assertEquals(listOf("$title. ${page.message.text}"), message.getOrNull(SemanticsProperties.ContentDescription))
+        assertEquals(page.message.text, message[SemanticsProperties.Text].joinToString("") { it.text })
+        // The title is shown once, in the header: the live region adds no words to the screen.
+        rule.onAllNodesWithText(title).assertCountEquals(1)
+        rule.onAllNodesWithText(page.message.text).assertCountEquals(1)
         rule.onNodeWithText(text(R.string.nova_moment_report_keep_playing)).assertIsFocused()
         // One pane, the page itself, as every page is: the message adds none of its own.
         rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle)).assertCountEquals(1)
@@ -146,5 +157,7 @@ class NovaPanelPagesSpokenComposeTest {
         rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle)).assertCountEquals(1)
         rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertCountEquals(0)
         rule.onAllNodesWithText(page.message.text).assertCountEquals(1)
+        val message = rule.onNodeWithText(page.message.text).fetchSemanticsNode().config
+        assertFalse("its message is read as its words alone", message.contains(SemanticsProperties.ContentDescription))
     }
 }

@@ -1747,6 +1747,6 @@ internal fun novaMomentSavedPage(
     actionLabel = context.getString(R.string.nova_moment_report_share),
     destructive = false,
     onConfirm = onShare,
-    // It arrives a few seconds after the press, with focus on Keep Playing: its message is announced (#470).
+    // It arrives a few seconds after the press, with focus on Keep Playing: its title and message are announced (#470).
     announce = true,
 )

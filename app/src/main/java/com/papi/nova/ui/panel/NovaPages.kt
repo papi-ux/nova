@@ -194,8 +194,8 @@ sealed interface NovaCommonPage : NovaPage {
         val onStay: () -> Unit = {},
         /**
          * For a result that arrives on its own after a wait, such as Moment Saved: its [message] is
-         * a polite live region, so a screen reader is told what happened, not only the name of the
-         * focused answer (#470). Nothing on screen changes.
+         * a polite live region read as the [title], then the [message], so a screen reader is told
+         * what happened, not only the name of the focused answer (#470). Nothing on screen changes.
          */
         val announce: Boolean = false,
     ) : NovaCommonPage

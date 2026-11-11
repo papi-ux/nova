@@ -362,9 +362,18 @@ private fun NovaPageScope.ConfirmPage(page: NovaCommonPage.Confirm, exit: NovaPa
             style = novaPanelType.rowTitle,
             color = colors.textSecondary,
             // A result that came on its own is told: its message is a live region, where TalkBack
-            // said only the name of the focused answer. The page is already a pane with its title,
-            // as every page is, and that alone was not spoken on the Shield (#470).
-            modifier = if (page.announce) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
+            // said only the name of the focused answer (#470). The page is a pane with its title,
+            // as every page is, and on the Shield TalkBack registered that pane but never spoke it;
+            // it spoke this live region. So the live region says the title, then the message:
+            // TalkBack speaks a node's description in place of its text. The screen is unchanged.
+            modifier = if (page.announce) {
+                Modifier.semantics {
+                    liveRegion = LiveRegionMode.Polite
+                    contentDescription = page.title + ". " + page.message.text
+                }
+            } else {
+                Modifier
+            },
         )
         NovaPanelButtonPair(
             first = { NovaPanelButton(text = page.stayLabel, onClick = stay, modifier = Modifier.novaInitialFocus()) },
