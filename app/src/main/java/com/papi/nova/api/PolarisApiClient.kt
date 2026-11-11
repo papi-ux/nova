@@ -265,6 +265,13 @@ class PolarisApiClient @JvmOverloads constructor(
         }
 
         const val WEB_UI_HTTPS_PORT = 47990
+        /**
+         * How long a stop with no answer is checked against session status before Nova says how
+         * it went (#487): the host was idle 0.44 s after Nova's 10 s timeout on the RP6.
+         */
+        internal const val STOP_CONFIRM_WITHIN_MS = 5_000L
+        /** The pause between status reads while that check finds the session still there. */
+        private const val STOP_CONFIRM_POLL_MS = 250L
         private const val SERVERINFO_IDENTITY_TIMEOUT_SECONDS = 3L
         // GameStream serves HTTP five ports above its HTTPS port (47989 vs 47984).
         private const val GAMESTREAM_HTTP_HTTPS_PORT_OFFSET = 5
@@ -2641,31 +2648,87 @@ class PolarisApiClient @JvmOverloads constructor(
         }
     }
 
-    /** One paired, token-scoped stop. An uncertain result is never replayed or sent to /cancel. */
-    internal fun stopCapturedSession(sessionToken: String): Boolean {
+    /** One paired, token-scoped stop: whether the captured session ended ([endCapturedSession]). */
+    internal fun stopCapturedSession(sessionToken: String, confirmWithinMs: Long = STOP_CONFIRM_WITHIN_MS): Boolean =
+        endCapturedSession(sessionToken, confirmWithinMs) == PolarisSessionEnd.ENDED
+
+    /**
+     * One paired, token-scoped stop. An uncertain result is never replayed or sent to /cancel.
+     *
+     * A stop with no answer is not taken as a refusal. The host answers nothing while it ends a
+     * session (Polaris #644), and its private-app stop can outlast the 10 s read timeout: on the
+     * RP6 it took 10.26 s, and Nova said the End failed 0.44 s before the host was idle (#487). So
+     * the session status is read again, for at most [confirmWithinMs], before anything is said.
+     */
+    internal fun endCapturedSession(sessionToken: String, confirmWithinMs: Long = STOP_CONFIRM_WITHIN_MS): PolarisSessionEnd {
         retireDoctorAiRequests()
-        if (sessionToken.isBlank() || sessionToken.length > 2048) return false
-        return try {
-            val json = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),
-                JSONObject().put("session_token", sessionToken).toString())
-            // retryOnConnectionFailure(false) does not suppress HTTP follow-ups such as
-            // 503 Retry-After: 0. This mutation must never be sent a second time.
-            val body = object : okhttp3.RequestBody() {
-                override fun contentType() = json.contentType()
-                override fun contentLength() = json.contentLength()
-                override fun writeTo(sink: okio.BufferedSink) = json.writeTo(sink)
-                override fun isOneShot() = true
-            }
-            val request = Request.Builder().url("$baseUrl/session/stop").post(body).build()
-            executeNonRetryable(request).use { response ->
-                if (response.code != 200) return false
-                val bytes = response.body?.let { PolarisArtworkDiskCache.readBounded(it.byteStream(), 32 * 1024) }
-                    ?: return false
-                JSONObject(bytes.toString(Charsets.UTF_8)).opt("status") == true
-            }
-        } catch (_: Exception) {
-            false
+        if (sessionToken.isBlank() || sessionToken.length > 2048) return PolarisSessionEnd.REFUSED
+        val json = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(),
+            JSONObject().put("session_token", sessionToken).toString())
+        // retryOnConnectionFailure(false) does not suppress HTTP follow-ups such as
+        // 503 Retry-After: 0. This mutation must never be sent a second time.
+        val body = object : okhttp3.RequestBody() {
+            override fun contentType() = json.contentType()
+            override fun contentLength() = json.contentLength()
+            override fun writeTo(sink: okio.BufferedSink) = json.writeTo(sink)
+            override fun isOneShot() = true
         }
+        val request = Request.Builder().url("$baseUrl/session/stop").post(body).build()
+        // No response at all, a timeout among them, is the only case read again: any answer counts.
+        val response = try {
+            executeNonRetryable(request)
+        } catch (_: Exception) {
+            return confirmAfterUnansweredStop(sessionToken, confirmWithinMs)
+        }
+        val stopped = runCatching {
+            response.use {
+                it.code == 200 && it.body?.let { body -> PolarisArtworkDiskCache.readBounded(body.byteStream(), 32 * 1024) }
+                    ?.let { bytes -> JSONObject(bytes.toString(Charsets.UTF_8)).opt("status") == true } == true
+            }
+        }.getOrDefault(false)
+        return if (stopped) PolarisSessionEnd.ENDED else PolarisSessionEnd.REFUSED
+    }
+
+    /**
+     * Reads session status until the captured session is gone or [withinMs] has passed. A read sent
+     * while the host is still ending the session waits for it, up to what is left of [withinMs].
+     * Reads only: the stop itself is never sent again.
+     */
+    private fun confirmAfterUnansweredStop(sessionToken: String, withinMs: Long): PolarisSessionEnd {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(withinMs.coerceAtLeast(0))
+        var last = PolarisSessionEnd.NO_ANSWER
+        while (true) {
+            val remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
+            if (remaining <= 0) return last
+            val status = readSessionStatusWithin(remaining)
+            if (status != null) {
+                when (capturedSessionAfterStop(status, sessionToken)) {
+                    PolarisCapturedSession.GONE -> return PolarisSessionEnd.ENDED
+                    PolarisCapturedSession.CLOSING -> last = PolarisSessionEnd.STILL_CLOSING
+                    PolarisCapturedSession.RUNNING -> last = PolarisSessionEnd.STILL_RUNNING
+                }
+            }
+            val pause = minOf(STOP_CONFIRM_POLL_MS, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()))
+            if (pause > 0) Thread.sleep(pause)
+        }
+    }
+
+    /** One status read that gives up after [timeoutMs]; null for no usable answer. Publishes nothing. */
+    private fun readSessionStatusWithin(timeoutMs: Long): PolarisSessionStatus? = try {
+        val request = Request.Builder().url("$baseUrl/session/status").header("Connection", "close").build()
+        clientForCall().newBuilder()
+            .retryOnConnectionFailure(false)
+            .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+            .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+            .build()
+            .newCall(request)
+            .execute()
+            .use { response ->
+                if (response.code != 200) null
+                else response.body?.string()?.let { parseSessionStatusResponse(JSONObject(it)) }
+            }
+    } catch (_: Exception) {
+        null
     }
 
     fun getDesktopGames(): List<PolarisGame> = paginateAllGames(100) { offset ->

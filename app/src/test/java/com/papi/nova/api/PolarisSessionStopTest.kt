@@ -68,8 +68,9 @@ class PolarisSessionStopTest {
 
     @Test fun ambiguousTransportAndRedirectsAreNeverReplayed() {
         var asks = 0
-        val broken = api { asks++; throw IOException("ambiguous transport") }
-        assertFalse(broken.stopCapturedSession("session-A"))
+        // Only the stop is counted: since #487 a stop with no answer is followed by status reads.
+        val broken = api { request -> if (request.method == "POST") asks++; throw IOException("ambiguous transport") }
+        assertFalse(broken.stopCapturedSession("session-A", confirmWithinMs = 300))
         assertEquals(1, asks)
         asks = 0
         val redirect = api { request ->

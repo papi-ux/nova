@@ -10,6 +10,7 @@ import android.view.Display
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.papi.nova.api.PolarisApiClient
+import com.papi.nova.api.PolarisSessionEnd
 import com.papi.nova.AppView
 import com.papi.nova.Game
 import com.papi.nova.LimeLog
@@ -769,22 +770,38 @@ object ServerHelper {
         }
     }
 
-    /** The paired stop endpoint enforces this captured token atomically, including for the owner. */
+    /**
+     * The paired stop endpoint enforces this captured token atomically, including for the owner. A
+     * stop the host answered too late for Nova's timeout is judged by the session status read after
+     * it, so an End that worked is not reported as refused (#487).
+     */
     internal fun doQuitCaptured(parent: Activity, computer: ComputerDetails, app: NvApp, sessionToken: String) {
         try {
             val address = getCurrentAddressFromComputer(computer)
             val api = PolarisApiClient(parent, address.address, computer.httpsPort, computer.serverCert)
             Thread {
-                val stopped = api.stopCapturedSession(sessionToken)
+                val refusal = capturedEndRefusal(parent.resources, api.endCapturedSession(sessionToken), app.appName)
                 parent.runOnUiThread {
-                    NovaHaptics.play(parent, parent.window?.decorView,
-                        if (stopped) NovaHapticCue.END_CONFIRMED else NovaHapticCue.REFUSED)
-                    if (!stopped) showQuitRefused(parent, app.appName, null)
+                    quitCue(refusal)?.let { NovaHaptics.play(parent, parent.window?.decorView, it) }
+                    refusal?.let { showQuitRefused(parent, app.appName, it.reason) }
                 }
             }.start()
         } catch (e: Exception) {
             showQuitRefused(parent, app.appName, e.message)
         }
+    }
+
+    /**
+     * A captured End's outcome as the refusal every End reports, or null when the session ended:
+     * the host's refusal or a session still running is "The host did not end …"; a game still
+     * closing, and no answer at all, say so in the words the other Ends use for them (#487).
+     */
+    internal fun capturedEndRefusal(resources: Resources, end: PolarisSessionEnd, appName: String): QuitRefusal? = when (end) {
+        PolarisSessionEnd.ENDED -> null
+        PolarisSessionEnd.STILL_CLOSING -> QuitRefusal(resources.getString(R.string.nova_library_end_still_closing), stillClosing = true)
+        PolarisSessionEnd.NO_ANSWER -> QuitRefusal(resources.getString(R.string.nova_library_end_unreachable))
+        PolarisSessionEnd.REFUSED, PolarisSessionEnd.STILL_RUNNING ->
+            QuitRefusal(resources.getString(R.string.hosts_end_failed_message, appName))
     }
 
     @JvmStatic
