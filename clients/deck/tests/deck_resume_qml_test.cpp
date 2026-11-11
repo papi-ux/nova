@@ -7,6 +7,7 @@
 #include <QQuickItem>
 #include <QTest>
 #include <QTemporaryDir>
+#include <functional>
 #include <iostream>
 namespace {
 void require(bool ok, const char* why) { if (!ok) { std::cerr << why << '\n'; std::abort(); } }
@@ -72,6 +73,13 @@ int main(int argc, char** argv) {
             function hostCard() { library.visible = false; hostPill.visible = true }
             function diagnosis() { setup.visible = false; doctor.open() }
             function evidence() { doctor.selectPage(1) }
+            function doctorHud(step, proposal) {
+                session.hud = {hostFresh:true, diagnosticsRefreshing:false, canRefreshDiagnostics:false, doctorProposal:proposal,
+                    doctor:{available:true, hasStep:step, title:"Host sentence.", group:"NET", advice:"Host explanation.", confidence:"high", evidence:[]}}
+            }
+            function steady() { doctorHud(false, "") }
+            function stepOnly() { doctorHud(true, "") }
+            function stepOffered() { doctorHud(true, "Lower bitrate toward 16.0 Mbps.") }
         }
     )", QUrl());
     auto root = std::unique_ptr<QObject>(component.create());
@@ -142,7 +150,28 @@ int main(int argc, char** argv) {
     require(!asking("host-card") && root->property("ends") == 3, "host-card End game did not send exactly one End");
     invoke("setupNotice"); require(item("play-setup-steam-notice")->property("text").toString().contains("launch option"), "Steam notice missing");
     invoke("diagnosis"); auto* confidence = item("doctor-confidence"); require(!confidence->isVisible(), "confidence remained inline");
+    // #465: the host's own words, framed as a step only when the host has one.
+    auto* tryFirst = item("doctor-try-first"); auto* advice = item("doctor-advice"); auto* proposal = item("doctor-proposal");
+    const auto shown = [&](const char* text) {
+        std::function<bool(QQuickItem*)> walk = [&](QQuickItem* node) {
+            if (node->isVisible() && node->property("text").toString().contains(text)) return true;
+            for (auto* child : node->childItems()) if (walk(child)) return true;
+            return false;
+        };
+        return walk(item("doctor-scroll"));
+    };
+    invoke("steady");
+    require(item("doctor-title")->property("text") == "Host sentence." && advice->isVisible() && advice->property("text") == "Host explanation.",
+            "host sentence or explanation missing from a finding that needs no action");
+    require(!tryFirst->isVisible() && !proposal->isVisible() && !shown("Try first") && !shown("No verified live fix"),
+            "a finding that needs no action was framed as a step or told to review guidance");
+    invoke("stepOnly");
+    require(tryFirst->isVisible() && tryFirst->property("text") == "Try first" && advice->isVisible() && advice->property("text") == "Host explanation.",
+            "the host's step lost its heading");
+    require(!proposal->isVisible() && !shown("No verified live fix"), "the host's step was contradicted");
+    invoke("stepOffered");
+    require(tryFirst->isVisible() && proposal->isVisible() && proposal->property("text").toString().contains("16.0 Mbps"), "offered fix not shown under the host's step");
     invoke("evidence"); require(confidence->isVisible(), "confidence unavailable one level deeper");
     require(!warnings, "QML warnings occurred");
-    std::cout << "Resume/End labels, End confirmation and backing out, controller focus, expiry, Steam notice and Doctor depth passed\n";
+    std::cout << "Resume/End labels, End confirmation and backing out, controller focus, expiry, Steam notice, Doctor framing and depth passed\n";
 }
