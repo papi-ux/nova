@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
@@ -123,7 +124,7 @@ class NovaPanelPagesSpokenComposeTest {
         show(page)
         rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, page.title)).assertExists()
         val message = rule.onNodeWithText(page.message.text).fetchSemanticsNode().config
-        assertEquals(LiveRegionMode.Polite, message.getOrElse(SemanticsProperties.LiveRegion) { null })
+        assertEquals(LiveRegionMode.Polite, message.getOrNull(SemanticsProperties.LiveRegion))
         rule.onNodeWithText(text(R.string.nova_moment_report_keep_playing)).assertIsFocused()
     }
 
