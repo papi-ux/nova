@@ -10,6 +10,8 @@ Popup {
     readonly property var readings: session && session.hud ? session.hud : ({})
     readonly property var finding: readings.hostFresh && readings.doctor ? readings.doctor : ({})
     readonly property bool available: finding.available === true
+    // False only when the host found nothing for the player to do: its words then stand alone.
+    readonly property bool hasStep: available && finding.hasStep !== false
     readonly property bool hasAction: !!readings.doctorProposal || !!readings.doctorHasReceipt || !!readings.doctorActionMessage
     property int page: 0
     property string error: ""
@@ -114,12 +116,12 @@ Popup {
                             : "Connect to a paired Polaris host for current Doctor findings. Session shows the readings available on this device."
                         color: NovaTheme.secondary
                     }
-                    Heading { visible: doctor.available; text: "Try first" }
-                    Copy { visible: doctor.available; text: doctor.finding.advice || "" }
+                    Heading { objectName: "doctor-try-first"; visible: doctor.hasStep; text: "Try first" }
+                    Copy { objectName: "doctor-advice"; visible: doctor.available; text: doctor.finding.advice || "" }
                     Copy {
                         objectName: "doctor-proposal"
-                        visible: doctor.available
-                        text: doctor.readings.doctorProposal || "No verified live fix is currently offered. Review the guidance and refresh after more gameplay."
+                        visible: doctor.available && !!doctor.readings.doctorProposal
+                        text: doctor.readings.doctorProposal || ""
                         color: NovaTheme.secondary
                     }
                 }

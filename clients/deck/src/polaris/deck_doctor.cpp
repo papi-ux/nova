@@ -169,7 +169,11 @@ QVariantMap doctorPresentation(const QJsonObject& d) {
     const auto confidence = code(d.value("confidence").toObject(), "level");
     return {{"available", true}, {"title", title}, {"group", group.isEmpty() ? "SESSION" : group},
         {"tone", !highlight.isEmpty() ? "warning" : healthy && primary == "none" ? "stable" : "muted"},
-        {"advice", advice}, {"highlight", highlight}, {"evidence", rows},
+        // The host has a step for the player when it says action is needed, when it cannot read the
+        // stream at all (unknown and a warning), or when evidence here needs attention. A stream it
+        // judged fine, or is still measuring, gets its sentence with no step.
+        {"advice", advice}, {"hasStep", status == "needs_action" || (status == "unknown" && severity == "warning") || !highlight.isEmpty()},
+        {"highlight", highlight}, {"evidence", rows},
         {"confidence", oneOf(confidence, {"low", "medium", "high"}) ? confidence : "unknown"}};
 }
 }
