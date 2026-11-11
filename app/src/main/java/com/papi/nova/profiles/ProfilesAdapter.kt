@@ -22,6 +22,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.papi.nova.EditProfileActivity
 import com.papi.nova.R
 import com.papi.nova.ui.NovaThemeManager
+import com.papi.nova.ui.compose.NovaRadius
+import com.papi.nova.ui.panel.NovaViewBridge
 import com.papi.nova.ui.panel.NovaSplitConfirm
 import com.papi.nova.ui.panel.rememberNovaSplitConfirmState
 import com.papi.nova.ui.panel.setNovaContent
@@ -114,6 +116,14 @@ class ProfilesAdapter(private val context: Context) : RecyclerView.Adapter<Profi
         val editProfile: ImageButton = itemView.findViewById(R.id.editProfile)
         val deleteProfile: ComposeView = itemView.findViewById(R.id.deleteProfile)
         private var current = false
+
+        init {
+            // Edit is reached by D-pad now (#478), so it wears the one focus ring, over its touch
+            // ripple. View.setForeground is Android 6; below it Edit keeps the ripple's focus tint.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                editProfile.foreground = NovaViewBridge.focusRing(itemView.context, NovaRadius.pill)
+            }
+        }
 
         /**
          * The one mark for the preset in use (R9): the trailing accent check, a SemiBold name, and

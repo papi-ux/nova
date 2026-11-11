@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The row is the focus stop A acts on, and Edit and Delete stand inside it, so a D-pad search
+     to the right from it found nothing past its edge (#478): Right goes to Edit, Left from Edit
+     comes back, and Edit and Delete reach each other by where they stand. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/profileRow"
+    android:nextFocusRight="@+id/editProfile"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
@@ -50,6 +55,7 @@
 
     <ImageButton
         android:id="@+id/editProfile"
+        android:nextFocusLeft="@id/profileRow"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="?android:attr/selectableItemBackgroundBorderless"
