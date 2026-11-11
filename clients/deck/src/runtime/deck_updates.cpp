@@ -23,6 +23,7 @@ const QString service = QStringLiteral("org.freedesktop.portal.Flatpak");
 const QString portalPath = QStringLiteral("/org/freedesktop/portal/Flatpak");
 const QString monitorInterface = service + QStringLiteral(".UpdateMonitor");
 const QString feedUnavailableMessage = QStringLiteral("Couldn't check the update feed. Check your connection and try again.");
+const QString notSupportedError = QStringLiteral("org.freedesktop.DBus.Error.NotSupported");
 bool commit(const QString& value) {
     static const QRegularExpression pattern(QStringLiteral("\\A[0-9a-f]{64}\\z"));
     return pattern.match(value).hasMatch();
@@ -51,6 +52,24 @@ std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes,
         || object.value("arch").toString() != architecture || !commit(revision) || version.size() > 80
         || !versionPattern.match(version).hasMatch()) return {};
     return DeckUpdateCatalog{revision, version};
+}
+
+QString deckUpdateNotSupportedMessage(const QString& portalMessage) {
+    // flatpak-portal.c request_update_permissions_sync(): the "updates"
+    // permission is unset and no Access dialog backend serves this session.
+    // Approving once where a dialog exists stores it for later updates.
+    if (portalMessage == QStringLiteral("No portal support found"))
+        return QStringLiteral("Nova needs your approval once before it can update itself, and your system can't show "
+            "that prompt here. On Steam Deck, switch to Desktop Mode and select Update Nova; once you approve it, "
+            "later updates work in Game Mode too. You can also install this update from your software manager, "
+            "such as Discover.");
+    // flatpak-portal.c transaction_ready(): the new build asks for more.
+    if (portalMessage == QStringLiteral("Self update not supported, new version requires new permissions"))
+        return QStringLiteral("This update needs new permissions, so Nova can't install it itself. Install it from "
+            "your system's software manager; on Steam Deck, use Discover in Desktop Mode.");
+    return QStringLiteral("Nova can't install this update itself. It may need new permissions, or an approval your "
+        "system can't ask for here. Install it from your system's software manager; on Steam Deck, use Discover "
+        "in Desktop Mode.");
 }
 
 DeckUpdateOptions DeckUpdates::installedOptions(bool enabled) {
@@ -275,9 +294,11 @@ void DeckUpdates::startInstall() {
             emit stateChanged();
             return;
         }
-        if (reply.isError()) failInstall(reply.error().name() == "org.freedesktop.DBus.Error.NotSupported"
-            ? "This update needs new permissions. Install it through your system's software manager."
-            : "The update couldn't start. Check your connection and system update permissions, then try again.");
+        // Flatpak 1.18 answers Update at once and reports refusals in Progress;
+        // a NotSupported reply here would come from a different portal.
+        if (reply.isError()) failInstall(reply.error().name() == notSupportedError
+            ? deckUpdateNotSupportedMessage(reply.error().message())
+            : QStringLiteral("The update couldn't start. Check your connection and system update permissions, then try again."));
     });
 }
 
@@ -321,9 +342,9 @@ void DeckUpdates::progress(const QVariantMap& info) {
         message_ = restartRequired_ || local_ != running_ ? "Update installed. Close and reopen Nova to use it." : "No update was available from your installed channel.";
         setInstalling(false);
     } else if (status == 3) {
-        failInstall(info.value("error").toString() == "org.freedesktop.DBus.Error.NotSupported"
-            ? "This update needs new permissions. Install it through your system's software manager."
-            : "The update didn't finish. Check your connection and system update permissions, then try again.");
+        failInstall(info.value("error").toString() == notSupportedError
+            ? deckUpdateNotSupportedMessage(info.value("error_message").toString())
+            : QStringLiteral("The update didn't finish. Check your connection and system update permissions, then try again."));
     }
     emit stateChanged();
 }

@@ -15,6 +15,12 @@ QString deckUpdateArchitecture(const QString& builtAbi);
 QString deckUpdateArchitecture();
 std::optional<DeckUpdateCatalog> parseDeckUpdateCatalog(const QByteArray& bytes, const QString& channel,
     const QString& architecture = deckUpdateArchitecture());
+// Explains an update the Flatpak portal refused with NotSupported. Flatpak 1.18
+// has two such causes on the Update path: no approval prompt available (Game
+// Mode has none) and an update that adds permissions. Only the portal's error
+// message tells them apart, and only untranslated; any other text gets a
+// message that is true for both.
+QString deckUpdateNotSupportedMessage(const QString& portalMessage);
 
 struct DeckUpdateOptions {
     bool enabled = true;

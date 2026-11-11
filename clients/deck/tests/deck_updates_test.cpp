@@ -28,6 +28,9 @@ const QString service = "org.freedesktop.portal.Flatpak";
 const QString path = "/org/freedesktop/portal/Flatpak";
 const QString iface = service + ".UpdateMonitor";
 const QString a(64, 'a'), b(64, 'b'), c(64, 'c');
+const QString notSupported = "org.freedesktop.DBus.Error.NotSupported";
+const QString noApprovalPrompt = "No portal support found";
+const QString newPermissions = "Self update not supported, new version requires new permissions";
 class Portal : public QDBusVirtualObject {
 public:
     explicit Portal(QDBusConnection bus) : bus(std::move(bus)) {
@@ -50,7 +53,7 @@ public:
             require(message.arguments().size() == 2 && message.arguments()[0].toString().isEmpty()
                 && qdbus_cast<QVariantMap>(message.arguments()[1]).isEmpty(), "update selected a different app, remote or branch");
             if (holdUpdate) return true;
-            if (deny) bus.send(message.createErrorReply("org.freedesktop.DBus.Error.NotSupported", "test permission increase"));
+            if (deny) bus.send(message.createErrorReply(notSupported, "test permission increase"));
             else bus.send(message.createReply());
         } else if (message.member() == "Close") { ++closes; bus.send(message.createReply()); }
         else require(false, "unexpected portal mutation");
@@ -105,6 +108,26 @@ int main(int argc, char** argv) {
         require(deckUpdateArchitecture(unsupported).isEmpty(), "unsupported built Qt ABI fell back to x86");
     require(deckUpdateArchitecture() == deckUpdateArchitecture(QSysInfo::buildCpuArchitecture()),
         "production identity did not use Qt's built ABI");
+    // flatpak-portal 1.18.4 refuses Update as NotSupported for two causes,
+    // named only by these untranslated messages.
+    const auto approval = deckUpdateNotSupportedMessage(noApprovalPrompt);
+    const auto permissions = deckUpdateNotSupportedMessage(newPermissions);
+    const auto either = deckUpdateNotSupportedMessage({});
+    require(approval.startsWith("Nova needs your approval once") && approval.contains("can't show that prompt here")
+        && approval.contains("switch to Desktop Mode and select Update Nova")
+        && approval.contains("once you approve it, later updates work in Game Mode too")
+        && approval.contains("Discover") && !approval.contains("new permissions"),
+        "missing approval prompt was reported as something else");
+    require(permissions.startsWith("This update needs new permissions") && permissions.contains("Discover in Desktop Mode")
+        && !permissions.contains("approv") && !permissions.contains("Game Mode"),
+        "permission increase was reported as something else");
+    require(either.contains("may need new permissions") && either.contains("an approval your system can't ask for here")
+        && either.contains("Discover in Desktop Mode") && !either.contains("Game Mode")
+        && either != approval && either != permissions, "unrecognised refusal claimed a single cause");
+    for (const auto& other : {QString{}, QStringLiteral("Nenalezena podpora portálů"), QStringLiteral("no portal support found"),
+             QStringLiteral("No portal support found."), QString(QStringLiteral(" ") + newPermissions),
+             QStringLiteral("Application update not allowed"), QStringLiteral("test permission increase")})
+        require(deckUpdateNotSupportedMessage(other) == either, "translated or unknown refusal text was given a cause");
     require(qgetenv("NOVA_DECK_PRIVATE_UPDATE_BUS") == "1" && qEnvironmentVariableIsSet("DBUS_SESSION_BUS_ADDRESS"),
         "use CTest's private update bus");
     const auto address = QString::fromUtf8(qgetenv("DBUS_SESSION_BUS_ADDRESS"));
@@ -164,6 +187,23 @@ int main(int argc, char** argv) {
         updates.check();
         until([&] { return portal.creates == creates + 1 && !updates.state()["checking"].toBool(); });
         portal.offer(); until([&] { return updates.state()["canInstall"].toBool(); });
+        if (name == "refusals") {
+            // The real portal accepts Update, then reports the refusal as a
+            // terminal Progress with the error name and message.
+            int attempts = installs;
+            for (const auto& refusal : {noApprovalPrompt, newPermissions, QStringLiteral("Nenalezena podpora portálů")}) {
+                updates.install(); until([&] { return portal.installs == attempts + 1; }); ++attempts;
+                portal.send("Progress", {{"status", 3u}, {"error", notSupported}, {"error_message", refusal}});
+                until([&] { return !updates.busy(); });
+                require(updates.state()["message"].toString() == deckUpdateNotSupportedMessage(refusal),
+                    "portal refusal lost its cause");
+                require(updates.state()["canInstall"].toBool() && updates.state()["available"].toBool(),
+                    "refused update could not be retried");
+            }
+            require(updates.state()["message"].toString() == deckUpdateNotSupportedMessage({}),
+                "translated refusal was given a single cause");
+            return;
+        }
         updates.install(); until([&] { return portal.installs == installs + 1; });
         portal.send("Progress", {{"status", 0u}, {"progress", 40u}});
         until([&] { return updates.state()["progress"].toInt() == 40; });
@@ -179,7 +219,8 @@ int main(int argc, char** argv) {
         require(updates.state()["canInstall"].toBool() && updates.state()["lastCheck"] == "failed",
             "cancelled installation lost retry or changed the completed check");
     };
-    for (const auto& name : {QStringLiteral("outcome"), QStringLiteral("equal"), QStringLiteral("progress"), QStringLiteral("manual")}) {
+    for (const auto& name : {QStringLiteral("outcome"), QStringLiteral("equal"), QStringLiteral("progress"), QStringLiteral("refusals"),
+         QStringLiteral("manual")}) {
         if (app.arguments().contains("--update-regression=" + name)) {
             regression(name); std::cout << name.toStdString() << " regression passed\n"; return 0;
         }
@@ -237,7 +278,8 @@ int main(int argc, char** argv) {
         updates.setBlocked(true); updates.setBlocked(false); pump(100);
         require(portal.installs == 1, "failed automatic update retried without a new revision");
         portal.deny = true; updates.install(); until([&] { return portal.installs == 2 && !updates.busy(); });
-        require(updates.state()["message"].toString().contains("new permissions"), "permission escalation was hidden");
+        require(updates.state()["message"].toString() == deckUpdateNotSupportedMessage({}),
+            "NotSupported reply without Flatpak's text was given a single cause");
         portal.deny = false; updates.install(); until([&] { return portal.installs == 3; });
         portal.finish(2); until([&] { return updates.state()["restartRequired"].toBool(); });
         require(!updates.busy() && !updates.state()["canInstall"].toBool() && quits == 0, "completion auto-quit or repeated install");
@@ -269,7 +311,8 @@ int main(int argc, char** argv) {
         portal.finish(3); until([&] { return !waiting.busy(); });
     }
     std::cout << "Private Flatpak portal: channel guards, offline checks, idle gating, opt-in persistence, install errors, completion and service loss passed.\n";
-    for (const auto& name : {QStringLiteral("outcome"), QStringLiteral("equal"), QStringLiteral("progress"), QStringLiteral("manual")}) regression(name);
+    for (const auto& name : {QStringLiteral("outcome"), QStringLiteral("equal"), QStringLiteral("progress"), QStringLiteral("refusals"),
+         QStringLiteral("manual")}) regression(name);
     std::cout << "Update presentation regressions passed\n";
 
 }
