@@ -234,6 +234,14 @@ sealed interface NovaCommonPage : NovaPage {
          * long message is scrolled to its end with its start out of a D-pad's reach (#459).
          */
         val readFirst: Boolean = false,
+        /**
+         * Gives [message] an area of its own only when it is longer than the page has room for: it
+         * then scrolls there, with its start and the actions in view, and is a stop Up from the
+         * actions reaches. The action keeps the first focus, so the page's answer stays one press
+         * away. A message that fits is laid out and focused exactly as without this (#464). Where
+         * the page has to scroll as well, the message takes the first focus, as [readFirst] does.
+         */
+        val longMessageScrolls: Boolean = false,
     ) : NovaCommonPage
 
     /**

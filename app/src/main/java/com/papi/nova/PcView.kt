@@ -2096,31 +2096,18 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
 
     private fun showNovaAutomaticUpdatePrompt(release: NovaUpdateRelease) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val message = release.releaseNotes?.takeIf { it.isNotBlank() }?.let { notes ->
-            getString(
-                R.string.nova_update_popup_message_with_notes,
-                release.versionName,
-                NovaUpdateChecker.currentVersionLabel(),
-                notes.trim()
-            )
-        } ?: getString(
-            R.string.nova_update_popup_message,
-            release.versionName,
-            NovaUpdateChecker.currentVersionLabel()
-        )
         novaSurfaces.present(
-            NovaCommonPage.Notice(
+            novaAutomaticUpdatePage(
+                context = this,
                 key = UPDATE_NOTICE_KEY,
-                title = getString(R.string.nova_update_available_title),
-                message = message,
+                release = release,
+                currentVersion = NovaUpdateChecker.currentVersionLabel(),
                 primary = novaUpdatePrimaryAction(release),
-                // The one action beside Download and Later.
-                help = NovaAction(getString(R.string.nova_update_skip_version)) {
+                onSkip = {
                     NovaUpdatePromptPreferences.skipRelease(prefs, release)
                     // The result on a page in the right edge panel, not a Toast.
                     showHostsNotice(getString(R.string.nova_update_skip_version), getString(R.string.nova_update_skipped_toast))
                 },
-                closeLabel = getString(R.string.nova_update_later),
             ),
         )
     }
@@ -3784,4 +3771,32 @@ class PcView : NovaActivity(), AdapterFragmentCallbacks {
         private const val UPDATE_NOTICE_KEY = "nova-update"
         private const val PAIRING_PAGE_KEY = "nova-pairing"
     }
+}
+
+/**
+ * The automatic update prompt: the version line, the release's own notes under it when it has any,
+ * then [primary] (Download APK or Open Release), Skip This Version and Later.
+ */
+internal fun novaAutomaticUpdatePage(
+    context: Context,
+    key: String,
+    release: NovaUpdateRelease,
+    currentVersion: String,
+    primary: NovaAction,
+    onSkip: () -> Unit,
+): NovaCommonPage.Notice {
+    val message = release.releaseNotes?.takeIf { it.isNotBlank() }?.let { notes ->
+        context.getString(R.string.nova_update_popup_message_with_notes, release.versionName, currentVersion, notes.trim())
+    } ?: context.getString(R.string.nova_update_popup_message, release.versionName, currentVersion)
+    return NovaCommonPage.Notice(
+        key = key,
+        title = context.getString(R.string.nova_update_available_title),
+        message = message,
+        primary = primary,
+        // The one action beside Download and Later.
+        help = NovaAction(context.getString(R.string.nova_update_skip_version), run = onSkip),
+        closeLabel = context.getString(R.string.nova_update_later),
+        // A release's notes run long: they scroll under the version line, and Download keeps the focus.
+        longMessageScrolls = true,
+    )
 }

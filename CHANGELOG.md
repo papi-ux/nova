@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- On Android, the update prompt, Working Baseline's comparison, a network test result and other messages that run longer than their panel open with their start in view instead of scrolled to the end. The text scrolls in its own area with the buttons still in view under it, and Up and Down scroll it with a controller or a TV remote. The update prompt still opens on Download; the comparison opens on its text. A message that fits is unchanged.
 - On Android, the Library's **Last Stream** page opens at the top of its report, on why the stream ended and when, instead of scrolled to its end with focus on Save Report. The report scrolls in its own area, with the frame-rate line, Save Report and Close still in view under it. It is the page's first stop: Up and Down scroll it with a controller or a TV remote, and Down at its end moves on to Save Report, then Close.
 - On Android, an explicit per-game frame rate in Play Setup takes priority over the host's stored automatic profile when the stream starts, while host and device capability limits still apply.
 - On Android with TalkBack, a Hosts card's **Open Library** is no longer announced again about every second and a half while the card has focus; the Last Stream report is read with the frame-rate graph's caption after it; **Moment Saved** is announced as a pane with its message; and Network Rules with no saved profile says why the switch can do nothing yet when the switch takes focus. Nothing on screen changes.

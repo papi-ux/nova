@@ -618,17 +618,20 @@ object ServerHelper {
         test = activity.lifecycleScope.launch {
             val summary = networkTest(resources)
             if (surfaces.panel.top === busy) {
-                surfaces.panel.replaceTop(
-                    NovaCommonPage.Notice(
-                        key = NETWORK_RESULT_PAGE_KEY,
-                        title = resources.getString(R.string.nettest_title_done),
-                        message = summary,
-                        closeLabel = resources.getString(R.string.nova_panel_close),
-                    ),
-                )
+                surfaces.panel.replaceTop(networkResultPage(resources, summary))
             }
         }
     }
+
+    /** What the network test found, in [summary]'s words, with Close. */
+    internal fun networkResultPage(resources: Resources, summary: String) = NovaCommonPage.Notice(
+        key = NETWORK_RESULT_PAGE_KEY,
+        title = resources.getString(R.string.nettest_title_done),
+        message = summary,
+        closeLabel = resources.getString(R.string.nova_panel_close),
+        // A list of blocked ports can run past the panel.
+        longMessageScrolls = true,
+    )
 
     /**
      * Which of Nova's streaming ports this network lets through, as the sentence the result page
