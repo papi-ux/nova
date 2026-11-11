@@ -3796,5 +3796,7 @@ internal fun novaAutomaticUpdatePage(
         // The one action beside Download and Later.
         help = NovaAction(context.getString(R.string.nova_update_skip_version), run = onSkip),
         closeLabel = context.getString(R.string.nova_update_later),
+        // A release's notes run long: they scroll under the version line, and Download keeps the focus.
+        longMessageScrolls = true,
     )
 }

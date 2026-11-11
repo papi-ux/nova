@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- On Android, the update prompt, Working Baseline's comparison, a network test result and other messages that run longer than their panel open with their start in view instead of scrolled to the end. The text scrolls in its own area with the buttons still in view under it, and Up and Down scroll it with a controller or a TV remote. The update prompt still opens on Download; the comparison opens on its text. A message that fits is unchanged.
 - On Android, the Library's **Last Stream** page opens at the top of its report, on why the stream ended and when, instead of scrolled to its end with focus on Save Report. The report scrolls in its own area, with the frame-rate line, Save Report and Close still in view under it. It is the page's first stop: Up and Down scroll it with a controller or a TV remote, and Down at its end moves on to Save Report, then Close.
 - On Android, an explicit per-game frame rate in Play Setup takes priority over the host's stored automatic profile when the stream starts, while host and device capability limits still apply.
 - The source-time test harness chooses Ninja when available, falls back to make, and reports a missing build tool before configuring CMake.

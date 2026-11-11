@@ -629,6 +629,8 @@ object ServerHelper {
         title = resources.getString(R.string.nettest_title_done),
         message = summary,
         closeLabel = resources.getString(R.string.nova_panel_close),
+        // A list of blocked ports can run past the panel.
+        longMessageScrolls = true,
     )
 
     /**

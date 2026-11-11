@@ -124,5 +124,7 @@ object Dialog {
         closeLabel = closeLabel,
         onClose = onClose,
         help = help,
+        // What a host or a failure said can be any length.
+        longMessageScrolls = true,
     )
 }
