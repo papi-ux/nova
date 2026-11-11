@@ -101,17 +101,28 @@ object Dialog {
             )
         } else {
             surfaces.present(
-                NovaCommonPage.Notice(
-                    key = key,
-                    title = title,
-                    message = message,
-                    primary = action,
-                    closeLabel = closeLabel,
-                    onClose = onClose,
-                    help = if (help) NovaAction(helpLabel, run = troubleshoot) else null,
-                ),
+                messagePage(key, title, message, action, closeLabel, onClose, if (help) NovaAction(helpLabel, run = troubleshoot) else null),
                 owner = NovaStateOwner.LegacyDialog,
             )
         }
     }
+
+    /** A message that blocks nothing, as a page in the edge panel: [action] if any, Help if asked, Close. */
+    internal fun messagePage(
+        key: String,
+        title: String,
+        message: String,
+        action: NovaAction?,
+        closeLabel: String,
+        onClose: () -> Unit,
+        help: NovaAction?,
+    ) = NovaCommonPage.Notice(
+        key = key,
+        title = title,
+        message = message,
+        primary = action,
+        closeLabel = closeLabel,
+        onClose = onClose,
+        help = help,
+    )
 }
