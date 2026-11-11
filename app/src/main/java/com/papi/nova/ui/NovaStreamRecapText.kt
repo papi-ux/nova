@@ -192,6 +192,8 @@ internal object NovaStreamRecapPages {
             } else {
                 null
             },
+            // The end reason and the time are the report's first lines: the page opens on them.
+            readFirst = true,
         )
 
     /**

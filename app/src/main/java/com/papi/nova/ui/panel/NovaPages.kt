@@ -214,6 +214,13 @@ sealed interface NovaCommonPage : NovaPage {
         val beforeActions: (@Composable () -> Unit)? = null,
         /** Makes [message] a row that takes focus and A, for a line that does something when pressed. */
         val onMessagePress: (() -> Unit)? = null,
+        /**
+         * Makes [message] the page's first stop, for a report longer than the panel. The page opens
+         * on it, at its top; Up and Down scroll the page while it has focus, and Down at the page's
+         * end goes on to the actions. Without it the page opens on its action, and a long message
+         * is scrolled to its end with its start out of a D-pad's reach (#459).
+         */
+        val readFirst: Boolean = false,
     ) : NovaCommonPage
 
     /**

@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +49,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,6 +62,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -71,6 +77,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.focused
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -81,6 +88,7 @@ import com.papi.nova.ui.compose.LocalNovaComposeColors
 import com.papi.nova.ui.compose.LocalNovaFormFactor
 import com.papi.nova.ui.compose.LocalNovaLibrarySurfaces
 import com.papi.nova.ui.compose.NovaRadius
+import kotlinx.coroutines.launch
 
 /**
  * Draws a [NovaCommonPage]. [exit] pops the page, or closes the panel at the root; every page
@@ -118,8 +126,7 @@ private fun NovaPageScope.PageList(content: LazyListScope.() -> Unit) {
 
 /** A short page that is not a list: scrolls if it must, padded like one, its edges faded. */
 @Composable
-private fun PageColumn(content: @Composable () -> Unit) {
-    val scroll = rememberScrollState()
+private fun PageColumn(scroll: ScrollState = rememberScrollState(), content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -364,9 +371,14 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPage
     val colors = LocalNovaComposeColors.current
     val close = { exit.leaveThen(page.onClose) }
     NovaBackHandler(active = true, onBack = close)
-    PageColumn {
+    val scroll = rememberScrollState()
+    // A message read first is where the page opens, so no action asks for the first focus as well.
+    val readFirst = page.readFirst && page.onMessagePress == null
+    PageColumn(scroll) {
         if (page.onMessagePress != null) {
             NovaRow(title = page.message, onClick = page.onMessagePress, modifier = Modifier.novaRestorableFocus("message"))
+        } else if (readFirst) {
+            NoticeReport(page, scroll)
         } else {
             // A notice carries whole error messages, so it reads at the size every other message does.
             Text(
@@ -383,7 +395,7 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPage
                 primary = true,
                 destructive = primary.destructive,
                 onClick = { exit.leaveThen(primary.run) },
-                modifier = Modifier.fillMaxWidth().novaInitialFocus(),
+                modifier = Modifier.fillMaxWidth().then(if (readFirst) Modifier else Modifier.novaInitialFocus()),
             )
         }
         page.help?.let { help ->
@@ -398,10 +410,69 @@ private fun NovaPageScope.NoticePage(page: NovaCommonPage.Notice, exit: NovaPage
             onClick = close,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (page.primary == null) Modifier.novaInitialFocus() else Modifier),
+                .then(if (page.primary == null && !readFirst) Modifier.novaInitialFocus() else Modifier),
         )
     }
 }
+
+/**
+ * A notice's message as the page's first stop ([NovaCommonPage.Notice.readFirst]): a report longer
+ * than the panel, which a pad or a remote has to be able to read from its top. The page opened on
+ * its action under the report, scrolled to it, and the report was no stop, so nothing but touch
+ * could bring its start back (#459).
+ *
+ * It takes the first focus and asks for no scroll when it does: it is a bare focus target, which
+ * brings nothing into view, where `focusable()` would bring an element taller than the list to its
+ * end. So the page opens where it starts, and coming back up from the actions leaves the page
+ * where it is. While it has focus Up and Down scroll the page half a view at a time; at the page's
+ * end Down is left to move on to the actions, and at its top Up does nothing. It acts on nothing,
+ * so the hint bar offers no A. Its ring is its own, drawn in the room it keeps for it: the shared
+ * focus look also makes an element a row its list rests on, and a list cannot rest on a row taller
+ * than itself.
+ */
+@Composable
+private fun NovaPageScope.NoticeReport(page: NovaCommonPage.Notice, scroll: ScrollState) {
+    val colors = LocalNovaComposeColors.current
+    val ring = LocalNovaLibrarySurfaces.current.focusRing
+    val shape = RoundedCornerShape(NovaRadius.row)
+    val scope = rememberCoroutineScope()
+    var holdsFocus by remember { mutableStateOf(false) }
+    Text(
+        text = page.message,
+        style = novaPanelType.rowTitle,
+        fontFamily = if (page.monospace) FontFamily.Monospace else null,
+        color = colors.textSecondary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(NovaNoticeReportTag)
+            .novaInitialFocus()
+            .novaFocusHint(NovaFocusHint.Read)
+            .onFocusChanged { holdsFocus = it.isFocused }
+            .semantics { focused = holdsFocus }
+            .onPreviewKeyEvent { event ->
+                val direction = when (event.key) {
+                    Key.DirectionUp -> -1
+                    Key.DirectionDown -> 1
+                    else -> return@onPreviewKeyEvent false
+                }
+                // Where the page can go no further the key is left alone, to move focus on.
+                val canScroll = if (direction < 0) scroll.canScrollBackward else scroll.canScrollForward
+                if (event.type != KeyEventType.KeyDown || !canScroll) return@onPreviewKeyEvent false
+                val step = scroll.viewportSize * NoticeReportStep * direction
+                scope.launch { scroll.animateScrollBy(step) }
+                true
+            }
+            .border(NovaPanelMetrics.FocusRingWidth, if (holdsFocus) ring else Color.Transparent, shape)
+            .focusTarget()
+            .padding(NovaPanelMetrics.FocusRingWidth + NovaPanelMetrics.FocusRingGap),
+    )
+}
+
+/** A read-first notice's message, for a test to find it. */
+internal const val NovaNoticeReportTag = "nova-notice-report"
+
+/** How much of the view one Up or Down scrolls a read-first notice: half, so the eye keeps its place. */
+private const val NoticeReportStep = 0.5f
 
 @Composable
 private fun NovaPageScope.FormPage(page: NovaCommonPage.Form, exit: NovaPageExit) {

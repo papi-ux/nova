@@ -18,6 +18,7 @@ import com.papi.nova.diagnostics.NovaStreamRecap
 import com.papi.nova.diagnostics.NovaStreamRecap.End
 import com.papi.nova.diagnostics.NovaStreamRecapTest.Companion.launch
 import com.papi.nova.diagnostics.NovaStreamRecapTest.Companion.sample
+import com.papi.nova.ui.panel.NovaNoticeReportTag
 import com.papi.nova.ui.panel.NovaPageStackHost
 import com.papi.nova.ui.panel.NovaPanelState
 import com.papi.nova.ui.panel.frames
@@ -90,9 +91,10 @@ class NovaStreamRecapAtAGlanceComposeTest {
         rule.onAllNodesWithText(words).assertCountEquals(0)
     }
 
-    @Test fun theLineSharesThePageAndFocusStaysOnItsAction() {
+    /** The page opens on its report, where it starts (#459); it opened on its action under the block. */
+    @Test fun theLineSharesThePageAndFocusOpensOnItsReport() {
         show(recap(hour))
-        rule.onNodeWithText(rule.activity.getString(R.string.nova_recap_close)).assertIsFocused()
+        rule.onNodeWithTag(NovaNoticeReportTag).assertIsFocused()
         rule.onAllNodesWithTag(NOVA_STREAM_RECAP_AT_A_GLANCE_TAG).assertCountEquals(1)
     }
 
