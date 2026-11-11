@@ -91,6 +91,16 @@ int main(int argc, char** argv) {
     const auto invoke = [&](const char* method) { require(QMetaObject::invokeMethod(root.get(), method), method); QTest::qWait(20); };
     QVariant theme; QMetaObject::invokeMethod(root.get(), "theme", Q_RETURN_ARG(QVariant, theme));
     require(theme == "polaris", "Aurora default changed"); invoke("motion");
+    // #388: the footer offers B Back only where Back does something.
+    invoke("back"); QTest::qWait(40);
+    auto* hints = item("library-footer-hints");
+    require(window->activeFocusItem() && window->activeFocusItem()->objectName() == "game-42" && !hints->property("text").toString().contains("Back"),
+            "the Library root promised a Back that does nothing");
+    item("library-host-button")->forceActiveFocus(); QTest::qWait(20);
+    require(hints->property("text").toString().contains("B  Back"), "Back hint missing where Back returns to the games");
+    invoke("back"); QTest::qWait(40);
+    require(window->activeFocusItem() && window->activeFocusItem()->objectName() == "game-42" && !hints->property("text").toString().contains("Back"),
+            "Back from the header did not return to the games or kept its hint");
     auto* resume = item("library-resume"); auto* end = item("library-end-session");
     require(item("library-now-playing")->isVisible() && resume->property("text") == "Resume" && end->property("text") == "End Session", "paused labels absent");
     item("library-host-button")->forceActiveFocus(); QTest::keyClick(window, Qt::Key_Down);

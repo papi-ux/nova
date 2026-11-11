@@ -596,8 +596,27 @@ int main(int argc, char** argv) {
     focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "unsupported stream lost settings focus");
     require(QMetaObject::invokeMethod(primary, "clicked"), "cannot check unavailable stream guard");
     require(session.starts == 2, "unsupported stream reached session start");
+    // #388: Play can become available after the page has opened on a setting. A player who has
+    // moved keeps their place; one who has not is taken to Play.
+    key(*window, Qt::Key_Down);
+    auto* movedTo = root->findChild<QQuickItem*>("play-setup-rate");
+    focused(*window, movedTo, "cannot move off the opening setting");
     preview->setProperty("streamCapabilities", QVariantMap{{"h264", true}, {"maxFps", 30}});
     settle();
+    require(primary->isEnabled(), "late plan did not enable Play");
+    focused(*window, movedTo, "a late Play took focus from a player who had moved");
+    key(*window, Qt::Key_Escape);
+    preview->setProperty("streamCapabilities", QVariantMap{{"h264", false}});
+    require(QMetaObject::invokeMethod(preview, "open"), "cannot review unavailable codec again");
+    settle();
+    require(!primary->isEnabled(), "unsupported codec left Play enabled on the second review");
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "second unsupported review lost settings focus");
+    preview->setProperty("streamCapabilities", QVariantMap{{"h264", true}, {"maxFps", 30}});
+    settle();
+    require(primary->isEnabled(), "late plan did not enable Play on the second review");
+    focused(*window, primary, "Play became available with the player waiting, and focus stayed on a setting");
+    key(*window, Qt::Key_Down);
+    focused(*window, root->findChild<QQuickItem*>("play-setup-resolution"), "Play no longer reaches settings");
     key(*window, Qt::Key_Up);
     focused(*window, planSummary, "adjusted resolution did not reach the plan disclosure");
     key(*window, Qt::Key_Up);
