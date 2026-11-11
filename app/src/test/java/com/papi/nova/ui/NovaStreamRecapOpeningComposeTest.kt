@@ -11,7 +11,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -41,10 +41,11 @@ import org.robolectric.annotation.Config
  * Where the Last Stream page opens and what the D-pad does on it (#459). On the RP6 it opened with
  * focus down on Save Report and the report scrolled to its end, so the end reason and the time were
  * off screen, and Up from Save Report did nothing: the report was no stop, so a pad or a remote
- * could not reach its top at all.
+ * could not reach its top at all. It opens on the report's top now, with what it opened on before
+ * still in view under it.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33], qualifiers = "w640dp-h360dp-land")
+@Config(sdk = [33], qualifiers = "w1280dp-h720dp-land")
 class NovaStreamRecapOpeningComposeTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
@@ -68,13 +69,13 @@ class NovaStreamRecapOpeningComposeTest {
     private fun page(recap: NovaStreamRecap.Recap) =
         NovaStreamRecapPages.page(rule.activity, recap, onSaveReport = { saves++ })
 
-    /** The Library's end panel is about half a landscape screen wide, so the report runs long. */
+    /** The Library's end panel on a 1080p handheld: about half a landscape screen wide, and its height. */
     private fun show(recap: NovaStreamRecap.Recap, fontScale: Float = 1f): NovaTestKeys {
         panel.open(page(recap))
         val keys = rule.setPanelContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                Box(Modifier.width(320.dp).fillMaxHeight()) {
+                Box(Modifier.width(600.dp).fillMaxHeight()) {
                     NovaPageStackHost(state = panel) { }
                 }
             }
@@ -110,14 +111,30 @@ class NovaStreamRecapOpeningComposeTest {
         }
     }
 
-    /** The report's first line is under the title, the report has focus, and there is more below. */
-    private fun assertOpensAtTheTop(recap: NovaStreamRecap.Recap) {
+    private fun glance() = rule.onNodeWithTag(NOVA_STREAM_RECAP_AT_A_GLANCE_TAG)
+
+    /** The report's first line is under the title and the report has focus. */
+    private fun assertTheReportIsAtItsTop(recap: NovaStreamRecap.Recap) {
         val title = rule.onNodeWithText(text(R.string.nova_recap_page_title)).getUnclippedBoundsInRoot()
         val reportTop = top(report(recap))
         assertTrue("the report starts at $reportTop, the title ends at ${title.bottom}", reportTop >= title.bottom)
         report(recap).assertIsFocused()
-        // The page is longer than the panel here, or opening at the top would prove nothing.
-        close().assertIsNotDisplayed()
+    }
+
+    /**
+     * The report at its top, and under it, in view without a scroll, what the page used to open on:
+     * the block that reads at a glance and both actions (#423).
+     */
+    private fun assertOpensAtTheTop(recap: NovaStreamRecap.Recap) {
+        assertTheReportIsAtItsTop(recap)
+        // The report is longer than its area here, or opening at its top would prove nothing.
+        val reportEnd = report(recap).getUnclippedBoundsInRoot().bottom
+        assertTrue("the report ends at $reportEnd, past where the block starts at ${top(glance())}", reportEnd > top(glance()))
+        listOf(glance(), save(), close()).forEach {
+            it.assertIsDisplayed()
+            // Whole, not a sliver at the page's edge: nothing clips it.
+            assertEquals(it.getUnclippedBoundsInRoot(), it.getBoundsInRoot())
+        }
     }
 
     @Test
@@ -195,12 +212,30 @@ class NovaStreamRecapOpeningComposeTest {
         show(recap)
         val tops = listOf(
             top(report(recap)),
-            top(rule.onNodeWithTag(NOVA_STREAM_RECAP_AT_A_GLANCE_TAG)),
+            top(glance()),
             top(save()),
             top(close()),
         )
         assertEquals("each stands under the one before it: $tops", tops.sorted(), tops)
         assertEquals(tops.size, tops.distinct().size)
+    }
+
+    /**
+     * A panel too short for the block and the actions to leave the report its least room: the page
+     * scrolls as any page does, and still opens on the report's top with the actions a D-pad away.
+     */
+    @Test
+    @Config(qualifiers = "w640dp-h360dp-land")
+    fun onAShortPanelThePageStillOpensOnTheReportAndTheDpadReachesTheActions() {
+        val recap = recap(End.END_REQUESTED)
+        val keys = show(recap)
+        assertTheReportIsAtItsTop(recap)
+        press(keys, NovaTestKeys.DOWN, "Save Report has focus") { focused(save()) }
+        save().assertIsDisplayed()
+        keys.press(NovaTestKeys.DOWN)
+        close().assertIsFocused()
+        close().assertIsDisplayed()
+        assertEquals(0, saves)
     }
 
     private companion object {
