@@ -38,7 +38,7 @@ struct Fixture {
     std::mutex mutex;
     std::condition_variable wake;
     bool released = false;
-    std::atomic<bool> block{false}, entered{false};
+    std::atomic<bool> block{false}, entered{false}, renamed{false};
     std::atomic<int> mode{0}, aCalls{0}, bCalls{0};
     Fixture() {
         saved.loaded = true;
@@ -71,14 +71,15 @@ struct Fixture {
         result.status = mode == 1 ? polaris::DeckPolarisRequestStatus::Unauthorized
             : mode == 4 ? polaris::DeckPolarisRequestStatus::Timeout
             : mode == 5 ? polaris::DeckPolarisRequestStatus::CertMismatch
-            : mode == 6 ? polaris::DeckPolarisRequestStatus::InvalidIdentity : polaris::DeckPolarisRequestStatus::Ok;
+            : mode == 6 ? polaris::DeckPolarisRequestStatus::InvalidIdentity
+            : mode == 7 ? polaris::DeckPolarisRequestStatus::HttpError : polaris::DeckPolarisRequestStatus::Ok;
         result.standardHost = true;
         result.httpsPort = host.uuid == "a" ? 48001 : 48002;
         if (mode == 0) {
             polaris::DeckPolarisGame game;
             game.id = "gamestream-app-42";
             game.appId = 42;
-            game.name = "Game on " + host.uuid;
+            game.name = "Game on " + host.uuid + (renamed ? " again" : "");
             result.games.push_back(game);
         }
         return result;
@@ -202,6 +203,91 @@ void testInitialTrustFailures() {
         controller.suspendAutomaticRefresh();
     }
 }
+
+// Nova #460. End Session releases the Library's automatic check while the PC is still closing
+// the game. Polaris answers nothing for those seconds, then answers normally again.
+void testNoAnswerAfterEndedSession() {
+    Fixture fixture;
+    const auto original = fixture.saved;
+    auto initial = backend::buildLiveSnapshot(original, [&](const auto& host, bool library) { return fixture.fetch(host, library); });
+    DeckLibraryController controller(original, initial, [&] { return fixture.load(); },
+        [&](const auto&) { return [&](const auto& host, bool library) { return fixture.fetch(host, library); }; });
+    fixture.aCalls = fixture.bCalls = 0;
+    int emptied = 0;
+    QObject::connect(&controller, &DeckLibraryController::snapshotChanged,
+        [&] { if (controller.snapshot().library.games.empty()) ++emptied; });
+    const auto failed = [&] { return controller.state().value("failed").toBool(); };
+    const auto games = [&] { return controller.snapshot().library.games.size(); };
+    const auto settled = [&](int calls) { return fixture.aCalls >= calls && !controller.busy(); };
+    const auto endSession = [&] {
+        controller.setSessionBusy(true);  // The stop request is in flight.
+        controller.setSessionBusy(false); // It settled; the Library checks the PC at once.
+    };
+    // The normal interval is 800ms. A failure that is shown waits twice that before retrying.
+    controller.configureAutomaticRefresh(800, 3200);
+    controller.setInteractionPaused(false);
+    controller.setWindowActive(true);
+
+    fixture.mode = 4;
+    endSession();
+    until([&] { return settled(1); });
+    require(!failed() && games() == 1 && emptied == 0 && controller.targetResolver() != nullptr,
+            "one unanswered check after End emptied the Library");
+    fixture.renamed = true;
+    fixture.mode = 0;
+    QElapsedTimer recovery;
+    recovery.start();
+    until([&] { return !controller.busy() && games() == 1 && controller.snapshot().library.games.front().name == "Game on a again"; });
+    require(recovery.elapsed() < 800 && !failed() && emptied == 0 && fixture.bCalls == 0,
+            "the Library did not reload by itself soon after the PC answered again");
+
+    // A PC that stays silent is reported, after a bounded number of closer retries.
+    int before = fixture.aCalls;
+    fixture.mode = 4;
+    endSession();
+    until([&] { return failed() && !controller.busy(); });
+    require(fixture.aCalls == before + 4 && games() == 0 && emptied == 1 && !controller.targetResolver() &&
+            controller.state().value("copy").toString().contains("unavailable"),
+            "an unreachable PC was not reported after the bounded retries");
+    processFor(500);
+    require(fixture.aCalls == before + 4, "a reported failure kept the closer retry pace");
+    fixture.mode = 0;
+    until([&] { return !failed() && !controller.busy() && games() == 1; });
+
+    // The PC answered and refused: that is not a pause to wait out.
+    before = fixture.aCalls;
+    fixture.mode = 7;
+    endSession();
+    until([&] { return settled(before + 1); });
+    require(failed() && games() == 0 && fixture.aCalls == before + 1, "an answered failure kept the old list");
+    fixture.mode = 0;
+    endSession();
+    until([&] { return !failed() && !controller.busy() && games() == 1; });
+
+    // A trust rejection during the closer retries ends them and the list.
+    before = fixture.aCalls;
+    fixture.mode = 4;
+    endSession();
+    until([&] { return settled(before + 1); });
+    require(!failed() && games() == 1, "the list was not kept before the trust rejection");
+    fixture.mode = 1;
+    until([&] { return failed() && !controller.busy(); });
+    const int rejected = fixture.aCalls;
+    processFor(500);
+    require(fixture.aCalls == rejected && games() == 0 && !controller.targetResolver(),
+            "a trust rejection was retried or kept the old list");
+
+    // An explicit Refresh reports what it found, with no grace.
+    fixture.mode = 0;
+    require(controller.refresh(), "explicit recovery was refused");
+    until([&] { return !failed() && !controller.busy() && games() == 1; });
+    fixture.mode = 4;
+    before = fixture.aCalls;
+    require(controller.refresh(), "explicit check was refused");
+    until([&] { return settled(before + 1); });
+    require(failed() && games() == 0 && fixture.aCalls == before + 1, "an explicit Refresh hid its failure");
+    controller.suspendAutomaticRefresh();
+}
 }
 
 int main(int argc, char** argv) {
@@ -283,5 +369,7 @@ int main(int argc, char** argv) {
     require(!controller.state().value("copy").toString().contains("fixture"), "raw error reached UI");
     testAutomaticRefresh();
     testInitialTrustFailures();
-    std::cout << "Library selection, focus-independent refresh, automatic pause/resume/backoff, trust rejection and shutdown passed\n";
+    testNoAnswerAfterEndedSession();
+    std::cout << "Library selection, focus-independent refresh, automatic pause/resume/backoff, trust rejection, "
+                 "recovery after an ended session and shutdown passed\n";
 }
