@@ -7674,8 +7674,9 @@ private fun applyNovaHudCovered() {
 novaHud?.setCovered(novaHudCovered && !novaHudPreviewing)
 }
 
+/** The saved HUD corner, read whether or not the HUD is showing (#482). */
 val novaHudPositionCorner:com.papi.nova.ui.NovaHudCorner?
-get() = novaHud?.positionCorner
+get() = com.papi.nova.ui.NovaStreamHud.savedPositionCorner(this)
 
 fun setNovaHudPosition(corner:com.papi.nova.ui.NovaHudCorner) {
 novaHud?.setPosition(corner)

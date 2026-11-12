@@ -1,6 +1,7 @@
 package com.papi.nova.ui
 
 import android.app.Activity
+import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Rect
 import android.os.Handler
@@ -624,12 +625,7 @@ class NovaStreamHud(
 
     /** Null means the player dragged the HUD between the named corners. */
     val positionCorner: NovaHudCorner?
-        get() {
-            val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
-            val x = prefs.getFloat(PREF_HUD_X_FRACTION, Float.NaN)
-            val y = prefs.getFloat(PREF_HUD_Y_FRACTION, Float.NaN)
-            return NovaHudCorner.entries.firstOrNull { it.x == x && it.y == y }
-        }
+        get() = savedPositionCorner(activity)
 
     /** Controller/Command Center callers can move the HUD without touch dragging. */
     fun setPosition(corner: NovaHudCorner) {
@@ -719,6 +715,24 @@ class NovaStreamHud(
         private const val COVERED_ALPHA = 0.25f
         private const val PREF_HUD_X = "nova_polaris_hud_x"
         private const val PREF_HUD_Y = "nova_polaris_hud_y"
+
+        /**
+         * The corner the saved position names, from the preferences alone, so the Command Center
+         * shows it while the HUD is off and there is no HUD to ask (#482); it read "Custom" then.
+         * Null means the player dragged the HUD between the corners. With no position saved the
+         * HUD shows at the top left, so that is the corner.
+         */
+        fun savedPositionCorner(context: Context): NovaHudCorner? {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val x = prefs.getFloat(PREF_HUD_X_FRACTION, Float.NaN)
+            val y = prefs.getFloat(PREF_HUD_Y_FRACTION, Float.NaN)
+            if (!x.isFinite() || !y.isFinite()) {
+                // Old pixel coordinates are a dragged place until the HUD next shows and converts them.
+                return if (prefs.contains(PREF_HUD_X) || prefs.contains(PREF_HUD_Y)) null else NovaHudCorner.TOP_LEFT
+            }
+            return NovaHudCorner.entries.firstOrNull { it.x == x && it.y == y }
+        }
+
         fun isEnabled(activity: Activity): Boolean {
             return PreferenceManager.getDefaultSharedPreferences(activity)
                 .getBoolean("nova_polaris_hud", false)
