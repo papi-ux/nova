@@ -67,10 +67,20 @@ class ProfilesActivity : NovaActivity(), ProfilesManager.ProfileChangeListener {
 
     private fun updateUI() {
         val profileCount = ProfilesManager.getInstance().getProfiles().size
-        if (profileCount == 0) {
+        val empty = profileCount == 0
+        // With nothing listed, the first A makes a preset (#480). The page can open in touch mode,
+        // as it did on the RP6, and a window opening in touch mode drops focus from a view that
+        // cannot hold it there; the first A then only brought focus back to +. While + is the
+        // page's only control it holds focus in touch mode too, so a tap on it still presses it at
+        // once. Once presets are listed it is a plain button again, and lets go of a focus it held
+        // only in touch mode.
+        addProfileFab?.let { fab ->
+            fab.isFocusableInTouchMode = empty
+            if (!empty && fab.isFocused && fab.isInTouchMode) fab.clearFocus()
+        }
+        if (empty) {
             recyclerView.visibility = View.GONE
             emptyState.visibility = View.VISIBLE
-            // With nothing listed, the first A makes a preset.
             addProfileFab?.requestFocus()
         } else {
             recyclerView.visibility = View.VISIBLE
