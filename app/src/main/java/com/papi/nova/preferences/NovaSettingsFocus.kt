@@ -56,6 +56,16 @@ internal class NovaSettingsFocus(val pane: NovaPanelState) {
     // True only while this coordinator itself moves focus onto a row.
     private var entering = false
 
+    /**
+     * The pane root, by its stack entry, whose rows last held focus. Those same rows take focus
+     * back when a page pushed over them pops. The page that held the pane's focus keeps it while
+     * it animates out, which lets the rows' request through; with animations off it has already
+     * gone, and the pane's focus with it, so the gate refused the row that opened the page and
+     * focus fell to the header's Back (#481). A rail highlight swaps in a new root, a new entry,
+     * which the gate still refuses.
+     */
+    private var rowsRoot: Long? = null
+
     /** The category the rail should focus next. */
     var railTarget: String? by mutableStateOf(null)
 
@@ -100,14 +110,20 @@ internal class NovaSettingsFocus(val pane: NovaPanelState) {
     val rootGate: Modifier = Modifier.focusProperties {
         onEnter = {
             val requested = requestedFocusDirection != FocusDirection.Enter
-            if (!requested && !paneHasFocus && !entering) cancelFocusChange()
+            val returning = rowsRoot != null && rowsRoot == pane.topEntry?.id
+            if (!requested && !paneHasFocus && !entering && !returning) cancelFocusChange()
         }
     }
 
     /** On a row: its requester, and the memory of it as the pane's last row. */
     fun rowModifier(paneKey: String, key: String): Modifier = Modifier
         .focusRequester(rowRequester(key))
-        .onFocusChanged { if (it.hasFocus) lastRows[paneKey] = key }
+        .onFocusChanged {
+            if (it.hasFocus) {
+                lastRows[paneKey] = key
+                rowsRoot = pane.topEntry?.id
+            }
+        }
 }
 
 /**
