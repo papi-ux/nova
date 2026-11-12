@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -43,10 +47,15 @@ import com.papi.nova.network.YesNoCondition
 import com.papi.nova.profiles.ProfilesManager
 import com.papi.nova.profiles.SettingsProfile
 import com.papi.nova.ui.compose.NovaComposeTheme
+import com.papi.nova.ui.panel.novaFocusRing
 
 /**
  * One host's network rules: an ordered list of conditions, each naming an existing saved settings
  * profile. Off until turned on. Only profile UUIDs and condition choices are stored, per host.
+ *
+ * Every control takes Nova's one focus ring ([materialFocusRing]) in front of its own focus target.
+ * Material's focus alone was a faint halo round the switch's thumb and a slightly lighter fill on
+ * the buttons, so from a sofa it was hard to tell which control A would press (#479).
  */
 class NovaNetworkRulesActivity : NovaActivity() {
     private lateinit var store: NetworkProfileRuleStore
@@ -127,7 +136,8 @@ internal fun NetworkRulesScreen(
             Switch(
                 checked = rules.enabled,
                 onCheckedChange = { onChange(rules.copy(enabled = it)) },
-                modifier = Modifier.testTag(NovaNetworkRulesActivity.TAG_ENABLED).semantics { contentDescription = spoken },
+                modifier = Modifier.materialFocusRing(CircleShape)
+                    .testTag(NovaNetworkRulesActivity.TAG_ENABLED).semantics { contentDescription = spoken },
             )
         }
         Text(stringResource(R.string.nova_network_rules_explainer), style = MaterialTheme.typography.bodySmall)
@@ -194,16 +204,19 @@ private fun RuleList(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (index > 0) TextButton(
                             onClick = { move(index - 1) },
-                            modifier = Modifier.testTag(NovaNetworkRulesActivity.ruleTag(index, "up")),
+                            modifier = Modifier.materialFocusRing(ButtonDefaults.textShape)
+                                .testTag(NovaNetworkRulesActivity.ruleTag(index, "up")),
                         ) { Text(stringResource(R.string.nova_network_rules_move_up, number)) }
                         if (index < rules.rules.lastIndex) TextButton(
                             onClick = { move(index + 1) },
-                            modifier = Modifier.testTag(NovaNetworkRulesActivity.ruleTag(index, "down")),
+                            modifier = Modifier.materialFocusRing(ButtonDefaults.textShape)
+                                .testTag(NovaNetworkRulesActivity.ruleTag(index, "down")),
                         ) { Text(stringResource(R.string.nova_network_rules_move_down, number)) }
                         Spacer(Modifier.weight(1f))
                         TextButton(
                             onClick = { onChange(rules.copy(rules = rules.rules.filterIndexed { i, _ -> i != index })) },
-                            modifier = Modifier.testTag(NovaNetworkRulesActivity.ruleTag(index, "delete")),
+                            modifier = Modifier.materialFocusRing(ButtonDefaults.textShape)
+                                .testTag(NovaNetworkRulesActivity.ruleTag(index, "delete")),
                         ) { Text(stringResource(R.string.nova_network_rules_delete, number)) }
                     }
                 }
@@ -215,7 +228,7 @@ private fun RuleList(
                 onClick = {
                     onChange(rules.copy(rules = rules.rules + NetworkProfileRule(profileUuid = profiles.first().getUuid().toString())))
                 },
-                modifier = Modifier.testTag(NovaNetworkRulesActivity.TAG_ADD),
+                modifier = Modifier.materialFocusRing(ButtonDefaults.outlinedShape).testTag(NovaNetworkRulesActivity.TAG_ADD),
             ) { Text(stringResource(R.string.nova_network_rules_add)) }
         }
     }
@@ -226,6 +239,12 @@ private fun RuleList(
 private fun CycleButton(label: String, value: String, tag: String, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
-        modifier = Modifier.testTag(tag).semantics { contentDescription = "$label: $value" },
+        modifier = Modifier.materialFocusRing(ButtonDefaults.outlinedShape).testTag(tag).semantics { contentDescription = "$label: $value" },
     ) { Text("$label: $value") }
 }
+
+/**
+ * Nova's one focus look ([novaFocusRing]) on a Material control: the selected fill and the accent
+ * ring under focus. At rest it adds nothing, and the control keeps its own look.
+ */
+private fun Modifier.materialFocusRing(shape: Shape): Modifier = novaFocusRing(shape, restFill = Color.Transparent)
