@@ -165,7 +165,21 @@ Item {
             spacing: 2 * hud.scale
             Fact { objectName: "hud-source-time-requested"; label: "Host timing requested"; reading: hud.value("sourceTimeRequested"); Layout.fillWidth: true }
             Fact { objectName: "hud-source-time-effective"; label: "Effective"; reading: hud.value("sourceTimeEffective"); Layout.fillWidth: true }
-            Fact { objectName: "hud-source-time-fallback"; label: "Fallback"; reading: hud.value("sourceTimeFallback"); Layout.fillWidth: true }
+            // The two host reasons only replace a local fallback of none: delivery here is
+            // source-time paced and the host has not proven its own pacing. That is not a
+            // fallback, so the line says what the host reported. Local reasons keep their
+            // token. The readings, the qualification trace and logs keep the raw tokens.
+            Fact {
+                objectName: "hud-source-time-fallback"
+                readonly property string reason: hud.value("sourceTimeFallback")
+                readonly property bool hostGap: reason === "host_status_missing" || reason === "host_status_stale"
+                readonly property var hostRecord: hud.readings.hostSourceTimeStatus
+                label: hostGap ? "Host pacing" : "Fallback"
+                reading: !hostGap ? reason : reason === "host_status_stale" ? "status out of date"
+                    : hostRecord === "present" ? "not confirmed"
+                    : hostRecord === "malformed" ? "status unreadable" : "not reported"
+                Layout.fillWidth: true
+            }
         }
         // Performance and Debug only. The host observer sets hdrStream only for this device's
         // own current stream; an older host, a stale reading or SDR leaves no chip.
