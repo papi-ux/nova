@@ -78,9 +78,8 @@
       "binarySHA256": "3be573914cef71173693824492511235c38c0cab305da4dd7d40880b85992350",
       "reusedFrom": {
         "repository": "papi-ux/polaris",
-        "commit": "pending (staged with this change, not yet committed)",
         "path": "docs/screenshots/v1.5.0/polaris-mission-control-aurora.webp",
-        "purpose": "Reciprocal companion-app feature showcase; same capture reused byte-exact."
+        "purpose": "Reciprocal companion-app feature showcase; same capture reused byte-exact, identified by its sha256 above."
       },
       "updatePill": "v1.5.0 current (green); title \"Update Center: v1.5.0 current. Latest v1.5.0-beta.2\""
     }

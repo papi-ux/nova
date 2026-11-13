@@ -80,13 +80,9 @@ up; the implementation and workflow do not make the feed live by themselves:
    verified; finding its public key alone does not establish either.
    The workflow expects one primary signing key usable noninteractively. Never
    commit private signing material. Keep this key across releases; changing it
-   is a separate trust migration. The owner publishes the public fingerprint
-   here before announcing availability:
-
-   **Feed signing key fingerprint:** `RELEASE-PIN-PLACEHOLDER: set to the
-   production feed key's fingerprint on publish day`
-
-   Descriptors embed the public key. A production signing environment or
+   is a separate trust migration. The feed key's public fingerprint is
+   published on the [repositories page](https://papi-ux.com/docs/repositories/)
+   once the feed is live. Descriptors embed the public key. A production signing environment or
    reviewer is an owner configuration choice at activation; this source adds
    no manual approval gate or environment prerequisite to private rehearsal.
 4. Run **Stage or publish Linux updates** in **`papi-ux/nova-updates` from main**
@@ -107,8 +103,12 @@ up; the implementation and workflow do not make the feed live by themselves:
 All source and release requests explicitly target **`papi-ux/nova`**, while
 workflow runs, artifacts, secrets and Pages belong to **`papi-ux/nova-updates`**.
 The source job checks out Nova master with full history and requires the
-qualified source baseline `c9b0104f7fc17cb9ec06577d354d105ff1a386e6` in both
-its automation history and the selected release commit's history. The old
+qualified source baseline `c4733dcb31f08b4f310e50053898b6db81b26f76` in both
+its automation history and the selected release commit's history. That
+baseline has the same tree (`c15e4ff2c9085935d98ca38ebc13e288b6e02aee`) as the
+originally qualified commit `c9b0104f7fc17cb9ec06577d354d105ff1a386e6`, whose
+ID changed when the repository history was rewritten for 1.5.0; the original
+ID is kept here as provenance. The old
 public automation is refused before its helpers run. The build then pins its
 Nova automation checkout to that exact admitted commit, independently of the
 release checkout, so a later master update cannot replace the admitted helper.

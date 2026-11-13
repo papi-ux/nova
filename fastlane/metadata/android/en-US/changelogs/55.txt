@@ -8,6 +8,6 @@ Steam Controller (2026) works natively over USB, its Puck or Bluetooth.
 
 With Polaris 1.5.0, launch from Host Console to this device and control Steam from the couch.
 
-Report This Moment, Working baseline and Last Stream stay on your device.
+Report This Moment, Working Baseline and Last Stream stay on your device.
 
 Controller, TV and TalkBack fixes.

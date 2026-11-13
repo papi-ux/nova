@@ -475,7 +475,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('repos/papi-ux/nova/releases/tags/${NOVA_TAG}', workflow)
         self.assertIn('repos/papi-ux/nova/commits/${NOVA_TAG}', workflow)
         self.assertNotIn('${GITHUB_REPOSITORY}', workflow)
-        self.assertIn('NOVA_QUALIFIED_SOURCE: c9b0104f7fc17cb9ec06577d354d105ff1a386e6', workflow)
+        self.assertIn('NOVA_QUALIFIED_SOURCE: c4733dcb31f08b4f310e50053898b6db81b26f76', workflow)
         for binding in ['git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$automation_commit"',
                         'git merge-base --is-ancestor "$NOVA_QUALIFIED_SOURCE" "$source_commit"',
                         'echo "automation_commit=$automation_commit" >> "$GITHUB_OUTPUT"',

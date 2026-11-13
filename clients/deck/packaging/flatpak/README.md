@@ -5,7 +5,7 @@
 Nova 1.5.0 adds landscape/desktop Library and Settings polish, six Linux themes
 including `< Congratulations, Director >`, separate control sizes, 80 to 130
 percent text, Command Center background opacity, and Steam controls, a Working
-baseline and Report This Moment in Command Center. See the [client guide](../../README.md#what-changes-in-150) for the
+baseline and Report this moment in Command Center. See the [client guide](../../README.md#what-changes-in-150) for the
 interface changes.
 
 The [Steam Frame development guide](../../docs/steam-frame.md) describes a

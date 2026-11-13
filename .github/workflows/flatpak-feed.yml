@@ -54,7 +54,7 @@ jobs:
           NOVA_TAG: ${{ inputs.release_tag }}
           NOVA_CHANNEL: ${{ inputs.channel }}
           NOVA_ARCH: ${{ inputs.arch }}
-          NOVA_QUALIFIED_SOURCE: c9b0104f7fc17cb9ec06577d354d105ff1a386e6
+          NOVA_QUALIFIED_SOURCE: c4733dcb31f08b4f310e50053898b6db81b26f76
         run: |
           # Refuse the old public automation before executing its helpers.
           automation_commit="$(git rev-parse HEAD)"

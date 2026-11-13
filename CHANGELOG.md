@@ -15,7 +15,7 @@ Everything below is new since 1.4.13, including what the 1.4.14-beta.1 and 1.5.0
 - **Launch from Host Console** (Android). With Polaris 1.5.0, **Launch** on the console's Mission Control streams the game to the device in your hands.
 - **Steam from the couch.** Open Steam, Open Big Picture or Quit Steam on the paired PC, on Android and Linux.
 - **Steam Controller (2026) on Android.** A native driver over USB, the Steam Controller Puck and, if you turn it on, Bluetooth, with trackpad modes, grips, motion and rumble.
-- **Evidence that stays with you.** Report This Moment, Working baseline and a Last Stream report on Android and Linux, kept on your device and shown in your own time zone. Nothing is sent on its own.
+- **Evidence that stays with you.** Report This Moment, Working Baseline and a Last Stream report on Android, and Report this moment, Working baseline and a Last stream card on Linux, kept on your device and shown in your own time zone. Nothing is sent on its own.
 - **Signed updates for Nova Linux, Steam Deck and Steam Frame** (Beta). The guided installer puts Nova on a signed channel, and Nova Updates installs new versions from there, in Game Mode too.
 - **Experiments, off by default.** Pacing video by the host's frame times on Android, Linux and Steam Deck, and PyroWave on Linux and in Nova Beta for Android, where SGSR 1 upscaling joins it.
 
@@ -51,7 +51,7 @@ On Android:
 - Every control on Network Rules shows Nova's focus ring, so you can tell from the couch what A will press.
 - Command Center opens at its top, or on the row you closed it from.
 - In Command Center, **HUD position** shows the corner you saved while NovaHUD is off, instead of Custom.
-- The update prompt, Working baseline's comparison, a network test result and other messages that run longer than their panel open with their start in view. The text scrolls in its own area with the buttons still in view under it, and Up and Down scroll it with a controller or a TV remote.
+- The update prompt, Working Baseline's comparison, a network test result and other messages that run longer than their panel open with their start in view. The text scrolls in its own area with the buttons still in view under it, and Up and Down scroll it with a controller or a TV remote.
 - USB controller changes no longer recreate Library and its game page, which could leave a slow or blank library after ending a stream. The current screen, selection and controller navigation stay in place.
 
 **Play Setup knows the device**
@@ -83,12 +83,12 @@ A phone, a handheld and a television shouldn't all start from the same guessed s
 
 **Evidence that stays with you**
 
-- Command Center has **Report This Moment**. It freezes the current client readings into a report on your device. On Android the report adds a short redacted log tail, and only Share Report opens Android's share chooser, which says sharing may pause playback. On Linux, Save writes the readings and a short sampled history to Documents, Nova reports, with no logs.
-- Mark a stream you know is good as a **Working baseline**, then Compare a later stream against it for the same PC and game. It's a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it.
+- Command Center has **Report This Moment** on Android and **Report this moment** on Linux. It freezes the current client readings into a report on your device. On Android the report adds a short redacted log tail, and only Share Report opens Android's share chooser, which says sharing may pause playback. On Linux, Save writes the readings and a short sampled history to Documents, Nova reports, with no logs.
+- Mark a stream you know is good as a **Working Baseline** on Android or a **Working baseline** on Linux, then Compare a later stream against it for the same PC and game. It's a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it.
 - After a stream ends, Android's **Last Stream** report gives the connection's duration, per-metric averages, missing-frame evidence and why it ended, with a small line of the frame rate over the connection. A Disconnect or Back reads as you leaving the stream, and an End you asked for as yours. The report opens at its top, Up and Down scroll it with a controller or a TV remote, and Save Report keeps it.
 - On Linux, after **End Session** or **Disconnect**, a **Last stream** card shows how long the stream was connected at least, frames received and decoded per second, the received video payload rate, missing video frames, and average PC processing and decoder times, with the same frame-rate line. A reading Nova doesn't have says Unknown, never zero. The card never covers play or moves controller focus, and the next stream clears it. See [stream reports](https://github.com/papi-ux/nova/blob/v1.5.0/docs/stream-reports.md#last-stream).
 - When a whole stream lost nothing, the report says **0.00% frames missing**, and after an hour with nothing missing it earns a **Clear skies** badge. It still isn't a health grade.
-- On Android, moments, baselines and the Last Stream report show the time in this device's time zone, and on Linux, Report This Moment and Working baseline do too, as in "Marked 11:00 AM EDT." Saved reports and baselines keep their UTC stamps inside the file.
+- On Android, moments, baselines and the Last Stream report show the time in this device's time zone, and on Linux, Report this moment and Working baseline do too, as in "Marked 11:00 AM EDT." Saved reports and baselines keep their UTC stamps inside the file.
 - Streaming moments record the bitrate the launch really asked for, after metered-network limits, host ceilings and AutoSafe.
 
 **Host Console and Steam from the couch**
@@ -115,7 +115,7 @@ A phone, a handheld and a television shouldn't all start from the same guessed s
 
 The Linux client gets the same attention as the Android one: a quieter Library, controls that fit an 800p handheld, and preferences you can adjust without committing each step.
 
-- Signed updates. Get Nova's guided installer installs Nova from a signed Stable or Beta channel, or moves your current Nova there with **Move to signed updates**. Stable and Beta use the same Nova app, pairing and settings. After that, **Settings → Nova → Nova Updates** checks for a new version, installs it and says when to reopen Nova; automatic installation is optional and waits until Nova is idle. Nova never switches channels by itself. The [Linux update channels](https://updates.papi-ux.com/nova/) page lists the channel installers.
+- Signed updates. Get Nova's guided installer installs Nova from a signed Stable or Beta channel, or moves your current Nova there with **Move to signed updates**. Stable and Beta use the same Nova app, pairing and settings. After that, **Settings → Nova → Nova Updates** checks for a new version, installs it and says when to reopen Nova; automatic installation is optional and waits until Nova is idle. Nova never switches channels by itself. The signed channels and Get Nova's guided installer catch up to 1.5.0 shortly after this release is published, so for a little while they can still offer the previous version. The [Linux update channels](https://updates.papi-ux.com/nova/) page lists the channel installers.
 - On Steam Deck, Flatpak asks once before Nova may update itself, and Game Mode can't show that question. The guided installer saves that approval for Nova when it moves you to signed updates, so updates work in Game Mode from the start. Without it, Nova now says so instead of claiming the update needs new permissions: switch to Desktop Mode and select **Update Nova** once, and later updates work in Game Mode too. An update that does need new permissions still says so.
 - Updates tells an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. A copy installed from a downloaded bundle says how to turn on updates, and **Open Nova Downloads** takes you to Get Nova.
 - **System → Appearance → Reduce Motion** turns off Nova's interface transitions, including any already under way, and is remembered on the device.
