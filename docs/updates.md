@@ -72,17 +72,28 @@ Nova Linux runs on Linux desktops, laptops and handhelds, including Steam Deck.
 It uses Flatpak rather than Android APKs. The Linux app ID remains
 `com.papi_ux.Nova`.
 
-**Channel installations:** when a signed channel installer is published, choose
-the **stable** or **beta** installer named in the
-release. Open **Settings → Nova → Nova Updates** to check or install an update on
-that installed channel. Automatic installation is optional and waits until Nova
-is idle. Reopen Nova when it says the update is ready. Selecting a channel is
-explicit; the app does not switch channels automatically.
+**Channel installations:** starting with 1.5.0, Nova Linux updates itself from a
+signed **stable** or **beta** channel. Install from one with the guided installer
+on [Get Nova](https://papi-ux.com/downloads/?product=nova), or from the
+[Linux update channels](https://updates.papi-ux.com/nova/) page. Open
+**Settings → Nova → Nova Updates** to check or install an update on that
+installed channel. Automatic installation is optional and waits until Nova is
+idle. Reopen Nova when it says the update is ready. Stable and Beta use the same
+Nova app, pairing and settings. Selecting a channel is explicit; the app does not
+switch channels automatically.
 Beta includes prereleases and stable releases deliberately delivered to the Beta
 ref. That lets Beta subscribers receive stable 1.5.0 without switching branches;
-it does not happen merely because the Stable ref was published. Frame support
-remains Beta and uses `aarch64/beta` only after its signed channel is qualified
-and announced. See the [promotion and migration guide](linux-updates.md).
+it does not happen merely because the Stable ref was published. Steam Frame
+stays Beta and updates from `aarch64/beta`. See the
+[promotion and migration guide](linux-updates.md).
+
+**Updating in Game Mode:** Flatpak asks once before an app updates itself, and
+Steam Deck's Game Mode cannot show that question. The guided installer's **Move
+to signed updates** saves that permission for Nova only and lists it in its
+review. Without it, Nova says to switch to Desktop Mode and select **Update Nova**
+once; later updates then work in Game Mode too. To withdraw the permission, run
+`flatpak permission-remove flatpak updates com.papi_ux.Nova`. This removes only
+Nova's entry, and Flatpak asks again at the next update.
 
 **Downloaded bundles:** an ordinary `.flatpak` bundle may have no update feed.
 Download the bundle from the intended release, verify its checksum, and install
@@ -91,12 +102,12 @@ Current bundles are named `Nova-Linux-x86_64-alpha.flatpak`; older releases used
 `Nova-Deck-x86_64-alpha.flatpak`. Use the filename attached to your release.
 
 Existing bundle installations need a one-time channel installation before they
-can use an in-app feed. Follow the [Linux update and migration guide](linux-updates.md)
-only after the selected channel's installer is published. The updater code and
-publication workflow being present do not make a public feed available.
+can use the in-app feed. If you installed through the guided installer, its
+**Move to signed updates** does that and keeps your Steam entry; otherwise follow
+the [Linux update and migration guide](linux-updates.md#existing-bundle-installations).
 
-To change back to stable, use the published stable channel installer and launch
-that channel explicitly. Switching channels does not mean an older build is a
+To change back to stable, use the stable channel installer and launch that
+channel explicitly. Switching channels does not mean an older build is a
 safe downgrade; follow its release notes. Preserve pairing and preferences by
 keeping the app data, and never use `--delete-data` as an update step.
 

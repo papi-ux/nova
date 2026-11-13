@@ -6,9 +6,10 @@ also navigate Nova's library after USB access has been allowed. Outside the
 library and a stream, the controller keeps its own mouse mode.
 Linux, Steam Deck and Steam Frame use their existing input paths.
 
-This driver is being qualified for 1.5.0. Source tests do not establish that a
-particular controller, Puck, Android device or host combination has passed a
-hands-on check.
+In Nova 1.5.0, a wired controller, a Steam Controller Puck and Bluetooth each
+passed a hands-on stream on an NVIDIA SHIELD Android TV with a Polaris host.
+Library navigation over Bluetooth isn't supported in this version. Other
+Android devices, controller firmware and hosts haven't all been checked.
 
 ## Connect
 

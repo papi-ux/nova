@@ -76,9 +76,9 @@ The [PyroWave guide](docs/pyrowave.md) covers migration from the retired separat
 bundle, SDR limits, calibrated advice and live controls.
 
 The [Steam Frame development guide](docs/steam-frame.md) covers the experimental
-ARM64 route. Nova 1.5.0-beta.2 adds a separate Frame Beta,
-`Nova-Linux-aarch64-frame-alpha.flatpak`; its [install guide](docs/steam-frame.md#public-alpha)
-covers its own Flatpak installation and launcher. H.264, HEVC and PyroWave have
+ARM64 route. The separate Frame Beta, `Nova-Linux-aarch64-frame-alpha.flatpak`,
+installs with the guided installer or by hand and updates from the signed Beta
+channel for ARM64; its [install guide](docs/steam-frame.md#public-alpha) covers both. H.264, HEVC and PyroWave have
 streamed 1920×1080 at a requested 60 fps; sustained 1080p/90 performance and
 color/clarity checks remain incomplete. This is not HDR qualification or
 immersive XR support.

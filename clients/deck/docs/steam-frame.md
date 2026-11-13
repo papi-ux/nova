@@ -1,8 +1,9 @@
 # Nova for Steam Frame (Beta)
 
 This guide covers native 2D streaming on Steam Frame: the
-[public Beta](#public-beta) in Nova 1.5.0-beta.2 and the development build.
-Neither establishes completed Frame hardware qualification. The acceptance
+[public Beta](#public-beta), its [signed Beta channel](#signed-beta-channel-migration)
+and the development build. None of them establishes completed Frame hardware
+qualification. The acceptance
 target is the virtual 1920×1080 SDR screen at nominal 90 fps. Per-eye panel
 specifications do not determine a GameStream request. XR and HDR remain outside
 this route.
@@ -11,14 +12,20 @@ this route.
 
 ## Public Beta
 
-Nova 1.5.0-beta.2 attaches `Nova-Linux-aarch64-frame-alpha.flatpak` and its
-checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`, to its release on
-[Nova Releases](https://github.com/papi-ux/nova/releases). It is a native
-ARM64 Beta Flatpak: app `com.papi_ux.Nova`, architecture `aarch64`, branch
-`frame-alpha`. It has no update channel. Updates remain manual until the signed
-ARM Beta channel is qualified and announced; source support alone does not make
-that channel available. Frame remains Beta maturity, including if its future
-Beta ref receives stable 1.5.0 source. An ARM Stable feed build is not enabled.
+The easiest route is the guided installer on
+[Get Nova](https://papi-ux.com/downloads/?product=nova): it installs the Frame
+Beta, can add it to Steam, and its **Move to signed updates** puts it on the
+signed Beta channel for ARM64, from which Nova updates itself. The steps below
+are the manual route.
+
+The Frame Beta bundle is `Nova-Linux-aarch64-frame-alpha.flatpak`, with its
+checksum `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`, attached to the
+v1.5.0-beta.2 release on [Nova Releases](https://github.com/papi-ux/nova/releases);
+v1.5.0 attaches no Frame bundle. It is a native ARM64 Beta Flatpak: app
+`com.papi_ux.Nova`, architecture `aarch64`, branch `frame-alpha`. The bundle
+itself has no update channel; the [signed Beta channel](#signed-beta-channel-migration)
+carries 1.5.0 and later versions. Frame stays Beta even when its Beta channel
+carries stable source, and there is no ARM Stable channel.
 The filenames, `frame-alpha` branch and installation paths retain their earlier
 names for compatibility; they do not describe the current maturity label.
 Keep the existing Steam identity **Nova Frame Alpha** and launcher path when
@@ -86,20 +93,26 @@ Then delete its Steam entry and the launcher.
 
 ## Signed Beta channel migration
 
-This is a future one-time migration, **only after the ARM signed Beta installer
-is announced and qualified**. Nothing in this source change migrates an existing
-installation. The owner must first verify signatures, exact installed/catalog
-commit, runtime drift, an update/reopen cycle, pairing preservation and rollback
-on Frame. Availability of an ARM container image is not that qualification.
+Starting with 1.5.0, the Frame Beta updates from the signed `aarch64/beta`
+channel at `https://updates.papi-ux.com/nova`. Moving onto it is a one-time step,
+and nothing moves an installation by itself.
 
-This procedure applies **only** to the manual-guide launcher
-`~/nova-frame-alpha.sh`. Guided-installer users have a managed launcher at
-`~/.local/share/nova-guided/nova-frame-alpha.sh`; they must wait for a versioned
-guided channel migration that preserves their existing **Nova Frame Alpha**
-Steam identity, artwork, pairing and settings. Do not apply this replacement to
-a managed launcher, hand-edit it, or create a duplicate Steam entry. The existing
-bundle/manual update route remains in use until the appropriate migration is
-qualified and available.
+**Guided installations.** If you installed through the guided installer, your
+managed launcher is `~/.local/share/nova-guided/nova-frame-alpha.sh`. Close Nova,
+open the guided installer again and choose **Move to signed updates**. It checks
+the feed's signing key and catalog first, then changes only that launcher, so
+the **Nova Frame Alpha** Steam entry, its artwork and controller layout stay as
+they are, and the Beta keeps its own `frame-alpha` folders. It also saves
+Flatpak's one-time update approval for Nova, so in-app updates work in Game
+Mode. **Return to the previous Nova** undoes the move. The signed channel follows
+Flathub's KDE 6.10 runtime branch, as Nova Linux does; the private bundle
+installation keeps its exact runtime pin. Before publication, the move, an
+in-app update in Game Mode and the return were rehearsed on a Frame against a
+privately signed feed.
+
+**Manual installations.** The procedure below applies **only** to the
+manual-guide launcher `~/nova-frame-alpha.sh`. Do not apply it to a managed
+launcher, hand-edit a managed launcher, or create a duplicate Steam entry.
 
 Close Nova. Keep the current `~/nova-frame-alpha.sh` as a backup and leave its
 private `nova-frame-alpha-flatpak` installation intact. Install the architecture-
@@ -147,9 +160,9 @@ without this wrapper when checking Frame identity preservation.
 For rollback, close Nova and restore the backed-up launcher at the same path.
 It again selects the untouched private `frame-alpha` installation and its full
 ref. Verify its recorded commit and pairing before resuming use; no removal of
-either installation or app data is required. Guided Add to Steam channel
-migration is a later qualified delivery version; existing v1/v2 installer pins
-remain frozen.
+either installation or app data is required. Guided installations move with the
+guided installer's own **Move to signed updates**, described above; existing
+v1/v2 installer pins remain frozen.
 
 ## Qualification checkpoint — 2026-10-03
 

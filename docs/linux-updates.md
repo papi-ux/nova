@@ -20,34 +20,33 @@ permissions must be completed in the system software manager.
 The publication workflow defines **stable** and **beta** refs. Stable accepts
 stable releases only. Beta includes prereleases and stable releases intentionally
 delivered to that ref; publishing a stable release does not update Beta by itself.
-Use the bundles attached to the selected release until a signed channel installer
-is announced. A channel defined in the workflow is not evidence that its public
-feed exists. Starting with 1.5.0, both channels include PyroWave with a lazy
-device check; the separate codec channel is retired. Regular downloaded bundles and native
-builds show installation guidance instead of claiming that a feed is configured.
+Starting with 1.5.0, the signed feed at `https://updates.papi-ux.com/nova`
+publishes `x86_64/stable`, `x86_64/beta` and, for Steam Frame, `aarch64/beta`.
+Get Nova's guided installer installs from a channel or moves an existing guided
+installation onto one; see [Existing bundle installations](#existing-bundle-installations).
+Both x86_64 channels include PyroWave with a lazy device check; the separate
+codec channel is retired. Regular downloaded bundles and native builds show
+installation guidance instead of claiming that a feed is configured.
 
-## Architecture and candidate scope
+## Architecture and scope
 
 The Linux and Steam Deck client is in Beta. Its release bundle retains the
 filename `Nova-Linux-x86_64-alpha.flatpak` for compatibility. The separate
-[Steam Frame Beta](../clients/deck/docs/steam-frame.md) currently uses an ARM64
-bundle and manual updates, with its own qualification record. The feed workflow
-can stage `aarch64/beta` on a native ARM runner; `aarch64/stable` is refused until
-separately qualified. A stable source tag on the Beta ref keeps Frame at Beta
-maturity. An available ARM container image and ARM-aware tests do not qualify a
-build, runner, public feed or channel installer.
-Do not install an x86_64 bundle as a Frame update.
+[Steam Frame Beta](../clients/deck/docs/steam-frame.md) installs from its ARM64
+bundle, attached to the v1.5.0-beta.2 release, and updates through the signed
+`aarch64/beta` channel once moved there; v1.5.0 attaches no Frame bundle. The
+feed workflow stages `aarch64/beta` on a native ARM runner and refuses
+`aarch64/stable`, so a stable source tag on the Beta ref keeps Frame at Beta
+maturity. Do not install an x86_64 bundle as a Frame update.
 
-For the 1.5.0 candidate, the compiled feed address is
-`https://updates.papi-ux.com/nova`, and the app retains
-Retry after a failed check. An ordinary private or downloaded bundle can still
-show installation guidance because no signed channel was configured for it.
-Preparing source or a private rehearsal does not publish a feed.
+The compiled feed address is `https://updates.papi-ux.com/nova`, and the app
+keeps Retry after a failed check. A downloaded bundle has no channel configured,
+so it shows installation guidance instead of an update check.
 
 ## First publication
 
-The implementation and workflow do not make the feed live by themselves. Before
-the first public channel is available:
+The feed was first published with Nova 1.5.0. These are the steps for setting it
+up; the implementation and workflow do not make the feed live by themselves:
 
 1. Merge the updater and publish a reviewed release containing it, version 1.5.0
    or later. Feed preparation requires the standard package with PyroWave, so
@@ -147,16 +146,22 @@ not compared with the intentionally different newly exported selected commit.
 
 ## Existing bundle installations
 
-Existing standalone `.flatpak` downloads need a one-time channel installation.
-Guided-installer x86 shortcuts pin `--branch=master` and must wait for a versioned
-guided channel migration that preserves the same Steam identity, artwork,
-pairing and settings. Do not hand-edit a managed launcher or create a duplicate
-Steam entry. Until that migration is qualified, continue using the existing
-bundle/manual update route.
+Existing standalone `.flatpak` downloads need a one-time channel installation
+before Nova can update itself.
 
-Once the feed is published, open its `nova-beta.flatpakref` (or the chosen channel)
-in the software manager from Desktop Mode for an independent manual installation.
-For example:
+**Guided installations.** If you installed Nova through Get Nova's guided
+installer, open it again and choose **Move to signed updates**: Stable or Beta on
+Linux and Steam Deck, Beta on Steam Frame. Close Nova first. Before changing
+anything it checks the feed's signing key and catalog, and then it changes only
+the managed launcher your Steam entry already uses, so the Steam entry, artwork,
+controller layout and launch options stay as they are. It also saves Flatpak's
+one-time update approval for Nova, so in-app updates work in Steam Deck's Game
+Mode. **Return to the previous Nova** undoes the move. Do not hand-edit a managed
+launcher or create a duplicate Steam entry.
+
+**Manual installations.** Open the channel's `nova-stable.flatpakref` or
+`nova-beta.flatpakref` in the software manager from Desktop Mode for an
+independent installation. For example:
 
 ```sh
 flatpak install --user https://updates.papi-ux.com/nova/nova-beta.flatpakref
@@ -178,11 +183,10 @@ The optional guided installer/Add to Steam companion is separate; signed
 `.flatpakref` installers open in the system software manager without PyGObject.
 Existing pinned v1/v2 installer deliveries are not changed by this feed source.
 
-The feed's package upgrade, signature rejection, channel preservation and
-existing user/system installation migration should be qualified before calling
-the first channel generally available. Controller navigation and idle gating
-can be tested headlessly with the private portal fixture; that is separate from
-physical Deck acceptance.
+Before publication, the guided move, signature checks, an in-app update in Game
+Mode and Return to the previous Nova were rehearsed on a Steam Deck and a Steam
+Frame against a privately signed feed. Controller navigation and idle gating
+can be tested headlessly with the private portal fixture.
 
 ## Development validation
 
