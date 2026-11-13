@@ -29,7 +29,7 @@ Native Linux, Steam Deck and Steam Frame builds are available in Beta.
 
 <img src="docs/screenshots/divider-aurora.svg" width="100%" height="3" alt="">
 
-![Nova on a Retroid Pocket 6 showing Control Ultimate Edition: hours played, the stream it will ask for (1920×1080 at 120 FPS, 30 Mbps, SDR) and Launch, Play Setup and Clear Game Profile](docs/screenshots/beta2/nova-control-detail-aurora.webp)
+![Nova on a Retroid Pocket 6 showing Control Ultimate Edition: hours played, the stream it will ask for (1920×1080 at 120 FPS, 30 Mbps, SDR) and Launch, Play Setup and Clear Game Profile](docs/screenshots/v1.5.0/nova-control-detail-aurora.webp)
 
 <sub>A game page on a handheld: your play time, the stream Nova will ask for,
 and everything you need before you press Launch.</sub>
@@ -54,7 +54,7 @@ screen, and stays out of the way while you play.
   favorite game to your Android home screen and, with Polaris, fix its artwork
   in Artwork Studio.
 
-![Nova Play Setup for Control: what will happen (Private Stream at 1920×1080 and 120 FPS), where it runs, resolution, frame rate, codec, face buttons, launch preset and what Steam does after End Session](docs/screenshots/beta2/nova-play-setup-aurora.webp)
+![Nova Play Setup for Control: what will happen (Private Stream at 1920×1080 and 120 FPS), where it runs, resolution, frame rate, codec, face buttons, settings profile, launch preset and what Steam does after End Session](docs/screenshots/v1.5.0/nova-play-setup-aurora.webp)
 
 <sub>Play Setup: every choice for this launch on one screen, for this game or
 every game.</sub>
@@ -90,7 +90,7 @@ Polaris is the host built for Nova. It runs each game in a private session on
 your Linux PC, brings your Steam, Heroic and Lutris library along, and shows
 how every stream is running. [Meet Polaris](https://github.com/papi-ux/polaris).
 
-![Polaris Mission Control on the PC: Control Ultimate Edition is next up, the host is ready for clients with 5 of 5 launch checks passing, the launch mode is Private Stream, and recent games wait below](docs/screenshots/beta2/polaris-mission-control-aurora.webp)
+![Polaris Mission Control on the PC: Control Ultimate Edition is next up, the host is ready for clients with 5 of 5 launch checks passing, the launch mode is Private Stream, and recent games wait below](docs/screenshots/v1.5.0/polaris-mission-control-aurora.webp)
 
 Nova comes in a choice of themes, with Polaris Aurora as the default; see
 them in the [theme gallery](https://papi-ux.com/nova/#themes).
@@ -156,7 +156,7 @@ themselves after the guided installer's **Move to signed updates**; see
 - [Roadmap](https://papi-ux.com/docs/roadmap/) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/papi-ux/nova/releases)
 - [Matrix community](https://matrix.to/#/#papi-ux:papi-ux.com) · [Issues](https://github.com/papi-ux/nova/issues) · [Discussions](https://github.com/papi-ux/nova/discussions) · [Security policy](SECURITY.md) · [Contributing](.github/CONTRIBUTING.md) · [Source](https://github.com/papi-ux/nova)
 
-<sub>Screenshots: 1.5.0-beta.2 ([details](docs/screenshots/beta2/provenance.json)).
+<sub>Screenshots: 1.5.0 ([details](docs/screenshots/v1.5.0/provenance.json)).
 Website gallery: [image sources](https://papi-ux.com/images/products/showcase-v1.3.8-v1.3.6-provenance.json).</sub>
 
 ## Acknowledgments
