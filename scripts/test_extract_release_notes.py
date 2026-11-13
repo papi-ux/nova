@@ -149,6 +149,27 @@ class ExtractReleaseNotesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "empty"):
             extract_release_notes("## 1.3.7 - 2026-08-19\n\n", "v1.3.7-rc.1")
 
+    def test_rc_preserves_complete_urls_with_apk_query_fragment_and_nested_text(self) -> None:
+        for abi in ("arm64-v8a", "armeabi-v7a", "x86_64"):
+            name = "Nova-Android-" + abi + ".apk"
+            urls = [
+                "[Unrelated download](https://example.org/download?filename=" + name + ")",
+                "https://example.org/download#filename=" + name,
+                "https://example.org/?next=https://nested.example/download?filename=" + name,
+                "https://example.org/?next=(https://nested.example/#filename=" + name + ")",
+                '<a href="https://example.org/?filename=' + name + '">download</a>',
+                "<https://example.org/?filename=" + name + ">",
+                "`https://example.org/?filename=" + name + "`",
+                "//example.org/?filename=" + name,
+                "custom:download?filename=" + name,
+            ]
+            with self.subTest(abi=abi):
+                body = "`" + name + "`\n\n" + "\n".join(urls)
+                changelog = "## 1.5.0 - 2026-11-13\n\n" + body + "\n"
+                rendered = extract_release_notes(changelog, "v1.5.0-rc.1").split("\n---\n\n", 1)[1]
+                expected = "`Nova-Beta-Android-" + abi + ".apk`\n\n" + "\n".join(urls) + "\n"
+                self.assertEqual(rendered.encode(), expected.encode())
+
     def test_workflow_stage_and_final_readback_use_the_same_body(self) -> None:
         """Run the workflow's notes staging and complete readback with offline forge/asset doubles."""
         root = Path(__file__).resolve().parents[1]

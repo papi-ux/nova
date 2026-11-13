@@ -17,7 +17,8 @@ sustained 1080p/90 playback, color/clarity, HDR or immersive XR acceptance.
 
 Signed channel builds support **Settings → Nova → Nova Updates**, including
 optional automatic installation while idle. Get Nova's guided installer installs
-from a signed channel or moves an existing guided installation onto one.
+an exact release bundle first, then **Move to signed updates** puts that Nova,
+or one the guide installed earlier, on the matching signed channel.
 Ordinary bundles built with the commands below do not configure an update feed. See the
 [Linux update guide](../../../../docs/linux-updates.md) for feed staging,
 publication and migration from an existing bundle.

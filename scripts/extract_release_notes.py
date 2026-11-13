@@ -27,10 +27,12 @@ RELEASE_HEADING = re.compile(
 )
 
 # build.yml names prerelease APKs Nova-Beta-Android-<abi>.apk, the separate com.papi.nova.pre
-# app. Only a whole file name changes: a URL path, a .sha256 sibling or a name that is already
-# Beta's stays as written, so links to other releases keep pointing where they did.
-STABLE_APK = re.compile(
-    r"(?<![\w./-])Nova-Android-(?P<abi>arm64-v8a|armeabi-v7a|x86_64)\.apk(?![\w-]|\.\w)"
+# app. Consume complete URL tokens first, including queries, fragments and nested URLs,
+# so a file name anywhere inside a URL stays as written. Outside URLs, only standalone
+# names change; .sha256 siblings and names that are already Beta's stay as written.
+RC_BODY_TOKEN = re.compile(
+    r'(?P<url>(?:[A-Za-z][A-Za-z0-9+.-]*:|//)[^\s<>"`]+)'
+    r"|(?<![\w./-])Nova-Android-(?P<abi>arm64-v8a|armeabi-v7a|x86_64)\.apk(?![\w-]|\.\w)"
 )
 
 RC_PREAMBLE = """\
@@ -51,7 +53,9 @@ the signed Beta feeds and guided installer can take a little while after publica
 def release_candidate_body(body: str, version: str, tag: str) -> str:
     """The rc body: its preamble, then the section with only the Stable APK names changed."""
     preamble = RC_PREAMBLE.format(name=tag[1:], version=version)
-    return preamble + "\n" + STABLE_APK.sub(r"Nova-Beta-Android-\g<abi>.apk", body)
+    return preamble + "\n" + RC_BODY_TOKEN.sub(
+        lambda match: match.group("url") or f"Nova-Beta-Android-{match.group('abi')}.apk", body
+    )
 
 
 def extract_release_notes(changelog: str, tag: str) -> str:
