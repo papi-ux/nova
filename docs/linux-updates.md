@@ -53,8 +53,10 @@ up; the implementation and workflow do not make the feed live by themselves:
    1.4.13 is not eligible for the first feed publication. Use the exact published
    tag: its stable/beta/RC suffix and GitHub prerelease flag must agree. Before
    tagging, include the [Linux update channels](https://updates.papi-ux.com/nova/) link in that
-   release's checked-in notes so **Open Nova Downloads** leads users to the
-   installer. Publish the feed before announcing the channel's availability.
+   release's checked-in notes, so readers of the release page reach the
+   installers too. In the app, **Open Nova Downloads** opens Get Nova
+   (`https://papi-ux.com/downloads/?product=nova`). Publish the feed before
+   announcing the channel's availability.
 2. Use the dedicated publisher repository **`papi-ux/nova-updates`**, branch
    **`main`**. Copy the reviewed `.github/workflows/flatpak-feed.yml` there and
    enable GitHub Pages for **that publisher repository** with **GitHub Actions**
@@ -78,9 +80,13 @@ up; the implementation and workflow do not make the feed live by themselves:
    verified; finding its public key alone does not establish either.
    The workflow expects one primary signing key usable noninteractively. Never
    commit private signing material. Keep this key across releases; changing it
-   is a separate trust migration. The owner must publish the public fingerprint
-   here before announcing availability; no production fingerprint is recorded
-   yet. Descriptors embed the public key. A production signing environment or
+   is a separate trust migration. The owner publishes the public fingerprint
+   here before announcing availability:
+
+   **Feed signing key fingerprint:** `RELEASE-PIN-PLACEHOLDER: set to the
+   production feed key's fingerprint on publish day`
+
+   Descriptors embed the public key. A production signing environment or
    reviewer is an owner configuration choice at activation; this source adds
    no manual approval gate or environment prerequisite to private rehearsal.
 4. Run **Stage or publish Linux updates** in **`papi-ux/nova-updates` from main**

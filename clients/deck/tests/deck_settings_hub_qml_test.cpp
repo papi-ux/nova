@@ -326,6 +326,8 @@ int main(int argc, char** argv) {
             setState(current); openUpdates(); focused("update-back"); status("manual");
             check(find(window->contentItem(), "update-downloads") && !find(window->contentItem(), "update-check")
                 && !find(window->contentItem(), "update-automatic"), "manual install offered automatic updates");
+            check(item("update-downloads")->property("downloadUrl").toString() == "https://papi-ux.com/downloads/?product=nova",
+                "Open Nova Downloads must open Get Nova, where the channel installers are");
             controllerBack(); controllerBack(); focused("open-settings");
         }
         // Status copy may ease in, but an error, an update that ends without finishing
@@ -366,22 +368,22 @@ int main(int argc, char** argv) {
               "Reduce Motion changed the reported progress");
         for (int frame = 0; frame < 12; ++frame) { QTest::qWait(25); settled("status copy kept moving after Reduce Motion"); }
         check(QMetaObject::invokeMethod(root.get(), "reduceMotion", Q_ARG(QVariant, false)), "cannot restore motion"); settle();
-        // Both channels stay named. Linux channels share the app and its data, and an
-        // installer only applies once it is published; copies without one say so.
+        // Both channels stay named. Linux channels share the app and its data, and the
+        // installers are on Nova Downloads; copies without a channel say so.
         const auto channelNote = [&](std::initializer_list<const char*> present, std::initializer_list<const char*> absent) {
             const auto text = item("update-channel")->property("text").toString();
             for (const auto* fragment : present) check(text.contains(QString::fromUtf8(fragment)), "channel guidance lost a required fact");
             for (const auto* fragment : absent) check(!text.contains(QString::fromUtf8(fragment)), "channel guidance made an unsupported claim");
         };
         auto channel = original; channel["available"]=false; channel["canInstall"]=false; channel["lastCheck"]="succeeded"; setState(channel);
-        channelNote({"You're on Beta", "Stable", "same Nova app, pairing and settings", "published on Nova Downloads", "never switches channels"},
-                    {"separate installation", "You're on Stable"});
+        channelNote({"You're on Beta", "Stable", "same Nova app, pairing and settings", "from Nova Downloads", "never switches channels"},
+                    {"separate installation", "You're on Stable", "Once"});
         channel["channel"]="stable"; setState(channel);
-        channelNote({"You're on Stable", "Beta", "same Nova app, pairing and settings", "published on Nova Downloads", "never switches channels"},
-                    {"separate installation", "You're on Beta"});
+        channelNote({"You're on Stable", "Beta", "same Nova app, pairing and settings", "from Nova Downloads", "never switches channels"},
+                    {"separate installation", "You're on Beta", "Once"});
         channel["supported"]=false; setState(channel); status("manual");
-        channelNote({"Stable and Beta", "same Nova app, pairing and settings", "published on Nova Downloads", "for your device", "ARM64"},
-                    {"separate installation", "You're on"});
+        channelNote({"Stable and Beta", "same Nova app, pairing and settings", "from Nova Downloads", "for your device", "ARM64"},
+                    {"separate installation", "You're on", "Once"});
         controllerBack(); controllerBack(); focused("open-settings");
         setState(original); root->setProperty("updateChecks", 0); root->setProperty("updateInstalls", 0);
         window->resize(1280,800); QMetaObject::invokeMethod(root.get(), "resetTheme");

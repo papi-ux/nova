@@ -26,13 +26,13 @@ Popup {
     })[stateId]
     readonly property string channelName: current.channel === "beta" ? "Beta" : current.channel === "stable" ? "Stable" : ""
     // Linux channels are branches of the same app, so pairing and settings carry
-    // over. This view cannot know whether the other channel's installer is
-    // published, so it never claims one is, and it switches nothing.
+    // over. The channel installers are on Nova Downloads, which the Downloads
+    // action opens; this view only points there, and it switches nothing.
     readonly property string channelNote: !current.supported
-        ? "Stable and Beta channels use the same Nova app, pairing and settings. Once the channel installer you want is published on Nova Downloads, installing it turns on updates here. Until then, install newer releases for your device from there; Steam Frame uses its own ARM64 download."
+        ? "Stable and Beta channels use the same Nova app, pairing and settings. Install a channel from Nova Downloads to turn on updates here, or install newer releases for your device from there. Steam Frame uses its own ARM64 Beta channel."
         : channelName === "Beta"
-            ? "You're on Beta. Stable uses the same Nova app, pairing and settings. Once a Stable channel installer is published on Nova Downloads, installing it lets you return to Stable; check its release notes first. Nova never switches channels by itself."
-            : "You're on Stable. Beta uses the same Nova app, pairing and settings. Once a Beta channel installer is published on Nova Downloads, installing it lets you choose Beta. Nova never switches channels by itself."
+            ? "You're on Beta. Stable uses the same Nova app, pairing and settings. Installing the Stable channel from Nova Downloads lets you return to Stable; check its release notes first. Nova never switches channels by itself."
+            : "You're on Stable. Beta uses the same Nova app, pairing and settings. Installing the Beta channel from Nova Downloads lets you choose Beta. Nova never switches channels by itself."
     // New status copy settles in briefly. Errors, an update that ends without
     // finishing, Reduce Motion and a closed popup show at once. Buttons, focus
     // and progress never wait for it.
@@ -199,9 +199,11 @@ Popup {
         }
         Action {
             id: downloads; objectName: "update-downloads"
+            // Get Nova, where the guided installer and the channel installers are.
+            readonly property string downloadUrl: "https://papi-ux.com/downloads/?product=nova"
             visible: !updates.current.supported
             text: "Open Nova Downloads"
-            onClicked: Qt.openUrlExternally("https://github.com/papi-ux/nova/releases")
+            onClicked: Qt.openUrlExternally(downloadUrl)
             KeyNavigation.up: back
             KeyNavigation.down: back
         }
