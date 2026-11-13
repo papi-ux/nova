@@ -23,7 +23,7 @@ Everything below is new since 1.4.13, including what the 1.4.14-beta.1 and 1.5.0
 
 - Stage puts the game up front with its backdrop, title, play time, last played and a wrapping poster row. A opens its game page. A running game keeps its Resume and End actions.
 - Regular and Compact show each recent game once in the grid. The old Continue row is gone from both.
-- Portrait uses Regular while remembering your Stage choice for landscape. Options and System stay directly available; there's no extra Hide Menu button in the portrait Library.
+- Portrait uses Regular while remembering your Stage choice for landscape. Options and System stay directly available; there's no extra Hide Menu button in the portrait Library. ([#369](https://github.com/papi-ux/nova/issues/369))
 - A missing or slow poster keeps the game's name visible. Search and the focused game survive a screen rotation, and the footer names the Library consistently across layouts.
 - Hosts, Library and update buttons fit narrow screens. Empty Hosts actions scroll on short screens, so the next step stays reachable by touch and controller.
 - Phone menus fill the screen edges, with nearby text and controls kept clear of camera cutouts. Hosts puts its identity and Menu in one bar; portrait Settings puts Menu on the left.
@@ -36,7 +36,7 @@ Everything below is new since 1.4.13, including what the 1.4.14-beta.1 and 1.5.0
 **Make it your size**
 
 - Control Size offers distinct Compact, Standard and Large layouts. Nova Text Size starts at 80 percent, can be changed independently, and still respects Android's text scaling. Compact keeps full touch targets.
-- Text size and bitrate have small-step buttons alongside touch adjustment and exact entry. The opened editor keeps changes as a draft until Save; Back leaves the saved value alone.
+- Text size and bitrate have small-step buttons alongside touch adjustment and exact entry. The opened editor keeps changes as a draft until Save; Back leaves the saved value alone. ([#368](https://github.com/papi-ux/nova/issues/368))
 - Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen. Settings can hide its supporting menu when the rows need more room.
 - Settings, pickers, sheets and Command Center use consistent focus and Back behavior. The Mouse Mode picker takes D-pad focus, and End Session confirmation opens with a focused action.
 - Android and Linux add `< Congratulations, Director >` as a separate theme: charcoal with warm white text and red for focus and selection, the same look as the Polaris console's Director theme. Polaris Aurora stays the default, and the theme you already chose is kept.
@@ -184,6 +184,7 @@ PyroWave still wants a fast local network. It's on Nova Linux, Steam Deck and St
 - Homescreen shortcuts to Steam games launch with the same display mode as Play, so a host set to Windowed Stream no longer refuses the shortcut while in-app Play works. ([#371](https://github.com/papi-ux/nova/issues/371))
 - After the host ends a stream, Nova goes back to the Library instead of reconnecting and starting the game again. An automatic reconnect only resumes the stream the host still holds, so a real network drop still resumes.
 - **Trusted Pair** shows the PC as paired right away, instead of after you leave Hosts and come back.
+- On Android, a PC's menu has **Wake-on-LAN address**, for the MAC address of the PC's network adapter when the host doesn't report a usable one. Leave it empty to use the host's. ([discussion #14](https://github.com/papi-ux/nova/discussions/14))
 - An empty or malformed RTSP Session reply no longer crashes the client, and oversized responses are bounded, on Android and Linux. Carried over from moonlight-common-c, with thanks to its authors.
 - Shield controller motion during stream startup and malformed decoder packets are handled safely. Older Android versions can open the new panels without loading newer platform Back APIs.
 - Android build tools resolve Bouncy Castle 1.85 consistently. Nova's runtime cryptography was already on 1.85; this doesn't change it or add app permissions.
@@ -209,6 +210,32 @@ PyroWave still wants a fast local network. It's on Nova Linux, Steam Deck and St
 - Nova Linux keeps the same app ID when replacing an older bundle. Keep its app data and never uninstall with `--delete-data`.
 - The Steam controls, the Tailscale readout and chip, Launch from Host Console to this device and Explain this reading with AI need Polaris 1.5.0. An older host says so; Host Console opens as before there, and Launch starts the game on the host.
 
+**Thank you**
+
+Thank you to everyone who ran the betas and sent logs, screenshots and reports, you really shaped this one. These are the people whose code, reports and work are in 1.5.0. If something's off, just hit me up on [Matrix](https://matrix.to/#/#papi-ux:papi-ux.com) or open an [issue](https://github.com/papi-ux/nova/issues)!
+
+*Code*
+
+- [timshen91](https://github.com/timshen91): the Guide button shortcuts setting, from [PR #375](https://github.com/papi-ux/nova/pull/375).
+
+*Reports and testing*
+
+- [fish1917](https://github.com/fish1917): asked for a Wake-on-LAN address you can type in, in [discussion #14](https://github.com/papi-ux/nova/discussions/14).
+- [JL-Partridge](https://github.com/JL-Partridge): the bitrate dialog whose Save a TV remote couldn't reach, in [#368](https://github.com/papi-ux/nova/issues/368).
+- [JPT62089](https://github.com/JPT62089): how much of a phone's screen the menus took in portrait, in [#369](https://github.com/papi-ux/nova/issues/369), then tried the fix in the beta.
+- [mnofrizal](https://github.com/mnofrizal): homescreen shortcuts to Steam games that the host refused, with the host's logs, in [#371](https://github.com/papi-ux/nova/issues/371).
+
+*Built on*
+
+- [Antoniscool123](https://github.com/Antoniscool123)'s [moonlight-android PR #1619](https://github.com/moonlight-stream/moonlight-android/pull/1619), which the Steam Controller (2026) USB transport adapts.
+- [Granite](https://github.com/Themaister/Granite), which PyroWave is built with.
+- [moonlight-android](https://github.com/moonlight-stream/moonlight-android), which Nova for Android grew from, and [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c), which every Nova build streams through, including its [RTSP hardening](https://github.com/moonlight-stream/moonlight-common-c/commit/7b026e77be62175104640e7e722b758df6d3d0d7).
+- [Nonary](https://github.com/Nonary)'s [VRR18 controller](https://github.com/Nonary/moonlight-qt/blob/1ad5848bd2190ab9dd9eea00d4730740d530ec29/app/streaming/video/ffmpeg-renderers/pacer/vrr/vrrtimingcontroller.cpp), which source-time pacing draws on.
+- [PyroWave](https://github.com/Themaister/pyrowave) and the bitrate model its author published.
+- [Qualcomm's Snapdragon Game Super Resolution 1](https://github.com/SnapdragonGameStudios/snapdragon-gsr), the SGSR 1 upscaler.
+- [RubyLight](https://github.com/RamazanKara/Rubylight), for its Vulkan port of SGSR 1 and the PyroWave bitrate measurements in the PyroWave on Android guide.
+- [SDL](https://github.com/libsdl-org/SDL)'s Steam Triton driver, which the Steam Controller (2026) protocol layout adapts.
+
 **Downloads**
 
 | Your device | File |
@@ -220,8 +247,6 @@ PyroWave still wants a fast local network. It's on Nova Linux, Steam Deck and St
 | Steam Frame (Beta) | The guided installer from [Get Nova](https://papi-ux.com/downloads/?product=nova); no Frame bundle is attached to this release |
 
 Each attached file has a `.sha256` checksum beside it. Choose Android by its app ABI, not the processor name. The Linux bundle keeps its old `alpha` filename for compatibility; the client is Beta.
-
-Thank you to everyone who ran the betas and sent logs, screenshots and reports, they shaped this release. If something's off, just hit me up on [Matrix](https://matrix.to/#/#papi-ux:papi-ux.com) or open an [issue](https://github.com/papi-ux/nova/issues)!
 
 ## 1.4.13 - 2026-09-24
 
