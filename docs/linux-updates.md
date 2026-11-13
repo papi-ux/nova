@@ -22,8 +22,9 @@ stable releases only. Beta includes prereleases and stable releases intentionall
 delivered to that ref; publishing a stable release does not update Beta by itself.
 Starting with 1.5.0, the signed feed at `https://updates.papi-ux.com/nova`
 publishes `x86_64/stable`, `x86_64/beta` and, for Steam Frame, `aarch64/beta`.
-Get Nova's guided installer installs from a channel or moves an existing guided
-installation onto one; see [Existing bundle installations](#existing-bundle-installations).
+Get Nova's guided installer installs an exact release bundle first. Then choose
+**Move to signed updates** to put that Nova, or one the guide installed earlier,
+on its matching signed channel; see [Existing bundle installations](#existing-bundle-installations).
 Both x86_64 channels include PyroWave with a lazy device check; the separate
 codec channel is retired. Regular downloaded bundles and native builds show
 installation guidance instead of claiming that a feed is configured.

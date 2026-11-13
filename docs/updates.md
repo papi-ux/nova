@@ -73,9 +73,10 @@ It uses Flatpak rather than Android APKs. The Linux app ID remains
 `com.papi_ux.Nova`.
 
 **Channel installations:** starting with 1.5.0, Nova Linux updates itself from a
-signed **stable** or **beta** channel. Install from one with the guided installer
-on [Get Nova](https://papi-ux.com/downloads/?product=nova), or from the
-[Linux update channels](https://updates.papi-ux.com/nova/) page. Open
+signed **stable** or **beta** channel. On [Get Nova](https://papi-ux.com/downloads/?product=nova),
+the guided installer installs an exact release bundle first, then **Move to signed
+updates** puts it on the matching signed channel. You can also install a channel
+from the [Linux update channels](https://updates.papi-ux.com/nova/) page. Open
 **Settings → Nova → Nova Updates** to check or install an update on that
 installed channel. Automatic installation is optional and waits until Nova is
 idle. Reopen Nova when it says the update is ready. Stable and Beta use the same
