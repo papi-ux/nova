@@ -105,8 +105,8 @@ right download for your device. If you'd rather choose yourself:
 | Most Android handhelds, phones, tablets and TVs | [Nova-Android-arm64-v8a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-arm64-v8a.apk) |
 | 32-bit Android, including Shield models with a 32-bit app ABI | [Nova-Android-armeabi-v7a.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-armeabi-v7a.apk) |
 | Android x86_64 devices and emulators | [Nova-Android-x86_64.apk](https://github.com/papi-ux/nova/releases/latest/download/Nova-Android-x86_64.apk) |
-| Linux and Steam Deck, **Beta** | The x86_64 Flatpak from [Releases](https://github.com/papi-ux/nova/releases); see the [Linux guide](https://papi-ux.com/docs/nova/linux/) and [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) |
-| Steam Frame, **Beta** | A separate ARM64 Flatpak, when included in the selected release; see the [Steam Frame guide](https://papi-ux.com/docs/nova/steam-frame/) |
+| Linux and Steam Deck, **Beta** | The guided installer from [Get Nova](https://papi-ux.com/downloads/?product=nova) or the x86_64 Flatpak from [Releases](https://github.com/papi-ux/nova/releases); see the [Linux guide](https://papi-ux.com/docs/nova/linux/) and [Steam Deck guide](https://papi-ux.com/docs/nova/steam-deck/) |
+| Steam Frame, **Beta** | The guided installer from [Get Nova](https://papi-ux.com/downloads/?product=nova); see the [Steam Frame guide](https://papi-ux.com/docs/nova/steam-frame/) |
 
 Choose by the **Android app ABI**, not the processor name: a 64-bit processor
 can still offer only 32-bit Android app support.
@@ -121,7 +121,8 @@ can still offer only 32-bit Android app support.
 or [GitHub Store](https://github-store.org/app?repo=papi-ux/nova).
 [Latest](https://github.com/papi-ux/nova/releases/latest) is always stable. A
 beta installs as a separate Nova Beta app (`Nova-Beta-Android-<ABI>.apk`) with
-its own pairing and preferences; see
+its own pairing and preferences. Linux, Steam Deck and Steam Frame update
+themselves after the guided installer's **Move to signed updates**; see
 [updates and betas](https://papi-ux.com/docs/nova/updates/).
 
 ## Good to know
@@ -130,21 +131,20 @@ its own pairing and preferences; see
   your device and host. Check the
   [compatibility guide](https://papi-ux.com/docs/nova/compatibility/).
 - **This page follows the source**, which can be ahead of the newest release.
-  Install only files attached to a published release.
+  Install only published releases or the guided installer.
 - **Where each feature works.** Steam controls and the Tailscale readout need
-  Polaris 1.5.0-beta.2 or newer; an older host says so instead. The Tailscale
-  readout, per-PC profile rules and the Last Stream card are Android only for
-  now.
+  Polaris 1.5.0 or newer; an older host says so instead. The Tailscale readout
+  and per-PC profile rules are Android only for now.
 - **Native clients in Beta.** Linux, Steam Deck and Steam Frame have playable
   builds in active development. Steam is optional for ordinary Linux use. The
   [Linux guide](https://papi-ux.com/docs/nova/linux/) covers setup and current
   limits; the separate Steam Frame build streams to a virtual 2D screen and
-  is not Steam Frame Verified. Beta describes these clients' maturity; stable
-  and prerelease downloads remain separate release channels.
+  is not Steam Frame Verified. Beta describes these clients' maturity, not
+  their update channel.
 - **Experiments to try when you want them.** PyroWave is an experimental codec
   that trades bandwidth for very fast decoding on a fast local network. It's
-  off by default on Linux and Steam Frame and in Nova Beta for Android. Nova
-  Beta for Android also offers SGSR 1 upscaling, off by default, which
+  off by default on Linux, Steam Deck and Steam Frame, and on Android only Nova
+  Beta offers it, along with SGSR 1 upscaling, off by default, which
   sharpens edges when a PyroWave SDR stream is smaller than your screen. The
   [PyroWave guide](https://papi-ux.com/docs/pyrowave-beta/) explains when each
   is worth trying.

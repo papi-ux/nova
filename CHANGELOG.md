@@ -2,174 +2,226 @@
 
 ## Unreleased
 
-- On Linux and Steam Deck with **Host Frame Timing** on, NovaHUD no longer shows "Fallback host_status_missing" while Nova paces frames from the host's frame times and only the host's own pacing is unconfirmed. That line now reads **Host pacing not confirmed**, or says that the host didn't report its pacing, that its report couldn't be read or that it is out of date. Pacing is unchanged, and a real fallback still shows its reason.
-- On Android, the update prompt, Working Baseline's comparison, a network test result and other messages that run longer than their panel open with their start in view instead of scrolled to the end. The text scrolls in its own area with the buttons still in view under it, and Up and Down scroll it with a controller or a TV remote. The update prompt still opens on Download; the comparison opens on its text. A message that fits is unchanged.
-- On Android, the Library's **Last Stream** page opens at the top of its report, on why the stream ended and when, instead of scrolled to its end with focus on Save Report. The report scrolls in its own area, with the frame-rate line, Save Report and Close still in view under it. It is the page's first stop: Up and Down scroll it with a controller or a TV remote, and Down at its end moves on to Save Report, then Close.
-- On Android, the now-playing pill on a Hosts card stays readable while the card has focus. Its label turned dark over the resting tile shortly after focus arrived and stayed so until focus left; the pill now keeps the accent fill under the label for as long as the card has focus.
-- On Android, ending a session from the Hosts card's now-playing pill no longer reports "Could not end the session" when the host takes longer than Nova waits to answer. When no answer comes, Nova reads the session again for a few seconds: a session that ended is an End, and only a refusal or a session still there is reported as one.
-- On Android, an explicit per-game frame rate in Play Setup takes priority over the host's stored automatic profile when the stream starts, while host and device capability limits still apply.
-- On Android with TalkBack, a Hosts card's **Open Library** is no longer announced again about every second and a half while the card has focus; the Last Stream report is read with the frame-rate graph's caption after it; **Moment Saved** is announced by its title, then its message; and Network Rules with no saved profile says why the switch can do nothing yet when the switch takes focus. Nothing on screen changes.
-- The source-time test harness chooses Ninja when available, falls back to make, and reports a missing build tool before configuring CMake.
-- On Android, Doctor details says why **Explain this reading with AI** is unavailable, from the reason the host gives: for example that the host's AI provider isn't offered to Nova (try **Explain with AI** in Mission Control), that AI explanations are off on the host, that the host is busy, or that the reading can't be explained. It said "unavailable for this reading" whatever the reason.
-- On Steam Deck in Game Mode, Nova's first in-app update no longer says it needs new permissions. Flatpak asks once before Nova may update itself, and Game Mode can't show that prompt. Updates now says so: switch to Desktop Mode and select **Update Nova**, and once you approve it, later updates work in Game Mode too; Discover can also install the update. An update that does need new permissions still says so and points to your software manager. When Flatpak's reason arrives in another language, Nova names both possible causes instead of guessing.
-- On Linux, Updates distinguishes an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. Copies without an update channel point to manual downloads, including the ARM64 Frame bundle.
-- On Linux, **System → Appearance → Reduce Motion** turns off Nova's interface transitions, including any already under way, and is remembered on the device. Otherwise, Updates eases new status in briefly; errors, progress, buttons and controller focus still respond at once. Updates also explains that Stable and Beta use the same Nova app, pairing and settings, that a channel installer applies once it is published on Nova Downloads, and that Nova never switches channels by itself. Copies without a channel, including Steam Frame's ARM64 download, keep updating from their release downloads.
-- On Android, a saved preset's **Edit** and **Delete** can be reached with a controller or a TV remote: Right from the preset goes to Edit, then Delete, and Left comes back. A on the preset still makes it the one in use, and Delete still asks first.
-- Android adds a native Steam Controller (2026) driver, with trackpad modes, grip mappings, motion and basic rumble. Steam Controllers on USB can navigate Library after access is allowed, including **Y** to change its layout. Wired controls and rumble worked on the SHIELD tested, and Puck controls worked after pairing the controller to it. Intermittent Puck input delay remains under investigation; Bluetooth input is limited. Linux, Steam Deck and Steam Frame keep their existing input paths. See the [Android controller guide](docs/steam-controller-android.md).
-- Command Center takes native controller input while it is open instead of sending menu presses to the game. Held buttons must be released before they can act when the menu closes. Play Setup now receives native Steam Controller navigation on its own page.
-- On Android, USB controller changes no longer recreate Library and its game page, which could leave a slow or blank library after ending a stream. The current screen, selection and controller navigation stay in place.
-- A game's page takes a faint tint from its own artwork, on Android and Linux, and **Play** carries that artwork into the launch screen. On Android the game's poster expands and fades as the launch progress comes in, or its hero stays faintly behind it; on Linux the hero stays faintly behind the launch status. The launch screen still names only the stages Nova already reports and leaves exactly when it did before, so it never covers the game. With animations off on Android, or **Reduce Motion** on Linux, the artwork arrives still. Nothing is downloaded for it: the tint and the launch artwork come from the artwork the page already shows, and a game without artwork looks as it did. Polaris Aurora stays the default; Console OLED, `< Congratulations, Director >` and High Contrast keep their own backgrounds.
-- **Guide button shortcuts** can be turned off to send Guide and held Guide combinations to the host during gameplay. Start + Select still opens Command Center. The option is on by default; it changes Nova's shortcuts, not the controller's host identity. Thanks to timshen91 for [PR #375](https://github.com/papi-ux/nova/pull/375).
-- Android build tools now resolve Bouncy Castle 1.85 consistently instead of retaining older transitive build dependencies. Nova's runtime cryptography was already on 1.85; this correction does not change it or add app permissions.
-- On Linux, Doctor gets fresh host status after Apply instead of relying on a poll that started earlier. A changed session or offer still cancels the action.
-- On Linux, after **End Session** or **Disconnect**, the ended stream's screen shows a **Last stream** card for that PC and game: how long it was connected at least, frames received and decoded per second and the received video payload rate over the span Nova measured, missing video frames, and average PC processing and decoder times with the frames each covers. These are not frames drawn on screen, the encoder's bitrate or total network traffic, and a reading Nova doesn't have says Unknown, never zero. The card never covers play or moves controller focus when it appears, follows Reduce Motion, and Dismiss removes it. A stream the PC ended, a failure or sleep shows none. Unlike Android's card it has no Save Report: it stays in memory and the next stream clears it. See [stream reports](docs/stream-reports.md#last-stream).
-- During a stream, the Performance and Debug HUD say briefly when Live Tuning eases the bitrate ("Eased to 14 Mbps") and when it is back to full quality, on Android and Linux. A line names only a bitrate the encoder confirmed, never gives a cause, appears at most once every 30 seconds and fades unless animations are off or Reduce Motion is on. Minimal, Slim and a hidden HUD show nothing new. PyroWave streams show no Live Tuning line. See [Live Tuning](docs/live-tuning.md).
-- On Android, a pairing that finishes gives a light confirmation haptic and says **Paired with** the host's name where it opens: on Hosts while its Library is checked, or once on the Library or app list it opens. A stream you start gives the same haptic when it connects, and its setup screen says **Connected to** the host's name as it clears; a Space still says Waiting For Picture. A host that was already paired, a pairing that fails and a reconnect add nothing, and nothing is shown over a game. The haptic follows the device's touch feedback setting, needs Android 11 or later and a vibrator, and is never controller rumble.
-- The Android repository-packaging guide now records the work needed before an IzzyOnDroid re-review after stable 1.5.0. Eligibility and a clean final release APK are still separate requirements; Nova is not listed in IzzyOnDroid or F-Droid main.
-- On Linux and Steam Deck, **Host Frame Timing** adds Off, Auto and Source time choices alongside Video Frame Pacing. It is off by default, works with Balanced and applies to the next new stream; reconnect keeps the stream's original choice. Nova maps the host's frame times onto this device's clock and schedules decoded-frame delivery with a bounded buffer and a hold ceiling. Future frames wait for their mapped time and overdue frames are dropped instead of replaying a backlog. The HUD shows the requested timing, the effective mode and a fallback reason. This is source-time pacing on a fixed refresh display, not a claim of adaptive refresh.
-- On Linux and Steam Deck, Host Frame Timing drops a frame whose timing decision was taken under an older clock epoch as a named `stale_epoch` fallback instead of presenting it, even when the epoch changed between its last check and the Vulkan submission, and an older queued frame can no longer restore the source-timed state over a newer frame's fallback. The timing trace written on End can miss its last rows; every row it did write is complete.
-- On Android, **Pace video by host frame times** is off by default and applies to the next stream. With Balanced frame pacing, it schedules decoded frames from mapped host time at the display's fixed refresh rate, adding a learned presentation delay with a bounded queue and one frame release in flight. Timing resets across clock epochs and surface changes; missing or stale host timestamps end the source-paced claim and give a named fallback. Command Center and NovaHUD use the same presentation readings. Frame-window and counter reports refresh on a bounded cadence, including while the pacing state stays the same, with a final report when the stream ends. PyroWave keeps its usual presentation and reports `renderer_not_participating`.
-- Both clients carry raw host RTP timestamps through decoding, separately from receive, decode and presentation measurements, and can read the host's own VRR pacing record. A host saying it is source-pacing does not establish what the client display showed. Neither client requests adaptive refresh in this version; Android reads its display's ARR capability without requesting it. Display mode Hz is separate from source-time pacing, and **VRR active** requires a presentation receipt with fresh presented-frame evidence from the same display surface. VRR has not been verified active on a device, and the hands-on checks for source-time pacing are still pending.
-- The source-clock mapper and bounded playout design draw on [Nonary's VRR18 controller](https://github.com/Nonary/moonlight-qt/blob/1ad5848bd2190ab9dd9eea00d4730740d530ec29/app/streaming/video/ffmpeg-renderers/pacer/vrr/vrrtimingcontroller.cpp). Thanks to Nonary; the retained licence and source revision are recorded in the [acknowledgement](docs/third-party/source-time-pacing.md).
-- On Android, Doctor's details gain **Explain this reading with AI**. It sends one explicit request to the AI provider enabled on the paired host, with selected Doctor diagnosis and stream measurements and no names, logs or screenshots, and shows the plain informational answer beside Doctor's own reading; opening the page, status updates and the HUD send nothing. A host without AI explanations enabled, or an older host, keeps the Doctor you had, and a changed session or reading cancels or clears the answer. It changes no setting, action or confidence. The host side is Polaris 1.5.0's optional Doctor AI explanation.
-- With a Polaris 1.5.0 host that asks for them, Nova for Android and Linux report which video packets reached the device and when. The host only watches these reports unless its experimental native step-down is turned on in its config file.
-- On a connection where a Polaris 1.5.0 host accepts native reception reports, Nova keeps ENet's own congestion throttle from silently discarding them: stock ENet dropped most of those reports after slow acknowledgements, with no error. Wire loss still loses a report, and none is retried. On such a connection no other unreliable control message of Nova's, such as frame FEC status, controller motion or touch and pen hover, is throttled either, and the host's side of that connection stops scaling down its reliable window. Connections without the reports keep stock ENet behaviour. This is checked on a loopback bench that holds the host's packets, and Nova logs the throttle readings about once a second so a device run can confirm it; real-network delivery benefit and qualification on the release build remain unverified. See [native packet reception](docs/native-packet-reception-feedback.md).
-- On Linux and Steam Deck, Report This Moment and Working baseline show times in this device's time zone, as in "Marked 11:00 AM EDT.", instead of raw UTC. Saved reports and baselines keep their UTC stamps.
-- Polaris 1.5.0 turns Live Tuning on by default. On upgrade, a saved Off is turned on once, including one chosen deliberately before 1.5.0; turn it off again afterwards and it stays off. Command Center's Live Tuning switch changes the host's saved preference, while a bitrate you set by hand turns it off for that stream only. See [Live Tuning](docs/live-tuning.md).
+## 1.5.0 - 2026-11-12
 
-## 1.5.0 - 2026-10-12
+There's a lot in this one, which is why it's 1.5.0 and not 1.4.14. The Library is built around the game you're about to play, Play Setup offers stream choices that fit your device, Command Center explains what Live Tuning and your bitrate are doing, and Nova Linux, Steam Deck and Steam Frame get the same care as Android, now with signed updates. On Android you can launch from the host's console, use a Steam Controller (2026) natively and drive Steam from the couch. When something looks off, you can keep a record of the stream on your device without sending anything anywhere. Your pairings, saved setups and artwork stay yours.
 
-A Library built around the game you are about to play, stream choices that fit your device, and a Linux client that feels more like Nova. 1.5.0 also lets you launch a game from the host's console on Android and play it on the device in your hands, drive desktop Steam from the couch, and keep a local record of a stream without sending anything anywhere. Existing pairings, saved setups and artwork stay yours.
-
-This is 1.5.0-beta.2, the second beta. The first went out as 1.4.14-beta.1, before the number changed. Coming from beta.1? The beta.2 sections come first. Sections marked beta.1 have been in since then, and all of it is new if you're on 1.4.13. Polaris's side of these changes is in [its own release notes](https://github.com/papi-ux/polaris/releases).
+Everything below is new since 1.4.13, including what the 1.4.14-beta.1 and 1.5.0-beta.2 prereleases carried. Polaris's side of these changes is in [its own release notes](https://github.com/papi-ux/polaris/releases).
 
 **Highlights**
 
-- **A Library built around the game** (beta.1). Stage puts the selected game up front, control size and text size are set separately, Play Setup offers stream tiers that fit the device, and Nova Linux gets the same care.
-- **Launch from Host Console** (beta.2, Android). With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to the device in your hands.
-- **Steam from the couch** (beta.2). Open Steam, Open Big Picture or Quit Steam on the paired PC, on Android and Linux.
-- **PyroWave advice for the screen in your hands** (beta.1). A handheld target instead of television-sized bandwidth. PyroWave stays experimental, and Auto doesn't pick it.
-- **Evidence that stays with you** (beta.2). Report This Moment and Working baseline on Android and Linux; on Android, a Last Stream card and a reading of how Nova's control connection reaches the host over Tailscale. Nothing is sent on its own.
-- **More places to play** (beta.2). Nova Linux, Steam Deck and Steam Frame are in Beta. Frame installs separately, by hand. Android also adds opt-in SGSR 1 upscaling for PyroWave SDR.
+- **A Library built around the game.** Stage puts the selected game up front, a game's page takes a tint from its artwork, a PC with a game still running shows it with one-press Resume, and launch shows the real steps as they happen.
+- **Know what your stream is doing.** Command Center puts Live Tuning and Bitrate in one place, NovaHUD shows HDR and display-mode chips only when they're true, and Live Tuning says briefly when it eases the bitrate. Polaris 1.5.0 turns Live Tuning on by default.
+- **Launch from Host Console** (Android). With Polaris 1.5.0, **Launch** on the console's Mission Control streams the game to the device in your hands.
+- **Steam from the couch.** Open Steam, Open Big Picture or Quit Steam on the paired PC, on Android and Linux.
+- **Steam Controller (2026) on Android.** A native driver over USB, the Steam Controller Puck and, if you turn it on, Bluetooth, with trackpad modes, grips, motion and rumble.
+- **Evidence that stays with you.** Report This Moment, Working baseline and a Last Stream report on Android and Linux, kept on your device and shown in your own time zone. Nothing is sent on its own.
+- **Signed updates for Nova Linux, Steam Deck and Steam Frame** (Beta). The guided installer puts Nova on a signed channel, and Nova Updates installs new versions from there, in Game Mode too.
+- **Experiments, off by default.** Pacing video by the host's frame times on Android, Linux and Steam Deck, and PyroWave on Linux and in Nova Beta for Android, where SGSR 1 upscaling joins it.
 
-**New in beta.2**
-
-Host Console that launches to the device in your hands, Steam from the couch, three ways to keep evidence of a stream without sending anything anywhere, an optional SGSR 1 upscaler and a separate Steam Frame Beta. The Tailscale readout, per-host profile rules and the Last Stream card are Android only for now. Nova Linux has the Steam controls, Report This Moment and Working baseline.
-
-- On Android, Host Console opens the host's console in Nova's theme and tells it that it is in Nova. With a Polaris 1.5.0 beta.2 host, **Launch** on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console opens in your browser when you tap it, instead of doing nothing; the console itself never leaves Nova.
-- On Android, Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device.
-- The selected PC menu and Command Center have **Steam**: Open Steam, Open Big Picture and Quit Steam on the paired PC, on Android and Linux. Quit asks again while a game is running. Play Setup shows the chosen mode's Steam policy. Needs a Polaris 1.5.0 beta.2 host; an older host says so.
-- Nova Linux gives a host up to two minutes to finish a SteamOS session switch before launch, and Cancel really cancels. Library focus survives a refresh that lands after you moved.
-- `< Congratulations, Director >` trades beta.1's crimson for charcoal, with warm white text and red for focus and selection, the same look as the Polaris console's new Director theme. Polaris Aurora stays the default.
-- On Android, Play Setup can say how Nova's control connection reaches the host over Tailscale: direct, through a relay or unknown. The answer comes from the host's own Tailscale daemon, never from an address, a hostname or an installed app, and it doesn't cover where video and audio travel. Play Setup also offers Tailscale setup. Per-host rules pick a saved Settings Profile for a launch, name the rule that matched, and take a one-launch override. Your active profile and the host's saved settings stay as they are.
-- Command Center has **Report This Moment**. It freezes the current client readings into a local report. On Android the report adds a short redacted log tail, and only Share Report opens the share sheet, which says sharing may pause playback. On Linux, Save writes the readings and a short sampled history to Documents, Nova reports, with no logs. Nothing is sent on its own.
-- Mark a stream you know is good as a **Working baseline**, then Compare a later stream against it for the same PC and game. It is a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it. Streaming moments record the bitrate the launch really asked for, after metered-network limits, host ceilings and AutoSafe.
-- On Android, after a stream ends, that host's Library can show a **Last Stream** card: connection duration, how many samples were measured, per-metric averages, missing-frame evidence and why it ended. Save Report keeps it, Dismiss drops it. A reconnect is not proof the picture came back, and a connection ending is not proof the game quit.
-- Nova Beta for Android adds **SGSR 1 upscaling (experimental, PyroWave SDR)** under Settings, Client Stream Defaults. It is off by default. When an 8-bit PyroWave SDR stream is smaller than your screen and shown in Fit or Stretch, a spatial filter sharpens edges as the picture is scaled up. HDR or 10-bit, Fill and full-size streams keep the usual scaling, and a change applies from the next stream. If it can't run for a stream, the picture is still scaled smoothly and the log says why. In one hands-on check on a Retroid Pocket 6, the player noticed no difference from the usual scaling, and native 1080p looked nicer; the known limits below have the details. SGSR 1 is Qualcomm's Snapdragon Game Super Resolution 1 under the BSD 3-Clause licence, adapted after RubyLight's Vulkan port; the app carries the full notice.
-- A new guide, PyroWave on Android, explains stream size against screen size, the bitrate you ask for against what the encoder and the network carry, and how to compare two choices on the same scene.
-
-**Steam Frame: a separate Beta**
-
-The Frame download is new in beta.2. The decoder route under it came with beta.1. Nova Linux, Steam Deck and Steam Frame are now labeled Beta; the older filenames and installation branches stay the same for compatibility.
-
-- `Nova-Linux-aarch64-frame-alpha.flatpak` is a separate Beta for Steam Frame, published with this release beside its checksum, `Nova-Linux-aarch64-frame-alpha.flatpak.sha256`. It installs into its own Flatpak installation with its own pairing and settings. The [Steam Frame guide](https://github.com/papi-ux/nova/blob/v1.5.0-beta.2/clients/deck/docs/steam-frame.md#public-alpha) covers install, launch and removal.
-- On a Frame, H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with picture, sound and working controllers. H.264 and HEVC decode through Frame's V4L2 decoder and copy each frame through the CPU; PyroWave decodes with Vulkan and hands frames over as DMA-BUF. That was a short functional check, not a performance result: rates above 60 fps, long sessions, color and clarity are untested. Immersive XR and HDR are separate work, and this is not Steam Frame Verified support.
-- The Frame Beta has no update channel, so a later version is a new manual download. When the signed Linux update feed opens, it carries the x86_64 build only.
-- The ARM64 development route adds a pinned FFmpeg provider and hardware H.264/HEVC decoding through Frame's Qualcomm V4L2 interface, with bounded frame ownership and Vulkan presentation. It refuses compressed capture layouts it cannot safely read.
-- Startup and Play Setup use the same backend discovery, so a qualified decoder does not appear unavailable merely because the device lacks VA-API. PyroWave keeps its separate Vulkan and DMA-BUF checks.
-
-**Fixed in beta.2**
-
-- Homescreen shortcuts to Steam games launch with the same display mode as Play, so a host set to Windowed Stream no longer refuses the shortcut while in-app Play works. ([#371](https://github.com/papi-ux/nova/issues/371))
-- An empty or malformed RTSP Session reply no longer crashes the client, and oversized responses are bounded, on Android and Linux. Carried over from moonlight-common-c, with thanks to its authors.
-- On Android, Host Console no longer shows an empty page once you sign in.
-- On Android, scrolling Host Console, or swiping across it, no longer moves the panel it is in. The panel still closes from its header, with Back, or with a tap beside it.
-- On Linux, Space and Select can hold Sleep Host through keyboard repeat. Releasing early still cancels immediately.
-- On Linux, NovaHUD follows smaller text settings and reflows Performance readings when space is tight, keeping text within the panel.
-- PyroWave on Android no longer reports the time its CPU call took as decode and end-to-end latency, which it never measured: that reading is unavailable now, and the HUD and counters say frames were submitted, not rendered. Recaps, copied diagnostics and saved baselines keep that meaning. Other decoders keep their measured latency.
-
-**From beta.1: the game comes first**
-
-Stage gives the selected game the room it deserves. The other layouts get quieter, and the controls stop competing with the artwork.
+**The game comes first**
 
 - Stage puts the game up front with its backdrop, title, play time, last played and a wrapping poster row. A opens its game page. A running game keeps its Resume and End actions.
 - Regular and Compact show each recent game once in the grid. The old Continue row is gone from both.
-- Portrait uses Regular while remembering your Stage choice for landscape. Options and System stay directly available; there is no extra Hide Menu button in the portrait Library.
+- Portrait uses Regular while remembering your Stage choice for landscape. Options and System stay directly available; there's no extra Hide Menu button in the portrait Library.
 - A missing or slow poster keeps the game's name visible. Search and the focused game survive a screen rotation, and the footer names the Library consistently across layouts.
 - Hosts, Library and update buttons fit narrow screens. Empty Hosts actions scroll on short screens, so the next step stays reachable by touch and controller.
 - Phone menus fill the screen edges, with nearby text and controls kept clear of camera cutouts. Hosts puts its identity and Menu in one bar; portrait Settings puts Menu on the left.
+- A game's page takes a faint tint from its own artwork, on Android and Linux, and **Play** carries that artwork into the launch screen. On Android the game's poster expands and fades as the launch progress comes in, or its hero stays faintly behind it; on Linux the hero stays faintly behind the launch status. With animations off on Android, or **Reduce Motion** on Linux, the artwork arrives still. Nothing is downloaded for it, and a game without artwork looks as it did. Console OLED, `< Congratulations, Director >` and High Contrast keep their own backgrounds.
+- Launch shows the steps Nova really knows, Contacting host, Starting the game, Waiting for video and Stream connected, with how long it has taken. It never invents a step, and it never covers the game. Nova Linux and Steam Deck list Contacting the PC, Starting the game and Waiting for video in their launch status.
+- On Android, when a PC holds a game you can resume, its Hosts card shows a now-playing pill with the game's art and **Resume**, with End beside it behind a confirmation. On Linux and Steam Deck, the PC's card shows the same pill. It clears when the session ends or expires. If the PC takes a while to end the game, Nova checks again before it calls the End a failure.
+- On Android, the Last Stream recap sits in the Library's host header in your theme's text colors, with the local time, a short reason and View and Dismiss. It appears as soon as you're back from an End, instead of after you leave the Library and return.
+- On Android, the Hosts card and a game's page show how the PC says Nova's connection reaches it over Tailscale: direct, DERP relay, peer relay or route unknown. It comes only from the PC's own fresh answer, never from this device's VPN or an address, and without one there's no chip.
 
-**From beta.1: make it your size**
-
-Smaller text does not have to mean smaller buttons. Nova now lets you choose them separately.
+**Make it your size**
 
 - Control Size offers distinct Compact, Standard and Large layouts. Nova Text Size starts at 80 percent, can be changed independently, and still respects Android's text scaling. Compact keeps full touch targets.
 - Text size and bitrate have small-step buttons alongside touch adjustment and exact entry. The opened editor keeps changes as a draft until Save; Back leaves the saved value alone.
 - Touch opens the Settings search keyboard and filters as you type. Back closes the keyboard before clearing the search or leaving the screen. Settings can hide its supporting menu when the rows need more room.
 - Settings, pickers, sheets and Command Center use consistent focus and Back behavior. The Mouse Mode picker takes D-pad focus, and End Session confirmation opens with a focused action.
-- Android and Linux add `< Congratulations, Director >` as a separate theme, so your current choice stays intact. Polaris Aurora stays the default.
+- Android and Linux add `< Congratulations, Director >` as a separate theme: charcoal with warm white text and red for focus and selection, the same look as the Polaris console's Director theme. Polaris Aurora stays the default, and the theme you already chose is kept.
 - Changing themes from Home no longer leaves Nova unresponsive on affected Android handhelds.
 
-**From beta.1: Play Setup knows the device**
+**Controller, TV and touch**
 
-A phone, a handheld and a television should not all start from the same guessed stream settings.
+On Android:
+
+- After you choose from a list in Settings, such as **Video frame pacing**, focus goes back to the row you came from instead of the header's Back.
+- With no saved preset, the first A on Presets opens the editor. A saved preset's **Edit** and **Delete** can be reached with a controller or a TV remote: Right from the preset goes to Edit, then Delete, and Left comes back. A on the preset still makes it the one in use, and Delete still asks first.
+- Every control on Network Rules shows Nova's focus ring, so you can tell from the couch what A will press.
+- Command Center opens at its top, or on the row you closed it from.
+- In Command Center, **HUD position** shows the corner you saved while NovaHUD is off, instead of Custom.
+- The update prompt, Working baseline's comparison, a network test result and other messages that run longer than their panel open with their start in view. The text scrolls in its own area with the buttons still in view under it, and Up and Down scroll it with a controller or a TV remote.
+- USB controller changes no longer recreate Library and its game page, which could leave a slow or blank library after ending a stream. The current screen, selection and controller navigation stay in place.
+
+**Play Setup knows the device**
+
+A phone, a handheld and a television shouldn't all start from the same guessed stream settings.
 
 - Stream tiers use the device's display and decoder support to offer Recommended, Max and Custom choices. Custom keeps its own bitrate and automatic setting when you switch to another tier.
+- A frame rate you set for a game in Play Setup takes priority over the host's stored automatic profile when the stream starts, while host and device limits still apply.
 - Resume follows the running stream's display mode instead of quietly substituting the device's current preference.
 - Saved setups keep their numeric overrides and automatic bitrate choice. Changing resolution or frame rate and then entering a manual bitrate keeps that manual choice.
 - A host-specific Launch As restriction keeps the host's reason. Spaces use their worker's allowed mode without borrowing the desktop's choices, and an unavailable Space remains unavailable.
+- When the PC has something to say about how Steam will start a game, such as Steam asking which version to launch, Play Setup shows the PC's own sentence, on Android and Linux.
+- On Android, Play Setup can say how Nova's control connection reaches the host over Tailscale: direct, through a relay or unknown. The answer comes from the host's own Tailscale daemon, never from an address, a hostname or an installed app, and it doesn't cover where video and audio travel. Play Setup also offers Tailscale setup.
+- On Android, per-host Network Rules pick one of your saved Settings Profiles for a launch, name the rule that matched, and take a one-launch override. Your active profile and the host's saved settings stay as they are. Network Rules can be found from Play Setup even before you've saved a profile, and then it says why it needs one.
 
-**From beta.1: PyroWave gets a more useful starting point**
+**Command Center, NovaHUD and Doctor**
 
-It still wants a fast local network. The advice now distinguishes a screen held nearby from one across the room, instead of asking a handheld to spend television-sized bandwidth.
+- On Android and Linux, Command Center brings Live Tuning and Bitrate together in one Stream details page, with a direct bitrate shortcut and a separate, confirmed switch for the host's Live Tuning setting. The overview shows the stream's format and health. Details separate the stream budget, the video target Nova asked for and the target the encoder confirmed, and a short list shows the changes this stream confirmed. A bitrate you set by hand pauses automatic adjustment for this stream only.
+- On Android, Stream details shows **Video payload to decoder**, the rate of complete video Nova handed its decoder. It leaves out audio and FEC overhead, and it isn't network traffic or available bandwidth.
+- During a stream, the Performance and Debug HUD say briefly when Live Tuning eases the bitrate ("Eased to 14 Mbps") and when it's back to full quality, on Android and Linux. A line names only a bitrate the encoder confirmed, never gives a cause, appears at most once every 30 seconds and fades unless animations are off or Reduce Motion is on. Minimal, Slim and a hidden HUD show nothing new, and PyroWave streams show no Live Tuning line. See [Live Tuning](https://papi-ux.com/docs/live-tuning/).
+- NovaHUD shows small chips only when they're true: HDR10 when the host reports it for this device's stream, and the display mode's refresh rate, such as Display mode 120 Hz. A reading that's missing or out of date shows no chip.
+- Under Sleep or Wake Host on Android, and in the Library's System menu on Linux, a word says what the PC is doing: Available, Game running, Offline or Status unknown.
+- On Android, **Guide button shortcuts** can be turned off to send Guide and held Guide combinations to the host during gameplay. Start + Select still opens Command Center. The option is on by default; it changes Nova's shortcuts, not the controller's host identity. Thanks to timshen91 for [PR #375](https://github.com/papi-ux/nova/pull/375).
+- On Android, Doctor's details gain **Explain this reading with AI**. It sends one request, only when you press it, to the AI provider enabled on the paired host, with selected Doctor diagnosis and stream measurements and no names, logs or screenshots. The plain answer sits beside Doctor's own reading and changes no setting. When it isn't available, Doctor says why, from the host's reason: for example that the host's AI provider isn't offered to Nova (try **Explain with AI** in Mission Control), that AI explanations are off on the host, or that the host is busy. It needs Polaris 1.5.0's optional Doctor AI explanation.
+- On Linux, Doctor shows the host's own words as they are. **Try first** appears only when the host has a step for you, and the "No verified live fix" line is gone.
+- On Linux, Doctor gets fresh host status after Apply instead of relying on a poll that started earlier. A changed session or offer still cancels the action.
+- Command Center background opacity works again, independently of the HUD. NovaHUD keeps its corner position, compact readout and sparkline colors. Its numbers tell unavailable or stale measurements apart from healthy ones, and media loss apart from control-channel retries.
+- The capture explanation shows GPU encoding alongside CPU capture copies when both are true. A system-memory capture path no longer reads as software encoding, and Doctor's own health verdict stays visible.
 
-- Handheld advice uses the calibrated 31 dB target; the room target stays 35 dB. For Android 1080p at 120 fps in 4:4:4, the handheld model suggests about 215 Mbps as a request, rather than the old figure of about 359 Mbps. The scene and network still determine the received rate and quality.
-- Automatic raises and Use recommended stay at or below 300 Mbps. Android manual requests can reach 500 Mbps when the host advertises that limit; older hosts retain their 300 Mbps limit. The model's own estimate can be higher without authorizing an automatic raise past the ceiling.
-- Android Command Center uses ten-percent bitrate steps for PyroWave and 5 Mbps steps for H.264 and HEVC. A compatible host supplies the units needed to distinguish the client's request from the encoder's video budget. Unknown units stay read-only.
-- A manual live change turns Live Tuning off for that stream only. It leaves the host's saved settings alone.
-- With a compatible host, Doctor can offer a reversible PyroWave quality increase on a clean network, or a lower bitrate after sustained measured media loss. Verify checks the result; Undo restores the previous bitrate and Live Tuning state.
-- PyroWave remains experimental in Nova Beta on Android. Devices missing its Vulkan features get a reason instead of an unusable choice. Auto does not select it.
+**Evidence that stays with you**
 
-**From beta.1: the menu and HUD tell the same story**
+- Command Center has **Report This Moment**. It freezes the current client readings into a report on your device. On Android the report adds a short redacted log tail, and only Share Report opens Android's share chooser, which says sharing may pause playback. On Linux, Save writes the readings and a short sampled history to Documents, Nova reports, with no logs.
+- Mark a stream you know is good as a **Working baseline**, then Compare a later stream against it for the same PC and game. It's a side-by-side of what the client measured, not a verdict, and changes no setting. Clear removes it.
+- After a stream ends, Android's **Last Stream** report gives the connection's duration, per-metric averages, missing-frame evidence and why it ended, with a small line of the frame rate over the connection. A Disconnect or Back reads as you leaving the stream, and an End you asked for as yours. The report opens at its top, Up and Down scroll it with a controller or a TV remote, and Save Report keeps it.
+- On Linux, after **End Session** or **Disconnect**, a **Last stream** card shows how long the stream was connected at least, frames received and decoded per second, the received video payload rate, missing video frames, and average PC processing and decoder times, with the same frame-rate line. A reading Nova doesn't have says Unknown, never zero. The card never covers play or moves controller focus, and the next stream clears it. See [stream reports](https://github.com/papi-ux/nova/blob/v1.5.0/docs/stream-reports.md#last-stream).
+- When a whole stream lost nothing, the report says **0.00% frames missing**, and after an hour with nothing missing it earns a **Clear skies** badge. It still isn't a health grade.
+- On Android, moments, baselines and the Last Stream report show the time in this device's time zone, and on Linux, Report This Moment and Working baseline do too, as in "Marked 11:00 AM EDT." Saved reports and baselines keep their UTC stamps inside the file.
+- Streaming moments record the bitrate the launch really asked for, after metered-network limits, host ceilings and AutoSafe.
 
-- NovaHUD keeps its corner position, compact readout and sparkline colors. Its numbers distinguish unavailable or stale measurements from healthy ones, and media loss from control-channel retries.
-- Command Center background opacity works again, independently of the HUD. Its pickers, focus and confirmation actions follow the rest of Nova.
-- The capture explanation shows GPU encoding alongside CPU capture copies when both are true. A system-memory capture path no longer reads as software encoding, and Doctor's own health verdict remains visible.
-- Shield controller motion during stream startup and malformed decoder packets are handled safely. Older Android versions can open the new panels without loading newer platform Back APIs.
+**Host Console and Steam from the couch**
 
-**From beta.1: Nova Linux, closer to Nova**
+- On Android, Host Console opens the host's console in Nova's theme. With Polaris 1.5.0, **Launch** on the console's Mission Control streams the game to this device instead of only starting it on the host. A link to a page outside the console opens in your browser; the console itself never leaves Nova.
+- Host Console can take the whole window: Expand at the end of its header, or Y, and Collapse puts it back in its panel. In portrait it takes the full height. Nova opens it the way you last left it on that device. Scrolling or swiping across it no longer moves the panel it's in, and it no longer shows an empty page once you sign in.
+- The selected PC menu and Command Center have **Steam**: Open Steam, Open Big Picture and Quit Steam on the paired PC, on Android and Linux. Quit asks again while a game is running. Play Setup shows the chosen mode's Steam policy. It needs Polaris 1.5.0; an older host says so.
+- Nova no longer calls Spaces a preview, as in Polaris 1.5.0. What it says about Spaces is otherwise unchanged.
 
-The Linux interface gets the same attention as the Android one: a quieter Library, controls that fit an 800p handheld, and preferences you can adjust without committing each step.
+**Steam Controller (2026) on Android**
 
-- Hosts, Settings, Library and Play Setup fit landscape handhelds and desktop windows. Smaller resized windows keep actions reachable; Stage uses Regular when the window is taller than it is wide, while retaining the landscape choice. Back clears a Settings search before leaving.
-- Appearance offers Compact, Standard and Large controls, the Director theme, and 80 to 130 percent text in one-percent steps. New installations start at 80 percent; existing saved sizes stay intact. Text and menu-opacity previews apply after Save.
-- Command Center has its own background-opacity control and stacks its session actions in narrow windows. HUD text remains readable over video, with debug groups that wrap.
-- The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device when you choose that codec. H.264, HEVC and Auto do not run the PyroWave check. The separate PyroWave bundle is retired; install the standard bundle over it, keeping app data, pairing and preferences.
-- Linux PyroWave supports SDR 8-bit 4:2:0. HDR, 4:4:4 and Spaces remain outside this route, and Auto does not select it. Play Setup names an incompatible build, GPU, host or size before launch.
-- Play Setup can use the host's recommended PyroWave rate, with calibrated local advice when the host has none. A low-rate warning explains the shortfall. Live controls offer 10 Mbps steps, Use recommended and the measured received video rate.
+- Android adds a native Steam Controller (2026) driver over USB, the Steam Controller Puck and Bluetooth LE, with trackpad modes, grip mappings, motion and basic rumble. **System → Set Up Steam Controller** gives a controller or Puck USB access before you start a game, and a USB controller or Puck then moves through the Library, with **Y** to change its layout.
+- Bluetooth is off by default. Pair the controller in Android's Bluetooth settings, then turn on **Steam Controller over Bluetooth**, and Nova takes the controller over for each stream.
+- On a SHIELD, a cable, the Puck and Bluetooth each passed a hands-on stream. Linux, Steam Deck and Steam Frame keep their existing input paths. See the [Android controller guide](https://github.com/papi-ux/nova/blob/v1.5.0/docs/steam-controller-android.md).
+- Command Center takes native controller input while it's open instead of sending menu presses to the game. Held buttons must be released before they can act when the menu closes. Play Setup gets native Steam Controller navigation on its own page.
+
+**Feel**
+
+- On Android, a pairing that finishes says **Paired with** the host's name where it opens, and a stream you start says **Connected to** the host's name as its setup screen clears. A host that was already paired, a failed pairing and a reconnect add nothing, and nothing is shown over a game.
+- Nova's haptics each have their own feel: one firm click when a stream connects, one soft long pulse when the host confirms an End, and a short double for an error or refusal you're about to read. A reconnect stays quiet.
+- **Settings → Haptic Feedback** really turns Nova's haptics off now. It was there before, but nothing read it. Nova's haptics also follow Android's touch feedback setting, and they're never controller rumble.
+
+**Nova Linux and Steam Deck** (Beta)
+
+The Linux client gets the same attention as the Android one: a quieter Library, controls that fit an 800p handheld, and preferences you can adjust without committing each step.
+
+- Signed updates. Get Nova's guided installer installs Nova from a signed Stable or Beta channel, or moves your current Nova there with **Move to signed updates**. Stable and Beta use the same Nova app, pairing and settings. After that, **Settings → Nova → Nova Updates** checks for a new version, installs it and says when to reopen Nova; automatic installation is optional and waits until Nova is idle. Nova never switches channels by itself. The [Linux update channels](https://updates.papi-ux.com/nova/) page lists the channel installers.
+- On Steam Deck, Flatpak asks once before Nova may update itself, and Game Mode can't show that question. The guided installer saves that approval for Nova when it moves you to signed updates, so updates work in Game Mode from the start. Without it, Nova now says so instead of claiming the update needs new permissions: switch to Desktop Mode and select **Update Nova** once, and later updates work in Game Mode too. An update that does need new permissions still says so.
+- Updates tells an unchecked or failed check from a successful one, clears old progress when a new install starts, and keeps controller focus off Automatic Updates after Check or Update. A copy installed from a downloaded bundle points you to the downloads instead.
+- **System → Appearance → Reduce Motion** turns off Nova's interface transitions, including any already under way, and is remembered on the device.
+- Hosts, Settings, Library and Play Setup fit landscape handhelds and desktop windows. Smaller resized windows keep actions reachable; Stage uses Regular when the window is taller than it is wide, while keeping the landscape choice. Back clears a Settings search before leaving.
+- Appearance offers Compact, Standard and Large controls, the Director theme, and 80 to 130 percent text in one-percent steps. New installations start at 80 percent; existing saved sizes stay as they are. Text and menu-opacity previews apply after Save.
+- Command Center has its own background-opacity control and stacks its session actions in narrow windows. HUD text stays readable over video, with debug groups that wrap. NovaHUD follows smaller text settings and reflows Performance readings when space is tight.
+- After **Disconnect**, Nova Linux shows that the game is still running: its page has **Resume** and **End Session** where Play was, and the Library header says **Resume your stream** with the game's art.
+- End Session outside a stream asks first, the same question Command Center asks, with Keep playing focused, from the Library header, a game's page and the PC's card.
+- After End Session, the Library keeps its games while the PC finishes closing the session, instead of showing "Can't load games" until you refresh. If the PC doesn't answer an automatic check, Nova keeps the last list and asks again a few times before it says so.
+- View + Menu opens Command Center on the first press, even when the second button lands a moment after the first. Single presses and holds still reach the game.
+- When a stream connects, Nova holds your controls back until you hand them to the game, and Command Center's first button now says so: it reads **Continue**, and reopened later it reads Close. The list starts at its top for each new stream.
+- Play Setup moves focus to Play when Play becomes available, unless you've already pressed something, and the Library's footer shows B Back only where Back does something. Play Setup names launch modes with the PC's own labels, and Live Tuning reads Unknown, not Unavailable, when the host hasn't reported it.
 - Controller navigation supports held-button repeat, the left stick, shoulder paging and Back. First launch opens pairing, and decoder, launch, traffic and capture failures name a cause and a next step.
 - Save a PC's MAC address and use Wake PC from its System menu. Nova confirms that it sent the packet; the PC's connection state tells you whether it woke.
 - System offers a reviewed Add Nova to Steam action. The first Moonlight handoff explains its limits before launching, and Back cancels it.
+- Nova Linux gives a host up to two minutes to finish a SteamOS session switch before launch, and Cancel really cancels. Library focus survives a refresh that lands after you moved.
+- Live readings keep coming when the host's session status grows large; Nova reads up to 2 MiB of it.
 - Compatible Polaris hosts receive fresh measured video-loss evidence. Decoder refusals and control retries stay separate; missing measurements stay unavailable.
 - PipeWire audio recovery no longer occasionally hangs during disconnect when the audio service disappears. Stereo, 5.1 and 7.1 keep the same recovery and shutdown deadlines.
-- End Session distinguishes the PC accepting the request from verified game shutdown. A failed update check keeps Retry available and uses the production feed address; a bundle without a configured signed channel still gives installation guidance.
+- End Session tells the PC accepting the request apart from verified game shutdown. Space and Select can hold Sleep Host through keyboard repeat, and releasing early still cancels.
 
-**Experimental and known limits**
+**Steam Frame** (Beta)
 
-- Nova Linux, Steam Deck and Steam Frame are in Beta, with feature and device coverage still growing. Successful probes, builds and automated checks do not establish every device's performance, physical audio/controller response or HDR support.
-- Steam controls, the Tailscale readout, Report This Moment, Working baseline, the Last Stream card and Host Console's new modes are in beta.2 with CI and source checks. Their controller, TalkBack and real-stream checks on devices are not complete.
-- The Tailscale readout describes Nova's control connection to the host, as the host's Tailscale daemon reports it. It doesn't show where video and audio travel, and its direct, relay and split-tunnel cases have not been tried on real networks.
-- SGSR 1 is experimental and off by default. In one hands-on check on a Retroid Pocket 6, one scene of Control was streamed three ways with PyroWave SDR at 60 fps and a 100 Mbps request: 1280x720 with the usual scaling, 1280x720 upscaled to 1920x1080 by SGSR 1, and native 1920x1080. To the player, both 720p views looked good with no noticeable difference between them, and native 1080p looked nicer. That is one look at one scene on one device, not a measurement. It doesn't show SGSR 1 improving the picture, matching native resolution, or lowering latency or bandwidth, and other devices, games and stream sizes are unchecked.
-- A limited offscreen GPU check of small synthetic test frames on a Retroid Pocket 6 found differences from its reference model on a noise pattern that are still unexplained. It does not measure picture quality, speed or what reaches the screen. Sharpening adds no detail the stream did not carry.
-- A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games; full per-game shutdown is a separate follow-up.
+- v1.5.0 doesn't attach a Steam Frame bundle. Install the Frame Beta from Get Nova with the guided installer, and **Move to signed updates** puts it on the signed Beta channel for ARM64, which carries 1.5.0. Frame stays Beta; it has no Stable channel. It keeps its own pairing and settings, separate from any other Nova on the device.
+- On a Frame, H.264, HEVC and PyroWave each streamed 1920×1080 at a requested 60 fps with picture, sound and working controllers. H.264 and HEVC decode through Frame's V4L2 decoder and copy each frame through the CPU; PyroWave decodes with Vulkan and hands frames over as DMA-BUF. That was a short functional check, not a performance result: rates above 60 fps, long sessions, color and clarity are untested. Immersive XR and HDR are separate work, and this isn't Steam Frame Verified support. The [Steam Frame guide](https://papi-ux.com/docs/nova/steam-frame/) covers install, launch and removal.
+- Startup and Play Setup use the same backend discovery, so a qualified decoder doesn't appear unavailable just because the device lacks VA-API. The ARM64 route refuses compressed capture layouts it can't safely read.
+
+**Experimental: pacing video by the host's frame times**
+
+- On Linux and Steam Deck, **Host Frame Timing** adds Off, Auto and Source time choices alongside Video Frame Pacing. On Android, **Pace video by host frame times** does the same job. Both are off by default, work with Balanced frame pacing and apply to the next new stream.
+- Nova maps the host's frame times onto this device's clock and schedules decoded frames with a bounded buffer at the display's fixed refresh rate. Future frames wait for their time and overdue frames are dropped instead of replaying a backlog. Missing or stale host timing ends the claim with a named reason, and PyroWave on Android keeps its usual presentation.
+- NovaHUD and Command Center show the requested timing, the effective mode and any fallback. On Linux and Steam Deck, when Nova paces from the host's frame times and only the host's own pacing is unconfirmed, the HUD says **Host pacing not confirmed** instead of a fallback.
+- This is source-time pacing on a fixed refresh display. Neither client requests variable refresh in this version, and **VRR active** needs fresh evidence from the display itself. Short checks ran on a Retroid Pocket 6 and a Steam Deck, both fixed-refresh; variable refresh hasn't been verified on a device.
+- The source-clock mapper and bounded playout design draw on [Nonary's VRR18 controller](https://github.com/Nonary/moonlight-qt/blob/1ad5848bd2190ab9dd9eea00d4730740d530ec29/app/streaming/video/ffmpeg-renderers/pacer/vrr/vrrtimingcontroller.cpp). Thanks to Nonary; the retained licence and source revision are recorded in the [acknowledgement](https://github.com/papi-ux/nova/blob/v1.5.0/docs/third-party/source-time-pacing.md).
+
+**Live Tuning and Polaris 1.5.0**
+
+- Polaris 1.5.0 turns Live Tuning on by default. On upgrade, a saved Off is turned on once, including one chosen deliberately before 1.5.0; turn it off again afterwards and it stays off. Command Center's Live Tuning switch changes the host's saved preference, while a bitrate you set by hand turns it off for that stream only.
+- With a Polaris 1.5.0 host that asks for them, Nova for Android and Linux report which video packets reached the device and when. The host only watches these reports unless its experimental native step-down is turned on in its config file.
+- On such a connection, Nova keeps ENet's own congestion throttle from silently discarding those reports, and no other unreliable control message of Nova's is throttled either. Connections without the reports keep stock ENet behaviour. See [native packet reception](https://github.com/papi-ux/nova/blob/v1.5.0/docs/native-packet-reception-feedback.md).
+
+**PyroWave and SGSR 1** (experimental)
+
+PyroWave still wants a fast local network. It's on Nova Linux, Steam Deck and Steam Frame, and in the separate Nova Beta app for Android; stable Nova for Android doesn't offer it. Auto never picks it.
+
+- Handheld advice uses the calibrated 31 dB target; the room target stays 35 dB. For Android 1080p at 120 fps in 4:4:4, the handheld model suggests about 215 Mbps as a request, rather than the old figure of about 359 Mbps. The scene and network still decide the received rate and quality.
+- Automatic raises and Use recommended stay at or below 300 Mbps. Android manual requests can reach 500 Mbps when the host advertises that limit; older hosts keep their 300 Mbps limit.
+- With a compatible host, Doctor can offer a reversible PyroWave quality increase on a clean network, or a lower bitrate after sustained measured media loss. Verify checks the result; Undo restores the previous bitrate and Live Tuning state.
+- Android Command Center uses ten-percent bitrate steps for PyroWave and 5 Mbps steps for H.264 and HEVC. Devices missing PyroWave's Vulkan features get a reason instead of an unusable choice.
+- PyroWave on Android no longer reports the time its CPU call took as decode and end-to-end latency, which it never measured. That reading is unavailable now, and the HUD and counters say frames were submitted, not rendered.
+- The standard `Nova-Linux-x86_64-alpha.flatpak` includes PyroWave and checks the device only when you choose that codec. The separate PyroWave bundle is retired; install the standard bundle over it, keeping app data, pairing and preferences.
+- Linux PyroWave supports SDR 8-bit 4:2:0. HDR, 4:4:4 and Spaces stay outside this route. Play Setup names an incompatible build, GPU, host or size before launch, can use the host's recommended rate, and offers 10 Mbps live steps with the measured received video rate.
+- Nova Beta for Android adds **SGSR 1 upscaling (experimental, PyroWave SDR)** under Settings, Client Stream Defaults, off by default. When an 8-bit PyroWave SDR stream is smaller than your screen and shown in Fit or Stretch, a spatial filter sharpens edges as the picture is scaled up. If it can't run for a stream, the picture is still scaled smoothly and the log says why. SGSR 1 is Qualcomm's Snapdragon Game Super Resolution 1 under the BSD 3-Clause licence, adapted after RubyLight's Vulkan port; the app carries the full notice.
+- A new guide, [PyroWave on Android](https://github.com/papi-ux/nova/blob/v1.5.0/docs/pyrowave-android.md), explains stream size against screen size, the bitrate you ask for against what the encoder and the network carry, and how to compare two choices on the same scene.
+
+**TalkBack**
+
+- On a Hosts card, **Open Library** is spoken once instead of again about every second and a half while the card has focus.
+- The Last Stream report is read with the frame-rate graph's caption after it.
+- **Moment Saved** is announced by its title, then its message.
+- Network Rules with no saved profile says why the switch can't do anything yet when the switch takes focus.
+- Launch steps are announced as they arrive.
+
+**More fixes**
+
+- Homescreen shortcuts to Steam games launch with the same display mode as Play, so a host set to Windowed Stream no longer refuses the shortcut while in-app Play works. ([#371](https://github.com/papi-ux/nova/issues/371))
+- After the host ends a stream, Nova goes back to the Library instead of reconnecting and starting the game again. An automatic reconnect only resumes the stream the host still holds, so a real network drop still resumes.
+- **Trusted Pair** shows the PC as paired right away, instead of after you leave Hosts and come back.
+- An empty or malformed RTSP Session reply no longer crashes the client, and oversized responses are bounded, on Android and Linux. Carried over from moonlight-common-c, with thanks to its authors.
+- Shield controller motion during stream startup and malformed decoder packets are handled safely. Older Android versions can open the new panels without loading newer platform Back APIs.
+- Android build tools resolve Bouncy Castle 1.85 consistently. Nova's runtime cryptography was already on 1.85; this doesn't change it or add app permissions.
+
+**Side note:** there are a few secrets in About. Tap the version line a few times and see what happens.
+
+**Known limits**
+
+- Nova Linux, Steam Deck and Steam Frame are in Beta, with feature and device coverage still growing. A successful build or automated check doesn't establish every device's performance, audio and controller response or HDR support.
+- With TalkBack, some buttons and Command Center rows are spoken with their name twice, like "Close. Close. Button". When a panel opens, TalkBack can put its first focus on the hint bar instead of where Nova put focus, so the Last Stream report isn't read until you move down and back up, and speech can run on for a few seconds after a panel closes. Both are planned for 1.5.1.
+- On an Android TV box with little memory, like a 3 GB SHIELD, browsing the Library takes more memory than it should, because Nova decodes each game's hero artwork at full size. It's freed when you leave the Library. A fix is planned for 1.5.1.
+- A Steam Controller over Bluetooth works during a stream, Command Center included, but doesn't navigate Nova's Library; use USB or the Puck for that.
+- The Tailscale readout and the connection chip describe Nova's control connection as the host's Tailscale daemon reports it, not where video and audio travel. Play Setup's readout was checked on a local network and over cellular. The chip's Tailscale states haven't been seen on a device yet, and peer relay and split-tunnel cases haven't been tried on real networks.
+- **Explain this reading with AI** needs an AI provider the host offers to Nova. Its request hasn't been seen from Nova on a device yet.
+- SGSR 1 had one hands-on look, on a Retroid Pocket 6 with one scene of Control: to the player, 720p with the usual scaling and 720p upscaled by SGSR 1 looked alike, and native 1080p looked nicer. It doesn't show SGSR 1 improving the picture, matching native resolution, or lowering latency or bandwidth.
+- Native packet reception reports were checked on a Retroid Pocket 6, where the throttle never held a report back. Whether they make a stream play better isn't measured.
+- A Heroic game in Host Virtual Display may keep running after End Session. Prefer Private Stream for Heroic games.
 
 **Before you update**
 
+- Stable Android APKs keep their names and install over Nova 1.4.13. The separate Nova Beta app (`com.papi.nova.pre`) keeps its own pairing and settings; installing stable Nova doesn't change it.
 - Keep in Step starts on for new pairings.
-- Android beta APKs are named `Nova-Beta-Android-<abi>.apk`, install beside stable Nova, and follow the beta update channel. Numbered builds identify themselves as `1.5.0-beta.2`. New pairings use Beta instead of Pre; an existing host-stored pairing name changes only after pairing again.
-- Linux uses the same app ID when replacing an older bundle. Keep its app data and do not uninstall with `--delete-data`.
-- The Steam controls and the Tailscale readout need a Polaris 1.5.0 beta.2 host. An older host shows a reason instead. On an older host, Host Console opens as before, and Launch starts the game on the host.
-- 1.5.0-beta.2 installs over Nova Beta 1.4.14-beta.1, and the beta update channel offers it.
+- Nova Linux keeps the same app ID when replacing an older bundle. Keep its app data and never uninstall with `--delete-data`.
+- The Steam controls, the Tailscale readout and chip, Launch from Host Console to this device and Explain this reading with AI need Polaris 1.5.0. An older host says so; Host Console opens as before there, and Launch starts the game on the host.
+
+**Downloads**
+
+| Your device | File |
+| --- | --- |
+| Most Android phones, handhelds, tablets and TVs | `Nova-Android-arm64-v8a.apk` |
+| 32-bit Android, including Shield models with a 32-bit app ABI | `Nova-Android-armeabi-v7a.apk` |
+| Android x86_64 devices and emulators | `Nova-Android-x86_64.apk` |
+| Linux and Steam Deck (Beta) | The guided installer from [Get Nova](https://papi-ux.com/downloads/?product=nova) for signed updates, or `Nova-Linux-x86_64-alpha.flatpak` |
+| Steam Frame (Beta) | The guided installer from [Get Nova](https://papi-ux.com/downloads/?product=nova); no Frame bundle is attached to this release |
+
+Each attached file has a `.sha256` checksum beside it. Choose Android by its app ABI, not the processor name. The Linux bundle keeps its old `alpha` filename for compatibility; the client is Beta.
+
+Thank you to everyone who ran the betas and sent logs, screenshots and reports, they shaped this release. If something's off, just hit me up on [Matrix](https://matrix.to/#/#papi-ux:papi-ux.com) or open an [issue](https://github.com/papi-ux/nova/issues)!
 
 ## 1.4.13 - 2026-09-24
 

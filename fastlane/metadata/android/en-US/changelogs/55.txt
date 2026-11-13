@@ -1,0 +1,13 @@
+Nova 1.5.0
+
+A Library built around the game you're about to play, with artwork tints and one-press Resume.
+
+Play Setup offers stream tiers that fit your device, and Command Center explains Live Tuning and your bitrate.
+
+Steam Controller (2026) works natively over USB, its Puck or Bluetooth.
+
+With Polaris 1.5.0, launch from Host Console to this device and control Steam from the couch.
+
+Report This Moment, Working baseline and Last Stream stay on your device.
+
+Controller, TV and TalkBack fixes.
