@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QJsonDocument>
+#include <QSslCertificate>
 #include <QSslSocket>
 #include <QSslKey>
 #include <QSslConfiguration>
@@ -120,6 +121,51 @@ struct Peer {
         return {PairStatus::Ok, xml(reply)};
     }
 };
+
+// A fixed self-signed certificate (no key) and its signature value, read from its DER independently, so
+// certificateSignature() is pinned to the exact bytes the pairing hashes use.
+const QByteArray kFixtureCertificate =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIC+DCCAeCgAwIBAgIULhvXi5DJuAMVvZB86n1eNGbia9cwDQYJKoZIhvcNAQEL\n"
+    "BQAwHDEaMBgGA1UEAwwRTm92YSBMaW51eCBDbGllbnQwHhcNMjYxMTE2MTYyMDIy\n"
+    "WhcNNDYxMTExMTYyMDIyWjAcMRowGAYDVQQDDBFOb3ZhIExpbnV4IENsaWVudDCC\n"
+    "ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJDZEmNXltONWXuQOjqtdxNN\n"
+    "Lp5EGIY1xc2Lb0bwfnkERtz6D2Vz+bedRm64MukNGZbKQhhzePxLJ0K59089Tf8d\n"
+    "UjXwg9fpjgs0iXqNjxpQYE827yRVNRXZ47oc2VA3Ue52PL2jz6Xg3X3i59ZjsieT\n"
+    "N280F74R3y53f12HyK+VumoPPvYdm5IEIxyXqXp6+Su2xPSKgsXLqDmv5KTTe6CT\n"
+    "s2jwRcBCf8NHtEhIudMz/nmUP7UE5jDowqelG+iomFXdBMYzlzR0QG1fbjM/1QjU\n"
+    "3mZKCmAD1Q+E3i7+i4QtPB9dIAgl/Ws5uJOkDEmO00/8TrjKOp/xiojFAk8y8O0C\n"
+    "AwEAAaMyMDAwHQYDVR0OBBYEFPsixgNCC/+6oopiR0n48VgVT2hhMA8GA1UdEwEB\n"
+    "/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAC2FSNtbVVEECPiiE0HlQFW+WM7r\n"
+    "uMK/bfeWWHilN4SPuBs+dllQfEtj42JdNdv2MiODV97XXw9rgF1BGtx633/5pTsV\n"
+    "0krqbxdhu2xgar9DDSIUwRC60jtPYCBMtmpD69pJP31eEELEzvZvuY2k2N/W1s64\n"
+    "gsxRksMBtR+drFuVtJs0kWK9IBtrPhAd4Y1JsSk2y5U51atJualc1A3Mnu20IpQ2\n"
+    "CdN02qBkbhri15WMUOIe6Os0esrk4jLEicVmcKQkwuhp1sTN3W44IHFqSPGc4yFg\n"
+    "ltXHEJCMXzxrSqqcMBcUUg6FdY8mZAERnD93vubJU+2FTfWd5gl0dahKMCA=\n"
+    "-----END CERTIFICATE-----\n";
+const QByteArray kFixtureSignatureHex =
+    "2d8548db5b55510408f8a21341e54055be58ceebb8c2bf6df7965878a537848fb81b3e7659507c4b63e3625d35dbf632"
+    "238357ded75f0f6b805d411adc7adf7ff9a53b15d24aea6f1761bb6c606abf430d2214c110bad23b4f60204cb66a43eb"
+    "da493f7d5e1042c4cef66fb98da4d8dfd6d6ceb882cc5192c301b51f9dac5b95b49b349162bd201b6b3e101de18d49b1"
+    "2936cb9539d5ab49b9a95cd40dcc9eedb422943609d374daa0646e1ae2d7958c50e21ee8eb347acae4e232c489c56670"
+    "a424c2e869d6c4cddd6e3820716a48f19ce3216096d5c710908c5f3c6b4aaa9c301714520e85758f266401119c3f77be"
+    "e6c953ed854df59de6097475a84a3020";
+
+// The generated client identity stays what hosts have paired with: CN=Nova Linux Client as subject and
+// issuer, X.509 v3, 20 years from 300 s back, SHA-256 with RSA and a 2048-bit key.
+void testCertificateIdentity(const crypto::Credentials& client) {
+    const auto certificates = QSslCertificate::fromData(client.certificate, QSsl::Pem);
+    require(certificates.size() == 1, "generated certificate does not parse");
+    const auto& certificate = certificates.first();
+    require(certificate.subjectInfo(QSslCertificate::CommonName) == QStringList{QStringLiteral("Nova Linux Client")}, "subject CN changed");
+    require(certificate.issuerInfo(QSslCertificate::CommonName) == QStringList{QStringLiteral("Nova Linux Client")}, "issuer CN changed");
+    require(certificate.version() == "3", "certificate is not X.509 v3");
+    const auto window = certificate.effectiveDate().secsTo(certificate.expiryDate());
+    require(window >= 20LL * 365 * 24 * 60 * 60 + 300 && window <= 20LL * 365 * 24 * 60 * 60 + 301, "validity window changed");
+    require(certificate.toText().contains(QStringLiteral("sha256WithRSAEncryption")), "signature algorithm changed");
+    require(certificate.publicKey().length() == 2048, "key size changed");
+    require(crypto::certificateSignature(kFixtureCertificate).toHex() == kFixtureSignatureHex, "certificate signature bytes changed");
+}
 
 void testCryptoAndStore(const crypto::Credentials& client, const crypto::Credentials& server) {
     const auto key = QByteArray::fromHex("000102030405060708090a0b0c0d0e0f");
@@ -623,6 +669,7 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     const auto client = credentials(), server = credentials();
     testCryptoAndStore(client, server);
+    testCertificateIdentity(client);
     testTranscript(client, server);
     testTrustedAdmission(client, server);
     testRealNetwork(client, server);

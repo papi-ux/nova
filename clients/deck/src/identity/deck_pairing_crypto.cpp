@@ -49,13 +49,16 @@ std::optional<Credentials> generate() {
     serial[0] = static_cast<char>((static_cast<unsigned char>(serial[0]) & 0x7f) | 1);
     Ptr<BIGNUM, BN_free> number(BN_bin2bn(reinterpret_cast<const unsigned char*>(serial.constData()), serial.size(), nullptr), BN_free);
     Ptr<ASN1_INTEGER, ASN1_INTEGER_free> serialNumber(number ? BN_to_ASN1_INTEGER(number.get(), nullptr) : nullptr, ASN1_INTEGER_free);
-    auto* name = X509_get_subject_name(cert.get());
-    if (!serialNumber || !X509_set_version(cert.get(), 2) || !X509_set_serialNumber(cert.get(), serialNumber.get()) ||
+    // The certificate's own subject is const from OpenSSL 4, so the name is built here and set as
+    // both subject and issuer; both setters copy it.
+    Ptr<X509_NAME, X509_NAME_free> name(X509_NAME_new(), X509_NAME_free);
+    if (!serialNumber || !name || !X509_set_version(cert.get(), 2) || !X509_set_serialNumber(cert.get(), serialNumber.get()) ||
         !X509_gmtime_adj(X509_getm_notBefore(cert.get()), -300) ||
         !X509_gmtime_adj(X509_getm_notAfter(cert.get()), 20L * 365 * 24 * 60 * 60) ||
-        !X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+        !X509_NAME_add_entry_by_txt(name.get(), "CN", MBSTRING_ASC,
             reinterpret_cast<const unsigned char*>("Nova Linux Client"), -1, -1, 0) ||
-        !X509_set_issuer_name(cert.get(), name) || !X509_set_pubkey(cert.get(), key.get()) ||
+        !X509_set_subject_name(cert.get(), name.get()) ||
+        !X509_set_issuer_name(cert.get(), name.get()) || !X509_set_pubkey(cert.get(), key.get()) ||
         X509_sign(cert.get(), key.get(), EVP_sha256()) <= 0) return std::nullopt;
     Ptr<BIO, BIO_free> certBio(BIO_new(BIO_s_mem()), BIO_free), keyBio(BIO_new(BIO_s_mem()), BIO_free);
     if (!certBio || !keyBio || !PEM_write_bio_X509(certBio.get(), cert.get()) ||
@@ -86,7 +89,9 @@ QByteArray certificateSignature(const QByteArray& pem) {
     if (!cert) return {};
     const ASN1_BIT_STRING* signature = nullptr;
     X509_get0_signature(&signature, nullptr, cert.get());
-    return signature ? QByteArray(reinterpret_cast<const char*>(signature->data), signature->length) : QByteArray{};
+    // ASN1_STRING is opaque from OpenSSL 4; these accessors return the same bytes on OpenSSL 3.
+    return signature ? QByteArray(reinterpret_cast<const char*>(ASN1_STRING_get0_data(signature)),
+                                  ASN1_STRING_length(signature)) : QByteArray{};
 }
 
 QByteArray sha256(const QByteArray& bytes) {
