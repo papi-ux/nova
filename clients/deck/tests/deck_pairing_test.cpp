@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QSslCertificate>
+#include <QSslCertificateExtension>
 #include <QSslSocket>
 #include <QSslKey>
 #include <QSslConfiguration>
@@ -164,6 +165,11 @@ void testCertificateIdentity(const crypto::Credentials& client) {
     require(window >= 20LL * 365 * 24 * 60 * 60 + 300 && window <= 20LL * 365 * 24 * 60 * 60 + 301, "validity window changed");
     require(certificate.toText().contains(QStringLiteral("sha256WithRSAEncryption")), "signature algorithm changed");
     require(certificate.publicKey().length() == 2048, "key size changed");
+    // Subject and issuer are the same single CN, encoded byte for byte as before (a UTF8String), and the
+    // certificate carries no extensions.
+    const auto nameDer = QByteArray::fromHex("301c311a301806035504030c114e6f7661204c696e757820436c69656e74");
+    require(crypto::certificateDer(client.certificate).count(nameDer) == 2, "subject or issuer encoding changed");
+    require(certificate.extensions().isEmpty(), "certificate gained extensions");
     require(crypto::certificateSignature(kFixtureCertificate).toHex() == kFixtureSignatureHex, "certificate signature bytes changed");
 }
 
