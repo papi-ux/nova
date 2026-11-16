@@ -16,7 +16,8 @@ on:
 jobs:
   verify:
     name: Lint and unit test
-    runs-on: ubuntu-latest
+    # ubuntu-latest moves to newer images, so every job pins the image the release was checked on.
+    runs-on: ubuntu-24.04
     outputs:
       source_commit: ${{ steps.source.outputs.commit }}
 
@@ -58,7 +59,7 @@ jobs:
 
   deck:
     name: Linux client build and tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Arch supplies the current Qt APIs used by the Linux client and also covers
     # SteamOS's Arch lineage. The distributable Flatpak uses its pinned KDE runtime.
     container: archlinux:latest
@@ -115,7 +116,7 @@ jobs:
 
   deck-pyrowave:
     name: Linux Release codec-on build and tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     container:
       image: archlinux:latest
@@ -167,7 +168,7 @@ jobs:
     # the tagged source in the runtime its manifest names. Manual runs build it too, so a
     # release tag is never the first time the bundle is built.
     if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
       options: --privileged
@@ -211,7 +212,7 @@ jobs:
     name: Emulator smoke test
     needs: verify
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_emulator_smoke }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
 
     steps:
@@ -260,7 +261,7 @@ jobs:
     # A tag requires the standard Linux bundle, including PyroWave and its lazy probe.
     # Its job is skipped on ordinary pushes, but tags cannot release without it.
     if: ${{ always() && needs.verify.result == 'success' && needs.deck-pyrowave.result == 'success' && (needs.android-smoke.result == 'success' || needs.android-smoke.result == 'skipped') && (needs.deck-flatpak.result == 'success' || (needs.deck-flatpak.result == 'skipped' && !startsWith(github.ref, 'refs/tags/v'))) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
