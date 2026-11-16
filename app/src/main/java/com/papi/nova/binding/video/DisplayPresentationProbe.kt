@@ -22,7 +22,7 @@ object DisplayPresentationProbe {
             return DisplayFacts(sdkInt = sdkInt, hasArrSupport = null, modeRefreshHz = 0f)
         }
         val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) runCatching { display.mode }.getOrNull() else null
-        val modeHz = mode?.refreshRate ?: runCatching { display.refreshRate }.getOrDefault(0f)
+        val modeHz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mode != null) mode.refreshRate else runCatching { display.refreshRate }.getOrDefault(0f)
         val supported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mode != null) {
             runCatching {
                 display.supportedModes
