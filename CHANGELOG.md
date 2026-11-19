@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.5.0 - 2026-11-12
+## 1.5.0 - 2026-11-19
 
 There's a lot in this one, which is why it's 1.5.0 and not 1.4.14. The Library is built around the game you're about to play, Play Setup offers stream choices that fit your device, Command Center explains what Live Tuning and your bitrate are doing, and Nova Linux, Steam Deck and Steam Frame get the same care as Android, now with signed updates. On Android you can launch from the host's console, use a Steam Controller (2026) natively and drive Steam from the couch. When something looks off, you can keep a record of the stream on your device without sending anything anywhere. Your pairings, saved setups and artwork stay yours.
 

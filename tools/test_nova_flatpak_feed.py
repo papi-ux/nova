@@ -55,7 +55,7 @@ class FeedTests(unittest.TestCase):
                     metadata = ET.fromstring(output.read_bytes())
                     releases = metadata.findall("./releases/release")
                     self.assertEqual(releases[0].attrib["version"], "1.5.0" + suffix)
-                    self.assertEqual(releases[0].attrib["type"], "development")
+                    self.assertNotIn("type", releases[0].attrib)
                     self.assertEqual(releases[1].attrib["version"], "1.4.13")
                     self.assertEqual(output.read_bytes(), original.replace(b'version="1.5.0"', ('version="1.5.0' + suffix + '"').encode(), 1))
             self.assertEqual(source.read_bytes(), original)

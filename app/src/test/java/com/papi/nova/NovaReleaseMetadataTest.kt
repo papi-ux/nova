@@ -126,7 +126,7 @@ class NovaReleaseMetadataTest {
         )
         assertTrue(
             File(root, "clients/deck/packaging/flatpak/com.papi_ux.Nova.metainfo.xml").readText()
-                .contains("<release version=\"1.5.0\" type=\"development\" date=\"2026-10-12\"/>"),
+                .contains("<release version=\"1.5.0\" date=\"2026-11-19\"/>"),
         )
         // Development builds advance to code 55. Keep 1.4.13's store notes under 54
         // until the next release's notes are prepared.
